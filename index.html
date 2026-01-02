@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <title>The Deal Hunter – Ethical Deals</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f4ede3ff;
+      color: #2d2d2d;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+      text-align: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.3rem;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .brand-logo {
+      width: 600px;
+      height: auto;
+      object-fit: contain;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Form centered under logo */
+    form {
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+      flex-wrap: wrap;
+      gap: 1rem;
+      width: 100%;
+      max-width: 650px;
+      margin: 0 auto;
+    }
+
+    .input-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 220px;
+      flex: 1 1 200px;
+    }
+
+    /* Base input style */
+    input[type="text"],
+    input[type="search"],
+    input[type="number"],
+    input[type="email"],
+    input[type="tel"] {
+      width: 100%;
+      height: 42px;
+      padding: 0 0.75rem;
+      border-radius: 0.5rem;
+      border: 1px solid #8fa178;
+      background: #fafdf4;
+      font-size: 1rem;
+      box-sizing: border-box;
+      transition:
+        box-shadow 0.2s ease,
+        border-color 0.2s ease,
+        background-color 0.2s ease;
+      color: #444; /* dark grey text */
+    }
+
+    input::placeholder {
+      color: #444; /* dark grey placeholder */
+      opacity: 1;
+    }
+
+    /* Glow for active input */
+    .input-glow {
+      border-color: #7fa26a;
+      box-shadow: 0 0 0 2px #7fa26a55;
+    }
+
+    /* MODEL inactive state: same color as screen background */
+    .model-inactive {
+      background: #faf5f2ff; /* same as body background */
+      cursor: not-allowed;
+    }
+
+    /* MODEL active: white and usable */
+    .model-active {
+      background: #ffffff;
+      cursor: text;
+    }
+
+    /* Suggestions dropdown */
+    .suggestions {
+      position: absolute;
+      top: 46px; /* just below 42px input */
+      left: 0;
+      right: 0;
+      background: #ffffff;
+      border: 1px solid #8fa178;
+      border-radius: 0.5rem;
+      margin-top: 0.15rem;
+      max-height: 180px;
+      overflow-y: auto;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+      z-index: 10;
+      padding: 0.25rem 0;
+      display: none;
+    }
+
+    .suggestion-item {
+      padding: 0.25rem 0.75rem;
+      text-align: left;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .suggestion-item:hover {
+      background: #eef4e7;
+    }
+
+    /* Base button style */
+    button {
+      border: none;
+      border-radius: 0.75rem;
+      background: #7fa26a;
+      color: white;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .button-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
+
+    /* Search button: content centered */
+    .search-btn {
+      height: 42px;
+      border-radius: 0.5rem;
+      border: 1px solid #8fa178;
+      background: #7fa26a;
+      padding: 0 0.75rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+    }
+
+    .search-btn:hover {
+      background: #6b8f57;
+    }
+
+    .status {
+      font-size: 0.95rem;
+      color: #2d3c22;
+      margin-top: 0.5rem;
+    }
+
+    .results {
+      margin-top: 1.25rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      width: 100%;
+      max-width: 850px;
+    }
+
+    .card {
+      background: #ffffffc9;
+      border-radius: 0.75rem;
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .card img {
+      width: 100%;
+      border-radius: 0.6rem;
+      object-fit: contain;
+      max-height: 170px;
+      background: #fafafa;
+    }
+
+    .card-title { font-size: 0.92rem; font-weight: 600; }
+
+    .card-meta {
+      font-size: 0.82rem;
+      color: #49543a;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .price { font-weight: 700; color: #3b5b26; }
+
+    .alert-section {
+      width: 100%;
+      max-width: 600px;
+      margin-top: 1.25rem;
+      padding: 1rem;
+      border-radius: 0.75rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 0.7rem;
+      background: #eef4e7c0;
+    }
+
+    .alert-section input {
+      width: 100%;
+      padding: 0.45rem 0.65rem;
+      border-radius: 0.5rem;
+      border: 1px solid #8fa178;
+      background: #fafdf4;
+      font-size: 0.95rem;
+      box-sizing: border-box;
+      color: #444;
+    }
+
+    .alert-section input::placeholder {
+      color: #666;
+    }
+
+    .fine-print {
+      grid-column: 1 / -1;
+      font-size: 0.8rem;
+      color: #34452a;
+      margin-top: 0.2rem;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- BRAND LOGO -->
+    <div class="brand">
+      <img src="http://storage.proboards.com/7187966/images/mFtuiMfMGFAdfeEpHsnX.png" class="brand-logo" alt="Logo">
+    </div>
+
+    <!-- SEARCH -->
+    <form id="search-form">
+      <div class="input-wrapper">
+        <input id="brand" type="text" placeholder="Type in Shoe Brand 🐾" autocomplete="off" required="" class="input-glow" data-placeholder="Type in Shoe Brand 🐾">
+        <div id="brandSuggestions" class="suggestions" style="display: none;"></div>
+      </div>
+
+      <div class="input-wrapper">
+        <input id="model" type="text" placeholder="" autocomplete="off" required="" class="model-inactive" data-placeholder="Type in Shoe Model 🐾" disabled="">
+        <div id="modelSuggestions" class="suggestions" style="display: none;"></div>
+      </div>
+
+      <div class="button-wrapper">
+        <button type="submit" class="search-btn">🔍 Fetch!</button>
+      </div>
+    </form>
+
+    <div class="status" id="status">Let's find your <b>running shoes</b>...cheap!</div>
+
+    <!-- Search Results -->
+    <div class="results" id="results"></div>
+
+    <!-- Alerts – hidden until results shown -->
+    <div id="alertWrapper" style="display:none;">
+      <div class="alert-section">
+        <div>
+          <label for="alertPrice">Alert me when ≤</label>
+          <input id="alertPrice" type="number" step="0.01" placeholder="120.00">
+        </div>
+        <div>
+          <label for="alertEmail">Email (optional)</label>
+          <input id="alertEmail" type="email" placeholder="you@example.com">
+        </div>
+        <div>
+          <label for="alertPhone">Phone (optional)</label>
+          <input id="alertPhone" type="tel" placeholder="+1...">
+        </div>
+        <div class="fine-print">
+          💡 Alerts continue until canceled.
+        </div>
+        <button id="saveAlertBtn">📩 Save Alert</button>
+      </div>
+      <div class="status" id="alertStatus"></div>
+    </div>
+
+  </div>
+
+<script>
+  const form = document.getElementById("search-form");
+  const statusEl = document.getElementById("status");
+  const resultsEl = document.getElementById("results");
+  const alertWrapper = document.getElementById("alertWrapper");
+  const saveAlertBtn = document.getElementById("saveAlertBtn");
+  const alertStatusEl = document.getElementById("alertStatus");
+
+  const brandInput = document.getElementById("brand");
+  const modelInput = document.getElementById("model");
+  const brandSuggestions = document.getElementById("brandSuggestions");
+  const modelSuggestions = document.getElementById("modelSuggestions");
+
+  const brandModels = {
+    "Asics": ["Novablast","Gel-Kayano","Gel-Nimbus","Gel-Cumulus","Metaspeed Sky"],
+    "Nike": ["Pegasus","ZoomX Vaporfly","Alphafly","Infinity Run","Structure"],
+    "Adidas": ["Adizero Adios","Adizero Boston","Adizero Takumi Sen","Supernova","Ultraboost Light"],
+    "Brooks": ["Ghost","Glycerin","Adrenaline GTS","Launch","Hyperion"],
+    "Saucony": ["Ride","Endorphin Speed","Endorphin Pro","Kinvara","Triumph","Guide"],
+    "Hoka": ["Clifton","Bondi","Mach","Rincon","Arahi","Carbon X"],
+    "New Balance": ["Fresh Foam 1080","FuelCell Rebel","Fresh Foam X 880","Fresh Foam More","RC Elite"],
+    "On": ["Cloudsurfer","Cloudmonster","Cloudflow","Cloudstratus","Cloudboom Echo"],
+    "Altra": ["Escalante","Torin","Lone Peak","Paradigm","Provision"],
+    "Mizuno": ["Wave Rider","Wave Inspire","Wave Rebellion","Wave Sky"],
+    "Puma": ["Deviate Nitro","Velocity Nitro","Magnify Nitro"],
+    "Under Armour": ["HOVR Machina","HOVR Infinite","Charged Assert"],
+    "Skechers": ["GOrun Ride","GOrun Razor","MaxRoad"],
+    "Salomon": ["S/Lab Pulsar","Sense Ride","Ultra Glide"],
+    "Topo Athletic": ["Ultrafly","Phantom","Fly Lite"],
+    "Diadora": ["Mythos Blushield","Equilibrium","Elite Volo"],
+    "Karhu": ["Fusion","Ikoni","Synchron"],
+    "Reebok": ["Floatride Energy","Floatride Run Fast"]
+  };
+
+  const brands = Object.keys(brandModels).sort();
+
+  function resolveBrand() {
+    return brandInput.value.trim();
+  }
+
+  function resolveModel() {
+    return modelInput.value.trim();
+  }
+
+  function filterStartsWith(list, text) {
+    if (!text) return [];
+    const lower = text.toLowerCase();
+    return list.filter(item => item.toLowerCase().startsWith(lower));
+  }
+
+  function showSuggestions(container, items, onClickItem) {
+    container.innerHTML = "";
+    if (!items.length) {
+      container.style.display = "none";
+      return;
+    }
+    items.forEach(value => {
+      const div = document.createElement("div");
+      div.className = "suggestion-item";
+      div.textContent = value;
+      div.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // prevent blur before click
+        onClickItem(value);
+      });
+      container.appendChild(div);
+    });
+    container.style.display = "block";
+  }
+
+  // Helpers for model field state
+  function enableModel() {
+    modelInput.disabled = false;
+    modelInput.classList.remove("model-inactive");
+    modelInput.classList.add("model-active", "input-glow");
+  }
+
+  function resetModelState() {
+    modelInput.disabled = true;
+    modelInput.value = "";
+    modelInput.placeholder = "";
+    modelInput.classList.remove("model-active", "input-glow");
+    modelInput.classList.add("model-inactive");
+    modelSuggestions.style.display = "none";
+  }
+
+  function confirmBrandSelection() {
+    // Only show placeholder once brand is "confirmed"
+    if (!modelInput.disabled) {
+      modelInput.placeholder = "Type in Shoe Model 🐾";
+    }
+  }
+
+  // Initial state
+  resetModelState();
+
+  // BRAND input: handle suggestions + model activation
+  brandInput.addEventListener("input", () => {
+    const brand = brandInput.value.trim();
+
+    // Activate / deactivate model box (but don't show placeholder yet)
+    if (brand) {
+      enableModel();
+    } else {
+      resetModelState();
+    }
+
+    // Brand suggestions
+    const matches = filterStartsWith(brands, brand);
+    showSuggestions(brandSuggestions, matches, (value) => {
+      brandInput.value = value;
+      brandInput.focus();
+      brandSuggestions.style.display = "none";
+
+      const event = new Event("input");
+      brandInput.dispatchEvent(event);
+
+      // Brand explicitly selected from dropdown -> show model placeholder
+      confirmBrandSelection();
+    });
+  });
+
+  // BRAND: hide placeholder on focus, restore on blur if empty
+  brandInput.addEventListener("focus", () => {
+    brandInput.dataset.placeholder = brandInput.placeholder;
+    brandInput.placeholder = "";
+  });
+
+  brandInput.addEventListener("blur", () => {
+    setTimeout(() => {
+      brandSuggestions.style.display = "none";
+    }, 120);
+
+    if (!brandInput.value.trim()) {
+      brandInput.placeholder = brandInput.dataset.placeholder || "Type in Shoe Brand 🐾";
+    }
+  });
+
+  // BRAND: hitting Enter confirms brand, moves to model instead of submitting
+  brandInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      const brand = brandInput.value.trim();
+      if (brand) {
+        e.preventDefault(); // don't submit form yet
+        enableModel();
+        confirmBrandSelection();
+        modelInput.focus();
+      }
+    }
+  });
+
+  // MODEL input: suggestions based on brand's known models
+  modelInput.addEventListener("input", () => {
+    const brand = resolveBrand();
+    const text = modelInput.value.trim();
+
+    if (!brand || !brandModels[brand]) {
+      modelSuggestions.style.display = "none";
+      return;
+    }
+
+    const models = brandModels[brand];
+    const matches = filterStartsWith(models, text);
+    showSuggestions(modelSuggestions, matches, (value) => {
+      modelInput.value = value;
+      modelInput.focus();
+      modelSuggestions.style.display = "none";
+    });
+  });
+
+  // MODEL: hide/restore placeholder on focus/blur
+  modelInput.addEventListener("focus", () => {
+    if (!modelInput.disabled) {
+      modelInput.dataset.placeholder = modelInput.placeholder;
+      modelInput.placeholder = "";
+    }
+  });
+
+  modelInput.addEventListener("blur", () => {
+    setTimeout(() => {
+      modelSuggestions.style.display = "none";
+    }, 120);
+
+    if (!modelInput.value.trim() && !modelInput.disabled) {
+      modelInput.placeholder = modelInput.dataset.placeholder || "Type in Shoe Model 🐾";
+    }
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const brand = resolveBrand();
+    const model = resolveModel();
+
+    if (!brand || !model) {
+      statusEl.textContent = "Please provide a brand & model.";
+      return;
+    }
+
+    statusEl.textContent = "Searching deals…";
+    resultsEl.innerHTML = "";
+
+    const query = `${brand} ${model}`;
+    const res = await fetch("/api/search?" + new URLSearchParams({ query }));
+    const data = await res.json();
+    const results = data.results || [];
+
+    if (!results.length) {
+      statusEl.textContent = "No results.";
+      return;
+    }
+
+    statusEl.textContent = `Top ${results.length} deal(s) found.`;
+    resultsEl.innerHTML = "";
+
+    results.forEach(item => {
+      const card = document.createElement("div");
+      card.className = "card";
+
+      if (item.image) {
+        const img = document.createElement("img");
+        img.src = item.image;
+        img.alt = item.title;
+        card.appendChild(img);
+      }
+
+      const t = document.createElement("div");
+      t.className = "card-title";
+      t.textContent = item.title;
+      card.appendChild(t);
+
+      const meta = document.createElement("div");
+      meta.className = "card-meta";
+      meta.innerHTML = `<span class="price">$${item.price?.toFixed(2) || "—"}</span><span>${item.store}</span>`;
+      card.appendChild(meta);
+
+      const link = document.createElement("a");
+      link.textContent = "View Deal";
+      link.target = "_blank";
+      link.href = item.url;
+      card.appendChild(link);
+
+      resultsEl.appendChild(card);
+    });
+
+    alertWrapper.style.display = "block";
+  });
+
+  saveAlertBtn.addEventListener("click", async () => {
+    const brand = resolveBrand();
+    const model = resolveModel();
+    const product = `${brand} ${model}`;
+    const alertPrice = document.getElementById("alertPrice").value.trim();
+    const email = document.getElementById("alertEmail").value.trim();
+    const phone = document.getElementById("alertPhone").value.trim();
+
+    const res = await fetch("/api/alerts", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({ product, targetPrice: alertPrice, email, phone })
+    });
+
+    const data = await res.json();
+    alertStatusEl.textContent =
+      res.ok ? "Alert saved!" : (data.error || "Could not save.");
+  });
+</script>
+
+</body></html>
