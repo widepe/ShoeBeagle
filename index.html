@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-  
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
   <title>Shoe Beagle--The Running Shoe Deal Finder</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
     body {
@@ -40,7 +41,6 @@
       margin-bottom: 0.5rem;
     }
 
-    /* Form centered under logo */
     form {
       display: flex;
       justify-content: center;
@@ -59,7 +59,6 @@
       flex: 1 1 200px;
     }
 
-    /* Base input style */
     input[type="text"],
     input[type="search"],
     input[type="number"],
@@ -77,36 +76,32 @@
         box-shadow 0.2s ease,
         border-color 0.2s ease,
         background-color 0.2s ease;
-      color: #444; /* dark grey text */
+      color: #444;
     }
 
     input::placeholder {
-      color: #444; /* dark grey placeholder */
+      color: #444;
       opacity: 1;
     }
 
-    /* Glow for active input */
     .input-glow {
       border-color: #7fa26a;
       box-shadow: 0 0 0 2px #7fa26a55;
     }
 
-    /* MODEL inactive state: same color as screen background */
     .model-inactive {
-      background: #faf5f2ff; /* same as body background */
+      background: #faf5f2ff;
       cursor: not-allowed;
     }
 
-    /* MODEL active: white and usable */
     .model-active {
       background: #ffffff;
       cursor: text;
     }
 
-    /* Suggestions dropdown */
     .suggestions {
       position: absolute;
-      top: 46px; /* just below 42px input */
+      top: 46px;
       left: 0;
       right: 0;
       background: #ffffff;
@@ -132,7 +127,6 @@
       background: #eef4e7;
     }
 
-    /* Base button style */
     button {
       border: none;
       border-radius: 0.75rem;
@@ -150,7 +144,6 @@
       flex: 0 0 auto;
     }
 
-    /* Search button: content centered */
     .search-btn {
       height: 42px;
       border-radius: 0.5rem;
@@ -233,9 +226,7 @@
       color: #444;
     }
 
-    .alert-section input::placeholder {
-      color: #666;
-    }
+    .alert-section input::placeholder { color: #666; }
 
     .fine-print {
       grid-column: 1 / -1;
@@ -248,22 +239,19 @@
 
 <body>
   <div class="app">
-
-    <!-- BRAND LOGO -->
     <div class="brand">
       <img src="http://storage.proboards.com/7187966/images/mFtuiMfMGFAdfeEpHsnX.png" class="brand-logo" alt="Logo">
     </div>
 
-    <!-- SEARCH -->
     <form id="search-form">
       <div class="input-wrapper">
-        <input id="brand" type="text" placeholder="Type in Shoe Brand 🐾" autocomplete="off" required="" class="input-glow" data-placeholder="Type in Shoe Brand 🐾">
-        <div id="brandSuggestions" class="suggestions" style="display: none;"></div>
+        <input id="brand" type="text" placeholder="Type in Shoe Brand 🐾" autocomplete="off" required class="input-glow" data-placeholder="Type in Shoe Brand 🐾">
+        <div id="brandSuggestions" class="suggestions"></div>
       </div>
 
       <div class="input-wrapper">
-        <input id="model" type="text" placeholder="" autocomplete="off" required="" class="model-inactive" data-placeholder="Type in Shoe Model 🐾" disabled="">
-        <div id="modelSuggestions" class="suggestions" style="display: none;"></div>
+        <input id="model" type="text" placeholder="" autocomplete="off" required class="model-inactive" data-placeholder="Type in Shoe Model 🐾" disabled>
+        <div id="modelSuggestions" class="suggestions"></div>
       </div>
 
       <div class="button-wrapper">
@@ -273,10 +261,13 @@
 
     <div class="status" id="status">Let's find your <b>running shoes</b>...cheap!</div>
 
-    <!-- Search Results -->
     <div class="results" id="results"></div>
 
-    <!-- Alerts – hidden until results shown -->
+    <!-- ✅ Transparency note belongs in the HTML, not inside the script -->
+    <p style="font-size:0.8rem; color:#555; max-width: 850px; margin: 0.25rem auto 0;">
+      Prices may change. Links may become affiliate links in the future.
+    </p>
+
     <div id="alertWrapper" style="display:none;">
       <div class="alert-section">
         <div>
@@ -291,288 +282,240 @@
           <label for="alertPhone">Phone (optional)</label>
           <input id="alertPhone" type="tel" placeholder="+1...">
         </div>
-        <div class="fine-print">
-          💡 Alerts continue until canceled.
-        </div>
+        <div class="fine-print">💡 Alerts continue until canceled.</div>
         <button id="saveAlertBtn">📩 Save Alert</button>
       </div>
       <div class="status" id="alertStatus"></div>
     </div>
-
   </div>
 
-<script>
-  const form = document.getElementById("search-form");
-  const statusEl = document.getElementById("status");
-  const resultsEl = document.getElementById("results");
-  const alertWrapper = document.getElementById("alertWrapper");
-  const saveAlertBtn = document.getElementById("saveAlertBtn");
-  const alertStatusEl = document.getElementById("alertStatus");
+  <script>
+    const form = document.getElementById("search-form");
+    const statusEl = document.getElementById("status");
+    const resultsEl = document.getElementById("results");
+    const alertWrapper = document.getElementById("alertWrapper");
+    const saveAlertBtn = document.getElementById("saveAlertBtn");
+    const alertStatusEl = document.getElementById("alertStatus");
 
-  const brandInput = document.getElementById("brand");
-  const modelInput = document.getElementById("model");
-  const brandSuggestions = document.getElementById("brandSuggestions");
-  const modelSuggestions = document.getElementById("modelSuggestions");
+    const brandInput = document.getElementById("brand");
+    const modelInput = document.getElementById("model");
+    const brandSuggestions = document.getElementById("brandSuggestions");
+    const modelSuggestions = document.getElementById("modelSuggestions");
 
-  const brandModels = {
-    "Asics": ["Novablast","Gel-Kayano","Gel-Nimbus","Gel-Cumulus","Metaspeed Sky"],
-    "Nike": ["Pegasus","ZoomX Vaporfly","Alphafly","Infinity Run","Structure"],
-    "Adidas": ["Adizero Adios","Adizero Boston","Adizero Takumi Sen","Supernova","Ultraboost Light"],
-    "Brooks": ["Ghost","Glycerin","Adrenaline GTS","Launch","Hyperion"],
-    "Saucony": ["Ride","Endorphin Speed","Endorphin Pro","Kinvara","Triumph","Guide"],
-    "Hoka": ["Clifton","Bondi","Mach","Rincon","Arahi","Carbon X"],
-    "New Balance": ["Fresh Foam 1080","FuelCell Rebel","Fresh Foam X 880","Fresh Foam More","RC Elite"],
-    "On": ["Cloudsurfer","Cloudmonster","Cloudflow","Cloudstratus","Cloudboom Echo"],
-    "Altra": ["Escalante","Torin","Lone Peak","Paradigm","Provision"],
-    "Mizuno": ["Wave Rider","Wave Inspire","Wave Rebellion","Wave Sky"],
-    "Puma": ["Deviate Nitro","Velocity Nitro","Magnify Nitro"],
-    "Under Armour": ["HOVR Machina","HOVR Infinite","Charged Assert"],
-    "Skechers": ["GOrun Ride","GOrun Razor","MaxRoad"],
-    "Salomon": ["S/Lab Pulsar","Sense Ride","Ultra Glide"],
-    "Topo Athletic": ["Ultrafly","Phantom","Fly Lite"],
-    "Diadora": ["Mythos Blushield","Equilibrium","Elite Volo"],
-    "Karhu": ["Fusion","Ikoni","Synchron"],
-    "Reebok": ["Floatride Energy","Floatride Run Fast"]
-  };
+    const brandModels = {
+      "Asics": ["Novablast","Gel-Kayano","Gel-Nimbus","Gel-Cumulus","Metaspeed Sky"],
+      "Nike": ["Pegasus","ZoomX Vaporfly","Alphafly","Infinity Run","Structure"],
+      "Adidas": ["Adizero Adios","Adizero Boston","Adizero Takumi Sen","Supernova","Ultraboost Light"],
+      "Brooks": ["Ghost","Glycerin","Adrenaline GTS","Launch","Hyperion"],
+      "Saucony": ["Ride","Endorphin Speed","Endorphin Pro","Kinvara","Triumph","Guide"],
+      "Hoka": ["Clifton","Bondi","Mach","Rincon","Arahi","Carbon X"],
+      "New Balance": ["Fresh Foam 1080","FuelCell Rebel","Fresh Foam X 880","Fresh Foam More","RC Elite"],
+      "On": ["Cloudsurfer","Cloudmonster","Cloudflow","Cloudstratus","Cloudboom Echo"],
+      "Altra": ["Escalante","Torin","Lone Peak","Paradigm","Provision"],
+      "Mizuno": ["Wave Rider","Wave Inspire","Wave Rebellion","Wave Sky"],
+      "Puma": ["Deviate Nitro","Velocity Nitro","Magnify Nitro"],
+      "Under Armour": ["HOVR Machina","HOVR Infinite","Charged Assert"],
+      "Skechers": ["GOrun Ride","GOrun Razor","MaxRoad"],
+      "Salomon": ["S/Lab Pulsar","Sense Ride","Ultra Glide"],
+      "Topo Athletic": ["Ultrafly","Phantom","Fly Lite"],
+      "Diadora": ["Mythos Blushield","Equilibrium","Elite Volo"],
+      "Karhu": ["Fusion","Ikoni","Synchron"],
+      "Reebok": ["Floatride Energy","Floatride Run Fast"]
+    };
 
-  const brands = Object.keys(brandModels).sort();
+    const brands = Object.keys(brandModels).sort();
 
-  function resolveBrand() {
-    return brandInput.value.trim();
-  }
+    function resolveBrand() { return brandInput.value.trim(); }
+    function resolveModel() { return modelInput.value.trim(); }
 
-  function resolveModel() {
-    return modelInput.value.trim();
-  }
-
-  function filterStartsWith(list, text) {
-    if (!text) return [];
-    const lower = text.toLowerCase();
-    return list.filter(item => item.toLowerCase().startsWith(lower));
-  }
-
-  function showSuggestions(container, items, onClickItem) {
-    container.innerHTML = "";
-    if (!items.length) {
-      container.style.display = "none";
-      return;
+    function filterStartsWith(list, text) {
+      if (!text) return [];
+      const lower = text.toLowerCase();
+      return list.filter(item => item.toLowerCase().startsWith(lower));
     }
-    items.forEach(value => {
-      const div = document.createElement("div");
-      div.className = "suggestion-item";
-      div.textContent = value;
-      div.addEventListener("mousedown", (e) => {
-        e.preventDefault(); // prevent blur before click
-        onClickItem(value);
+
+    function showSuggestions(container, items, onClickItem) {
+      container.innerHTML = "";
+      if (!items.length) { container.style.display = "none"; return; }
+      items.forEach(value => {
+        const div = document.createElement("div");
+        div.className = "suggestion-item";
+        div.textContent = value;
+        div.addEventListener("mousedown", (e) => { e.preventDefault(); onClickItem(value); });
+        container.appendChild(div);
       });
-      container.appendChild(div);
-    });
-    container.style.display = "block";
-  }
-
-  // Helpers for model field state
-  function enableModel() {
-    modelInput.disabled = false;
-    modelInput.classList.remove("model-inactive");
-    modelInput.classList.add("model-active", "input-glow");
-  }
-
-  function resetModelState() {
-    modelInput.disabled = true;
-    modelInput.value = "";
-    modelInput.placeholder = "";
-    modelInput.classList.remove("model-active", "input-glow");
-    modelInput.classList.add("model-inactive");
-    modelSuggestions.style.display = "none";
-  }
-
-  function confirmBrandSelection() {
-    // Only show placeholder once brand is "confirmed"
-    if (!modelInput.disabled) {
-      modelInput.placeholder = "Type in Shoe Model 🐾";
-    }
-  }
-
-  // Initial state
-  resetModelState();
-
-  // BRAND input: handle suggestions + model activation
-  brandInput.addEventListener("input", () => {
-    const brand = brandInput.value.trim();
-
-    // Activate / deactivate model box (but don't show placeholder yet)
-    if (brand) {
-      enableModel();
-    } else {
-      resetModelState();
+      container.style.display = "block";
     }
 
-    // Brand suggestions
-    const matches = filterStartsWith(brands, brand);
-    showSuggestions(brandSuggestions, matches, (value) => {
-      brandInput.value = value;
-      brandInput.focus();
-      brandSuggestions.style.display = "none";
-
-      const event = new Event("input");
-      brandInput.dispatchEvent(event);
-
-      // Brand explicitly selected from dropdown -> show model placeholder
-      confirmBrandSelection();
-    });
-  });
-
-  // BRAND: hide placeholder on focus, restore on blur if empty
-  brandInput.addEventListener("focus", () => {
-    brandInput.dataset.placeholder = brandInput.placeholder;
-    brandInput.placeholder = "";
-  });
-
-  brandInput.addEventListener("blur", () => {
-    setTimeout(() => {
-      brandSuggestions.style.display = "none";
-    }, 120);
-
-    if (!brandInput.value.trim()) {
-      brandInput.placeholder = brandInput.dataset.placeholder || "Type in Shoe Brand 🐾";
-    }
-  });
-
-  // BRAND: hitting Enter confirms brand, moves to model instead of submitting
-  brandInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      const brand = brandInput.value.trim();
-      if (brand) {
-        e.preventDefault(); // don't submit form yet
-        enableModel();
-        confirmBrandSelection();
-        modelInput.focus();
-      }
-    }
-  });
-
-  // MODEL input: suggestions based on brand's known models
-  modelInput.addEventListener("input", () => {
-    const brand = resolveBrand();
-    const text = modelInput.value.trim();
-
-    if (!brand || !brandModels[brand]) {
-      modelSuggestions.style.display = "none";
-      return;
+    function enableModel() {
+      modelInput.disabled = false;
+      modelInput.classList.remove("model-inactive");
+      modelInput.classList.add("model-active", "input-glow");
     }
 
-    const models = brandModels[brand];
-    const matches = filterStartsWith(models, text);
-    showSuggestions(modelSuggestions, matches, (value) => {
-      modelInput.value = value;
-      modelInput.focus();
-      modelSuggestions.style.display = "none";
-    });
-  });
-
-  // MODEL: hide/restore placeholder on focus/blur
-  modelInput.addEventListener("focus", () => {
-    if (!modelInput.disabled) {
-      modelInput.dataset.placeholder = modelInput.placeholder;
+    function resetModelState() {
+      modelInput.disabled = true;
+      modelInput.value = "";
       modelInput.placeholder = "";
-    }
-  });
-
-  modelInput.addEventListener("blur", () => {
-    setTimeout(() => {
+      modelInput.classList.remove("model-active", "input-glow");
+      modelInput.classList.add("model-inactive");
       modelSuggestions.style.display = "none";
-    }, 120);
-
-    if (!modelInput.value.trim() && !modelInput.disabled) {
-      modelInput.placeholder = modelInput.dataset.placeholder || "Type in Shoe Model 🐾";
-    }
-  });
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const brand = resolveBrand();
-    const model = resolveModel();
-
-    if (!brand || !model) {
-      statusEl.textContent = "Please provide a brand & model.";
-      return;
     }
 
-    statusEl.textContent = "Searching deals…";
-    resultsEl.innerHTML = "";
-
-    const query = `${brand} ${model}`;
-    let data;
-try {
-  const res = await fetch("/api/search?" + new URLSearchParams({ query }));
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
-  data = await res.json();
-} catch (err) {
-  statusEl.textContent = "Search failed. Please try again.";
-  console.error(err);
-  return;
-}
-    const results = data.results || [];
-
-    if (!results.length) {
-      statusEl.textContent = "No results.";
-      return;
+    function confirmBrandSelection() {
+      if (!modelInput.disabled) modelInput.placeholder = "Type in Shoe Model 🐾";
     }
 
-    statusEl.textContent = `Top ${results.length} deal(s) found.`;
-    resultsEl.innerHTML = "";
+    resetModelState();
 
-    results.forEach(item => {
-      const card = document.createElement("div");
-      card.className = "card";
+    brandInput.addEventListener("input", () => {
+      const brand = brandInput.value.trim();
+      if (brand) enableModel(); else resetModelState();
 
-      if (item.image) {
-        const img = document.createElement("img");
-        img.src = item.image;
-        img.alt = item.title;
-        card.appendChild(img);
+      const matches = filterStartsWith(brands, brand);
+      showSuggestions(brandSuggestions, matches, (value) => {
+        brandInput.value = value;
+        brandInput.focus();
+        brandSuggestions.style.display = "none";
+        brandInput.dispatchEvent(new Event("input"));
+        confirmBrandSelection();
+      });
+    });
+
+    brandInput.addEventListener("focus", () => {
+      brandInput.dataset.placeholder = brandInput.placeholder;
+      brandInput.placeholder = "";
+    });
+
+    brandInput.addEventListener("blur", () => {
+      setTimeout(() => { brandSuggestions.style.display = "none"; }, 120);
+      if (!brandInput.value.trim()) brandInput.placeholder = brandInput.dataset.placeholder || "Type in Shoe Brand 🐾";
+    });
+
+    brandInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const brand = brandInput.value.trim();
+        if (brand) {
+          e.preventDefault();
+          enableModel();
+          confirmBrandSelection();
+          modelInput.focus();
+        }
+      }
+    });
+
+    modelInput.addEventListener("input", () => {
+      const brand = resolveBrand();
+      const text = modelInput.value.trim();
+      if (!brand || !brandModels[brand]) { modelSuggestions.style.display = "none"; return; }
+
+      const models = brandModels[brand];
+      const matches = filterStartsWith(models, text);
+      showSuggestions(modelSuggestions, matches, (value) => {
+        modelInput.value = value;
+        modelInput.focus();
+        modelSuggestions.style.display = "none";
+      });
+    });
+
+    modelInput.addEventListener("focus", () => {
+      if (!modelInput.disabled) {
+        modelInput.dataset.placeholder = modelInput.placeholder;
+        modelInput.placeholder = "";
+      }
+    });
+
+    modelInput.addEventListener("blur", () => {
+      setTimeout(() => { modelSuggestions.style.display = "none"; }, 120);
+      if (!modelInput.value.trim() && !modelInput.disabled) {
+        modelInput.placeholder = modelInput.dataset.placeholder || "Type in Shoe Model 🐾";
+      }
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const brand = resolveBrand();
+      const model = resolveModel();
+
+      if (!brand || !model) { statusEl.textContent = "Please provide a brand & model."; return; }
+
+      statusEl.textContent = "Searching deals…";
+      resultsEl.innerHTML = "";
+
+      const query = `${brand} ${model}`;
+      let data;
+      try {
+        const res = await fetch("/api/search?" + new URLSearchParams({ query }));
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        data = await res.json();
+      } catch (err) {
+        statusEl.textContent = "Search failed. Please try again.";
+        console.error(err);
+        return;
       }
 
-      const t = document.createElement("div");
-      t.className = "card-title";
-      t.textContent = item.title;
-      card.appendChild(t);
+      const results = data.results || [];
+      if (!results.length) { statusEl.textContent = "No results."; return; }
 
-      const meta = document.createElement("div");
-      meta.className = "card-meta";
-      meta.innerHTML = `<span class="price">$${item.price?.toFixed(2) || "—"}</span><span>${item.store}</span>`;
-      card.appendChild(meta);
+      statusEl.textContent = `Top ${results.length} deal(s) found.`;
+      resultsEl.innerHTML = "";
 
-      const link = document.createElement("a");
-      link.textContent = "View Deal";
-      link.target = "_blank";
-      link.href = item.url;
-      card.appendChild(link);
+      results.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "card";
 
-      resultsEl.appendChild(card);
+        if (item.image) {
+          const img = document.createElement("img");
+          img.src = item.image;
+          img.alt = item.title;
+          card.appendChild(img);
+        }
+
+        const t = document.createElement("div");
+        t.className = "card-title";
+        t.textContent = item.title;
+        card.appendChild(t);
+
+        const meta = document.createElement("div");
+        meta.className = "card-meta";
+        meta.innerHTML = `<span class="price">$${item.price?.toFixed(2) || "—"}</span><span>${item.store}</span>`;
+        card.appendChild(meta);
+
+        const link = document.createElement("a");
+        link.textContent = "View Deal";
+        link.target = "_blank";
+        link.href = item.url;
+
+        /* ✅ Exact 5-line click tracking change */
+        link.addEventListener("click", () => {
+          fetch("/api/click", { method:"POST", headers:{ "Content-Type":"application/json" },
+            body: JSON.stringify({ title:item.title, store:item.store, url:item.url }) }).catch(()=>{});
+        });
+
+        card.appendChild(link);
+        resultsEl.appendChild(card);
+      });
+
+      alertWrapper.style.display = "block";
     });
 
-    alertWrapper.style.display = "block";
-  });
+    saveAlertBtn.addEventListener("click", async () => {
+      const brand = resolveBrand();
+      const model = resolveModel();
+      const product = `${brand} ${model}`;
+      const alertPrice = document.getElementById("alertPrice").value.trim();
+      const email = document.getElementById("alertEmail").value.trim();
+      const phone = document.getElementById("alertPhone").value.trim();
 
-  saveAlertBtn.addEventListener("click", async () => {
-    const brand = resolveBrand();
-    const model = resolveModel();
-    const product = `${brand} ${model}`;
-    const alertPrice = document.getElementById("alertPrice").value.trim();
-    const email = document.getElementById("alertEmail").value.trim();
-    const phone = document.getElementById("alertPhone").value.trim();
+      const res = await fetch("/api/alerts", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify({ product, targetPrice: alertPrice, email, phone })
+      });
 
-    const res = await fetch("/api/alerts", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify({ product, targetPrice: alertPrice, email, phone })
+      const data = await res.json();
+      alertStatusEl.textContent = res.ok ? "Alert saved!" : (data.error || "Could not save.");
     });
-
-    const data = await res.json();
-    alertStatusEl.textContent =
-      res.ok ? "Alert saved!" : (data.error || "Could not save.");
-  });
-</script>
-
-</body></html>
+  </script>
+</body>
+</html>
