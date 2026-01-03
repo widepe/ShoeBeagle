@@ -2,7 +2,10 @@ const fs = require("fs");
 const path = require("path");
 
 function normalize(s) {
-  return String(s || "").trim().toLowerCase();
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim();
 }
 
 module.exports = (req, res) => {
@@ -13,7 +16,7 @@ module.exports = (req, res) => {
 
   try {
     const rawQuery = req.query && req.query.query ? req.query.query : "";
-    const query = String(rawQuery).trim();
+    const query = normalize(rawQuery);
 
     console.log("[/api/search] start", { requestId, query });
 
@@ -23,28 +26,35 @@ module.exports = (req, res) => {
         example: "/api/search?query=Nike%20Pegasus",
         requestId
       });
-      console.log("[/api/search] done (400)", { requestId, ms: Date.now() - startedAt });
       return;
     }
 
-    // Read curated deals file
+    // Load curated deals
     const dealsPath = path.join(process.cwd(), "data", "deals.json");
-    const raw = fs.readFileSync(dealsPath, "utf8");
-    const deals = JSON.parse(raw);
+    const deals = JSON.parse(fs.readFileSync(dealsPath, "utf8"));
 
-    const q = normalize(query);
-
-    // Match if brand is in query AND model is in query (case-insensitive)
     const results = deals
-      .filter((d) => q.includes(normalize(d.brand)) && q.includes(normalize(d.model)))
-      .map((d) => ({
-        title: d.title,
-        price: Number(d.price),
-        store: d.store,
-        url: d.url,
+      .filter((deal) => {
+        const brand = normalize(deal.brand);
+        const model = normalize(deal.model);
+
+        // Require brand match
+        if (!query.includes(brand)) return false;
+
+        // Model match: allow partial match either direction
+        return (
+          query.includes(model) ||
+          model.includes(query.replace(brand, "").trim())
+        );
+      })
+      .map((deal) => ({
+        title: deal.title,
+        price: Number(deal.price),
+        store: deal.store,
+        url: deal.url,
         image:
-          d.image && String(d.image).trim()
-            ? d.image
+          deal.image && String(deal.image).trim()
+            ? deal.image
             : "https://placehold.co/600x400?text=Running+Shoe"
       }))
       .sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
