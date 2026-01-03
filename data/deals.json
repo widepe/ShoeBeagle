@@ -1,23 +1,24 @@
 [
-{
-  "brand": "Adidas",
-  "model": "Adizero Adios Pro Evo 2",
-  "title": "title of page goes here",
-  "price": 499.95,
-  "store": "Running Warehouse",
-  "url": "https://www.runningwarehouse.com/adidas_adizero_Adios_Pro_Evo_2/descpage-AAPE2.html?from=gshop&gad_source=1&gad_campaignid=12650333882&gbraid=0AAAAADka_jhyqroM9791pMucOThSjURci&gclid=Cj0KCQiA9t3KBhCQARIsAJOcR7x3D6cU5ensvFJRYPUkTQF_tpGzQIx3OfSV7NpXxW9hgkfcNPNsSVsaAuGHEALw_wcB",
-  "image": "",
-  "updatedAt": "2026-01-02"
-}
+  {
+    "brand": "Adidas",
+    "model": "Adizero Adios Pro Evo 2",
+    "title": "title of page goes here",
+    "price": 499.95,
+    "store": "Running Warehouse",
+    "url": "https://www.runningwarehouse.com/adidas_adizero_Adios_Pro_Evo_2/descpage-AAPE2.html?from=gshop&gad_source=1&gad_campaignid=12650333882&gbraid=0AAAAADka_jhyqroM9791pMucOThSjURci&gclid=Cj0KCQiA9t3KBhCQARIsAJOcR7x3D6cU5ensvFJRYPUkTQF_tpGzQIx3OfSV7NpXxW9hgkfcNPNsSVsaAuGHEALw_wcB",
+    "image": "",
+    "updatedAt": "2026-01-02"
+  },
   {
     "brand": "Nike",
-    "model": "Alphafly Next%3",
+    "model": "Alphafly Next 3",
     "title": "Nike super shoes",
     "price": 224.88,
     "store": "Running Warehouse",
     "url": "https://www.runningwarehouse.com/Nike_Alphafly_Next_3/descpage-N3ANM04.html?_gl=1*kek4rd*_up*MQ..*_gs*MQ..&gclid=Cj0KCQiA9t3KBhCQARIsAJOcR7x3D6cU5ensvFJRYPUkTQF_tpGzQIx3OfSV7NpXxW9hgkfcNPNsSVsaAuGHEALw_wcB&gbraid=0AAAAADka_jhyqroM9791pMucOThSjURci",
-    "image": ""
-  }
+    "image": "",
+    "updatedAt": "2026-01-02"
+  },
   {
     "brand": "Asics",
     "model": "Gel-Nimbus",
@@ -25,7 +26,8 @@
     "price": 119.99,
     "store": "Demo Retailer A",
     "url": "https://example.com/asics-nimbus",
-    "image": ""
+    "image": "",
+    "updatedAt": "2026-01-02"
   },
   {
     "brand": "Brooks",
@@ -34,6 +36,7 @@
     "price": 99.95,
     "store": "Demo Retailer C",
     "url": "https://example.com/brooks-ghost",
-    "image": ""
+    "image": "",
+    "updatedAt": "2026-01-02"
   }
 ]
