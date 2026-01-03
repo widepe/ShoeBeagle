@@ -502,8 +502,16 @@
     resultsEl.innerHTML = "";
 
     const query = `${brand} ${model}`;
-    const res = await fetch("/api/search?" + new URLSearchParams({ query }));
-    const data = await res.json();
+    let data;
+try {
+  const res = await fetch("/api/search?" + new URLSearchParams({ query }));
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  data = await res.json();
+} catch (err) {
+  statusEl.textContent = "Search failed. Please try again.";
+  console.error(err);
+  return;
+}
     const results = data.results || [];
 
     if (!results.length) {
