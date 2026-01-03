@@ -454,17 +454,21 @@
       else resetModelState();
 
       const matches = filterStartsWith(brands, typed);
-      showSuggestions(brandSuggestions, matches, (value) => {
-        brandInput.value = value; // canonical casing
-        brandSuggestions.style.display = "none";
-        brandInput.dispatchEvent(new Event("input"));
-        confirmBrandSelection();
-        updatePaws();
-      });
+showSuggestions(brandSuggestions, matches, (value) => {
+  // Set canonical brand + hide dropdown
+  brandInput.value = value;
+  brandSuggestions.style.display = "none";
 
-      updatePaws();
-    });
+  // Enable model input + show its placeholder
+  enableModel();
+  confirmBrandSelection();
 
+  // Move cursor to model immediately
+  setTimeout(() => modelInput.focus(), 0);
+
+  updatePaws();
+});
+      
     brandInput.addEventListener("focus", () => {
       brandInput.dataset.placeholder = brandInput.placeholder;
       brandInput.placeholder = "";
