@@ -1,50 +1,55 @@
+const fs = require("fs");
+const path = require("path");
+
+function normalize(s) {
+  return String(s || "").trim().toLowerCase();
+}
+
 module.exports = (req, res) => {
   const requestId =
     (req.headers && (req.headers["x-vercel-id"] || req.headers["x-request-id"])) ||
     `local-${Date.now()}`;
-
   const startedAt = Date.now();
 
   try {
-    // Read query safely
     const rawQuery = req.query && req.query.query ? req.query.query : "";
     const query = String(rawQuery).trim();
 
-    // Basic request log
-    console.log("[/api/search] start", {
-      requestId,
-      method: req.method,
-      query,
-      userAgent: req.headers && req.headers["user-agent"],
-      // Keep logs safe: do NOT log emails/phones later when you add alerts
-    });
+    console.log("[/api/search] start", { requestId, query });
 
-    // Validate input
     if (!query) {
       res.status(400).json({
         error: "Missing query parameter",
         example: "/api/search?query=Nike%20Pegasus",
         requestId
       });
-      console.log("[/api/search] done (400)", {
-        requestId,
-        ms: Date.now() - startedAt
-      });
+      console.log("[/api/search] done (400)", { requestId, ms: Date.now() - startedAt });
       return;
     }
 
-    // Demo results (placeholder)
-    const results = [
-      {
-        title: `${query} – Example Deal`,
-        price: 99.99,
-        store: "Demo Store",
-        url: "https://example.com",
-        image: "https://placehold.co/600x400?text=Running+Shoe"
-      }
-    ];
+    // Read curated deals file
+    const dealsPath = path.join(process.cwd(), "data", "deals.json");
+    const raw = fs.readFileSync(dealsPath, "utf8");
+    const deals = JSON.parse(raw);
 
-    // Success response
+    const q = normalize(query);
+
+    // Match if brand is in query AND model is in query (case-insensitive)
+    const results = deals
+      .filter((d) => q.includes(normalize(d.brand)) && q.includes(normalize(d.model)))
+      .map((d) => ({
+        title: d.title,
+        price: Number(d.price),
+        store: d.store,
+        url: d.url,
+        image:
+          d.image && String(d.image).trim()
+            ? d.image
+            : "https://placehold.co/600x400?text=Running+Shoe"
+      }))
+      .sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
+      .slice(0, 12);
+
     res.status(200).json({ results, requestId });
 
     console.log("[/api/search] done (200)", {
@@ -53,21 +58,10 @@ module.exports = (req, res) => {
       count: results.length
     });
   } catch (err) {
-    // Always catch errors so the function doesn't crash
     console.error("[/api/search] error", {
       requestId,
-      message: err && err.message ? err.message : String(err),
-      stack: err && err.stack ? err.stack : undefined
+      message: err?.message || String(err)
     });
-
-    res.status(500).json({
-      error: "Internal server error",
-      requestId
-    });
-
-    console.log("[/api/search] done (500)", {
-      requestId,
-      ms: Date.now() - startedAt
-    });
+    res.status(500).json({ error: "Internal server error", requestId });
   }
 };
