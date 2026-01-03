@@ -343,13 +343,13 @@
       return String(s || "").trim().toLowerCase();
     }
 
-    // ✅ NEW: Convert any casing ("nike", "NIKE") to canonical key ("Nike")
+    // ✅ Convert any casing ("nike", "NIKE") to canonical key ("Nike")
     function resolveBrandKey(input) {
       const normalized = normalize(input);
       return brands.find(b => normalize(b) === normalized) || "";
     }
 
-    // ✅ Uses canonical brand key when possible
+    // ✅ Uses canonical brand key when possible (required for model suggestions)
     function resolveBrand() {
       return resolveBrandKey(brandInput.value.trim());
     }
@@ -402,18 +402,18 @@
     // Initial state
     resetModelState();
 
-    // BRAND input: suggestions + model activation (case-insensitive activation)
+    // BRAND input: suggestions + model activation
     brandInput.addEventListener("input", () => {
       const typed = brandInput.value.trim();
-      const canonicalBrand = resolveBrandKey(typed);
 
-      // Enable model if user has typed anything (even before exact match)
+      // Enable model if user typed anything (not only exact match)
       if (typed) enableModel();
       else resetModelState();
 
       const matches = filterStartsWith(brands, typed);
       showSuggestions(brandSuggestions, matches, (value) => {
-        brandInput.value = value;           // set canonical casing from list
+        // When picked from list, set canonical capitalization (e.g., "Nike")
+        brandInput.value = value;
         brandInput.focus();
         brandSuggestions.style.display = "none";
         brandInput.dispatchEvent(new Event("input"));
@@ -448,7 +448,7 @@
 
     // MODEL input: suggestions based on selected brand (case-insensitive brand key)
     modelInput.addEventListener("input", () => {
-      const brandKey = resolveBrand();  // ✅ canonical key like "Nike"
+      const brandKey = resolveBrand(); // ✅ canonical key like "Nike"
       const text = modelInput.value.trim();
 
       if (!brandKey || !brandModels[brandKey]) {
@@ -591,3 +591,4 @@
   </script>
 </body>
 </html>
+
