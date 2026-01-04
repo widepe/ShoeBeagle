@@ -176,4 +176,82 @@ module.exports = async (req, res) => {
     const rawQuery = req.query && req.query.query ? req.query.query : "";
     const query = normalize(rawQuery);
     
-    console.log("[/api/search] Request:", { requestId,
+    console.log("[/api/search] Request:", { requestId, rawQuery, query });
+
+    if (!query) {
+      res.status(400).json({
+        error: "Missing query parameter",
+        example: "/api/search?query=Nike%20Pegasus",
+        requestId
+      });
+      return;
+    }
+
+    // Check cache
+    const cacheKey = `search:${query}`;
+    const cached = getCached(cacheKey);
+    if (cached) {
+      console.log("[/api/search] Cache hit");
+      res.status(200).json({ results: cached, requestId, cached: true });
+      return;
+    }
+
+    // Parse query
+    const parts = rawQuery.trim().split(/\s+/);
+    const brand = parts[0] || "";
+    const model = parts.slice(1).join(" ") || "";
+
+    console.log("[/api/search] Parsed:", { brand, model });
+
+    // Try scraping
+    let results = [];
+    
+    try {
+      const scraped = await scrapeRunningWarehouse(brand, model);
+      results.push(...scraped);
+    } catch (err) {
+      console.error("[/api/search] Scraping failed:", err.message);
+    }
+
+    // If no results from scraping, use dummy data
+    if (results.length === 0) {
+      console.log("[/api/search] No scraped results, using dummy data");
+      results = getDummyData(brand, model);
+    }
+
+    // Sort and limit
+    results = results
+      .sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
+      .slice(0, 12);
+
+    // Cache results
+    setCache(cacheKey, results);
+
+    console.log("[/api/search] Complete:", {
+      requestId,
+      ms: Date.now() - startedAt,
+      count: results.length
+    });
+
+    res.status(200).json({ results, requestId });
+
+  } catch (err) {
+    console.error("[/api/search] Fatal error:", {
+      requestId,
+      message: err?.message || String(err),
+      stack: err?.stack
+    });
+    
+    // Return dummy data even on error
+    const parts = (req.query?.query || "").trim().split(/\s+/);
+    const brand = parts[0] || "";
+    const model = parts.slice(1).join(" ") || "";
+    const fallbackResults = getDummyData(brand, model);
+    
+    res.status(200).json({ 
+      results: fallbackResults, 
+      requestId,
+      note: "Using fallback data due to scraping issues"
+    });
+  }
+};
