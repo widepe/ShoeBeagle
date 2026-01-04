@@ -283,11 +283,11 @@
         <input
           id="brand"
           type="text"
-          placeholder="Type in Shoe Brand"
+          placeholder="Enter Shoe Brand"
           autocomplete="off"
           required
           class="input-glow"
-          data-placeholder="Type in Shoe Brand"
+          data-placeholder="Enter Shoe Brand"
         />
         <span class="paw rock" id="brandPaw">🐾</span>
         <div id="brandSuggestions" class="suggestions"></div>
@@ -301,7 +301,7 @@
           autocomplete="off"
           required
           class="model-inactive"
-          data-placeholder="Type in Shoe Model"
+          data-placeholder="Enter Shoe Model"
           disabled
         />
         <!-- Model paw hidden until model is active -->
@@ -446,7 +446,7 @@
     }
 
     function confirmBrandSelection() {
-      if (!modelInput.disabled) modelInput.placeholder = "Type in Shoe Model";
+      if (!modelInput.disabled) modelInput.placeholder = "Enter Shoe Model";
     }
 
     function updateFetchReady() {
@@ -475,7 +475,7 @@
 
     function clearSearchForm() {
       brandInput.value = "";
-      brandInput.placeholder = "Type in Shoe Brand";
+      brandInput.placeholder = "Enter Shoe Brand";
       brandInput.classList.add("input-glow");
       
       resetModelState();
@@ -514,16 +514,8 @@
       updatePaws();
     });
 
-    brandInput.addEventListener("focus", () => {
-      brandInput.dataset.placeholder = brandInput.placeholder;
-      brandInput.placeholder = "";
-    });
-
     brandInput.addEventListener("blur", () => {
       setTimeout(() => { brandSuggestions.style.display = "none"; }, 120);
-      if (!brandInput.value.trim()) {
-        brandInput.placeholder = brandInput.dataset.placeholder || "Type in Shoe Brand";
-      }
     });
 
     // BRAND Enter: move to model, do not submit
@@ -568,18 +560,8 @@
       updatePaws();
     });
 
-    modelInput.addEventListener("focus", () => {
-      if (!modelInput.disabled) {
-        modelInput.dataset.placeholder = modelInput.placeholder;
-        modelInput.placeholder = "";
-      }
-    });
-
     modelInput.addEventListener("blur", () => {
       setTimeout(() => { modelSuggestions.style.display = "none"; }, 120);
-      if (!modelInput.value.trim() && !modelInput.disabled) {
-        modelInput.placeholder = modelInput.dataset.placeholder || "Type in Shoe Model";
-      }
     });
 
     // Submit
