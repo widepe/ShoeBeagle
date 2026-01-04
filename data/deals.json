@@ -1,42 +1,254 @@
 [
   {
-    "brand": "Adidas",
-    "model": "Adizero Adios Pro Evo 2",
-    "title": "title of page goes here",
-    "price": 499.95,
+    "brand": "Nike",
+    "model": "Pegasus",
+    "title": "Nike Air Zoom Pegasus 41",
+    "price": 139.99,
     "store": "Running Warehouse",
-    "url": "https://www.runningwarehouse.com/adidas_adizero_Adios_Pro_Evo_2/descpage-AAPE2.html?from=gshop&gad_source=1&gad_campaignid=12650333882&gbraid=0AAAAADka_jhyqroM9791pMucOThSjURci&gclid=Cj0KCQiA9t3KBhCQARIsAJOcR7x3D6cU5ensvFJRYPUkTQF_tpGzQIx3OfSV7NpXxW9hgkfcNPNsSVsaAuGHEALw_wcB",
-    "image": "",
-    "updatedAt": "2026-01-02"
+    "url": "https://www.runningwarehouse.com",
+    "image": "https://placehold.co/600x400?text=Nike+Pegasus+41"
   },
   {
     "brand": "Nike",
-    "model": "Alphafly Next 3",
-    "title": "Nike super shoes",
-    "price": 224.88,
-    "store": "Running Warehouse",
-    "url": "https://www.runningwarehouse.com/Nike_Alphafly_Next_3/descpage-N3ANM04.html?_gl=1*kek4rd*_up*MQ..*_gs*MQ..&gclid=Cj0KCQiA9t3KBhCQARIsAJOcR7x3D6cU5ensvFJRYPUkTQF_tpGzQIx3OfSV7NpXxW9hgkfcNPNsSVsaAuGHEALw_wcB&gbraid=0AAAAADka_jhyqroM9791pMucOThSjURci",
-    "image": "",
-    "updatedAt": "2026-01-02"
+    "model": "Pegasus",
+    "title": "Nike Air Zoom Pegasus 40",
+    "price": 109.99,
+    "store": "Road Runner Sports",
+    "url": "https://www.roadrunnersports.com",
+    "image": "https://placehold.co/600x400?text=Nike+Pegasus+40"
   },
   {
-    "brand": "Asics",
-    "model": "Gel-Nimbus",
-    "title": "ASICS Gel-Nimbus (Example Listing)",
-    "price": 119.99,
-    "store": "Demo Retailer A",
-    "url": "https://example.com/asics-nimbus",
-    "image": "",
-    "updatedAt": "2026-01-02"
+    "brand": "Nike",
+    "model": "Pegasus",
+    "title": "Nike Pegasus 39 (Previous Season)",
+    "price": 89.95,
+    "store": "Fleet Feet",
+    "url": "https://www.fleetfeet.com",
+    "image": "https://placehold.co/600x400?text=Nike+Pegasus+39"
   },
   {
     "brand": "Brooks",
     "model": "Ghost",
-    "title": "Brooks Ghost (Example Listing)",
-    "price": 99.95,
-    "store": "Demo Retailer C",
-    "url": "https://example.com/brooks-ghost",
-    "image": "",
-    "updatedAt": "2026-01-02"
+    "title": "Brooks Ghost 16",
+    "price": 139.95,
+    "store": "Running Warehouse",
+    "url": "https://www.runningwarehouse.com",
+    "image": "https://placehold.co/600x400?text=Brooks+Ghost+16"
+  },
+  {
+    "brand": "Brooks",
+    "model": "Ghost",
+    "title": "Brooks Ghost 15",
+    "price": 109.95,
+    "store": "Road Runner Sports",
+    "url": "https://www.roadrunnersports.com",
+    "image": "https://placehold.co/600x400?text=Brooks+Ghost+15"
+  },
+  {
+    "brand": "Brooks",
+    "model": "Ghost",
+    "title": "Brooks Ghost 14 (Closeout)",
+    "price": 84.99,
+    "store": "REI",
+    "url": "https://www.rei.com",
+    "image": "https://placehold.co/600x400?text=Brooks+Ghost+14"
+  },
+  {
+    "brand": "Brooks",
+    "model": "Glycerin",
+    "title": "Brooks Glycerin 21",
+    "price": 159.95,
+    "store": "Running Warehouse",
+    "url": "https://www.runningwarehouse.com",
+    "image": "https://placehold.co/600x400?text=Brooks+Glycerin+21"
+  },
+  {
+    "brand": "Brooks",
+    "model": "Glycerin",
+    "title": "Brooks Glycerin 20",
+    "price": 129.95,
+    "store": "Fleet Feet",
+    "url": "https://www.fleetfeet.com",
+    "image": "https://placehold.co/600x400?text=Brooks+Glycerin+20"
+  },
+  {
+    "brand": "Hoka",
+    "model": "Clifton",
+    "title": "Hoka Clifton 9",
+    "price": 144.95,
+    "store": "Running Warehouse",
+    "url": "https://www.runningwarehouse.com",
+    "image": "https://placehold.co/600x400?text=Hoka+Clifton+9"
+  },
+  {
+    "brand": "Hoka",
+    "model": "Clifton",
+    "title": "Hoka Clifton 8",
+    "price": 114.95,
+    "store": "Road Runner Sports",
+    "url": "https://www.roadrunnersports.com",
+    "image": "https://placehold.co/600x400?text=Hoka+Clifton+8"
+  },
+  {
+    "brand": "Hoka",
+    "model": "Bondi",
+    "title": "Hoka Bondi 8",
+    "price": 164.95,
+    "store": "Running Warehouse",
+    "url": "https://www.runningwarehouse.com",
+    "image": "https://placehold.co/600x400?text=Hoka+Bondi+8"
+  },
+  {
+    "brand": "Hoka",
+    "model": "Bondi",
+    "title": "Hoka Bondi 7",
+    "price": 134.95,
+    "store": "REI",
+    "url": "https://www.rei.com",
+    "image": "https://placehold.co/600x400?text=Hoka+Bondi+7"
+  },
+  {
+    "brand": "Asics",
+    "model": "Gel-Nimbus",
+    "title": "Asics Gel-Nimbus 26",
+    "price": 159.99,
+    "store": "Running Warehouse",
+    "url": "https://www.runningwarehouse.com",
+    "image": "https://placehold.co/600x400?text=Asics+Nimbus+26"
+  },
+  {
+    "brand": "Asics",
+    "model": "Gel-Nimbus",
+    "title": "Asics Gel-Nimbus 25",
+    "price": 129.99,
+    "store": "Road Runner Sports",
+    "url": "https://www.roadrunnersports.com",
+    "image": "https://placehold.co/600x400?text=Asics+Nimbus+25"
+  },
+  {
+    "brand": "Asics",
+    "model": "Gel-Kayano",
+    "title": "Asics Gel-Kayano 30",
+    "price": 169.99,
+    "store": "Running Warehouse",
+    "url": "https://www.runningwarehouse.com",
+    "image": "https://placehold.co/600x400?text=Asics+Kayano+30"
+  },
+  {
+    "brand": "Asics",
+    "model": "Gel-Cumulus",
+    "title": "Asics Gel-Cumulus 25",
+    "price": 129.99,
+    "store": "Fleet Feet",
+    "url": "https://www.fleetfeet.com",
+    "image": "https://placehold.co/600x400?text=Asics+Cumulus+25"
+  },
+  {
+    "brand": "New Balance",
+    "model": "Fresh Foam 1080",
+    "title": "New Balance Fresh Foam 1080v13",
+    "price": 164.99,
+    "store": "Running Warehouse",
+    "url": "https://www.runningwarehouse.com",
+    "image": "https://placehold.co/600x400?text=NB+1080v13"
+  },
+  {
+    "brand": "New Balance",
+    "model": "Fresh Foam 1080",
+    "title": "New Balance Fresh Foam 1080v12",
+    "price": 134.99,
+    "store": "Road Runner Sports",
+    "url": "https://www.roadrunnersports.com",
+    "image": "https://placehold.co/600x400?text=NB+1080v12"
+  },
+  {
+    "brand": "Saucony",
+    "model": "Ride",
+    "title": "Saucony Ride 17",
+    "price": 139.95,
+    "store": "Running Warehouse",
+    "url": "https://www.runningwarehouse.com",
+    "image": "https://placehold.co/600x400?text=Saucony+Ride+17"
+  },
+  {
+    "brand": "Saucony",
+    "model": "Ride",
+    "title": "Saucony Ride 16",
+    "price": 109.95,
+    "store": "REI",
+    "url": "https://www.rei.com",
+    "image": "https://placehold.co/600x400?text=Saucony+Ride+16"
+  },
+  {
+    "brand": "Saucony",
+    "model": "Endorphin Speed",
+    "title": "Saucony Endorphin Speed 4",
+    "price": 169.95,
+    "store": "Running Warehouse",
+    "url": "https://www.runningwarehouse.com",
+    "image": "https://placehold.co/600x400?text=Endorphin+Speed+4"
+  },
+  {
+    "brand": "Saucony",
+    "model": "Endorphin Speed",
+    "title": "Saucony Endorphin Speed 3",
+    "price": 139.95,
+    "store": "Road Runner Sports",
+    "url": "https://www.roadrunnersports.com",
+    "image": "https://placehold.co/600x400?text=Endorphin+Speed+3"
+  },
+  {
+    "brand": "Adidas",
+    "model": "Adizero Boston",
+    "title": "Adidas Adizero Boston 12",
+    "price": 149.99,
+    "store": "Running Warehouse",
+    "url": "https://www.runningwarehouse.com",
+    "image": "https://placehold.co/600x400?text=Boston+12"
+  },
+  {
+    "brand": "Adidas",
+    "model": "Supernova",
+    "title": "Adidas Supernova Rise",
+    "price": 139.99,
+    "store": "Fleet Feet",
+    "url": "https://www.fleetfeet.com",
+    "image": "https://placehold.co/600x400?text=Supernova+Rise"
+  },
+  {
+    "brand": "On",
+    "model": "Cloudsurfer",
+    "title": "On Cloudsurfer 7",
+    "price": 159.99,
+    "store": "Running Warehouse",
+    "url": "https://www.runningwarehouse.com",
+    "image": "https://placehold.co/600x400?text=Cloudsurfer+7"
+  },
+  {
+    "brand": "On",
+    "model": "Cloudmonster",
+    "title": "On Cloudmonster 2",
+    "price": 179.99,
+    "store": "Road Runner Sports",
+    "url": "https://www.roadrunnersports.com",
+    "image": "https://placehold.co/600x400?text=Cloudmonster+2"
+  },
+  {
+    "brand": "Altra",
+    "model": "Escalante",
+    "title": "Altra Escalante 4",
+    "price": 139.95,
+    "store": "REI",
+    "url": "https://www.rei.com",
+    "image": "https://placehold.co/600x400?text=Escalante+4"
+  },
+  {
+    "brand": "Mizuno",
+    "model": "Wave Rider",
+    "title": "Mizuno Wave Rider 27",
+    "price": 139.99,
+    "store": "Running Warehouse",
+    "url": "https://www.runningwarehouse.com",
+    "image": "https://placehold.co/600x400?text=Wave+Rider+27"
   }
 ]
