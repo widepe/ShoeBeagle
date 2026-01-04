@@ -72,6 +72,8 @@
       transform-origin: 50% 70%;
     }
 
+    .paw.hidden { display: none; }
+
     @keyframes pawRock {
       0%   { transform: translateY(-50%) rotate(-10deg); }
       50%  { transform: translateY(-50%) rotate(10deg); }
@@ -154,7 +156,7 @@
       color: white;
       font-size: 1rem;
       cursor: pointer;
-      transition: background 0.2s ease;
+      transition: background 0.2s ease, transform 0.15s ease;
     }
 
     .button-wrapper {
@@ -174,10 +176,21 @@
       align-items: center;
       justify-content: center;
       white-space: nowrap;
+      outline: none;
     }
 
     .search-btn:hover {
       background: #6b8f57;
+    }
+
+    /* Pulse when ready */
+    @keyframes readyPulse {
+      0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(127,162,106,0.45); }
+      70%  { transform: scale(1.03); box-shadow: 0 0 0 10px rgba(127,162,106,0); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(127,162,106,0); }
+    }
+    .search-btn.ready {
+      animation: readyPulse 1.2s ease-in-out infinite;
     }
 
     .status {
@@ -289,12 +302,13 @@
           data-placeholder="Type in Shoe Model"
           disabled
         />
-        <span class="paw rock" id="modelPaw">🐾</span>
+        <!-- Model paw hidden until model is active -->
+        <span class="paw rock hidden" id="modelPaw">🐾</span>
         <div id="modelSuggestions" class="suggestions"></div>
       </div>
 
       <div class="button-wrapper">
-        <button type="submit" class="search-btn">🔍 Fetch!</button>
+        <button id="fetchBtn" type="submit" class="search-btn">🔍 Fetch!</button>
       </div>
     </form>
 
@@ -334,6 +348,8 @@
     const saveAlertBtn = document.getElementById("saveAlertBtn");
     const alertStatusEl = document.getElementById("alertStatus");
 
+    const fetchBtn = document.getElementById("fetchBtn");
+
     const brandInput = document.getElementById("brand");
     const modelInput = document.getElementById("model");
     const brandSuggestions = document.getElementById("brandSuggestions");
@@ -369,7 +385,6 @@
       return String(s || "").trim().toLowerCase();
     }
 
-    // Any casing -> canonical brand key (e.g., "nike" => "Nike")
     function resolveBrandKey(input) {
       const normalized = normalize(input);
       return brands.find(b => normalize(b) === normalized) || "";
@@ -379,7 +394,6 @@
       return resolveBrandKey(brandInput.value.trim());
     }
 
-    // Model canonicalization by exact match ignoring case
     function resolveModelKey(brandKey, modelTyped) {
       const typed = String(modelTyped || "").trim();
       if (!typed) return "";
@@ -416,6 +430,7 @@
       modelInput.disabled = false;
       modelInput.classList.remove("model-inactive");
       modelInput.classList.add("model-active", "input-glow");
+      modelPaw.classList.remove("hidden"); // show paw only when active
     }
 
     function resetModelState() {
@@ -425,18 +440,35 @@
       modelInput.classList.remove("model-active", "input-glow");
       modelInput.classList.add("model-inactive");
       modelSuggestions.style.display = "none";
+      modelPaw.classList.add("hidden"); // hide paw until active
     }
 
     function confirmBrandSelection() {
       if (!modelInput.disabled) modelInput.placeholder = "Type in Shoe Model";
     }
 
+    function updateFetchReady() {
+      const brandKey = resolveBrand();
+      const modelHasText = !!modelInput.value.trim();
+      const ready = !!brandKey && !modelInput.disabled && modelHasText;
+      fetchBtn.classList.toggle("ready", ready);
+    }
+
     function updatePaws() {
+      // Brand paw rocks until brand has content
       if (brandInput.value.trim()) brandPaw.classList.remove("rock");
       else brandPaw.classList.add("rock");
 
-      if (modelInput.value.trim()) modelPaw.classList.remove("rock");
-      else modelPaw.classList.add("rock");
+      // Model paw only exists when model enabled; then rocks until model has content
+      if (modelInput.disabled) {
+        modelPaw.classList.add("hidden");
+      } else {
+        modelPaw.classList.remove("hidden");
+        if (modelInput.value.trim()) modelPaw.classList.remove("rock");
+        else modelPaw.classList.add("rock");
+      }
+
+      updateFetchReady();
     }
 
     // Initial state
@@ -459,14 +491,14 @@
         enableModel();
         confirmBrandSelection();
 
-        // Jump to model
+        // jump to model
         setTimeout(() => modelInput.focus(), 0);
 
         updatePaws();
       });
 
       updatePaws();
-    }); // ✅ THIS CLOSING WAS MISSING IN YOUR FILE
+    });
 
     brandInput.addEventListener("focus", () => {
       brandInput.dataset.placeholder = brandInput.placeholder;
@@ -509,9 +541,13 @@
       const matches = filterStartsWith(models, text);
 
       showSuggestions(modelSuggestions, matches, (value) => {
+        // Set model canonical casing
         modelInput.value = value;
         modelSuggestions.style.display = "none";
-        modelInput.focus();
+
+        // Move cursor to Fetch button (not auto-submit)
+        setTimeout(() => fetchBtn.focus(), 0);
+
         updatePaws();
       });
 
@@ -630,6 +666,3 @@
 </body>
 </html>
 
-  </script>
-</body>
-</html>
