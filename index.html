@@ -592,11 +592,25 @@
 
       try {
         const res = await fetch("/api/search?" + new URLSearchParams({ query }));
-        if (!res.ok) throw new Error(`API error: ${res.status}`);
-        data = await res.json();
+        
+        // Always try to parse JSON, even if status isn't 200
+        try {
+          data = await res.json();
+        } catch (parseErr) {
+          console.error("Failed to parse response:", parseErr);
+          statusEl.textContent = "Search failed. Please try again.";
+          return;
+        }
+
+        // Check if we got results
+        if (!data || !data.results) {
+          statusEl.textContent = "No results found.";
+          return;
+        }
+
       } catch (err) {
         statusEl.textContent = "Search failed. Please try again.";
-        console.error(err);
+        console.error("Fetch error:", err);
         return;
       }
 
@@ -665,4 +679,3 @@
   </script>
 </body>
 </html>
-
