@@ -13,10 +13,8 @@
       color: #2d2d2d;
       display: flex;
       justify-content: center;
-      align-items: center;
-      min-height: 100vh;
       padding: 2rem 1rem;
-      text-align: center;
+      min-height: 100vh;
     }
 
     .app {
@@ -26,6 +24,7 @@
       flex-direction: column;
       gap: 1.3rem;
       align-items: center;
+      padding-top: 2rem;
     }
 
     .brand {
@@ -91,24 +90,19 @@
     input[type="tel"] {
       width: 100%;
       height: 42px;
-      padding: 0 2.1rem 0 0.75rem; /* extra right padding for paw */
+      padding: 0 2.1rem 0 0.75rem;
       border-radius: 0.5rem;
-      border: 1px solid #8fa178;
+      border: 1px solid #214478ff;
       background: #fafdf4;
       font-size: 1rem;
       box-sizing: border-box;
-      transition: box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+      transition: border-color 0.2s ease, background-color 0.2s ease;
       color: #444;
     }
 
     input::placeholder {
       color: #444;
       opacity: 1;
-    }
-
-    .input-glow {
-      border-color: #7fa26a;
-      box-shadow: 0 0 0 2px #7fa26a55;
     }
 
     .model-inactive {
@@ -127,7 +121,7 @@
       left: 0;
       right: 0;
       background: #ffffff;
-      border: 1px solid #8fa178;
+      border: 1px solid #214478ff;
       border-radius: 0.5rem;
       margin-top: 0.15rem;
       max-height: 180px;
@@ -146,17 +140,17 @@
     }
 
     .suggestion-item:hover {
-      background: #eef4e7;
+      background: #e8f0ff;
     }
 
     button {
       border: none;
       border-radius: 0.75rem;
-      background: #7fa26a;
+      background: #214478ff;
       color: white;
       font-size: 1rem;
       cursor: pointer;
-      transition: background 0.2s ease, transform 0.15s ease;
+      transition: background 0.2s ease, box-shadow 0.2s ease;
     }
 
     .button-wrapper {
@@ -169,8 +163,8 @@
     .search-btn {
       height: 42px;
       border-radius: 0.5rem;
-      border: 1px solid #8fa178;
-      background: #7fa26a;
+      border: 1px solid #214478ff;
+      background: #214478ff;
       padding: 0 0.75rem;
       display: inline-flex;
       align-items: center;
@@ -180,17 +174,12 @@
     }
 
     .search-btn:hover {
-      background: #6b8f57;
+      background: #1a3661;
     }
 
-    /* Pulse when ready */
-    @keyframes readyPulse {
-      0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(127,162,106,0.45); }
-      70%  { transform: scale(1.03); box-shadow: 0 0 0 10px rgba(127,162,106,0); }
-      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(127,162,106,0); }
-    }
+    /* Active state - glow instead of pulse */
     .search-btn.ready {
-      animation: readyPulse 1.2s ease-in-out infinite;
+      box-shadow: 0 0 0 3px rgba(33, 68, 120, 0.3);
     }
 
     .status {
@@ -234,7 +223,7 @@
       justify-content: space-between;
     }
 
-    .price { font-weight: 700; color: #3b5b26; }
+    .price { font-weight: 700; color: #214478ff; }
 
     /* Alert section styles */
     .alert-wrapper {
@@ -250,16 +239,16 @@
     .alert-prompt-btn {
       padding: 0.75rem 1.5rem;
       border-radius: 0.75rem;
-      background: #7fa26a;
+      background: #214478ff;
       color: white;
       font-size: 1rem;
       cursor: pointer;
-      border: 1px solid #8fa178;
+      border: 1px solid #214478ff;
       transition: background 0.2s ease;
     }
 
     .alert-prompt-btn:hover {
-      background: #6b8f57;
+      background: #1a3661;
     }
 
     .alert-form {
@@ -289,7 +278,7 @@
       width: 100%;
       padding: 0.6rem 0.75rem;
       border-radius: 0.5rem;
-      border: 1px solid #8fa178;
+      border: 1px solid #214478ff;
       background: #fafdf4;
       font-size: 0.95rem;
       box-sizing: border-box;
@@ -308,24 +297,24 @@
     .alert-submit-btn {
       padding: 0.75rem 1.5rem;
       border-radius: 0.75rem;
-      background: #9db88b;
+      background: #8fa3b8;
       color: white;
       font-size: 1rem;
       cursor: not-allowed;
-      border: 1px solid #8fa178;
-      transition: background 0.2s ease;
+      border: 1px solid #214478ff;
+      transition: background 0.2s ease, box-shadow 0.2s ease;
       opacity: 0.6;
     }
 
     .alert-submit-btn.ready {
-      background: #7fa26a;
+      background: #214478ff;
       cursor: pointer;
       opacity: 1;
-      animation: readyPulse 1.2s ease-in-out infinite;
+      box-shadow: 0 0 0 3px rgba(33, 68, 120, 0.3);
     }
 
     .alert-submit-btn.ready:hover {
-      background: #6b8f57;
+      background: #1a3661;
     }
 
     .alert-confirmation {
@@ -340,7 +329,7 @@
     }
 
     .alert-confirmation strong {
-      color: #3b5b26;
+      color: #214478ff;
     }
   </style>
 </head>
@@ -361,7 +350,6 @@
           placeholder="Enter Shoe Brand"
           autocomplete="off"
           required
-          class="input-glow"
           data-placeholder="Enter Shoe Brand"
         />
         <span class="paw rock" id="brandPaw">🐾</span>
@@ -521,7 +509,7 @@
     function enableModel() {
       modelInput.disabled = false;
       modelInput.classList.remove("model-inactive");
-      modelInput.classList.add("model-active", "input-glow");
+      modelInput.classList.add("model-active");
       modelPaw.classList.remove("hidden");
     }
 
@@ -529,7 +517,7 @@
       modelInput.disabled = true;
       modelInput.value = "";
       modelInput.placeholder = "";
-      modelInput.classList.remove("model-active", "input-glow");
+      modelInput.classList.remove("model-active");
       modelInput.classList.add("model-inactive");
       modelSuggestions.style.display = "none";
       modelPaw.classList.add("hidden");
@@ -564,7 +552,6 @@
     function clearSearchForm() {
       brandInput.value = "";
       brandInput.placeholder = "Enter Shoe Brand";
-      brandInput.classList.add("input-glow");
       
       resetModelState();
       updatePaws();
@@ -585,11 +572,10 @@
       const price = alertPriceInput.value.trim();
       const contact = alertContactInput.value.trim();
       
-      // Check if price is valid and contact is provided
       const priceValid = price && parseFloat(price) > 0;
       const contactValid = contact && (
-        contact.includes('@') || // email
-        /[\d\-\+\(\)]{7,}/.test(contact) // phone-like
+        contact.includes('@') ||
+        /[\d\-\+\(\)]{7,}/.test(contact)
       );
       
       const isReady = priceValid && contactValid;
@@ -689,7 +675,6 @@
         return;
       }
 
-      // Store current search
       currentSearch = { brand: brandKey, model: modelCanonical };
 
       statusEl.textContent = "Searching deals…";
@@ -761,11 +746,9 @@
         resultsEl.appendChild(card);
       });
 
-      // Show alert section
       resetAlertSection();
       alertWrapper.style.display = "flex";
       
-      // Clear search form
       clearSearchForm();
     });
 
@@ -787,7 +770,6 @@
       const contact = alertContactInput.value.trim();
       const product = `${currentSearch.brand} ${currentSearch.model}`;
 
-      // Determine if email or phone
       const isEmail = contact.includes('@');
       const payload = {
         product: product,
@@ -806,7 +788,6 @@
         const data = await res.json().catch(() => ({}));
 
         if (res.ok) {
-          // Show confirmation
           alertForm.style.display = "none";
           alertConfirmation.innerHTML = `
             <strong>✓ Price Alert Set!</strong><br><br>
