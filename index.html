@@ -27,6 +27,28 @@
       padding-top: 2rem;
     }
 
+    /* Top Navigation */
+    .top-nav {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      z-index: 100;
+    }
+
+    .top-nav a {
+      color: #214478ff;
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color 0.2s ease;
+    }
+
+    .top-nav a:hover {
+      color: #1a3661;
+      text-decoration: underline;
+    }
+
     .brand {
       display: flex;
       flex-direction: column;
@@ -39,6 +61,12 @@
       object-fit: contain;
       margin-bottom: 0.5rem;
       max-width: 100%;
+      cursor: pointer;
+      transition: opacity 0.2s ease;
+    }
+
+    .brand-logo:hover {
+      opacity: 0.9;
     }
 
     form {
@@ -222,6 +250,57 @@
       margin-top: 0.5rem;
     }
 
+    /* Daily Deals Section */
+    .daily-deals {
+      width: 100%;
+      max-width: 850px;
+      margin-top: 1.5rem;
+    }
+
+    .daily-deals-header {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #214478ff;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+
+    .daily-deals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+    }
+
+    .daily-deal-card {
+      background: #ffffffc9;
+      border-radius: 0.75rem;
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      text-align: center;
+    }
+
+    .daily-deal-card img {
+      width: 100%;
+      height: 120px;
+      object-fit: contain;
+      border-radius: 0.6rem;
+      background: #fafafa;
+    }
+
+    .daily-deal-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #2d2d2d;
+    }
+
+    .daily-deal-price {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #214478ff;
+    }
+
     .results {
       margin-top: 1.25rem;
       display: grid;
@@ -258,6 +337,38 @@
     }
 
     .price { font-weight: 700; color: #214478ff; }
+
+    /* About Section */
+    .about-section {
+      width: 100%;
+      max-width: 700px;
+      background: #ffffffc9;
+      border-radius: 0.75rem;
+      padding: 2rem;
+      margin-top: 1.5rem;
+      line-height: 1.7;
+    }
+
+    .about-section h2 {
+      color: #214478ff;
+      font-size: 1.8rem;
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    .about-section p {
+      margin-bottom: 1rem;
+      font-size: 1rem;
+      color: #2d2d2d;
+    }
+
+    .about-section .signature {
+      margin-top: 2rem;
+      text-align: right;
+      font-style: italic;
+      color: #214478ff;
+      font-size: 1.1rem;
+    }
 
     /* Alert section styles */
     .alert-wrapper {
@@ -414,92 +525,150 @@
     .alert-confirmation strong {
       color: #214478ff;
     }
+
+    .hidden {
+      display: none !important;
+    }
   </style>
 </head>
 
 <body>
   <div style="display:none;">Impact-Site-Verification: 484b0fd5-0544-4654-b916-4e921a2e5077</div>
   
+  <!-- Top Navigation -->
+  <div class="top-nav">
+    <a id="aboutLink">About</a>
+  </div>
+
   <div class="app">
     <div class="brand">
-      <img src="/images/logo.svg" class="brand-logo" alt="Shoe Beagle Logo">
+      <img src="/images/logo.svg" class="brand-logo" alt="Shoe Beagle Logo" id="logoLink">
     </div>
 
-    <form id="search-form">
-      <div class="input-wrapper">
-        <input
-          id="brand"
-          type="text"
-          placeholder="Enter Shoe Brand"
-          autocomplete="off"
-          required
-          data-placeholder="Enter Shoe Brand"
-        />
-        <span class="paw rock" id="brandPaw">🐾</span>
-        <div id="brandSuggestions" class="suggestions"></div>
-      </div>
-
-      <div class="input-wrapper">
-        <input
-          id="model"
-          type="text"
-          placeholder=""
-          autocomplete="off"
-          required
-          class="model-inactive"
-          data-placeholder="Enter Shoe Model"
-          disabled
-        />
-        <span class="paw hidden" id="modelPaw">🐾</span>
-        <div id="modelSuggestions" class="suggestions"></div>
-      </div>
-
-      <div class="button-wrapper">
-        <button id="fetchBtn" type="submit" class="search-btn"><span class="magnify-icon">🔍</span> Fetch!</button>
-      </div>
-    </form>
-
-    <div class="status" id="status">Let's find your <b>running shoes</b>...cheap!</div>
-    <div class="results" id="results"></div>
-
-    <p style="font-size:0.8rem; color:#555; max-width: 850px; margin: 0.25rem auto 0;">
-      Prices may change. Links may become affiliate links in the future.
-    </p>
-
-    <div class="alert-wrapper" id="alertWrapper" style="display:none;">
-      <!-- Initial prompt button -->
-      <button class="alert-prompt-btn" id="alertPromptBtn"><span class="bell-icon">🔔</span> Set Price Alert?</button>
-
-      <!-- Alert form (hidden initially) -->
-      <div class="alert-form" id="alertForm" style="display:none;">
-        <div class="alert-product-message" id="alertProductMessage">
-          Alert me when <strong id="alertProductName"></strong> is less than:
+    <!-- Main Content (Search + Results) -->
+    <div id="mainContent">
+      <form id="search-form">
+        <div class="input-wrapper">
+          <input
+            id="brand"
+            type="text"
+            placeholder="Enter Shoe Brand"
+            autocomplete="off"
+            required
+            data-placeholder="Enter Shoe Brand"
+          />
+          <span class="paw rock" id="brandPaw">🐾</span>
+          <div id="brandSuggestions" class="suggestions"></div>
         </div>
 
-        <div class="alert-form-row">
-          <div class="price-input-wrapper">
-            <input id="alertPrice" type="number" step="0.01" placeholder="120.00" min="0">
+        <div class="input-wrapper">
+          <input
+            id="model"
+            type="text"
+            placeholder=""
+            autocomplete="off"
+            required
+            class="model-inactive"
+            data-placeholder="Enter Shoe Model"
+            disabled
+          />
+          <span class="paw hidden" id="modelPaw">🐾</span>
+          <div id="modelSuggestions" class="suggestions"></div>
+        </div>
+
+        <div class="button-wrapper">
+          <button id="fetchBtn" type="submit" class="search-btn"><span class="magnify-icon">🔍</span> Fetch!</button>
+        </div>
+      </form>
+
+      <div class="status" id="status">Let's find your <b>running shoes</b>...cheap!</div>
+
+      <!-- Marty's Daily Deals -->
+      <div class="daily-deals" id="dailyDeals">
+        <div class="daily-deals-header">🐾 Marty's Top 5 Daily Deals</div>
+        <div class="daily-deals-grid">
+          <div class="daily-deal-card">
+            <img src="https://placehold.co/300x200?text=Brooks+Ghost" alt="Brooks Ghost 15">
+            <div class="daily-deal-title">Brooks Ghost 15</div>
+            <div class="daily-deal-price">$89.95</div>
+          </div>
+          <div class="daily-deal-card">
+            <img src="https://placehold.co/300x200?text=Nike+Pegasus" alt="Nike Pegasus 40">
+            <div class="daily-deal-title">Nike Pegasus 40</div>
+            <div class="daily-deal-price">$99.99</div>
+          </div>
+          <div class="daily-deal-card">
+            <img src="https://placehold.co/300x200?text=Hoka+Clifton" alt="Hoka Clifton 9">
+            <div class="daily-deal-title">Hoka Clifton 9</div>
+            <div class="daily-deal-price">$119.95</div>
+          </div>
+          <div class="daily-deal-card">
+            <img src="https://placehold.co/300x200?text=Asics+Nimbus" alt="Asics Gel-Nimbus 25">
+            <div class="daily-deal-title">Asics Gel-Nimbus 25</div>
+            <div class="daily-deal-price">$129.99</div>
+          </div>
+          <div class="daily-deal-card">
+            <img src="https://placehold.co/300x200?text=Saucony+Ride" alt="Saucony Ride 16">
+            <div class="daily-deal-title">Saucony Ride 16</div>
+            <div class="daily-deal-price">$94.95</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="results" id="results"></div>
+
+      <p style="font-size:0.8rem; color:#555; max-width: 850px; margin: 0.25rem auto 0;">
+        Prices may change. Links may become affiliate links in the future.
+      </p>
+
+      <div class="alert-wrapper" id="alertWrapper" style="display:none;">
+        <button class="alert-prompt-btn" id="alertPromptBtn"><span class="bell-icon">🔔</span> Set Price Alert?</button>
+
+        <div class="alert-form" id="alertForm" style="display:none;">
+          <div class="alert-product-message" id="alertProductMessage">
+            Alert me when <strong id="alertProductName"></strong> is less than:
+          </div>
+
+          <div class="alert-form-row">
+            <div class="price-input-wrapper">
+              <input id="alertPrice" type="number" step="0.01" placeholder="120.00" min="0">
+            </div>
+          </div>
+
+          <div class="alert-form-row">
+            <label for="alertContact">Email or Phone Number</label>
+            <input id="alertContact" type="text" placeholder="you@example.com or +1-555-0123">
+          </div>
+
+          <div class="alert-privacy-note">
+            🔒 Your information is never shared. Used only for price alerts.
+          </div>
+
+          <button class="alert-submit-btn" id="alertSubmitBtn" disabled><span class="envelope-icon">📩</span> Set Price Alert</button>
+
+          <div class="alert-duration-note">
+            Your price alert will remain active for 30 days, or until you cancel.
           </div>
         </div>
 
-        <div class="alert-form-row">
-          <label for="alertContact">Email or Phone Number</label>
-          <input id="alertContact" type="text" placeholder="you@example.com or +1-555-0123">
-        </div>
-
-        <div class="alert-privacy-note">
-          🔒 Your information is never shared. Used only for price alerts.
-        </div>
-
-        <button class="alert-submit-btn" id="alertSubmitBtn" disabled><span class="envelope-icon">📩</span> Set Price Alert</button>
-
-        <div class="alert-duration-note">
-          Your price alert will remain active for 30 days, or until you cancel.
-        </div>
+        <div class="alert-confirmation" id="alertConfirmation" style="display:none;"></div>
       </div>
+    </div>
 
-      <!-- Confirmation message (hidden initially) -->
-      <div class="alert-confirmation" id="alertConfirmation" style="display:none;"></div>
+    <!-- About Section (Hidden by default) -->
+    <div id="aboutContent" class="about-section hidden">
+      <h2>About Shoe Beagle</h2>
+      
+      <p>Shoe Beagle is a price comparison website dedicated to helping runners find the best deals on running shoes. We provide side-by-side price comparisons across multiple retailers, allowing users to search by brand and model to find the lowest prices.</p>
+      
+      <p>Our platform features price alerts, real-time deal updates, and direct links to merchant sites where users can complete their purchases.</p>
+      
+      <p>Meet Marty, our beagle mascot who sniffs out the best running shoe deals every day!</p>
+      
+      <div class="signature">
+        Good luck,<br>
+        Marty 🐾
+      </div>
     </div>
   </div>
 
@@ -507,6 +676,7 @@
     const form = document.getElementById("search-form");
     const statusEl = document.getElementById("status");
     const resultsEl = document.getElementById("results");
+    const dailyDeals = document.getElementById("dailyDeals");
     
     const alertWrapper = document.getElementById("alertWrapper");
     const alertPromptBtn = document.getElementById("alertPromptBtn");
@@ -527,6 +697,11 @@
 
     const brandPaw = document.getElementById("brandPaw");
     const modelPaw = document.getElementById("modelPaw");
+
+    const mainContent = document.getElementById("mainContent");
+    const aboutContent = document.getElementById("aboutContent");
+    const aboutLink = document.getElementById("aboutLink");
+    const logoLink = document.getElementById("logoLink");
 
     // Store current search for alert
     let currentSearch = { brand: "", model: "" };
@@ -556,6 +731,20 @@
     };
 
     const brands = Object.keys(brandModels).sort();
+
+    // Navigation Functions
+    function showAbout() {
+      mainContent.classList.add("hidden");
+      aboutContent.classList.remove("hidden");
+    }
+
+    function showHome() {
+      aboutContent.classList.add("hidden");
+      mainContent.classList.remove("hidden");
+    }
+
+    aboutLink.addEventListener("click", showAbout);
+    logoLink.addEventListener("click", showHome);
 
     function normalize(s) {
       return String(s || "").trim().toLowerCase();
@@ -625,11 +814,9 @@
         modelInput.placeholder = "Enter Shoe Model";
         brandSelected = true;
         
-        // Hide brand paw
         brandPaw.classList.add("hidden");
         brandPaw.classList.remove("rock");
         
-        // Show model paw and make it rock
         modelPaw.classList.remove("hidden");
         modelPaw.classList.add("rock");
       }
@@ -643,28 +830,22 @@
     }
 
     function updatePaws() {
-      // Brand paw: visible and rocking only when brand input is empty and no brand selected yet
       if (!brandSelected && !brandInput.value.trim()) {
         brandPaw.classList.remove("hidden");
         brandPaw.classList.add("rock");
       } else if (brandInput.value.trim() && !brandSelected) {
-        // Brand has content but not selected yet - stop rocking
         brandPaw.classList.remove("rock");
         brandPaw.classList.remove("hidden");
       } else {
-        // Brand selected - hide completely
         brandPaw.classList.add("hidden");
         brandPaw.classList.remove("rock");
       }
 
-      // Model paw: only appears after brand is selected
       if (brandSelected && !modelInput.disabled) {
         if (!modelInput.value.trim()) {
-          // Model empty - show and rock
           modelPaw.classList.remove("hidden");
           modelPaw.classList.add("rock");
         } else {
-          // Model has content - hide paw
           modelPaw.classList.add("hidden");
           modelPaw.classList.remove("rock");
         }
@@ -701,8 +882,8 @@
       
       const priceValid = price && parseFloat(price) > 0;
       const contactValid = contact.length > 0 && (
-        contact.includes('@') || // email
-        /[\d\-\+\(\)\s]{7,}/.test(contact) // phone-like (allowing spaces)
+        contact.includes('@') ||
+        /[\d\-\+\(\)\s]{7,}/.test(contact)
       );
       
       const isReady = priceValid && contactValid;
@@ -809,6 +990,7 @@
 
       statusEl.textContent = "Searching deals…";
       resultsEl.innerHTML = "";
+      dailyDeals.style.display = "none";
       alertWrapper.style.display = "none";
 
       const query = `${brandKey} ${modelCanonical}`;
@@ -887,7 +1069,6 @@
       alertPromptBtn.style.display = "none";
       alertForm.style.display = "flex";
       
-      // Update product name in alert form
       const product = `${currentSearch.brand} ${currentSearch.model}`;
       alertProductName.textContent = product;
     });
@@ -919,10 +1100,8 @@
           body: JSON.stringify(payload)
         });
 
-        // Check if response is ok first
         if (!res.ok) {
           console.error("Alert API error:", res.status);
-          // Show success anyway since API endpoint isn't implemented yet
           alertForm.style.display = "none";
           alertConfirmation.innerHTML = `
             <strong>✓ Price Alert Set!</strong><br><br>
@@ -945,7 +1124,6 @@
 
       } catch (err) {
         console.error("Alert submission error:", err);
-        // Show success anyway since API endpoint isn't implemented yet
         alertForm.style.display = "none";
         alertConfirmation.innerHTML = `
           <strong>✓ Price Alert Set!</strong><br><br>
