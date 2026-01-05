@@ -286,11 +286,25 @@
       align-items: center;
     }
 
+    .alert-product-message {
+      font-size: 0.95rem;
+      color: #2d3c22;
+      text-align: center;
+      font-weight: 500;
+      width: 100%;
+    }
+
+    .alert-product-message strong {
+      color: #214478ff;
+      font-weight: 700;
+    }
+
     .alert-form-row {
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
-      width: 100%;
+      width: 66%;
+      max-width: 350px;
     }
 
     .alert-form-row label {
@@ -311,6 +325,27 @@
       color: #444;
     }
 
+    .price-input-wrapper {
+      position: relative;
+      width: 100%;
+    }
+
+    .price-input-wrapper::before {
+      content: '$';
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.95rem;
+      color: #444;
+      pointer-events: none;
+      font-weight: 500;
+    }
+
+    .price-input-wrapper input {
+      padding-left: 1.75rem;
+    }
+
     .alert-privacy-note {
       font-size: 0.8rem;
       color: #34452a;
@@ -318,6 +353,14 @@
       padding: 0.5rem;
       background: #f4ede3;
       border-radius: 0.5rem;
+      width: 100%;
+    }
+
+    .alert-duration-note {
+      font-size: 0.85rem;
+      color: #34452a;
+      text-align: center;
+      font-style: italic;
       width: 100%;
     }
 
@@ -333,6 +376,7 @@
       opacity: 0.6;
       width: auto;
       align-self: center;
+      margin-top: 0.5rem;
     }
 
     .alert-submit-btn.ready {
@@ -418,9 +462,14 @@
 
       <!-- Alert form (hidden initially) -->
       <div class="alert-form" id="alertForm" style="display:none;">
+        <div class="alert-product-message" id="alertProductMessage">
+          Alert me when <strong id="alertProductName"></strong> is less than or equal to:
+        </div>
+
         <div class="alert-form-row">
-          <label for="alertPrice">Alert me when price is ≤</label>
-          <input id="alertPrice" type="number" step="0.01" placeholder="$120.00" min="0">
+          <div class="price-input-wrapper">
+            <input id="alertPrice" type="number" step="0.01" placeholder="120.00" min="0">
+          </div>
         </div>
 
         <div class="alert-form-row">
@@ -432,7 +481,11 @@
           🔒 Your information is never shared. Used only for price alerts.
         </div>
 
-        <button class="alert-submit-btn" id="alertSubmitBtn" disabled><span class="envelope-icon">📩</span> Submit Price Alert</button>
+        <button class="alert-submit-btn" id="alertSubmitBtn" disabled><span class="envelope-icon">📩</span> Set Price Alert</button>
+
+        <div class="alert-duration-note">
+          Your price alert will remain active for 30 days, or until you cancel.
+        </div>
       </div>
 
       <!-- Confirmation message (hidden initially) -->
@@ -450,6 +503,7 @@
     const alertForm = document.getElementById("alertForm");
     const alertSubmitBtn = document.getElementById("alertSubmitBtn");
     const alertConfirmation = document.getElementById("alertConfirmation");
+    const alertProductName = document.getElementById("alertProductName");
     
     const alertPriceInput = document.getElementById("alertPrice");
     const alertContactInput = document.getElementById("alertContact");
@@ -822,6 +876,10 @@
     alertPromptBtn.addEventListener("click", () => {
       alertPromptBtn.style.display = "none";
       alertForm.style.display = "flex";
+      
+      // Update product name in alert form
+      const product = `${currentSearch.brand} ${currentSearch.model}`;
+      alertProductName.textContent = product;
     });
 
     // Alert form inputs
