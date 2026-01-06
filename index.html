@@ -526,15 +526,26 @@
       font-size: 1.6rem;
       font-weight: 800;
       text-align: center;
-      margin: 0.25rem 0 1rem;
+      margin: 0.25rem 0 0.5rem;
+    }
+
+    .alerts-instruction {
+      color: #49543a;
+      font-size: 0.88rem;
+      text-align: center;
+      margin: 0 0 1rem;
+      font-style: italic;
+    }
+
+    .alerts-table-wrapper {
+      width: 100%;
+      overflow-x: auto;
     }
 
     .alerts-table {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
-      overflow: visible;
-      border-radius: 0.6rem;
     }
 
     .alerts-table thead th {
@@ -548,28 +559,31 @@
       background: rgba(255, 255, 255, 0.55);
     }
 
+    .alerts-table tbody tr {
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+    .alerts-table tbody tr:hover {
+      background: rgba(33, 68, 120, 0.08);
+    }
+
+    .alerts-table tbody tr.selected {
+      background: rgba(33, 68, 120, 0.15);
+    }
+
     .alerts-table tbody td {
-      padding: 0.45rem 0.65rem;
+      padding: 0.5rem 0.65rem;
       border-bottom: 1px solid rgba(33, 68, 120, 0.18);
       vertical-align: middle;
       font-size: 0.92rem;
       color: #2d2d2d;
-      overflow: visible;
-      text-overflow: clip;
       white-space: nowrap;
       line-height: 1.3;
     }
 
-    .alerts-table td.status-cell {
-      white-space: nowrap;
-    }
-
     .alerts-table td.target-cell {
       text-align: right;
-    }
-
-    .alerts-table td.edit-cell {
-      text-align: center;
     }
 
     .alerts-muted {
@@ -590,7 +604,6 @@
       border: 1px solid rgba(33, 68, 120, 0.25);
       background: rgba(255, 255, 255, 0.6);
       color: #214478ff;
-      margin-right: 0.45rem;
     }
 
     .pill.active {
@@ -611,112 +624,78 @@
       color: #8a1f2c;
     }
 
-    /* Action buttons */
-    .action-btn {
-      border-radius: 0.4rem;
-      border: none;
-      color: white;
-      font-size: 0.85rem;
-      font-weight: 700;
-      padding: 0.35rem 0.5rem;
-      cursor: pointer;
-      margin-left: 0.35rem;
-      white-space: nowrap;
-      position: relative;
-      min-width: 28px;
-      height: 28px;
-      display: inline-flex;
+    /* Alert action panel */
+    .alert-actions {
+      padding: 0.75rem 1rem;
+      background: rgba(33, 68, 120, 0.05);
+      border-left: 3px solid #214478ff;
+      margin: 0;
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
       align-items: center;
-      justify-content: center;
     }
 
-    .action-btn.renew-btn {
-      background: #ff6600;
-      border: 1px solid #e65c00;
-    }
-    .action-btn.renew-btn:hover { 
-      background: #e65c00; 
-    }
-
-    .action-btn.cancel-btn {
-      background: #dc3545;
-      border: 1px solid #c82333;
-    }
-    .action-btn.cancel-btn:hover { 
-      background: #c82333; 
-    }
-
-    .action-btn.edit-btn {
+    .alert-actions button {
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.88rem;
+      font-weight: 600;
+      border: 1px solid #214478ff;
       background: #214478ff;
-      border: 1px solid #1a3661;
-      margin-left: 0;
-    }
-    .action-btn.edit-btn:hover { 
-      background: #1a3661; 
-    }
-
-    .action-btn.save-btn {
-      background: #214478ff;
-      border: 1px solid #1a3661;
-      margin-left: 0;
-    }
-    .action-btn.save-btn:hover { 
-      background: #1a3661; 
-    }
-
-    /* Tooltip */
-    .action-btn::before {
-      content: attr(data-tooltip);
-      position: absolute;
-      bottom: 100%;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 0.35rem 0.6rem;
-      background: #2d2d2d;
       color: white;
-      font-size: 0.75rem;
-      white-space: nowrap;
-      border-radius: 0.3rem;
-      opacity: 0;
-      pointer-events: none;
-      margin-bottom: 0.3rem;
-      transition: opacity 0.2s ease;
-      z-index: 1000;
+      cursor: pointer;
+      transition: background 0.2s ease;
     }
 
-    .action-btn:hover::before {
-      opacity: 1;
+    .alert-actions button:hover {
+      background: #1a3661;
     }
 
-    /* Target price display/editor */
-    .target-price-static {
-      font-size: 0.92rem;
+    .alert-actions button.secondary {
+      background: white;
+      color: #214478ff;
+      border: 1px solid #214478ff;
+    }
+
+    .alert-actions button.secondary:hover {
+      background: rgba(33, 68, 120, 0.1);
+    }
+
+    .alert-actions button.danger {
+      background: #dc3545;
+      border-color: #c82333;
+    }
+
+    .alert-actions button.danger:hover {
+      background: #c82333;
+    }
+
+    .alert-actions .confirmation {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .alert-actions .confirmation-text {
+      font-size: 0.88rem;
       color: #2d2d2d;
-      display: inline-block;
-      text-align: right;
-      width: 100%;
+      font-weight: 600;
     }
 
-    .target-price-wrapper {
+    /* Price change input in action panel */
+    .price-change-wrapper {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .price-change-input {
       position: relative;
       display: inline-block;
-      width: 100%;
     }
 
-    .target-price-spinner {
-      width: 100%;
-      height: 28px;
-      font-size: 0.9rem;
-      padding: 0 0.3rem 0 1.5rem;
-      border-radius: 0.5rem;
-      border: 1px solid #214478ff;
-      background: #fafdf4;
-      color: #444;
-      box-sizing: border-box;
-      text-align: right;
-    }
-
-    .target-price-wrapper::before {
+    .price-change-input::before {
       content: '$';
       position: absolute;
       left: 0.5rem;
@@ -728,11 +707,34 @@
       font-weight: 500;
     }
 
-    .target-price-spinner:disabled {
-      background: #f0f0f0;
-      color: #999;
-      border-color: #ccc;
-      cursor: not-allowed;
+    .price-change-input input {
+      width: 80px;
+      height: 32px;
+      padding: 0 0.3rem 0 1.5rem;
+      border-radius: 0.5rem;
+      border: 1px solid #214478ff;
+      background: #fafdf4;
+      font-size: 0.9rem;
+      text-align: right;
+    }
+
+    .clear-inactive-btn {
+      width: 100%;
+      max-width: 250px;
+      margin: 1rem auto 0;
+      padding: 0.65rem 1.25rem;
+      border-radius: 0.5rem;
+      background: #dc3545;
+      border: 1px solid #c82333;
+      color: white;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: block;
+    }
+
+    .clear-inactive-btn:hover {
+      background: #c82333;
     }
 
     .hidden { display: none !important; }
@@ -852,30 +854,33 @@
 
     <div id="alertsDashboard" class="alerts-dashboard hidden">
       <div class="alerts-title">My Alerts</div>
+      <div class="alerts-instruction">Tap or Click Row to Manage Alert</div>
 
-      <table class="alerts-table" aria-label="My Alerts Table" id="alertsTable">
-        <colgroup>
-          <col style="width: 10%;">  <!-- Date Set -->
-          <col style="width: 35%;">  <!-- Shoe -->
-          <col style="width: 11%;">  <!-- Days Left -->
-          <col style="width: 14%;">  <!-- Target -->
-          <col style="width: 8%;">   <!-- Edit -->
-          <col style="width: 22%;">  <!-- Status -->
-        </colgroup>
-        <thead>
-          <tr>
-            <th>Date Set</th>
-            <th>Shoe</th>
-            <th>Days Left</th>
-            <th>Target</th>
-            <th>Edit</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="alertsTbody"></tbody>
-      </table>
+      <div class="alerts-table-wrapper">
+        <table class="alerts-table" aria-label="My Alerts Table" id="alertsTable">
+          <colgroup>
+            <col style="width: 12%;">  <!-- Date Set -->
+            <col style="width: 40%;">  <!-- Shoe -->
+            <col style="width: 14%;">  <!-- Days Left -->
+            <col style="width: 16%;">  <!-- Target -->
+            <col style="width: 18%;">  <!-- Status -->
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Date Set</th>
+              <th>Shoe</th>
+              <th>Days Left</th>
+              <th>Target</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="alertsTbody"></tbody>
+        </table>
+      </div>
 
       <div id="alertsEmpty" class="alerts-muted hidden">No alerts have been set.</div>
+
+      <button class="clear-inactive-btn hidden" id="clearInactiveBtn">Clear All Inactive Alerts</button>
     </div>
   </div>
 
@@ -916,9 +921,11 @@
     const alertsTbody = document.getElementById("alertsTbody");
     const alertsEmpty = document.getElementById("alertsEmpty");
     const alertsTable = document.getElementById("alertsTable");
+    const clearInactiveBtn = document.getElementById("clearInactiveBtn");
 
     let currentSearch = { brand: "", model: "" };
     let brandSelected = false;
+    let selectedAlertRow = null;
 
     const ALERTS_KEY = "shoeBeagleAlerts";
     let alertsMemoryFallback = [];
@@ -1000,6 +1007,12 @@
       saveAlerts(list);
     }
 
+    function deleteAlert(alertId) {
+      const list = loadAlerts();
+      const filtered = list.filter(a => a.id !== alertId);
+      saveAlerts(filtered);
+    }
+
     function pillClassFor(status) {
       if (status === "Active") return "pill active";
       if (status === "Expired") return "pill expired";
@@ -1007,18 +1020,34 @@
       return "pill";
     }
 
+    function clearAllInactive() {
+      const list = loadAlerts();
+      const active = list.filter(a => computeAlertStatus(a) === "Active");
+      saveAlerts(active);
+      renderAlertsDashboard();
+    }
+
     function renderAlertsDashboard() {
       const list = loadAlerts();
       alertsTbody.innerHTML = "";
+      selectedAlertRow = null;
 
       if (!list.length) {
         alertsEmpty.classList.remove("hidden");
         alertsTable.classList.add("hidden");
+        clearInactiveBtn.classList.add("hidden");
         return;
       }
 
       alertsEmpty.classList.add("hidden");
       alertsTable.classList.remove("hidden");
+
+      const hasInactive = list.some(a => computeAlertStatus(a) !== "Active");
+      if (hasInactive) {
+        clearInactiveBtn.classList.remove("hidden");
+      } else {
+        clearInactiveBtn.classList.add("hidden");
+      }
 
       const order = { "Active": 0, "Expired": 1, "Cancelled": 2 };
       const sorted = [...list].sort((a, b) => {
@@ -1033,6 +1062,7 @@
         const daysLeft = computeDaysLeft(a);
 
         const tr = document.createElement("tr");
+        tr.dataset.alertId = a.id;
 
         const tdDate = document.createElement("td");
         tdDate.textContent = formatDateShort(a.setAt);
@@ -1048,104 +1078,198 @@
 
         const tdTarget = document.createElement("td");
         tdTarget.className = "target-cell";
-        
-        const priceStatic = document.createElement("span");
-        priceStatic.className = "target-price-static";
-        priceStatic.textContent = `$${Number(a.targetPrice).toFixed(0)}`;
-        
-        const priceWrapper = document.createElement("span");
-        priceWrapper.className = "target-price-wrapper hidden";
-        
-        const targetSpinner = document.createElement("input");
-        targetSpinner.type = "number";
-        targetSpinner.step = "1";
-        targetSpinner.min = "1";
-        targetSpinner.className = "target-price-spinner";
-        
-        priceWrapper.appendChild(targetSpinner);
-        tdTarget.appendChild(priceStatic);
-        tdTarget.appendChild(priceWrapper);
+        tdTarget.textContent = `$${Number(a.targetPrice).toFixed(0)}`;
         tr.appendChild(tdTarget);
 
-        const tdEdit = document.createElement("td");
-        tdEdit.className = "edit-cell";
-        
-        if (status === "Active") {
-          const editBtn = document.createElement("button");
-          editBtn.className = "action-btn edit-btn";
-          editBtn.textContent = "E";
-          editBtn.setAttribute("data-tooltip", "Edit price");
-          
-          const saveBtn = document.createElement("button");
-          saveBtn.className = "action-btn save-btn hidden";
-          saveBtn.textContent = "S";
-          saveBtn.setAttribute("data-tooltip", "Set new price");
-          
-          editBtn.addEventListener("click", () => {
-            targetSpinner.value = Number(a.targetPrice).toFixed(0);
-            priceStatic.classList.add("hidden");
-            priceWrapper.classList.remove("hidden");
-            editBtn.classList.add("hidden");
-            saveBtn.classList.remove("hidden");
-          });
-          
-          saveBtn.addEventListener("click", () => {
-            const val = Number(targetSpinner.value);
-            if (!isFinite(val) || val <= 0) {
-              alert("Please enter a valid target price greater than 0.");
-              targetSpinner.value = Number(a.targetPrice).toFixed(0);
-              return;
-            }
-            a.targetPrice = Number(val).toFixed(2);
-            a.setAt = nowMs();
-            a.cancelledAt = null;
-            upsertAlert(a);
-            renderAlertsDashboard();
-          });
-          
-          tdEdit.appendChild(editBtn);
-          tdEdit.appendChild(saveBtn);
-        }
-        
-        tr.appendChild(tdEdit);
-
         const tdStatus = document.createElement("td");
-        tdStatus.className = "status-cell";
-
         const pill = document.createElement("span");
         pill.className = pillClassFor(status);
         pill.textContent = status;
         tdStatus.appendChild(pill);
-
-        if (status === "Active") {
-          const renewBtn = document.createElement("button");
-          renewBtn.className = "action-btn renew-btn";
-          renewBtn.textContent = "R";
-          renewBtn.setAttribute("data-tooltip", "Reset to 30 days");
-          renewBtn.addEventListener("click", () => {
-            a.setAt = nowMs();
-            a.cancelledAt = null;
-            upsertAlert(a);
-            renderAlertsDashboard();
-          });
-          tdStatus.appendChild(renewBtn);
-
-          const cancelBtn = document.createElement("button");
-          cancelBtn.className = "action-btn cancel-btn";
-          cancelBtn.textContent = "✕";
-          cancelBtn.setAttribute("data-tooltip", "End alert");
-          cancelBtn.addEventListener("click", () => {
-            a.cancelledAt = nowMs();
-            upsertAlert(a);
-            renderAlertsDashboard();
-          });
-          tdStatus.appendChild(cancelBtn);
-        }
-
         tr.appendChild(tdStatus);
+
+        tr.addEventListener("click", (e) => {
+          e.stopPropagation();
+          
+          const existingActionRow = document.querySelector(".alert-actions-row");
+          if (existingActionRow) {
+            existingActionRow.remove();
+          }
+
+          const allRows = alertsTbody.querySelectorAll("tr");
+          allRows.forEach(r => r.classList.remove("selected"));
+
+          if (selectedAlertRow === tr) {
+            selectedAlertRow = null;
+            return;
+          }
+
+          tr.classList.add("selected");
+          selectedAlertRow = tr;
+
+          const actionRow = document.createElement("tr");
+          actionRow.className = "alert-actions-row";
+          const actionCell = document.createElement("td");
+          actionCell.colSpan = 5;
+
+          const actionsDiv = document.createElement("div");
+          actionsDiv.className = "alert-actions";
+
+          if (status === "Active") {
+            // Change Price
+            const priceWrapper = document.createElement("div");
+            priceWrapper.className = "price-change-wrapper";
+            
+            const priceInputWrapper = document.createElement("span");
+            priceInputWrapper.className = "price-change-input";
+            
+            const priceInput = document.createElement("input");
+            priceInput.type = "number";
+            priceInput.step = "1";
+            priceInput.min = "1";
+            priceInput.value = Number(a.targetPrice).toFixed(0);
+            
+            priceInputWrapper.appendChild(priceInput);
+            priceWrapper.appendChild(priceInputWrapper);
+            
+            const changePriceBtn = document.createElement("button");
+            changePriceBtn.textContent = "Change Price";
+            changePriceBtn.addEventListener("click", () => {
+              const val = Number(priceInput.value);
+              if (!isFinite(val) || val <= 0) {
+                alert("Please enter a valid target price greater than 0.");
+                return;
+              }
+              a.targetPrice = Number(val).toFixed(2);
+              a.setAt = nowMs();
+              upsertAlert(a);
+              renderAlertsDashboard();
+            });
+            
+            priceWrapper.appendChild(changePriceBtn);
+            actionsDiv.appendChild(priceWrapper);
+
+            // Reset Alert
+            const resetBtn = document.createElement("button");
+            resetBtn.textContent = "Reset Alert";
+            resetBtn.className = "secondary";
+            resetBtn.addEventListener("click", () => {
+              a.setAt = nowMs();
+              a.cancelledAt = null;
+              upsertAlert(a);
+              renderAlertsDashboard();
+            });
+            actionsDiv.appendChild(resetBtn);
+
+            // Cancel Alert
+            const cancelBtn = document.createElement("button");
+            cancelBtn.textContent = "Cancel Alert";
+            cancelBtn.className = "danger";
+            let confirmingCancel = false;
+            cancelBtn.addEventListener("click", () => {
+              if (!confirmingCancel) {
+                confirmingCancel = true;
+                actionsDiv.innerHTML = "";
+                
+                const confirmDiv = document.createElement("div");
+                confirmDiv.className = "confirmation";
+                
+                const confirmText = document.createElement("span");
+                confirmText.className = "confirmation-text";
+                confirmText.textContent = "Are you sure?";
+                
+                const yesBtn = document.createElement("button");
+                yesBtn.textContent = "Yes";
+                yesBtn.className = "danger";
+                yesBtn.addEventListener("click", () => {
+                  a.cancelledAt = nowMs();
+                  upsertAlert(a);
+                  renderAlertsDashboard();
+                });
+                
+                const noBtn = document.createElement("button");
+                noBtn.textContent = "No";
+                noBtn.className = "secondary";
+                noBtn.addEventListener("click", () => {
+                  renderAlertsDashboard();
+                });
+                
+                confirmDiv.appendChild(confirmText);
+                confirmDiv.appendChild(yesBtn);
+                confirmDiv.appendChild(noBtn);
+                actionsDiv.appendChild(confirmDiv);
+              }
+            });
+            actionsDiv.appendChild(cancelBtn);
+
+          } else {
+            // Clear Alert (for inactive)
+            const clearBtn = document.createElement("button");
+            clearBtn.textContent = "Clear Alert";
+            clearBtn.className = "danger";
+            let confirmingClear = false;
+            clearBtn.addEventListener("click", () => {
+              if (!confirmingClear) {
+                confirmingClear = true;
+                actionsDiv.innerHTML = "";
+                
+                const confirmDiv = document.createElement("div");
+                confirmDiv.className = "confirmation";
+                
+                const confirmText = document.createElement("span");
+                confirmText.className = "confirmation-text";
+                confirmText.textContent = "Are you sure?";
+                
+                const yesBtn = document.createElement("button");
+                yesBtn.textContent = "Yes";
+                yesBtn.className = "danger";
+                yesBtn.addEventListener("click", () => {
+                  deleteAlert(a.id);
+                  renderAlertsDashboard();
+                });
+                
+                const noBtn = document.createElement("button");
+                noBtn.textContent = "No";
+                noBtn.className = "secondary";
+                noBtn.addEventListener("click", () => {
+                  renderAlertsDashboard();
+                });
+                
+                confirmDiv.appendChild(confirmText);
+                confirmDiv.appendChild(yesBtn);
+                confirmDiv.appendChild(noBtn);
+                actionsDiv.appendChild(confirmDiv);
+              }
+            });
+            actionsDiv.appendChild(clearBtn);
+          }
+
+          actionCell.appendChild(actionsDiv);
+          actionRow.appendChild(actionCell);
+          tr.parentNode.insertBefore(actionRow, tr.nextSibling);
+        });
+
         alertsTbody.appendChild(tr);
       });
     }
+
+    clearInactiveBtn.addEventListener("click", () => {
+      if (confirm("Are you sure you want to clear all inactive (expired and cancelled) alerts?")) {
+        clearAllInactive();
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".alerts-table") && !e.target.closest(".alert-actions")) {
+        const existingActionRow = document.querySelector(".alert-actions-row");
+        if (existingActionRow) {
+          existingActionRow.remove();
+        }
+        const allRows = alertsTbody.querySelectorAll("tr");
+        allRows.forEach(r => r.classList.remove("selected"));
+        selectedAlertRow = null;
+      }
+    });
 
     const brandModels = {
       "Asics": ["Novablast","Gel-Kayano","Gel-Nimbus","Gel-Cumulus","Metaspeed Sky"],
