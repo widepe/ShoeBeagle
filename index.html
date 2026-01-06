@@ -22,7 +22,7 @@
       max-width: 900px;
       display: flex;
       flex-direction: column;
-      gap: 0.65rem; /* reduced spacing overall */
+      gap: 0.65rem;
       align-items: center;
       padding-top: 2rem;
     }
@@ -77,7 +77,7 @@
       justify-content: center;
       align-items: stretch;
       flex-wrap: wrap;
-      gap: 0.75rem; /* slightly tighter */
+      gap: 0.75rem;
       width: 100%;
       max-width: 650px;
       margin: 0 auto;
@@ -156,14 +156,6 @@
       color: #444;
     }
 
-    /* Remove number input arrows */
-    input[type="number"]::-webkit-inner-spin-button,
-    input[type="number"]::-webkit-outer-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
-    input[type="number"] { -moz-appearance: textfield; }
-
     input::placeholder { color: #999; opacity: 1; }
 
     .model-inactive { background: #faf5f2ff; cursor: not-allowed; }
@@ -225,19 +217,30 @@
     }
     .search-btn:hover { background: #1a3661; }
 
-    .status {
+    /* Tagline must ALWAYS remain under inputs */
+    .tagline {
       font-size: 0.95rem;
       color: #2d3c22;
-      margin-top: 0.05rem; /* tighter: closer to inputs */
+      margin-top: 0.05rem;
       text-align: center;
       width: 100%;
+    }
+
+    /* Separate dynamic status line so tagline never gets overwritten */
+    .status-message {
+      font-size: 0.9rem;
+      color: #2d3c22;
+      margin-top: 0.15rem;
+      text-align: center;
+      width: 100%;
+      min-height: 1.1rem; /* keeps layout stable even when empty */
     }
 
     /* Daily Deals Section */
     .daily-deals {
       width: 100%;
       max-width: 850px;
-      margin-top: 1.0rem; /* slightly tighter */
+      margin-top: 1.0rem;
     }
 
     .daily-deals-header {
@@ -290,9 +293,10 @@
       max-width: 850px;
     }
 
+    /* Deals that pop up should have the same border as daily deals */
     .card {
       background: #ffffffc9;
-      border: 2px solid #214478ff; /* match Daily Deals border */
+      border: 2px solid #214478ff;
       border-radius: 0.75rem;
       padding: 0.75rem;
       display: flex;
@@ -334,15 +338,16 @@
       background: #ffffffc9;
       border: 2px solid #214478ff;
       border-radius: 0.75rem;
-      padding: 1.25rem 2rem 1.75rem; /* reduced top padding */
+      padding: 1.25rem 2rem 0.9rem; /* reduced bottom padding to remove extra space */
       margin-top: 1.0rem;
       line-height: 1.7;
+      box-sizing: border-box;
     }
 
     .about-section h2 {
       color: #214478ff;
       font-size: 1.8rem;
-      margin: 0 0 0.85rem; /* remove top margin + tighten */
+      margin: 0 0 0.85rem;
       text-align: center;
     }
 
@@ -363,9 +368,10 @@
       gap: 1rem;
     }
 
+    /* Center this horizontally */
     .alert-prompt-btn {
       display: block;
-      margin: 0 auto; /* center horizontally */
+      margin: 0 auto;
       padding: 0.75rem 1.5rem;
       border-radius: 0.75rem;
       background: #214478ff;
@@ -382,8 +388,8 @@
       max-width: 600px;
       padding: 1.25rem;
       border-radius: 0.75rem;
-      background: #ffffffc9;        /* match About box */
-      border: 2px solid #214478ff;  /* match Daily Deals border */
+      background: #ffffffc9;
+      border: 2px solid #214478ff;
       display: flex;
       flex-direction: column;
       gap: 1rem;
@@ -458,6 +464,7 @@
       width: 100%;
     }
 
+    /* Center this horizontally */
     .alert-submit-btn {
       padding: 0.75rem 1.5rem;
       border-radius: 0.75rem;
@@ -470,7 +477,7 @@
       opacity: 0.6;
       width: auto;
       align-self: center;
-      margin: 0.5rem auto 0; /* center */
+      margin: 0.5rem auto 0;
       display: block;
     }
 
@@ -482,19 +489,21 @@
     }
     .alert-submit-btn.ready:hover { background: #1a3661; }
 
+    /* Price Alert Set box centered on screen */
     .alert-confirmation {
       width: 100%;
       max-width: 600px;
       padding: 1.25rem;
       border-radius: 0.75rem;
-      background: #ffffffc9;        /* match About box */
-      border: 2px solid #214478ff;  /* match Daily Deals border */
+      background: #ffffffc9;
+      border: 2px solid #214478ff;
       color: #2d3c22;
       text-align: center;
       font-size: 0.95rem;
       line-height: 1.6;
       box-sizing: border-box;
-      margin: 0 auto;              /* ensure centered */
+      margin: 0 auto;
+      display: block;
     }
     .alert-confirmation strong { color: #214478ff; }
 
@@ -507,6 +516,7 @@
       border-radius: 0.75rem;
       padding: 1.25rem 1.25rem 1.5rem;
       margin-top: 1.0rem;
+      box-sizing: border-box;
     }
 
     .alerts-title {
@@ -565,11 +575,12 @@
       border: 1px solid rgba(33, 68, 120, 0.25);
       background: rgba(255, 255, 255, 0.6);
       color: #214478ff;
+      margin-right: 0.45rem;
     }
 
     .pill.active {
-      background: rgba(46, 160, 67, 0.18);
-      border-color: rgba(46, 160, 67, 0.45);
+      background: rgba(46, 160, 67, 0.20);
+      border-color: rgba(46, 160, 67, 0.55);
       color: #1f6a2a;
     }
 
@@ -606,6 +617,21 @@
       background: rgba(33, 68, 120, 0.10);
     }
 
+    /* Inline target editor (shows up/down arrows) */
+    .target-editor {
+      width: 92px;
+      height: 32px;
+      font-size: 0.9rem;
+      padding: 0 0.4rem;
+      border-radius: 0.5rem;
+      border: 1px solid #214478ff;
+      background: #fafdf4;
+      color: #444;
+      box-sizing: border-box;
+      margin-left: 0.35rem;
+      vertical-align: middle;
+    }
+
     .hidden { display: none !important; }
   </style>
 </head>
@@ -613,7 +639,6 @@
 <body>
   <div style="display:none;">Impact-Site-Verification: 484b0fd5-0544-4654-b916-4e921a2e5077</div>
 
-  <!-- Top Navigation -->
   <div class="top-nav">
     <a id="aboutLink">About Us</a>
     <a id="myAlertsLink">My Alerts</a>
@@ -624,7 +649,6 @@
       <img src="/images/logo.svg" class="brand-logo" alt="Shoe Beagle Logo" id="logoLink">
     </div>
 
-    <!-- Search Form (Always Visible) -->
     <form id="search-form">
       <div class="input-wrapper">
         <input
@@ -659,11 +683,11 @@
       </div>
     </form>
 
-    <div class="status">Let's find your <b>running shoes</b>...cheap!</div>
+    <!-- Always visible -->
+    <div class="tagline">Let's find your <b>running shoes</b>...cheap!</div>
+    <div class="status-message" id="statusMessage"></div>
 
-    <!-- MAIN CONTENT (Results/Home) -->
     <div id="mainContent">
-      <!-- Daily Deals -->
       <div class="daily-deals" id="dailyDeals">
         <div class="daily-deals-header">Top 5 Daily Deals</div>
         <div class="daily-deals-grid">
@@ -722,7 +746,9 @@
             🔒 Your information is never shared. Used only for price alerts.
           </div>
 
-          <button class="alert-submit-btn" id="alertSubmitBtn" disabled><span class="envelope-icon">📩</span> Set Price Alert</button>
+          <button class="alert-submit-btn" id="alertSubmitBtn" disabled>
+            <span class="envelope-icon">📩</span> Set Price Alert
+          </button>
 
           <div class="alert-duration-note">
             Your price alert will remain active for 30 days, or until you cancel.
@@ -733,7 +759,6 @@
       </div>
     </div>
 
-    <!-- ABOUT SECTION (Hidden by default) -->
     <div id="aboutContent" class="about-section hidden">
       <h2>About Us</h2>
 
@@ -743,21 +768,22 @@
 
       <p>I will do my best to sniff out the best running shoe deals every day!</p>
 
-      <div style="text-align: center; margin: 1.5rem 0;">
+      <!-- Reduced space below image -->
+      <div style="text-align: center; margin: 1.2rem 0 0.35rem;">
         <img src="/images/marty.svg" alt="Marty the Beagle" style="width: 200px; height: auto;">
       </div>
     </div>
 
-    <!-- MY ALERTS DASHBOARD (Hidden by default) -->
     <div id="alertsDashboard" class="alerts-dashboard hidden">
       <div class="alerts-title">My Alerts</div>
 
       <table class="alerts-table" aria-label="My Alerts Table" id="alertsTable">
         <colgroup>
-          <col style="width: 12%;">
+          <!-- reduced Date Set + Brand widths -->
+          <col style="width: 9%;">
+          <col style="width: 10%;">
+          <col style="width: 33%;"> <!-- Model gets most width -->
           <col style="width: 14%;">
-          <col style="width: 28%;"> <!-- model gets most width -->
-          <col style="width: 12%;">
           <col style="width: 16%;">
           <col style="width: 18%;">
         </colgroup>
@@ -780,7 +806,7 @@
 
   <script>
     const form = document.getElementById("search-form");
-    const statusEl = document.querySelector(".status");
+    const statusMessageEl = document.getElementById("statusMessage");
     const resultsEl = document.getElementById("results");
     const dailyDeals = document.getElementById("dailyDeals");
 
@@ -822,7 +848,7 @@
     // Track if brand has been selected (not just typed)
     let brandSelected = false;
 
-    // ---------- Alerts storage (localStorage with safe fallback) ----------
+    // ---------- Alerts storage ----------
     const ALERTS_KEY = "shoeBeagleAlerts";
     let alertsMemoryFallback = [];
 
@@ -852,21 +878,14 @@
 
     function saveAlerts(list) {
       if (canUseLocalStorage()) {
-        try {
-          localStorage.setItem(ALERTS_KEY, JSON.stringify(list));
-        } catch (e) {}
+        try { localStorage.setItem(ALERTS_KEY, JSON.stringify(list)); } catch (e) {}
       } else {
         alertsMemoryFallback = list;
       }
     }
 
-    function normalize(s) {
-      return String(s || "").trim().toLowerCase();
-    }
-
-    function nowMs() {
-      return Date.now();
-    }
+    function normalize(s) { return String(s || "").trim().toLowerCase(); }
+    function nowMs() { return Date.now(); }
 
     function daysBetween(msA, msB) {
       const diff = Math.abs(msA - msB);
@@ -960,14 +979,16 @@
         tdModel.textContent = a.model;
         tr.appendChild(tdModel);
 
+        // Days Left + Renew button
         const tdDays = document.createElement("td");
         tdDays.textContent = status === "Active" ? String(daysLeft) : "—";
+
         if (status === "Active") {
           const renewBtn = document.createElement("button");
           renewBtn.className = "action-btn secondary";
           renewBtn.textContent = "Renew";
           renewBtn.addEventListener("click", () => {
-            a.setAt = nowMs();
+            a.setAt = nowMs();     // resets back to 30 days
             a.cancelledAt = null;
             upsertAlert(a);
             renderAlertsDashboard();
@@ -976,29 +997,43 @@
         }
         tr.appendChild(tdDays);
 
-        const tdPrice = document.createElement("td");
-        tdPrice.textContent = `$${Number(a.targetPrice).toFixed(2)}`;
+        // Target: inline editable number input w/ arrows + Update button (no popups)
+        const tdTarget = document.createElement("td");
+
+        const targetLabel = document.createElement("span");
+        targetLabel.textContent = "$";
+        tdTarget.appendChild(targetLabel);
+
+        const targetInput = document.createElement("input");
+        targetInput.type = "number";
+        targetInput.step = "1";
+        targetInput.min = "1";
+        targetInput.value = Number(a.targetPrice).toFixed(0);
+        targetInput.className = "target-editor";
+        targetInput.disabled = (status !== "Active");
+        tdTarget.appendChild(targetInput);
+
         if (status === "Active") {
-          const editBtn = document.createElement("button");
-          editBtn.className = "action-btn secondary";
-          editBtn.textContent = "Edit";
-          editBtn.addEventListener("click", () => {
-            const raw = prompt("Enter a new target price:", String(a.targetPrice));
-            if (raw === null) return;
-            const val = Number(raw);
+          const updateBtn = document.createElement("button");
+          updateBtn.className = "action-btn secondary";
+          updateBtn.textContent = "Update";
+          updateBtn.addEventListener("click", () => {
+            const val = Number(targetInput.value);
             if (!isFinite(val) || val <= 0) {
-              alert("Please enter a valid price greater than 0.");
+              alert("Please enter a valid target price greater than 0.");
+              targetInput.value = Number(a.targetPrice).toFixed(0);
               return;
             }
             a.targetPrice = Number(val).toFixed(2);
-            a.setAt = nowMs();
+            a.setAt = nowMs();      // start over at 30 days
             a.cancelledAt = null;
             upsertAlert(a);
             renderAlertsDashboard();
           });
-          tdPrice.appendChild(editBtn);
+          tdTarget.appendChild(updateBtn);
         }
-        tr.appendChild(tdPrice);
+
+        tr.appendChild(tdTarget);
 
         const tdStatus = document.createElement("td");
         const pill = document.createElement("span");
@@ -1195,11 +1230,12 @@
       aboutContent.classList.add("hidden");
       alertsDashboard.classList.add("hidden");
 
-      // Clear results + alert UI for a clean "My Alerts" view
+      // clear below-tagline content only
       resultsEl.innerHTML = "";
       dailyDeals.style.display = "none";
       alertWrapper.style.display = "none";
       resetAlertSection();
+      statusMessageEl.textContent = "";
     }
 
     function showHome() {
@@ -1216,6 +1252,7 @@
       mainContent.classList.add("hidden");
       alertsDashboard.classList.add("hidden");
       aboutContent.classList.remove("hidden");
+      statusMessageEl.textContent = "";
     }
 
     function showMyAlerts() {
@@ -1312,7 +1349,7 @@
       if (modelCanonical) modelInput.value = modelCanonical;
 
       if (!brandKey || !modelCanonical) {
-        statusEl.textContent = "Please provide a brand & model.";
+        statusMessageEl.textContent = "Please provide a brand & model.";
         updatePaws();
         return;
       }
@@ -1324,7 +1361,7 @@
 
       currentSearch = { brand: brandKey, model: modelCanonical };
 
-      statusEl.textContent = "Searching deals…";
+      statusMessageEl.textContent = "Searching deals…";
       resultsEl.innerHTML = "";
       dailyDeals.style.display = "none";
       alertWrapper.style.display = "none";
@@ -1334,30 +1371,24 @@
 
       try {
         const res = await fetch("/api/search?" + new URLSearchParams({ query }));
-        try {
-          data = await res.json();
-        } catch (parseErr) {
-          console.error("Failed to parse response:", parseErr);
-          statusEl.textContent = "Search failed. Please try again.";
-          return;
-        }
+        data = await res.json();
         if (!data || !data.results) {
-          statusEl.textContent = "No results found.";
+          statusMessageEl.textContent = "No results found.";
           return;
         }
       } catch (err) {
-        statusEl.textContent = "Search failed. Please try again.";
-        console.error("Fetch error:", err);
+        console.error("Search error:", err);
+        statusMessageEl.textContent = "Search failed. Please try again.";
         return;
       }
 
       const results = data.results || [];
       if (!results.length) {
-        statusEl.textContent = "No results.";
+        statusMessageEl.textContent = "No results.";
         return;
       }
 
-      statusEl.textContent = `Top ${results.length} deal(s) found.`;
+      statusMessageEl.textContent = `Top ${results.length} deal(s) found.`;
       resultsEl.innerHTML = "";
 
       results.forEach(item => {
@@ -1367,27 +1398,28 @@
         if (item.image) {
           const img = document.createElement("img");
           img.src = item.image;
-          img.alt = item.title;
+          img.alt = item.title || "Deal image";
           card.appendChild(img);
         }
 
         const t = document.createElement("div");
         t.className = "card-title";
-        t.textContent = item.title;
+        t.textContent = item.title || "Deal";
         card.appendChild(t);
 
         const meta = document.createElement("div");
         meta.className = "card-meta";
-        meta.innerHTML = `<span class="price">$${item.price?.toFixed(2) || "—"}</span><span>${item.store || ""}</span>`;
+        const p = (typeof item.price === "number") ? item.price.toFixed(2) : (item.price ? String(item.price) : "—");
+        meta.innerHTML = `<span class="price">$${p}</span><span>${item.store || ""}</span>`;
         card.appendChild(meta);
 
         const link = document.createElement("a");
         link.textContent = "View Deal";
         link.target = "_blank";
         link.rel = "noopener noreferrer";
-        link.href = item.url;
-
+        link.href = item.url || "#";
         card.appendChild(link);
+
         resultsEl.appendChild(card);
       });
 
@@ -1436,7 +1468,7 @@
         alertForm.style.display = "none";
         alertConfirmation.innerHTML = `
           <strong>You already have an active alert for this shoe.</strong><br><br>
-          Please go to <strong>My Alerts</strong> to edit or renew it.
+          Please go to <strong>My Alerts</strong> to renew or update your target.
         `;
         alertConfirmation.style.display = "block";
         return;
@@ -1479,7 +1511,7 @@
       alertConfirmation.innerHTML = `
         <strong>✓ Price Alert Set!</strong><br><br>
         Alert created for <strong>${product}</strong> at <strong>$${Number(priceNum).toFixed(2)}</strong>.<br><br>
-        Manage it anytime in <strong>My Alerts</strong> (edit, renew, cancel).
+        Manage it anytime in <strong>My Alerts</strong> (renew, update, cancel).
       `;
       alertConfirmation.style.display = "block";
     });
