@@ -887,7 +887,7 @@
       <h2>About Us</h2>
       <p>Shoe Beagle is a price comparison website dedicated to helping runners find the best deals on running shoes. We provide side-by-side price comparisons across multiple retailers, allowing users to search by brand and model to find the lowest prices.</p>
       <p>Our platform features price alerts, real-time deal updates, and direct links to merchant sites where users can complete their purchases.</p>
-      <p>I will do my best to sniff out the best running shoe deals every day!</p>
+      <p>We do our best to sniff out the best running shoe deals for you!</p>
       <div style="text-align: center; margin: 1.2rem 0 0.35rem;">
         <img src="/images/marty.svg" alt="Marty the Beagle" style="width: 200px; height: auto;">
       </div>
@@ -1278,7 +1278,7 @@
             priceWrapper.appendChild(saveBtn);
             actionsDiv.appendChild(priceWrapper);
 
-            // Add 10 Days
+            // Add 10 Days - FIX: subtract 10 days from setAt to extend the alert
             const add10Btn = document.createElement("button");
             add10Btn.textContent = "Add 10 Days";
             add10Btn.className = "secondary";
@@ -1286,7 +1286,8 @@
               e.stopPropagation();
               showConfirmation(actionsDiv, "Add 10 days to alert?", () => {
                 const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
-                a.setAt = a.setAt + TEN_DAYS_MS;
+                // Subtract 10 days from setAt makes it "older", increasing days left
+                a.setAt = a.setAt - TEN_DAYS_MS;
                 upsertAlert(a);
                 renderAlertsDashboard();
               });
