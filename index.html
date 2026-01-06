@@ -671,6 +671,15 @@
       background: #c82333;
     }
 
+    .alert-actions button.success {
+      background: #28a745;
+      border-color: #218838;
+    }
+
+    .alert-actions button.success:hover {
+      background: #218838;
+    }
+
     .alert-actions .confirmation {
       display: flex;
       gap: 0.5rem;
@@ -678,6 +687,12 @@
     }
 
     .alert-actions .confirmation-text {
+      font-size: 0.88rem;
+      color: #2d2d2d;
+      font-weight: 600;
+    }
+
+    .alert-actions .edit-price-label {
       font-size: 0.88rem;
       color: #2d2d2d;
       font-weight: 600;
@@ -880,7 +895,7 @@
 
       <div id="alertsEmpty" class="alerts-muted hidden">No alerts have been set.</div>
 
-      <button class="clear-inactive-btn hidden" id="clearInactiveBtn">Clear All Inactive Alerts</button>
+      <button class="clear-inactive-btn hidden" id="clearInactiveBtn">Clear Inactive Alerts</button>
     </div>
   </div>
 
@@ -1022,9 +1037,40 @@
 
     function clearAllInactive() {
       const list = loadAlerts();
-      const active = list.filter(a => computeAlertStatus(a) === "Active");
+      const active = list.filter(a => {
+        const status = computeAlertStatus(a);
+        return status === "Active";
+      });
       saveAlerts(active);
       renderAlertsDashboard();
+    }
+
+    function showConfirmation(actionsDiv, message, onYes) {
+      actionsDiv.innerHTML = "";
+      
+      const confirmDiv = document.createElement("div");
+      confirmDiv.className = "confirmation";
+      
+      const confirmText = document.createElement("span");
+      confirmText.className = "confirmation-text";
+      confirmText.textContent = message;
+      
+      const yesBtn = document.createElement("button");
+      yesBtn.textContent = "Yes";
+      yesBtn.className = "success";
+      yesBtn.addEventListener("click", onYes);
+      
+      const noBtn = document.createElement("button");
+      noBtn.textContent = "No";
+      noBtn.className = "secondary";
+      noBtn.addEventListener("click", () => {
+        renderAlertsDashboard();
+      });
+      
+      confirmDiv.appendChild(confirmText);
+      confirmDiv.appendChild(yesBtn);
+      confirmDiv.appendChild(noBtn);
+      actionsDiv.appendChild(confirmDiv);
     }
 
     function renderAlertsDashboard() {
@@ -1042,7 +1088,10 @@
       alertsEmpty.classList.add("hidden");
       alertsTable.classList.remove("hidden");
 
-      const hasInactive = list.some(a => computeAlertStatus(a) !== "Active");
+      const hasInactive = list.some(a => {
+        const status = computeAlertStatus(a);
+        return status === "Expired" || status === "Cancelled";
+      });
       if (hasInactive) {
         clearInactiveBtn.classList.remove("hidden");
       } else {
@@ -1116,9 +1165,14 @@
           actionsDiv.className = "alert-actions";
 
           if (status === "Active") {
-            // Change Price
+            // Edit Price
             const priceWrapper = document.createElement("div");
             priceWrapper.className = "price-change-wrapper";
+            
+            const editLabel = document.createElement("span");
+            editLabel.className = "edit-price-label";
+            editLabel.textContent = "Edit Price:";
+            priceWrapper.appendChild(editLabel);
             
             const priceInputWrapper = document.createElement("span");
             priceInputWrapper.className = "price-change-input";
@@ -1132,116 +1186,78 @@
             priceInputWrapper.appendChild(priceInput);
             priceWrapper.appendChild(priceInputWrapper);
             
-            const changePriceBtn = document.createElement("button");
-            changePriceBtn.textContent = "Change Price";
-            changePriceBtn.addEventListener("click", () => {
+            const saveBtn = document.createElement("button");
+            saveBtn.textContent = "Save";
+            saveBtn.addEventListener("click", () => {
               const val = Number(priceInput.value);
               if (!isFinite(val) || val <= 0) {
                 alert("Please enter a valid target price greater than 0.");
                 return;
               }
-              a.targetPrice = Number(val).toFixed(2);
-              a.setAt = nowMs();
-              upsertAlert(a);
-              renderAlertsDashboard();
+              showConfirmation(actionsDiv, "Save new price?", () => {
+                a.targetPrice = Number(val).toFixed(2);
+                a.setAt = nowMs();
+                upsertAlert(a);
+                renderAlertsDashboard();
+              });
             });
             
-            priceWrapper.appendChild(changePriceBtn);
+            priceWrapper.appendChild(saveBtn);
             actionsDiv.appendChild(priceWrapper);
 
-            // Reset Alert
-            const resetBtn = document.createElement("button");
-            resetBtn.textContent = "Reset Alert";
-            resetBtn.className = "secondary";
-            resetBtn.addEventListener("click", () => {
-              a.setAt = nowMs();
-              a.cancelledAt = null;
-              upsertAlert(a);
-              renderAlertsDashboard();
+            // Add 10 Days
+            const add10Btn = document.createElement("button");
+            add10Btn.textContent = "Add 10 Days";
+            add10Btn.className = "secondary";
+            add10Btn.addEventListener("click", () => {
+              showConfirmation(actionsDiv, "Add 10 days to alert?", () => {
+                const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
+                a.setAt = a.setAt + TEN_DAYS_MS;
+                upsertAlert(a);
+                renderAlertsDashboard();
+              });
             });
-            actionsDiv.appendChild(resetBtn);
+            actionsDiv.appendChild(add10Btn);
 
             // Cancel Alert
             const cancelBtn = document.createElement("button");
             cancelBtn.textContent = "Cancel Alert";
             cancelBtn.className = "danger";
-            let confirmingCancel = false;
             cancelBtn.addEventListener("click", () => {
-              if (!confirmingCancel) {
-                confirmingCancel = true;
-                actionsDiv.innerHTML = "";
-                
-                const confirmDiv = document.createElement("div");
-                confirmDiv.className = "confirmation";
-                
-                const confirmText = document.createElement("span");
-                confirmText.className = "confirmation-text";
-                confirmText.textContent = "Are you sure?";
-                
-                const yesBtn = document.createElement("button");
-                yesBtn.textContent = "Yes";
-                yesBtn.className = "danger";
-                yesBtn.addEventListener("click", () => {
-                  a.cancelledAt = nowMs();
-                  upsertAlert(a);
-                  renderAlertsDashboard();
-                });
-                
-                const noBtn = document.createElement("button");
-                noBtn.textContent = "No";
-                noBtn.className = "secondary";
-                noBtn.addEventListener("click", () => {
-                  renderAlertsDashboard();
-                });
-                
-                confirmDiv.appendChild(confirmText);
-                confirmDiv.appendChild(yesBtn);
-                confirmDiv.appendChild(noBtn);
-                actionsDiv.appendChild(confirmDiv);
-              }
+              showConfirmation(actionsDiv, "Cancel this alert?", () => {
+                a.cancelledAt = nowMs();
+                upsertAlert(a);
+                renderAlertsDashboard();
+              });
             });
             actionsDiv.appendChild(cancelBtn);
 
           } else {
-            // Clear Alert (for inactive)
-            const clearBtn = document.createElement("button");
-            clearBtn.textContent = "Clear Alert";
-            clearBtn.className = "danger";
-            let confirmingClear = false;
-            clearBtn.addEventListener("click", () => {
-              if (!confirmingClear) {
-                confirmingClear = true;
-                actionsDiv.innerHTML = "";
-                
-                const confirmDiv = document.createElement("div");
-                confirmDiv.className = "confirmation";
-                
-                const confirmText = document.createElement("span");
-                confirmText.className = "confirmation-text";
-                confirmText.textContent = "Are you sure?";
-                
-                const yesBtn = document.createElement("button");
-                yesBtn.textContent = "Yes";
-                yesBtn.className = "danger";
-                yesBtn.addEventListener("click", () => {
-                  deleteAlert(a.id);
-                  renderAlertsDashboard();
-                });
-                
-                const noBtn = document.createElement("button");
-                noBtn.textContent = "No";
-                noBtn.className = "secondary";
-                noBtn.addEventListener("click", () => {
-                  renderAlertsDashboard();
-                });
-                
-                confirmDiv.appendChild(confirmText);
-                confirmDiv.appendChild(yesBtn);
-                confirmDiv.appendChild(noBtn);
-                actionsDiv.appendChild(confirmDiv);
-              }
+            // Refresh (reactivate)
+            const refreshBtn = document.createElement("button");
+            refreshBtn.textContent = "Refresh";
+            refreshBtn.className = "success";
+            refreshBtn.addEventListener("click", () => {
+              showConfirmation(actionsDiv, "Reactivate this alert?", () => {
+                a.setAt = nowMs();
+                a.cancelledAt = null;
+                upsertAlert(a);
+                renderAlertsDashboard();
+              });
             });
-            actionsDiv.appendChild(clearBtn);
+            actionsDiv.appendChild(refreshBtn);
+
+            // Delete
+            const deleteBtn = document.createElement("button");
+            deleteBtn.textContent = "Delete";
+            deleteBtn.className = "danger";
+            deleteBtn.addEventListener("click", () => {
+              showConfirmation(actionsDiv, "Delete this alert?", () => {
+                deleteAlert(a.id);
+                renderAlertsDashboard();
+              });
+            });
+            actionsDiv.appendChild(deleteBtn);
           }
 
           actionCell.appendChild(actionsDiv);
@@ -1254,7 +1270,7 @@
     }
 
     clearInactiveBtn.addEventListener("click", () => {
-      if (confirm("Are you sure you want to clear all inactive (expired and cancelled) alerts?")) {
+      if (confirm("Clear all inactive alerts (expired and cancelled)?")) {
         clearAllInactive();
       }
     });
@@ -1624,22 +1640,34 @@
       const brand = currentSearch.brand;
       const model = currentSearch.model;
 
-      if (!brand || !model) { alert("Please search for a shoe first, then set an alert."); return; }
-      if (!isFinite(priceNum) || priceNum <= 0) { alert("Please enter a valid target price greater than 0."); return; }
+      if (!brand || !model) { 
+        alert("Please search for a shoe first, then set an alert."); 
+        return; 
+      }
+      
+      if (!isFinite(priceNum) || priceNum <= 0) { 
+        alert("Please enter a valid target price greater than 0."); 
+        return; 
+      }
 
       const existingActive = findActiveAlertFor(brand, model);
       if (existingActive) {
         alertForm.style.display = "none";
         alertConfirmation.innerHTML = `
-          <strong>You already have an active alert for this shoe.</strong><br><br>
-          Please go to <strong>My Alerts</strong> to update your target.
+          <strong>This shoe already has an active alert.</strong><br><br>
+          To edit the alert, please manage it in <strong>My Alerts</strong>.
         `;
         alertConfirmation.style.display = "block";
         return;
       }
 
       const isEmail = contact.includes('@');
-      const payload = { product: `${brand} ${model}`, targetPrice: Number(priceNum).toFixed(2), email: isEmail ? contact : "", phone: isEmail ? "" : contact };
+      const payload = { 
+        product: `${brand} ${model}`, 
+        targetPrice: Number(priceNum).toFixed(2), 
+        email: isEmail ? contact : "", 
+        phone: isEmail ? "" : contact 
+      };
 
       const newAlert = {
         id: `a_${Math.random().toString(36).slice(2)}_${Date.now()}`,
@@ -1654,14 +1682,20 @@
       upsertAlert(newAlert);
 
       try {
-        await fetch("/api/alerts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      } catch (err) { console.error("Alert submission error:", err); }
+        await fetch("/api/alerts", { 
+          method: "POST", 
+          headers: { "Content-Type": "application/json" }, 
+          body: JSON.stringify(payload) 
+        });
+      } catch (err) { 
+        console.error("Alert submission error:", err); 
+      }
 
       alertForm.style.display = "none";
       alertConfirmation.innerHTML = `
         <strong>✓ Price Alert Set!</strong><br><br>
         Alert created for <strong>${brand} ${model}</strong> at <strong>$${Number(priceNum).toFixed(2)}</strong>.<br><br>
-        Manage it anytime in <strong>My Alerts</strong> (update or cancel).
+        Manage it anytime in <strong>My Alerts</strong>.
       `;
       alertConfirmation.style.display = "block";
     });
