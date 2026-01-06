@@ -359,7 +359,7 @@
     /* Alert section styles */
     .alert-wrapper {
       width: 100%;
-      max-width: 600px;
+      max-width: 850px;
       margin-top: 1.0rem;
       display: flex;
       flex-direction: column;
@@ -370,7 +370,8 @@
 
     .alert-prompt-btn,
     .alert-form,
-    .alert-confirmation {
+    .alert-confirmation,
+    .alert-existing-info {
       margin-left: auto;
       margin-right: auto;
     }
@@ -494,7 +495,8 @@
     }
     .alert-submit-btn.ready:hover { background: #1a3661; }
 
-    .alert-confirmation {
+    .alert-confirmation,
+    .alert-existing-info {
       width: 100%;
       max-width: 600px;
       padding: 1.25rem;
@@ -507,7 +509,8 @@
       line-height: 1.6;
       box-sizing: border-box;
     }
-    .alert-confirmation strong { color: #214478ff; }
+    .alert-confirmation strong,
+    .alert-existing-info strong { color: #214478ff; }
 
     /* My Alerts dashboard */
     .alerts-dashboard {
@@ -573,7 +576,11 @@
     }
 
     .alerts-table tbody tr.inactive {
-      opacity: 0.5;
+      background: #e8e8e8;
+    }
+
+    .alerts-table tbody tr.inactive:hover {
+      background: #d8d8d8;
     }
 
     .alerts-table tbody td {
@@ -737,19 +744,32 @@
       text-align: right;
     }
 
-    .clear-inactive-btn {
+    .clear-inactive-wrapper {
       width: 100%;
-      max-width: 250px;
-      margin: 1rem auto 0;
-      padding: 0.65rem 1.25rem;
+      display: flex;
+      justify-content: center;
+      margin-top: 1rem;
+    }
+
+    .clear-inactive-actions {
+      padding: 0.75rem 1rem;
+      background: rgba(220, 53, 69, 0.08);
+      border: 1px solid #dc3545;
+      border-radius: 0.5rem;
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .clear-inactive-btn {
+      padding: 0.5rem 1rem;
       border-radius: 0.5rem;
       background: #dc3545;
       border: 1px solid #c82333;
       color: white;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       font-weight: 600;
       cursor: pointer;
-      display: block;
     }
 
     .clear-inactive-btn:hover {
@@ -832,6 +852,8 @@
       <div class="alert-wrapper" id="alertWrapper" style="display:none;">
         <button class="alert-prompt-btn" id="alertPromptBtn"><span class="bell-icon">🔔</span> Set Price Alert?</button>
 
+        <div class="alert-existing-info" id="alertExistingInfo" style="display:none;"></div>
+
         <div class="alert-form" id="alertForm" style="display:none;">
           <div class="alert-product-message">
             Alert me when <strong id="alertProductName"></strong> is less than:
@@ -879,10 +901,10 @@
         <table class="alerts-table" aria-label="My Alerts Table" id="alertsTable">
           <colgroup>
             <col style="width: 12%;">  <!-- Date Set -->
-            <col style="width: 40%;">  <!-- Shoe -->
+            <col style="width: 45%;">  <!-- Shoe -->
             <col style="width: 14%;">  <!-- Days Left -->
-            <col style="width: 16%;">  <!-- Target -->
-            <col style="width: 18%;">  <!-- Status -->
+            <col style="width: 10%;">  <!-- Target -->
+            <col style="width: 19%;">  <!-- Status -->
           </colgroup>
           <thead>
             <tr>
@@ -899,7 +921,7 @@
 
       <div id="alertsEmpty" class="alerts-muted hidden">No alerts have been set.</div>
 
-      <button class="clear-inactive-btn hidden" id="clearInactiveBtn">Clear Inactive Alerts</button>
+      <div class="clear-inactive-wrapper hidden" id="clearInactiveWrapper"></div>
     </div>
   </div>
 
@@ -914,6 +936,7 @@
     const alertForm = document.getElementById("alertForm");
     const alertSubmitBtn = document.getElementById("alertSubmitBtn");
     const alertConfirmation = document.getElementById("alertConfirmation");
+    const alertExistingInfo = document.getElementById("alertExistingInfo");
     const alertProductName = document.getElementById("alertProductName");
 
     const alertPriceInput = document.getElementById("alertPrice");
@@ -940,7 +963,7 @@
     const alertsTbody = document.getElementById("alertsTbody");
     const alertsEmpty = document.getElementById("alertsEmpty");
     const alertsTable = document.getElementById("alertsTable");
-    const clearInactiveBtn = document.getElementById("clearInactiveBtn");
+    const clearInactiveWrapper = document.getElementById("clearInactiveWrapper");
 
     let currentSearch = { brand: "", model: "" };
     let brandSelected = false;
@@ -1081,15 +1104,46 @@
       actionsDiv.appendChild(confirmDiv);
     }
 
+    function showClearInactiveConfirmation() {
+      clearInactiveWrapper.innerHTML = "";
+      
+      const actionsDiv = document.createElement("div");
+      actionsDiv.className = "clear-inactive-actions";
+      
+      const confirmText = document.createElement("span");
+      confirmText.className = "confirmation-text";
+      confirmText.textContent = "Clear all inactive alerts?";
+      
+      const yesBtn = document.createElement("button");
+      yesBtn.textContent = "Yes";
+      yesBtn.className = "success";
+      yesBtn.addEventListener("click", () => {
+        clearAllInactive();
+      });
+      
+      const noBtn = document.createElement("button");
+      noBtn.textContent = "No";
+      noBtn.className = "secondary";
+      noBtn.addEventListener("click", () => {
+        renderAlertsDashboard();
+      });
+      
+      actionsDiv.appendChild(confirmText);
+      actionsDiv.appendChild(yesBtn);
+      actionsDiv.appendChild(noBtn);
+      clearInactiveWrapper.appendChild(actionsDiv);
+    }
+
     function renderAlertsDashboard() {
       const list = loadAlerts();
       alertsTbody.innerHTML = "";
       selectedAlertRow = null;
+      clearInactiveWrapper.innerHTML = "";
 
       if (!list.length) {
         alertsEmpty.classList.remove("hidden");
         alertsTable.classList.add("hidden");
-        clearInactiveBtn.classList.add("hidden");
+        clearInactiveWrapper.classList.add("hidden");
         return;
       }
 
@@ -1100,10 +1154,16 @@
         const status = computeAlertStatus(a);
         return status === "Expired" || status === "Cancelled";
       });
+      
       if (hasInactive) {
-        clearInactiveBtn.classList.remove("hidden");
+        clearInactiveWrapper.classList.remove("hidden");
+        const clearBtn = document.createElement("button");
+        clearBtn.className = "clear-inactive-btn";
+        clearBtn.textContent = "Clear Inactive Alerts";
+        clearBtn.addEventListener("click", showClearInactiveConfirmation);
+        clearInactiveWrapper.appendChild(clearBtn);
       } else {
-        clearInactiveBtn.classList.add("hidden");
+        clearInactiveWrapper.classList.add("hidden");
       }
 
       const order = { "Active": 0, "Expired": 1, "Cancelled": 2 };
@@ -1226,7 +1286,7 @@
               e.stopPropagation();
               showConfirmation(actionsDiv, "Add 10 days to alert?", () => {
                 const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
-                a.setAt = a.setAt - TEN_DAYS_MS;
+                a.setAt = a.setAt + TEN_DAYS_MS;
                 upsertAlert(a);
                 renderAlertsDashboard();
               });
@@ -1248,22 +1308,7 @@
             actionsDiv.appendChild(cancelBtn);
 
           } else {
-            // Refresh (reactivate)
-            const refreshBtn = document.createElement("button");
-            refreshBtn.textContent = "Refresh";
-            refreshBtn.className = "success";
-            refreshBtn.addEventListener("click", (e) => {
-              e.stopPropagation();
-              showConfirmation(actionsDiv, "Reactivate this alert?", () => {
-                a.setAt = nowMs();
-                a.cancelledAt = null;
-                upsertAlert(a);
-                renderAlertsDashboard();
-              });
-            });
-            actionsDiv.appendChild(refreshBtn);
-
-            // Delete
+            // Delete only for inactive
             const deleteBtn = document.createElement("button");
             deleteBtn.textContent = "Delete";
             deleteBtn.className = "danger";
@@ -1285,12 +1330,6 @@
         alertsTbody.appendChild(tr);
       });
     }
-
-    clearInactiveBtn.addEventListener("click", () => {
-      if (confirm("Clear all inactive alerts (expired and cancelled)?")) {
-        clearAllInactive();
-      }
-    });
 
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".alerts-table") && !e.target.closest(".alert-actions")) {
@@ -1440,6 +1479,7 @@
       alertPromptBtn.style.display = "block";
       alertForm.style.display = "none";
       alertConfirmation.style.display = "none";
+      alertExistingInfo.style.display = "none";
       alertPriceInput.value = "";
       alertContactInput.value = "";
       updateAlertSubmitButton();
@@ -1579,6 +1619,24 @@
 
       resetAlertSection();
       alertWrapper.style.display = "flex";
+
+      const existingActive = findActiveAlertFor(brandKey, modelCanonical);
+      if (existingActive) {
+        alertPromptBtn.style.display = "none";
+        const daysLeft = computeDaysLeft(existingActive);
+        alertExistingInfo.innerHTML = `
+          <strong>You have an active alert set for this shoe.</strong><br><br>
+          <strong>Shoe:</strong> ${existingActive.brand} ${existingActive.model}<br>
+          <strong>Days Remaining:</strong> ${daysLeft}<br>
+          <strong>Target Price:</strong> $${Number(existingActive.targetPrice).toFixed(2)}<br><br>
+          Open <strong>My Alerts</strong> to manage it.
+        `;
+        alertExistingInfo.style.display = "block";
+      } else {
+        alertPromptBtn.style.display = "block";
+        alertExistingInfo.style.display = "none";
+      }
+
       alertProductName.textContent = `${brandKey} ${modelCanonical}`;
 
       const query = `${brandKey} ${modelCanonical}`;
