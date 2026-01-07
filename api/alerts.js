@@ -74,13 +74,13 @@ export default async function handler(req, res) {
   const htmlContent = `
 <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background-color:#f5f5f5; padding:24px 16px; text-align:center;">
   <a href="https://shoebeagle.com" style="text-decoration:none; display:inline-block; margin-bottom:16px;">
-    <img src="https://shoebeagle.com/images/logo.svg" alt="Shoe Beagle" style="max-width:260px; height:auto; display:block; margin:0 auto;">
+    <img src="https://shoebeagle.com/images/e_logo.svg" alt="Shoe Beagle" style="max-width:260px; height:auto; display:block; margin:0 auto;">
   </a>
   <div style="max-width:520px; margin:0 auto; text-align:left; background:#ffffff; border-radius:12px; padding:20px 24px; border:1px solid #e5e7eb;">
     <p style="margin:0 0 12px; font-size:16px;">Thanks for setting a price alert at <strong>Shoe Beagle</strong>!</p>
     <p style="margin:0 0 8px; font-size:14px;"><strong>Product:</strong> ${product}</p>
     <p style="margin:0 0 8px; font-size:14px;"><strong>Target Price:</strong> $${priceDisplay}</p>
-    <p style="margin:16px 0 0; font-size:14px;">We'll notify you if we detect a deal at or below your target price.</p>
+    <p style="margin:16px 0 0; font-size:14px;">We'll notify you immediately if we detect a deal at or below your target price. This alert will remain active for 30 days.</p>
   </div>
   <p style="margin-top:16px; font-size:12px; color:#6b7280;">If you didn't request this alert, you can ignore this email.</p>
 </div>
