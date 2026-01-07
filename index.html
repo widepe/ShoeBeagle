@@ -1003,8 +1003,8 @@
           </div>
 
           <div class="alert-form-row">
-            <label for="alertContact">Email or Phone Number</label>
-            <input id="alertContact" type="text" placeholder="you@example.com or +1-555-0123">
+            <label for="alertContact">Email Address</label>
+            <input id="alertContact" type="text" placeholder="you@example.com">
           </div>
 
           <div class="alert-privacy-note">🔒 Your information is used only to send you shoe price alerts that you request, and is never sold or shared with third parties for their own marketing.</div>
@@ -1774,16 +1774,14 @@
       updateFetchReady();
     }
 
-    function updateAlertSubmitButton() {
-      const price = alertPriceInput.value.trim();
-      const contact = alertContactInput.value.trim();
-      const priceValid = price && parseFloat(price) > 0;
-      const contactValid = contact.length > 0 && (
-        contact.includes('@') || /[\d\-\+\(\)\s]{7,}/.test(contact)
-      );
-      const isReady = priceValid && contactValid;
-      alertSubmitBtn.classList.toggle("ready", isReady);
-    }
+function updateAlertSubmitButton() {
+  const price = alertPriceInput.value.trim();
+  const contact = alertContactInput.value.trim();
+  const priceValid = price && parseFloat(price) > 0;
+  const contactValid = contact.length > 0 && contact.includes('@');
+  const isReady = priceValid && contactValid;
+  alertSubmitBtn.classList.toggle("ready", isReady);
+}
 
     function resetAlertSection() {
       alertPromptBtn.style.display = "block";
