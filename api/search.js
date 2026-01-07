@@ -58,7 +58,8 @@ module.exports = async (req, res) => {
 
     // Load deals from JSON file
     const dealsPath = path.join(process.cwd(), "data", "deals.json");
-    const deals = JSON.parse(fs.readFileSync(dealsPath, "utf8"));
+    const dealsData = JSON.parse(fs.readFileSync(dealsPath, "utf8"));
+    const deals = dealsData.deals || [];
 
     // Parse query
     const parts = rawQuery.trim().split(/\s+/);
