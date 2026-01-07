@@ -2,15 +2,15 @@
 // Daily scraper for running shoe deals
 // Runs once per day via Vercel Cron
 
-const axios = require('axios');
-const cheerio = require('cheerio');
-const fs = require('fs').promises;
-const path = require('path');
+import axios from 'axios';
+import cheerio from 'cheerio';
+import fs from 'fs/promises';
+import path from 'path';
 
 /**
  * Main handler - triggered by Vercel Cron
  */
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   // Security: Only allow GET requests
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -100,7 +100,7 @@ module.exports = async (req, res) => {
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
-};
+}
 
 /**
  * Scrape Running Warehouse sale page
