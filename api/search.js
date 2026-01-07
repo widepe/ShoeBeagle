@@ -38,12 +38,11 @@ module.exports = async (req, res) => {
     console.log("[/api/search] Request:", { requestId, rawQuery, query });
 
     if (!query) {
-      res.status(400).json({
+      return res.status(400).json({
         error: "Missing query parameter",
         example: "/api/search?query=Nike%20Pegasus",
         requestId
       });
-      return;
     }
 
     // Check cache
@@ -51,15 +50,30 @@ module.exports = async (req, res) => {
     const cached = getCached(cacheKey);
     if (cached) {
       console.log("[/api/search] Cache hit");
-      res.status(200).json({ results: cached, requestId, cached: true });
-      return;
+      return res.status(200).json({ results: cached, requestId, cached: true });
     }
 
-// Load deals from Vercel Blob Storage
-const blobUrl = 'https://shoebeagle-blob.public.blob.vercel-storage.com/deals.json';
-const response = await axios.get(blobUrl);
-const dealsData = response.data;
-const deals = dealsData.deals || [];
+    // Load deals from Vercel Blob Storage
+    const blobUrl = 'https://shoebeagle-blob.public.blob.vercel-storage.com/deals.json';
+    let dealsData;
+    
+    try {
+      const response = await axios.get(blobUrl);
+      dealsData = response.data;
+    } catch (blobError) {
+      console.error("[/api/search] Error fetching from blob:", blobError.message);
+      return res.status(500).json({ 
+        error: "Failed to load deals data",
+        requestId
+      });
+    }
+
+    const deals = dealsData.deals || [];
+
+    console.log("[/api/search] Loaded deals:", {
+      total: deals.length,
+      lastUpdated: dealsData.lastUpdated || 'unknown'
+    });
 
     // Parse query
     const parts = rawQuery.trim().split(/\s+/);
@@ -80,6 +94,8 @@ const deals = dealsData.deals || [];
         if (!dealBrand.includes(normalizedBrand)) return false;
         
         // Model match: allow partial match either direction
+        if (!normalizedModel) return true; // Brand-only search
+        
         return (
           dealModel.includes(normalizedModel) ||
           normalizedModel.includes(dealModel)
@@ -88,6 +104,8 @@ const deals = dealsData.deals || [];
       .map((deal) => ({
         title: deal.title,
         price: Number(deal.price),
+        originalPrice: deal.originalPrice ? Number(deal.originalPrice) : null,
+        discount: deal.discount || null,
         store: deal.store,
         url: deal.url,
         image: deal.image || "https://placehold.co/600x400?text=Running+Shoe"
@@ -101,10 +119,16 @@ const deals = dealsData.deals || [];
     console.log("[/api/search] Complete:", {
       requestId,
       ms: Date.now() - startedAt,
-      count: results.length
+      count: results.length,
+      dataAge: dealsData.lastUpdated ? `Updated ${new Date(dealsData.lastUpdated).toLocaleString()}` : 'unknown'
     });
 
-    res.status(200).json({ results, requestId });
+    return res.status(200).json({ 
+      results, 
+      requestId,
+      lastUpdated: dealsData.lastUpdated,
+      cached: false
+    });
 
   } catch (err) {
     console.error("[/api/search] Fatal error:", {
@@ -113,8 +137,9 @@ const deals = dealsData.deals || [];
       stack: err?.stack
     });
     
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: "Internal server error",
+      details: err?.message,
       requestId
     });
   }
