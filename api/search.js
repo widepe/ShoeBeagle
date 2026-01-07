@@ -54,7 +54,7 @@ module.exports = async (req, res) => {
     }
 
     // Load deals from Vercel Blob Storage
-    const blobUrl = 'https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals-4dhM9rrQgBZcTBd8iFY37lVsWKRWji.json';
+    const blobUrl = 'https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals-b42PTEwgZDoWh9BNjWjsP75sttbYJp.json';
     let dealsData;
     
     try {
