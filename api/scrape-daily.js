@@ -66,16 +66,12 @@ module.exports = async (req, res) => {
       deals: allDeals
     };
 
-// Save to Vercel Blob Storage
-const blob = await put('deals.json', JSON.stringify(output, null, 2), {
-  access: 'public',
-  contentType: 'application/json',
-  addRandomSuffix: false
-});
+    // Save to Vercel Blob Storage
+    const blob = await put('deals.json', JSON.stringify(output, null, 2), {
+      access: 'public'
+    });
 
-console.log('[SCRAPER] Saved to blob:', blob.url);  access: 'public',
-  contentType: 'application/json'
-});
+    console.log('[SCRAPER] Saved to blob:', blob.url);
 
     const duration = Date.now() - startTime;
     console.log(`[SCRAPER] Complete: ${allDeals.length} deals in ${duration}ms`);
@@ -85,6 +81,7 @@ console.log('[SCRAPER] Saved to blob:', blob.url);  access: 'public',
       totalDeals: allDeals.length,
       dealsByStore,
       scraperResults,
+      blobUrl: blob.url,
       duration: `${duration}ms`,
       timestamp: output.lastUpdated
     });
@@ -105,6 +102,7 @@ console.log('[SCRAPER] Saved to blob:', blob.url);  access: 'public',
 async function scrapeRunningWarehouse() {
   const deals = [];
   const url = 'https://www.runningwarehouse.com/catpage-SALEMS.html';
+
   try {
     const response = await axios.get(url, {
       headers: {
@@ -117,10 +115,9 @@ async function scrapeRunningWarehouse() {
 
     const $ = cheerio.load(response.data);
 
-    // IMPORTANT: These selectors are placeholders - update after inspecting the actual site
-$('.cattable-wrap-cell').each((i, element) => {  
-  
+    $('.cattable-wrap-cell').each((i, element) => {
       const $el = $(element);
+      
       const title = $el.find('[data-gtm_impression_name]').first().attr('data-gtm_impression_name') || $el.find('.cattable-wrap-cell-inner').first().text().trim();
       const priceText = $el.find('.price, .sale-price, [class*="price"]').first().text().trim();
       const link = $el.find('a').first().attr('href');
@@ -172,7 +169,6 @@ async function scrapeZappos() {
 
     const $ = cheerio.load(response.data);
 
-    // IMPORTANT: Update these selectors based on Zappos' actual HTML
     $('[data-product-id], .product, article').each((i, element) => {
       const $el = $(element);
       
