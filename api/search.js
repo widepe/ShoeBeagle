@@ -1,5 +1,4 @@
-const fs = require("fs");
-const path = require("path");
+const axios = require("axios");
 
 function normalize(s) {
   return String(s || "")
@@ -56,10 +55,11 @@ module.exports = async (req, res) => {
       return;
     }
 
-    // Load deals from JSON file
-    const dealsPath = path.join(process.cwd(), "data", "deals.json");
-    const dealsData = JSON.parse(fs.readFileSync(dealsPath, "utf8"));
-    const deals = dealsData.deals || [];
+// Load deals from Vercel Blob Storage
+const blobUrl = 'https://shoebeagle-blob.public.blob.vercel-storage.com/deals.json';
+const response = await axios.get(blobUrl);
+const dealsData = response.data;
+const deals = dealsData.deals || [];
 
     // Parse query
     const parts = rawQuery.trim().split(/\s+/);
