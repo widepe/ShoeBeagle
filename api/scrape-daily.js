@@ -118,8 +118,19 @@ async function scrapeRunningWarehouse() {
     $('.cattable-wrap-cell').each((i, element) => {
       const $el = $(element);
       
-      const title = $el.find('[data-gtm_impression_name]').first().attr('data-gtm_impression_name');
-      const priceText = $el.find('.price, .sale-price, [class*="price"]').first().text().trim();
+      // Extract title - use data attribute if available, otherwise parse from text
+      let title = $el.find('[data-gtm_impression_name]').first().attr('data-gtm_impression_name');
+      
+      // Fallback: if no data attribute, try to extract from text
+      if (!title) {
+        const fullText = $el.text();
+        // Extract just the product name (usually between "Clearance" and price)
+        const lines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 10 && l.length < 100);
+        title = lines.find(l => !l.includes('$') && !l.includes('Clearance') && !l.includes('Review') && !l.includes('Size'));
+      }
+      
+      const priceText = $el.find('[data-gtm_impression_price]').first().attr('data-gtm_impression_price') || 
+                        $el.find('.price, .sale-price, [class*="price"]').first().text().trim();
       const link = $el.find('a').first().attr('href');
       const image = $el.find('img').first().attr('src') || $el.find('img').first().attr('data-src');
 
@@ -205,6 +216,8 @@ async function scrapeZappos() {
 }
 
 function parseBrandModel(title) {
+  if (!title) return { brand: 'Unknown', model: '' };
+  
   const brands = [
     'Nike', 'Adidas', 'New Balance', 'Brooks', 'Asics',
     'Hoka', 'Saucony', 'On', 'Altra', 'Mizuno',
