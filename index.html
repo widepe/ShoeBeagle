@@ -789,6 +789,127 @@
       background: #c82333;
     }
 
+    /* Footer */
+    .footer {
+      margin-top: 1.5rem;
+      font-size: 0.8rem;
+      color: #555;
+      text-align: center;
+      width: 100%;
+    }
+
+    .footer a {
+      color: #214478ff;
+      text-decoration: none;
+      margin-left: 0.25rem;
+      cursor: pointer;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Privacy modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #f4ede3ff;
+      max-width: 800px;
+      width: 95%;
+      max-height: 90vh;
+      border-radius: 0.75rem;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .modal-header {
+      padding: 0.75rem 1.25rem 0.25rem;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      text-align: center;
+    }
+
+    .modal-logo {
+      width: 200px;
+      max-width: 60%;
+      height: auto;
+      margin: 0 auto 0.4rem;
+      display: block;
+    }
+
+    .modal-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #214478ff;
+      margin-bottom: 0.2rem;
+    }
+
+    .modal-subtitle {
+      font-size: 0.8rem;
+      color: #666;
+      margin-bottom: 0.25rem;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 0.6rem;
+      right: 0.9rem;
+      font-size: 1.2rem;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: #555;
+    }
+
+    .modal-close:hover {
+      color: #000;
+    }
+
+    .modal-body {
+      padding: 0.75rem 1.5rem 1.25rem;
+      overflow-y: auto;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .modal-body h3 {
+      margin: 0.7rem 0 0.25rem;
+      font-size: 1rem;
+      color: #214478ff;
+    }
+
+    .modal-body p {
+      margin: 0.35rem 0;
+    }
+
+    .modal-body ul {
+      margin: 0.25rem 0 0.5rem 1.1rem;
+      padding-left: 0.5rem;
+    }
+
+    .modal-body li {
+      margin: 0.15rem 0;
+    }
+
+    .modal-body small {
+      font-size: 0.8rem;
+      color: #666;
+    }
+
     .hidden { display: none !important; }
   </style>
 </head>
@@ -875,8 +996,6 @@
         </div>
       </div>
 
-
-
       <div class="results" id="results"></div>
       <p class="disclaimer">Prices are subject to change.</p>
 
@@ -955,6 +1074,110 @@
 
       <div class="clear-inactive-wrapper hidden" id="clearInactiveWrapper"></div>
     </div>
+
+    <!-- Footer with Privacy link -->
+    <div class="footer">
+      © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
+      <a id="privacyLink">Privacy Policy</a>
+    </div>
+  </div>
+
+  <!-- Privacy Policy Modal -->
+  <div id="privacyModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+      <button class="modal-close" id="privacyClose" aria-label="Close Privacy Policy">×</button>
+      <div class="modal-header">
+        <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="modal-logo">
+        <div class="modal-title" id="privacyTitle">Privacy Policy</div>
+        <div class="modal-subtitle">Last updated: [Month Day, Year]</div>
+      </div>
+      <div class="modal-body">
+        <p><small>Note: This Privacy Policy is provided for general informational purposes only and does not constitute legal advice. Consider having a lawyer review it for your specific situation and jurisdiction.</small></p>
+
+        <h3>1. Who we are</h3>
+        <p>Shoe Beagle (“we,” “us,” or “our”) is a website that helps runners find great deals on running shoes by comparing prices from multiple online retailers. This Privacy Policy explains how we collect, use, and protect information when you use our website and services (the “Service”).</p>
+        <p>By using Shoe Beagle, you agree to the collection and use of information in accordance with this Privacy Policy.</p>
+
+        <h3>2. Information we collect</h3>
+        <p><strong>2.1 Information you provide directly</strong></p>
+        <ul>
+          <li><strong>Price alerts:</strong> When you set a price alert, we may collect your email address and/or phone number, the shoe brand and model, your target price, and alert preferences.</li>
+          <li><strong>Contact or support messages:</strong> If you contact us, we may collect your name, email, and any other information you choose to provide.</li>
+        </ul>
+        <p><strong>2.2 Information collected automatically</strong></p>
+        <p>When you visit our site, we may automatically collect information such as:</p>
+        <ul>
+          <li>IP address</li>
+          <li>Browser type and version</li>
+          <li>Device type and operating system</li>
+          <li>Referring pages and pages visited</li>
+          <li>Date and time of access</li>
+          <li>General usage and analytics data</li>
+        </ul>
+
+        <h3>3. How we use your information</h3>
+        <p>We use the information we collect for purposes such as:</p>
+        <ul>
+          <li>Providing and operating the Service (including searching for shoe deals)</li>
+          <li>Sending price alerts and notifications you requested</li>
+          <li>Improving, testing, and optimizing our website and features</li>
+          <li>Monitoring usage, performance, and security of the Service</li>
+          <li>Responding to your questions, feedback, or support requests</li>
+          <li>Complying with legal obligations and enforcing our terms</li>
+        </ul>
+        <p>We do <strong>not</strong> sell your personal information to third parties.</p>
+
+        <h3>4. Emails, texts, and alerts</h3>
+        <p>If you provide your email or phone number for a price alert, we will use that contact information to send you alerts related to the specific shoes and prices you requested.</p>
+        <p>You can stop receiving alerts at any time by following the unsubscribe instructions in the message (for email), replying STOP (for SMS, where supported), or by contacting us using the details below.</p>
+
+        <h3>5. Cookies and tracking technologies</h3>
+        <p>We may use cookies and similar technologies to:</p>
+        <ul>
+          <li>Remember your preferences and search inputs</li>
+          <li>Understand how visitors use the site</li>
+          <li>Improve performance and user experience</li>
+        </ul>
+        <p>You can usually disable cookies in your browser settings. If you do so, some features of the site may not work as intended.</p>
+
+        <h3>6. Third-party services and links</h3>
+        <p>Our site links to third-party websites (for example, online retailers that sell shoes). When you click a link and leave Shoe Beagle, this Privacy Policy no longer applies. The third-party website’s own privacy policy and terms will apply.</p>
+        <p>We may also use third-party services (such as analytics or email providers) that process data on our behalf and are contractually obligated to protect your information.</p>
+
+        <h3>7. Data retention</h3>
+        <p>We retain your information only as long as necessary to:</p>
+        <ul>
+          <li>Provide the Service (for example, maintain your active alerts)</li>
+          <li>Comply with legal and accounting obligations</li>
+          <li>Resolve disputes and enforce our agreements</li>
+        </ul>
+        <p>If you cancel or stop using alerts, we may retain certain limited information for a reasonable period, such as logs or data necessary for security, fraud prevention, or legal compliance.</p>
+
+        <h3>8. How we protect your information</h3>
+        <p>We use reasonable technical and organizational measures to help protect your information from unauthorized access, use, or disclosure. However, no method of transmission over the internet or method of electronic storage is 100% secure, so we cannot guarantee absolute security.</p>
+
+        <h3>9. Children’s privacy</h3>
+        <p>Shoe Beagle is not directed to children under the age of 13, and we do not knowingly collect personal information from children under 13. If you believe we have collected such information, please contact us so we can delete it.</p>
+
+        <h3>10. Your choices and rights</h3>
+        <p>Depending on your location, you may have certain rights regarding your personal information, such as:</p>
+        <ul>
+          <li>Accessing the data we hold about you</li>
+          <li>Requesting corrections or updates</li>
+          <li>Requesting deletion of certain information</li>
+          <li>Opting out of marketing communications</li>
+        </ul>
+        <p>To exercise these rights, contact us using the information below. We may need to verify your identity before fulfilling your request.</p>
+
+        <h3>11. Changes to this Privacy Policy</h3>
+        <p>We may update this Privacy Policy from time to time. When we do, we will revise the “Last updated” date at the top of this page. Your continued use of the Service after any changes means you accept the updated Privacy Policy.</p>
+
+        <h3>12. Contact us</h3>
+        <p>If you have any questions about this Privacy Policy or how we handle your information, please contact us at:</p>
+        <p>Email: <a href="mailto:widepe@gmail.com">widepe@gmail.com</a><br>
+        Address: [Your Business Name / Mailing Address, if any]</p>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -998,12 +1221,38 @@
     const alertsTable = document.getElementById("alertsTable");
     const clearInactiveWrapper = document.getElementById("clearInactiveWrapper");
 
+    const footerYear = document.getElementById("footerYear");
+    const privacyLink = document.getElementById("privacyLink");
+    const privacyModal = document.getElementById("privacyModal");
+    const privacyClose = document.getElementById("privacyClose");
+
     let currentSearch = { brand: "", model: "" };
     let brandSelected = false;
     let selectedAlertRow = null;
 
     const ALERTS_KEY = "shoeBeagleAlerts";
     let alertsMemoryFallback = [];
+
+    // Footer year
+    footerYear.textContent = new Date().getFullYear();
+
+    // Privacy modal handlers
+    privacyLink.addEventListener("click", () => {
+      privacyModal.classList.add("active");
+      privacyModal.setAttribute("aria-hidden", "false");
+    });
+
+    privacyClose.addEventListener("click", () => {
+      privacyModal.classList.remove("active");
+      privacyModal.setAttribute("aria-hidden", "true");
+    });
+
+    privacyModal.addEventListener("click", (e) => {
+      if (e.target === privacyModal) {
+        privacyModal.classList.remove("active");
+        privacyModal.setAttribute("aria-hidden", "true");
+      }
+    });
 
     function canUseLocalStorage() {
       try {
@@ -1311,7 +1560,7 @@
             priceWrapper.appendChild(saveBtn);
             actionsDiv.appendChild(priceWrapper);
 
-            // Add 10 Days - keep date same, just extend days
+            // Add 10 Days
             const add10Btn = document.createElement("button");
             add10Btn.textContent = "Add 10 Days";
             add10Btn.className = "secondary";
@@ -1319,7 +1568,6 @@
               e.stopPropagation();
               showConfirmation(actionsDiv, "Add 10 days to alert?", () => {
                 const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
-                // Move setAt back 10 days to increase days remaining
                 a.setAt = a.setAt - TEN_DAYS_MS;
                 upsertAlert(a);
                 renderAlertsDashboard();
