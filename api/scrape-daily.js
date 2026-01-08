@@ -323,7 +323,37 @@ function parseBrandModel(title) {
 
   return { brand, model };
 }
+function parseSaleAndOriginalPrices(text) {
+  if (!text) {
+    return { salePrice: 0, originalPrice: 0 };
+  }
 
+  // Grab all dollar-ish numbers in the string
+  const matches = text.match(/\d[\d,]*\.?\d*/g);
+  if (!matches) {
+    return { salePrice: 0, originalPrice: 0 };
+  }
+
+  const values = matches
+    .map((m) => parseFloat(m.replace(/,/g, "")))
+    .filter((v) => Number.isFinite(v));
+
+  if (!values.length) {
+    return { salePrice: 0, originalPrice: 0 };
+  }
+
+  // If there’s only one price, assume no discount
+  if (values.length === 1) {
+    const v = values[0];
+    return { salePrice: v, originalPrice: v };
+  }
+
+  // On Running Warehouse, the lower number is the sale, higher is original
+  const salePrice = Math.min(...values);
+  const originalPrice = Math.max(...values);
+
+  return { salePrice, originalPrice };
+}
 function parsePrice(priceText) {
   if (!priceText) return 0;
   
