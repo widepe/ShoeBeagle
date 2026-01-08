@@ -1,109 +1,131 @@
 // api/daily-deals.js
-// Return 8 "daily deals" chosen pseudo-randomly from the scraped blob.
-// Only uses deals that have an image.
-
 const axios = require("axios");
 
-// Use the SAME blob URL as search.js
-const BLOB_URL =
-  "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals-xYNKTRtjMYCwJbor5T63ZCNKf6cFjE.json";
+// simple random sampler without modifying original array
+function getRandomSample(array, count) {
+  const copy = [...array];
+  const picked = [];
 
-// Simple string -> integer hash
-function hashString(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash * 31 + str.charCodeAt(i)) | 0;
-  }
-  return hash >>> 0;
-}
-
-// Deterministic PRNG (mulberry32) so the same day gives the same 8 shoes
-function createRng(seed) {
-  return function mulberry32() {
-    let t = (seed += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function pickDailyRandom(deals, count) {
-  if (!deals.length) return [];
-
-  // One seed per calendar date, so all visitors see the same 8 that day
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const seed = hashString(today);
-  const rng = createRng(seed);
-
-  const copy = deals.slice();
-
-  // Fisher–Yates shuffle using our RNG
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
+  const n = Math.min(count, copy.length);
+  for (let i = 0; i < n; i++) {
+    const idx = Math.floor(Math.random() * copy.length);
+    picked.push(copy[idx]);
+    copy.splice(idx, 1);
   }
 
-  return copy.slice(0, Math.min(count, copy.length));
+  return picked;
 }
 
 module.exports = async (req, res) => {
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  const requestId =
+    (req.headers && (req.headers["x-vercel-id"] || req.headers["x-request-id"])) ||
+    `local-${Date.now()}`;
 
-  const requestId = `daily_${Date.now()}_${Math.random()
-    .toString(36)
-    .slice(2)}`;
+  const startedAt = Date.now();
 
   try {
-    console.log("[/api/daily-deals] Request:", { requestId });
+    // Same blob URL used in /api/search
+    const blobUrl =
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals-xYNKTRtjMYCwJbor5T63ZCNKf6cFjE.json";
 
-    const response = await axios.get(BLOB_URL);
-    const dealsData = response.data || {};
-    const allDeals = Array.isArray(dealsData.deals) ? dealsData.deals : [];
+    let dealsData;
+    try {
+      const response = await axios.get(blobUrl);
+      dealsData = response.data;
+    } catch (blobError) {
+      console.error("[/api/daily-deals] Error fetching from blob:", {
+        requestId,
+        message: blobError.message,
+      });
+      return res.status(500).json({
+        error: "Failed to load deals data",
+        requestId,
+      });
+    }
 
-    console.log("[/api/daily-deals] Loaded deals:", {
-      total: allDeals.length,
-      lastUpdated: dealsData.lastUpdated || "unknown",
+    const deals = Array.isArray(dealsData.deals) ? dealsData.deals : [];
+
+    // ✅ Filter to only discounted deals WITH images
+    const discountedWithImages = deals.filter((d) => {
+      if (!d) return false;
+
+      // Require an image
+      if (typeof d.image !== "string") return false;
+      const img = d.image.trim();
+      if (!img) return false;
+      if (!/^https?:\/\//i.test(img)) return false;
+      if (img.toLowerCase().includes("no-image")) return false; // optional safety
+
+      // Require real markdown
+      const price = Number(d.price);
+      const original = Number(d.originalPrice);
+
+      if (!Number.isFinite(price) || !Number.isFinite(original)) return false;
+      if (!(original > price)) return false; // must actually be marked down
+
+      // Optional: exclude explicit full-price tag if present
+      if (typeof d.discount === "string" && d.discount.toLowerCase().includes("full price")) {
+        return false;
+      }
+
+      return true;
     });
 
-    // Only keep deals that have an image URL
-    const dealsWithImages = allDeals.filter(
-      (d) =>
-        d &&
-        typeof d.image === "string" &&
-        d.image.trim() &&
-        typeof d.url === "string" &&
-        d.url.trim()
-    );
+    // Randomly pick up to 8
+    const selectedRaw = getRandomSample(discountedWithImages, 8);
 
-    console.log("[/api/daily-deals] Deals with images:", {
-      total: dealsWithImages.length,
+    // Normalize fields we send to the client (keep same shape as /api/search)
+    const selected = selectedRaw.map((deal) => {
+      const price = Number(deal.price);
+      const original = Number(deal.originalPrice);
+      let discountLabel = deal.discount || null;
+
+      // If discount label missing, compute something like "40% OFF"
+      if (!discountLabel && Number.isFinite(price) && Number.isFinite(original) && original > 0) {
+        const pct = Math.round(100 * (1 - price / original));
+        if (pct > 0) {
+          discountLabel = `${pct}% OFF`;
+        }
+      }
+
+      return {
+        title: deal.title,
+        price,
+        originalPrice: original,
+        discount: discountLabel,
+        store: deal.store,
+        url: deal.url,
+        image: deal.image,
+        brand: deal.brand,
+        model: deal.model,
+      };
     });
 
-    const dailyDeals = pickDailyRandom(dealsWithImages, 8);
-
-    console.log("[/api/daily-deals] Returning daily deals:", {
-      count: dailyDeals.length,
+    const elapsedMs = Date.now() - startedAt;
+    console.log("[/api/daily-deals] Response:", {
       requestId,
+      elapsedMs,
+      totalDeals: deals.length,
+      discountedWithImages: discountedWithImages.length,
+      picked: selected.length,
     });
 
     return res.status(200).json({
       requestId,
-      lastUpdated: dealsData.lastUpdated || null,
-      totalAvailable: dealsWithImages.length,
-      totalReturned: dailyDeals.length,
-      deals: dailyDeals,
+      elapsedMs,
+      totalDeals: deals.length,
+      totalDiscountedWithImages: discountedWithImages.length,
+      deals: selected,
     });
   } catch (err) {
-    console.error("[/api/daily-deals] Error:", {
+    console.error("[/api/daily-deals] Fatal error:", {
       requestId,
       message: err?.message || String(err),
       stack: err?.stack,
     });
 
     return res.status(500).json({
-      error: "Failed to load daily deals",
+      error: "Unexpected error in daily deals endpoint",
       requestId,
     });
   }
