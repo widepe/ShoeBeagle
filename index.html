@@ -333,7 +333,7 @@
       object-fit: contain;
       max-height: 170px;
       background: #fafafa;
-      border: 1px solid #214478ff; /* thin blue border around image */
+      border: 1px solid #214478ff;
       box-sizing: border-box;
     }
 
@@ -590,35 +590,15 @@
       font-size: 1.6rem;
       font-weight: 800;
       text-align: center;
-      margin: 0.25rem 0 0.5rem;
+      margin: 0.25rem 0 0.3rem;
     }
 
     .alerts-instruction {
       color: #49543a;
       font-size: 0.88rem;
       text-align: center;
-      margin: 0 0 0.5rem;
+      margin: 0 0 0.6rem;
       font-style: italic;
-    }
-
-    /* Deals stats bar in My Alerts */
-    .deals-stats {
-      margin: 0.4rem 0 1rem;
-      padding: 0.6rem 0.8rem;
-      background: #f4ede3;
-      border-radius: 0.5rem;
-      font-size: 0.9rem;
-      color: #2d3c22;
-      text-align: center;
-    }
-
-    .deals-stats span {
-      display: inline-block;
-      margin: 0.1rem 0.5rem;
-    }
-
-    .deals-stats strong {
-      color: #214478ff;
     }
 
     .alerts-table-wrapper {
@@ -1073,9 +1053,8 @@
     <div id="alertsDashboard" class="alerts-dashboard hidden">
       <div class="alerts-title">My Alerts</div>
       <div class="alerts-instruction">Tap or Click Row to Manage Alert</div>
-
-      <!-- New Deals Stats block -->
-      <div id="dealsStats" class="deals-stats hidden"></div>
+      <!-- NEW: stats summary line -->
+      <div class="alerts-instruction" id="dealStatsSummary"></div>
 
       <div class="alerts-table-wrapper">
         <table class="alerts-table" aria-label="My Alerts Table" id="alertsTable">
@@ -1128,7 +1107,7 @@
         <p>Shoe Beagle is a website that helps runners discover and compare prices on running shoes from multiple online retailers.</p>
 
         <h3>2. What information we collect</h3>
-        <p>We collect only the information we need to operate the site and provide price alerts:</p>
+        <p>We collect only the information we need to operate the the site and provide price alerts:</p>
         <ul>
           <li><strong>Search information:</strong> brands and models you search for.</li>
           <li><strong>Alert information:</strong> the shoe you choose, your target price, and the email address or phone number you provide for that alert.</li>
@@ -1271,8 +1250,7 @@
     const alertsEmpty = document.getElementById("alertsEmpty");
     const alertsTable = document.getElementById("alertsTable");
     const clearInactiveWrapper = document.getElementById("clearInactiveWrapper");
-
-    const dealsStats = document.getElementById("dealsStats");
+    const dealStatsSummary = document.getElementById("dealStatsSummary");
 
     const footerYear = document.getElementById("footerYear");
     const privacyLink = document.getElementById("privacyLink");
@@ -1354,70 +1332,51 @@
       }
     }
 
-    function normalize(s) { return String(s || "").trim().toLowerCase(); }
+    function normalizeStr(s) { return String(s || "").trim().toLowerCase(); }
     function nowMs() { return Date.now(); }
 
-function getDiscountInfo(item) {
-  // Try multiple possible fields for the *current* price
-  const rawPrice =
-    item.price ??
-    item.salePrice ??
-    item.currentPrice ??
-    item.dealPrice;
+    // Shared discount helper used by cards
+    function getDiscountInfo(item) {
+      const price = Number(item.price);
+      const original = item.originalPrice != null ? Number(item.originalPrice) : NaN;
 
-  // Try multiple possible fields for the *original* price
-  let rawOriginal =
-    item.originalPrice ??
-    item.wasPrice ??
-    item.listPrice ??
-    item.msrp ??
-    item.regularPrice;
+      // Best case: we have both prices
+      if (
+        Number.isFinite(price) &&
+        Number.isFinite(original) &&
+        original > 0 &&
+        price < original
+      ) {
+        const pct = Math.round(((original - price) / original) * 100);
+        return {
+          hasDiscount: true,
+          current: price.toFixed(2),
+          original: original.toFixed(2),
+          percent: pct
+        };
+      }
 
-  let price = Number(rawPrice);
-  let original = Number(rawOriginal);
+      // Fallback: parse string discount like "-23%"
+      if (Number.isFinite(price) && typeof item.discount === "string" && item.discount.includes("%")) {
+        const m = item.discount.match(/(-?\d+(?:\.\d+)?)%/);
+        if (m) {
+          const pct = Math.abs(Number(m[1]));
+          if (Number.isFinite(pct) && pct > 0 && pct < 100) {
+            const origGuess = price / (1 - pct / 100);
+            if (Number.isFinite(origGuess) && origGuess > price) {
+              return {
+                hasDiscount: true,
+                current: price.toFixed(2),
+                original: origGuess.toFixed(2),
+                percent: Math.round(pct)
+              };
+            }
+          }
+        }
+      }
 
-  // Try percent-off style fields (e.g., "40" for 40% off)
-  let percentFromField = Number(
-    item.discountPercent ??
-    item.percentOff ??
-    item.offPercent
-  );
-
-  // If we don't have a clean original price but we do have price + percent off,
-  // back-calculate the original price.
-  if (
-    !Number.isFinite(original) &&
-    Number.isFinite(price) &&
-    Number.isFinite(percentFromField) &&
-    percentFromField > 0 &&
-    percentFromField < 100
-  ) {
-    original = price / (1 - percentFromField / 100);
-  }
-
-  // If we still don't have a valid discount situation, bail out.
-  if (
-    !Number.isFinite(price) ||
-    !Number.isFinite(original) ||
-    original <= 0 ||
-    price >= original
-  ) {
-    return {
-      hasDiscount: false,
-      current: Number.isFinite(price) ? price.toFixed(2) : null
-    };
-  }
-
-  const percent = Math.round(((original - price) / original) * 100);
-
-  return {
-    hasDiscount: true,
-    current: price.toFixed(2),
-    original: original.toFixed(2),
-    percent
-  };
-}
-
+      return { hasDiscount: false };
+    }
 
     function daysBetween(msA, msB) {
       const diff = Math.abs(msA - msB);
@@ -1448,7 +1407,7 @@ function getDiscountInfo(item) {
     }
 
     function alertKey(brand, model) {
-      return `${normalize(brand)}::${normalize(model)}`;
+      return `${normalizeStr(brand)}::${normalizeStr(model)}`;
     }
 
     function findActiveAlertFor(brand, model) {
@@ -1548,6 +1507,27 @@ function getDiscountInfo(item) {
       actionsDiv.appendChild(yesBtn);
       actionsDiv.appendChild(noBtn);
       clearInactiveWrapper.appendChild(actionsDiv);
+    }
+
+    async function refreshDealStats() {
+      if (!dealStatsSummary) return;
+      dealStatsSummary.textContent = "Loading deal stats…";
+
+      try {
+        const res = await fetch("/api/deals-stats");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+
+        dealStatsSummary.textContent =
+          `Total sales: ${data.totalDeals?.toLocaleString?.() ?? data.totalDeals ?? 0} · ` +
+          `Total with images: ${data.dealsWithImages?.toLocaleString?.() ?? data.dealsWithImages ?? 0} · ` +
+          `≥10% off: ${data.off10OrMore?.toLocaleString?.() ?? data.off10OrMore ?? 0} · ` +
+          `≥25% off: ${data.off25OrMore?.toLocaleString?.() ?? data.off25OrMore ?? 0} · ` +
+          `≥50% off: ${data.off50OrMore?.toLocaleString?.() ?? data.off50OrMore ?? 0}`;
+      } catch (err) {
+        console.error("Error loading deal stats:", err);
+        dealStatsSummary.textContent = "Deal stats are unavailable right now.";
+      }
     }
 
     function renderAlertsDashboard() {
@@ -1781,8 +1761,8 @@ function getDiscountInfo(item) {
     const brands = Object.keys(brandModels).sort();
 
     function resolveBrandKey(input) {
-      const normalized = normalize(input);
-      return brands.find(b => normalize(b) === normalized) || "";
+      const normalized = normalizeStr(input);
+      return brands.find(b => normalizeStr(b) === normalized) || "";
     }
 
     function resolveBrand() { return resolveBrandKey(brandInput.value.trim()); }
@@ -1791,8 +1771,8 @@ function getDiscountInfo(item) {
       const typed = String(modelTyped || "").trim();
       if (!typed) return "";
       if (!brandKey || !brandModels[brandKey]) return typed;
-      const normalized = normalize(typed);
-      const canonical = brandModels[brandKey].find(m => normalize(m) === normalized);
+      const normalized = normalizeStr(typed);
+      const canonical = brandModels[brandKey].find(m => normalizeStr(m) === normalized);
       return canonical || typed;
     }
 
@@ -1924,11 +1904,11 @@ function getDiscountInfo(item) {
       statusMessageEl.textContent = "";
     }
 
-    async function showMyAlerts() {
+    function showMyAlerts() {
       hideAllContentBelowStatus();
       alertsDashboard.classList.remove("hidden");
       renderAlertsDashboard();
-      await loadDealsStats();
+      refreshDealStats();
     }
 
     aboutLink.addEventListener("click", showAbout);
@@ -2010,98 +1990,82 @@ function getDiscountInfo(item) {
 
     alertContactInput.addEventListener("input", updateAlertSubmitButton);
 
-    // Helper: create unified deal card (search + daily deals)
-function createDealCard(item) {
-  const card = document.createElement("div");
-  card.className = "card";
-
-  const link = document.createElement("a");
-  link.className = "card-link";
-  link.href = item.url || "#";
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
-
-  // Figure out pricing / discount
-  const discountInfo = getDiscountInfo(item);
-
-  // IMAGE + BADGE
-  if (item.image) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "card-image-wrapper";
-
-    const img = document.createElement("img");
-    img.src = item.image;
-    img.alt = item.title || "Deal image";
-    wrapper.appendChild(img);
-
-    // Corner percentage badge, like "-35%"
-    if (discountInfo.hasDiscount) {
-      const badge = document.createElement("div");
-      badge.className = "discount-badge";
-      badge.textContent = `-${discountInfo.percent}%`;
-      wrapper.appendChild(badge);
+    function formatPriceValue(value) {
+      const num = Number(value);
+      if (Number.isFinite(num)) return `$${num.toFixed(2)}`;
+      if (typeof value === "string") return value;
+      return "—";
     }
 
-    link.appendChild(wrapper);
-  }
+    // Helper: create unified deal card (used for search + daily deals)
+    function createDealCard(item) {
+      const card = document.createElement("div");
+      card.className = "card";
 
-  // TITLE
-  const titleDiv = document.createElement("div");
-  titleDiv.className = "card-title";
-  titleDiv.textContent = item.title || "Deal";
-  link.appendChild(titleDiv);
+      const link = document.createElement("a");
+      link.className = "card-link";
+      link.href = item.url || "#";
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
 
-  // STORE
-  if (item.store) {
-    const storeDiv = document.createElement("div");
-    storeDiv.className = "card-store";
-    storeDiv.textContent = item.store;
-    link.appendChild(storeDiv);
-  }
+      const discountInfo = getDiscountInfo(item);
 
-  // PRICE ROW
-  const priceRow = document.createElement("div");
-  priceRow.className = "card-price-row";
+      if (item.image) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "card-image-wrapper";
 
-  const priceSpan = document.createElement("span");
-  priceSpan.className = "price";
+        const img = document.createElement("img");
+        img.src = item.image;
+        img.alt = item.title || "Deal image";
+        wrapper.appendChild(img);
 
-  // Use discountInfo.current when available, otherwise fall back to item.price
-  let displayPrice = discountInfo.current;
-  if (!displayPrice && Number.isFinite(Number(item.price))) {
-    displayPrice = Number(item.price).toFixed(2);
-  }
-  priceSpan.textContent = displayPrice ? `$${displayPrice}` : (item.price ? String(item.price) : "—");
-  priceRow.appendChild(priceSpan);
+        if (discountInfo.hasDiscount && discountInfo.percent > 0) {
+          const badge = document.createElement("div");
+          badge.className = "discount-badge";
+          badge.textContent = `-${discountInfo.percent}%`;
+          wrapper.appendChild(badge);
+        }
 
-  // Original (struck-through) price if we have a valid discount
-  if (discountInfo.hasDiscount) {
-    const origSpan = document.createElement("span");
-    origSpan.className = "card-original";
-    origSpan.textContent = `$${discountInfo.original}`;
-    priceRow.appendChild(origSpan);
-  }
+        link.appendChild(wrapper);
+      }
 
-  link.appendChild(priceRow);
+      const titleDiv = document.createElement("div");
+      titleDiv.className = "card-title";
+      titleDiv.textContent = item.title || "Deal";
+      link.appendChild(titleDiv);
 
-  // Savings text line under the prices
-  if (discountInfo.hasDiscount) {
-    const discDiv = document.createElement("div");
-    discDiv.className = "card-discount";
-    discDiv.textContent = `You save ${discountInfo.percent}% off original price.`;
-    link.appendChild(discDiv);
-  } else if (item.discount) {
-    // Fallback if your scraper already gives a discount string
-    const discDiv = document.createElement("div");
-    discDiv.className = "card-discount";
-    discDiv.textContent = item.discount;
-    link.appendChild(discDiv);
-  }
+      if (item.store) {
+        const storeDiv = document.createElement("div");
+        storeDiv.className = "card-store";
+        storeDiv.textContent = item.store;
+        link.appendChild(storeDiv);
+      }
 
-  card.appendChild(link);
-  return card;
-}
+      const priceRow = document.createElement("div");
+      priceRow.className = "card-price-row";
 
+      const priceSpan = document.createElement("span");
+      priceSpan.className = "price";
+
+      if (discountInfo.hasDiscount) {
+        priceSpan.textContent = `$${discountInfo.current}`;
+      } else {
+        priceSpan.textContent = formatPriceValue(item.price);
+      }
+      priceRow.appendChild(priceSpan);
+
+      if (discountInfo.hasDiscount) {
+        const origSpan = document.createElement("span");
+        origSpan.className = "card-original-price";
+        origSpan.textContent = `$${discountInfo.original}`;
+        priceRow.appendChild(origSpan);
+      }
+
+      link.appendChild(priceRow);
+
+      card.appendChild(link);
+      return card;
+    }
 
     // Load daily deals from API and render as cards
     async function loadDailyDeals() {
@@ -2125,37 +2089,6 @@ function createDealCard(item) {
       } catch (err) {
         console.error("Error loading daily deals:", err);
         dailyDeals.style.display = "none";
-      }
-    }
-
-    // Load deal stats for My Alerts
-    async function loadDealsStats() {
-      if (!dealsStats) return;
-      try {
-        dealsStats.classList.remove("hidden");
-        dealsStats.textContent = "Loading deal stats…";
-
-        const res = await fetch("/api/deals-stats");
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const data = await res.json() || {};
-
-        const totalDeals       = data.totalDeals       ?? 0;
-        const totalWithImages  = data.totalWithImages  ?? 0;
-        const deals10          = data.deals10          ?? data.count10 ?? 0;
-        const deals25          = data.deals25          ?? data.count25 ?? 0;
-        const deals50          = data.deals50          ?? data.count50 ?? 0;
-
-        dealsStats.innerHTML = `
-          <span><strong>Total deals:</strong> ${totalDeals}</span>
-          <span><strong>Total with images:</strong> ${totalWithImages}</span>
-          <span><strong>≥10% off:</strong> ${deals10}</span>
-          <span><strong>≥25% off:</strong> ${deals25}</span>
-          <span><strong>≥50% off:</strong> ${deals50}</span>
-        `;
-      } catch (err) {
-        console.error("Error loading deal stats:", err);
-        dealsStats.classList.remove("hidden");
-        dealsStats.textContent = "Deal stats are unavailable right now.";
       }
     }
 
