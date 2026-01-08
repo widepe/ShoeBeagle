@@ -1,21 +1,6 @@
 // api/daily-deals.js
 const axios = require("axios");
 
-// Simple random sampler without modifying original array
-function getRandomSample(array, count) {
-  const copy = [...array];
-  const picked = [];
-
-  const n = Math.min(count, copy.length);
-  for (let i = 0; i < n; i++) {
-    const idx = Math.floor(Math.random() * copy.length);
-    picked.push(copy[idx]);
-    copy.splice(idx, 1);
-  }
-
-  return picked;
-}
-
 // Parse price fields that might be numbers or strings like "$99.88"
 function parseMoney(value) {
   if (value === null || value === undefined) return NaN;
@@ -29,7 +14,7 @@ function hasGoodImage(deal) {
   const img = deal.image.trim();
   if (!img) return false;
   if (!/^https?:\/\//i.test(img)) return false;
-  if (img.toLowerCase().includes("no-image")) return false; // safety if scraper ever uses a placeholder
+  if (img.toLowerCase().includes("no-image")) return false;
   return true;
 }
 
@@ -51,11 +36,52 @@ function isDiscounted(deal) {
     const txt = deal.discount.trim();
     if (!txt) return false;
     if (/full price/i.test(txt)) return false;
-    // Any non-empty discount label that isn't "Full Price" counts as discounted
+    // Any non-empty discount label that isn't "Full Price" counts as a discount
     return true;
   }
 
   return false;
+}
+
+// Robustly extract the deals array from blob response
+function extractDeals(dealsData) {
+  // Shape A: { deals: [...] }
+  if (dealsData && Array.isArray(dealsData.deals)) {
+    return dealsData.deals;
+  }
+
+  // Shape B: [ { deals: [...] } ]
+  if (Array.isArray(dealsData) && dealsData.length > 0 && Array.isArray(dealsData[0].deals)) {
+    return dealsData[0].deals;
+  }
+
+  return [];
+}
+
+// Simple string hash for deterministic selection
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) >>> 0; // unsigned 32-bit
+  }
+  return hash >>> 0;
+}
+
+// Deterministic "8 for today" picker
+function pickDailyEight(pool) {
+  if (!pool.length) return [];
+
+  const todayKey = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const hash = hashString(todayKey);
+  const count = Math.min(8, pool.length);
+
+  const selected = [];
+  for (let i = 0; i < count; i++) {
+    const idx = (hash + i) % pool.length;
+    selected.push(pool[idx]);
+  }
+
+  return selected;
 }
 
 module.exports = async (req, res) => {
@@ -84,50 +110,28 @@ module.exports = async (req, res) => {
       });
     }
 
-    // ⚠️ IMPORTANT: mimic /api/search shape exactly
-    // search.js does: const deals = dealsData.deals || [];
-    const allDeals = (dealsData && Array.isArray(dealsData.deals))
-      ? dealsData.deals
-      : (dealsData && dealsData.deals) || [];
+    const allDeals = extractDeals(dealsData);
 
     console.log("[/api/daily-deals] Loaded deals:", {
       requestId,
       total: allDeals.length,
-      hasDealsField: !!dealsData?.deals,
+      shape: Array.isArray(dealsData) ? "array-root" : "object-root",
     });
 
-    // 1) Preferred: discounted + image
+    // ✅ Your rule: only show *discounted* shoes with images.
     const discountedWithImages = allDeals.filter(
       (d) => hasGoodImage(d) && isDiscounted(d)
     );
 
-    // 2) Fallback: image only
-    const withImagesOnly =
-      discountedWithImages.length === 0
-        ? allDeals.filter(hasGoodImage)
-        : [];
-
-    // 3) Final pool: prefer discountedWithImages, else withImagesOnly, else allDeals
-    let pool = discountedWithImages;
-    let poolReason = "discountedWithImages";
-
-    if (pool.length === 0) {
-      pool = withImagesOnly;
-      poolReason = "withImagesOnly";
-    }
-    if (pool.length === 0) {
-      pool = allDeals;
-      poolReason = "allDeals";
-    }
-
-    const selectedRaw = getRandomSample(pool, 8);
+    // Deterministic daily selection from this filtered pool
+    const pool = discountedWithImages;
+    const selectedRaw = pickDailyEight(pool);
 
     const selected = selectedRaw.map((deal) => {
       const price = parseMoney(deal.price);
       const original = parseMoney(deal.originalPrice);
 
       let discountLabel = deal.discount || null;
-
       // Compute % OFF if we have numeric markdown and no label
       if (!discountLabel && Number.isFinite(price) && Number.isFinite(original) && original > 0) {
         const pct = Math.round(100 * (1 - price / original));
@@ -155,8 +159,6 @@ module.exports = async (req, res) => {
       elapsedMs,
       totalDeals: allDeals.length,
       discountedWithImages: discountedWithImages.length,
-      withImagesOnly: withImagesOnly.length,
-      poolReason,
       picked: selected.length,
     });
 
@@ -164,9 +166,7 @@ module.exports = async (req, res) => {
       requestId,
       elapsedMs,
       totalDeals: allDeals.length,
-      discountedWithImages: discountedWithImages.length,
-      withImagesOnly: withImagesOnly.length,
-      poolReason,
+      totalDiscountedWithImages: discountedWithImages.length,
       deals: selected,
     });
   } catch (err) {
