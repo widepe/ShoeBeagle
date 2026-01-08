@@ -6,47 +6,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
-/* Make cards able to host an overlay */
-.card {
-  position: relative;
-}
+    /* Make cards able to host an overlay */
+    .card {
+      position: relative;
+    }
 
-/* Wrap the image so we can pin the badge to it */
-.card-image-wrapper {
-  position: relative;
-  width: 100%;
-}
+    /* Wrap the image so we can pin the badge to it */
+    .card-image-wrapper {
+      position: relative;
+      width: 100%;
+    }
 
-/* Discount badge in corner of image */
-.discount-badge {
-  position: absolute;
-  top: 0.35rem;
-  left: 0.35rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  background: rgba(220, 53, 69, 0.9);
-  color: #ffffff;
-}
+    /* Discount badge in corner of image */
+    .discount-badge {
+      position: absolute;
+      top: 0.35rem;
+      left: 0.35rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      background: rgba(220, 53, 69, 0.9);
+      color: #ffffff;
+    }
 
-/* Price row styling */
-.card-meta .price {
-  display: inline-flex;
-  align-items: baseline;
-}
+    /* Price row styling */
+    .card-meta .price {
+      display: inline-flex;
+      align-items: baseline;
+    }
 
-/* Original price with line-through */
-.card-original-price {
-  margin-left: 0.35rem;
-  font-size: 0.8rem;
-  color: #777;
-  text-decoration: line-through;
-}
+    /* Original price with line-through */
+    .card-original-price {
+      margin-left: 0.35rem;
+      font-size: 0.8rem;
+      color: #777;
+      text-decoration: line-through;
+    }
 
-
-
-    
     body {
       margin: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -600,8 +597,28 @@
       color: #49543a;
       font-size: 0.88rem;
       text-align: center;
-      margin: 0 0 1rem;
+      margin: 0 0 0.5rem;
       font-style: italic;
+    }
+
+    /* Deals stats bar in My Alerts */
+    .deals-stats {
+      margin: 0.4rem 0 1rem;
+      padding: 0.6rem 0.8rem;
+      background: #f4ede3;
+      border-radius: 0.5rem;
+      font-size: 0.9rem;
+      color: #2d3c22;
+      text-align: center;
+    }
+
+    .deals-stats span {
+      display: inline-block;
+      margin: 0.1rem 0.5rem;
+    }
+
+    .deals-stats strong {
+      color: #214478ff;
     }
 
     .alerts-table-wrapper {
@@ -1057,6 +1074,9 @@
       <div class="alerts-title">My Alerts</div>
       <div class="alerts-instruction">Tap or Click Row to Manage Alert</div>
 
+      <!-- New Deals Stats block -->
+      <div id="dealsStats" class="deals-stats hidden"></div>
+
       <div class="alerts-table-wrapper">
         <table class="alerts-table" aria-label="My Alerts Table" id="alertsTable">
           <colgroup>
@@ -1252,6 +1272,8 @@
     const alertsTable = document.getElementById("alertsTable");
     const clearInactiveWrapper = document.getElementById("clearInactiveWrapper");
 
+    const dealsStats = document.getElementById("dealsStats");
+
     const footerYear = document.getElementById("footerYear");
     const privacyLink = document.getElementById("privacyLink");
     const termsLink = document.getElementById("termsLink");
@@ -1335,30 +1357,29 @@
     function normalize(s) { return String(s || "").trim().toLowerCase(); }
     function nowMs() { return Date.now(); }
 
-function getDiscountInfo(item) {
-  const price = Number(item.price);
-  const original = Number(item.originalPrice);
+    function getDiscountInfo(item) {
+      const price = Number(item.price);
+      const original = Number(item.originalPrice);
 
-  if (
-    !Number.isFinite(price) ||
-    !Number.isFinite(original) ||
-    original <= 0 ||
-    price >= original
-  ) {
-    return { hasDiscount: false };
-  }
+      if (
+        !Number.isFinite(price) ||
+        !Number.isFinite(original) ||
+        original <= 0 ||
+        price >= original
+      ) {
+        return { hasDiscount: false };
+      }
 
-  const percent = Math.round(((original - price) / original) * 100);
+      const percent = Math.round(((original - price) / original) * 100);
 
-  return {
-    hasDiscount: true,
-    current: price.toFixed(2),
-    original: original.toFixed(2),
-    percent
-  };
-}
+      return {
+        hasDiscount: true,
+        current: price.toFixed(2),
+        original: original.toFixed(2),
+        percent
+      };
+    }
 
-    
     function daysBetween(msA, msB) {
       const diff = Math.abs(msA - msB);
       return Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -1367,7 +1388,7 @@ function getDiscountInfo(item) {
     function formatDateShort(ms) {
       const d = new Date(ms);
       const day = d.getDate();
-      const months = ["Jan","Feb","Feb","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
       const mon = months[d.getMonth()];
       const yy = String(d.getFullYear()).slice(-2);
       return `${day}-${mon}-${yy}`;
@@ -1864,10 +1885,11 @@ function getDiscountInfo(item) {
       statusMessageEl.textContent = "";
     }
 
-    function showMyAlerts() {
+    async function showMyAlerts() {
       hideAllContentBelowStatus();
       alertsDashboard.classList.remove("hidden");
       renderAlertsDashboard();
+      await loadDealsStats();
     }
 
     aboutLink.addEventListener("click", showAbout);
@@ -1949,7 +1971,7 @@ function getDiscountInfo(item) {
 
     alertContactInput.addEventListener("input", updateAlertSubmitButton);
 
-    // Helper: create unified deal card (used for search + daily deals)
+    // Helper: create unified deal card (search + daily deals)
     function createDealCard(item) {
       const card = document.createElement("div");
       card.className = "card";
@@ -1957,32 +1979,29 @@ function getDiscountInfo(item) {
       const link = document.createElement("a");
       link.className = "card-link";
       link.href = item.url || "#";
-      if (item.url) {
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-      }
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
 
       const discountInfo = getDiscountInfo(item);
 
-      // Image + discount badge
-      const imageWrapper = document.createElement("div");
-      imageWrapper.className = "card-image-wrapper";
-
       if (item.image) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "card-image-wrapper";
+
         const img = document.createElement("img");
         img.src = item.image;
         img.alt = item.title || "Deal image";
-        imageWrapper.appendChild(img);
+        wrapper.appendChild(img);
 
-        if (discountInfo.hasDiscount && discountInfo.percent >= 5) {
+        if (discountInfo.hasDiscount) {
           const badge = document.createElement("div");
           badge.className = "discount-badge";
-          badge.textContent = `${discountInfo.percent}% OFF`;
-          imageWrapper.appendChild(badge);
+          badge.textContent = `-${discountInfo.percent}%`;
+          wrapper.appendChild(badge);
         }
-      }
 
-      link.appendChild(imageWrapper);
+        link.appendChild(wrapper);
+      }
 
       const titleDiv = document.createElement("div");
       titleDiv.className = "card-title";
@@ -2002,34 +2021,35 @@ function getDiscountInfo(item) {
       const priceSpan = document.createElement("span");
       priceSpan.className = "price";
 
+      let displayPrice = null;
       if (discountInfo.hasDiscount) {
-        // Current price
-        priceSpan.textContent = `$${discountInfo.current}`;
+        displayPrice = discountInfo.current;
+      } else if (Number.isFinite(Number(item.price))) {
+        displayPrice = Number(item.price).toFixed(2);
+      }
 
-        // Original crossed-out price
+      priceSpan.textContent = displayPrice ? `$${displayPrice}` : (item.price ? String(item.price) : "—");
+      priceRow.appendChild(priceSpan);
+
+      if (discountInfo.hasDiscount) {
         const origSpan = document.createElement("span");
         origSpan.className = "card-original";
         origSpan.textContent = `$${discountInfo.original}`;
-
-        priceRow.appendChild(priceSpan);
         priceRow.appendChild(origSpan);
-      } else {
-        if (typeof item.price === "number" && !isNaN(item.price)) {
-          priceSpan.textContent = `$${item.price.toFixed(2)}`;
-        } else {
-          priceSpan.textContent = item.price ? String(item.price) : "—";
-        }
-        priceRow.appendChild(priceSpan);
       }
 
       link.appendChild(priceRow);
 
-      // Optional text line like "20% off"
-      const shouldShowDiscountText = discountInfo.hasDiscount && discountInfo.percent >= 5;
-      if (shouldShowDiscountText || item.discount) {
+      if (discountInfo.hasDiscount) {
         const discDiv = document.createElement("div");
         discDiv.className = "card-discount";
-        discDiv.textContent = item.discount || `${discountInfo.percent}% off`;
+        discDiv.textContent = `You save ${discountInfo.percent}% off original price.`;
+        link.appendChild(discDiv);
+      } else if (item.discount) {
+        // Fallback if scraper has a discount text string
+        const discDiv = document.createElement("div");
+        discDiv.className = "card-discount";
+        discDiv.textContent = item.discount;
         link.appendChild(discDiv);
       }
 
@@ -2059,6 +2079,37 @@ function getDiscountInfo(item) {
       } catch (err) {
         console.error("Error loading daily deals:", err);
         dailyDeals.style.display = "none";
+      }
+    }
+
+    // Load deal stats for My Alerts
+    async function loadDealsStats() {
+      if (!dealsStats) return;
+      try {
+        dealsStats.classList.remove("hidden");
+        dealsStats.textContent = "Loading deal stats…";
+
+        const res = await fetch("/api/deals-stats");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json() || {};
+
+        const totalDeals       = data.totalDeals       ?? 0;
+        const totalWithImages  = data.totalWithImages  ?? 0;
+        const deals10          = data.deals10          ?? data.count10 ?? 0;
+        const deals25          = data.deals25          ?? data.count25 ?? 0;
+        const deals50          = data.deals50          ?? data.count50 ?? 0;
+
+        dealsStats.innerHTML = `
+          <span><strong>Total deals:</strong> ${totalDeals}</span>
+          <span><strong>Total with images:</strong> ${totalWithImages}</span>
+          <span><strong>≥10% off:</strong> ${deals10}</span>
+          <span><strong>≥25% off:</strong> ${deals25}</span>
+          <span><strong>≥50% off:</strong> ${deals50}</span>
+        `;
+      } catch (err) {
+        console.error("Error loading deal stats:", err);
+        dealsStats.classList.remove("hidden");
+        dealsStats.textContent = "Deal stats are unavailable right now.";
       }
     }
 
