@@ -222,7 +222,7 @@ async function scrapeRunningWarehouse() {
  */
 async function scrapeZappos() {
   const deals = [];
-  const url = 'https://www.zappos.com/filters/running-shoes/4AEB4gIBHA.zso?t=running%20shoes';
+  const url = 'const url = 'https://www.zappos.com/filters/running-shoes/4AEB4gIBHA.zso?t=running%20shoes';';
   
   try {
     const response = await axios.get(url, {
