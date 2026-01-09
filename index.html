@@ -292,7 +292,7 @@
     }
 
     .daily-deals-header {
-      font-size: 1.8rem;
+      font-size: 1.3rem;
       font-weight: 700;
       color: #214478ff;
       margin-bottom: 1rem;
@@ -981,7 +981,7 @@
       </div>
 
       <div class="input-wrapper">
-        <input id="model" type="text" placeholder="Model (optional)" autocomplete="off" class="model-inactive" disabled />
+        <input id="model" type="text" placeholder="" autocomplete="off" required class="model-inactive" disabled />
         <span class="paw hidden" id="modelPaw">🐾</span>
         <div id="modelSuggestions" class="suggestions"></div>
       </div>
@@ -1039,31 +1039,22 @@
       </div>
     </div>
 
-  <!-- About Us Modal -->
-  <div id="aboutModal" class="modal-overlay">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
-      <div class="modal-header">
-<img src="/images/logo.svg" alt="Shoe Beagle Logo" style="width: 300px;">
-        <h2 id="aboutTitle">About Us</h2>
+    <div id="aboutContent" class="about-section hidden">
+      <h2>About Us</h2>
+      <p>Shoe Beagle is a price comparison website dedicated to helping runners find the best deals on running shoes. We provide side-by-side price comparisons across multiple retailers, allowing users to search by brand and model to find the lowest prices.</p>
+      <p>Our platform features price alerts, real-time deal updates, and direct links to merchant sites where users can complete their purchases.</p>
+      <p>We do our best to sniff out the best running shoe deals for you!</p>
+      <div style="text-align: center; margin: 1.2rem 0 0.35rem;">
+        <img src="/images/marty.svg" alt="Marty the Beagle" style="width: 200px; height: auto;">
       </div>
-      <div class="modal-body">
-        <p>Shoe Beagle is a price comparison website dedicated to helping runners find the best deals on running shoes. We provide side-by-side price comparisons across multiple retailers, allowing users to search by brand and model to find the lowest prices.</p>
-        <p>Our platform features price alerts, real-time deal updates, and direct links to merchant sites where users can complete their purchases.</p>
-        <p>We do our best to sniff out the best running shoe deals for you!</p>
-        <div style="text-align: center; margin: 1.2rem 0 0.35rem;">
-          <img src="/images/marty.svg" alt="Marty the Beagle" style="width: 200px; height: auto;">
-        </div>
-        <p><strong>Affiliate Disclosure:</strong> Some of the links on Shoe Beagle are affiliate links. This means Shoe Beagle may earn a small commission if you click a link and make a purchase, at no extra cost to you.</p>
-      </div>
-      <div class="modal-close-row">
-        <button type="button" class="modal-close-btn" data-close="aboutModal">Close</button>
-      </div>
+      <p><strong>Affiliate Disclosure:</strong> Some of the links on Shoe Beagle are affiliate links. This means Shoe Beagle may earn a small commission if you click a link and make a purchase, at no extra cost to you.</p>
     </div>
-  </div>
+
     <div id="alertsDashboard" class="alerts-dashboard hidden">
       <div class="alerts-title">My Alerts</div>
       <div class="alerts-instruction">Tap or Click Row to Manage Alert</div>
       <!-- NEW: stats summary line -->
+      <div class="alerts-instruction" id="dealStatsSummary"></div>
 
       <div class="alerts-table-wrapper">
         <table class="alerts-table" aria-label="My Alerts Table" id="alertsTable">
@@ -1096,7 +1087,7 @@
     <div class="footer">
       © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
       <br>
-       <a id="aboutLink">About</a> |
+       <a id="aboutLink">About Us</a> |
        <a id="privacyLink">Privacy</a> |
        <a id="termsLink">Terms</a>
     </div>
@@ -1106,7 +1097,7 @@
   <div id="privacyModal" class="modal-overlay">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
       <div class="modal-header">
-        <img src="/images/logo.svg" alt="Shoe Beagle Logo" style="width: 300px;">
+        <img src="/images/logo.svg" alt="Shoe Beagle Logo">
         <h2 id="privacyTitle">Privacy Policy</h2>
       </div>
       <div class="modal-body">
@@ -1152,11 +1143,11 @@
         <ul>
           <li>Stop using the site at any time.</li>
           <li>Cancel or adjust your alerts in the "My Alerts" area.</li>
-          <li>Request that we delete your alert-related information by contacting us at <a href="/cdn-cgi/l/email-protection#691e000d0c190c290e04080005470a0604"><span class="__cf_email__" data-cfemail="c6b1afa2a3b6a386a1aba7afaae8a5a9ab">[email&#160;protected]</span></a>.</li>
+          <li>Request that we delete your alert-related information by contacting us at <a href="/cdn-cgi/l/email-protection#66110f0203160326010b070f0a4805090b"><span class="__cf_email__" data-cfemail="17607e7372677257707a767e7b3974787a">[email&#160;protected]</span></a>.</li>
         </ul>
 
         <h3>10. Contact us</h3>
-        <p>If you have questions about this Privacy Policy or how we handle your data, you can contact us at: <a href="/cdn-cgi/l/email-protection#4f38262b2a3f2a0f28222e2623612c2022"><span class="__cf_email__" data-cfemail="55223c31302530153238343c397b363a38">[email&#160;protected]</span></a>.</p>
+        <p>If you have questions about this Privacy Policy or how we handle your data, you can contact us at: <a href="/cdn-cgi/l/email-protection#dbacb2bfbeabbe9bbcb6bab2b7f5b8b4b6"><span class="__cf_email__" data-cfemail="86f1efe2e3f6e3c6e1ebe7efeaa8e5e9eb">[email&#160;protected]</span></a>.</p>
       </div>
       <div class="modal-close-row">
         <button type="button" class="modal-close-btn" data-close="privacyModal">Close</button>
@@ -1168,7 +1159,7 @@
   <div id="termsModal" class="modal-overlay">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="termsTitle">
       <div class="modal-header">
-        <img src="/images/logo.svg" alt="Shoe Beagle Logo" style="width: 300px;">
+        <img src="/images/logo.svg" alt="Shoe Beagle Logo">
         <h2 id="termsTitle">Terms of Use</h2>
       </div>
       <div class="modal-body">
@@ -1210,7 +1201,7 @@
         <p>We may update these Terms of Use from time to time. The "Last Updated" date at the top will tell you when we last made changes. Your continued use of the site after changes are posted means you accept the updated terms.</p>
 
         <h3>11. Contact us</h3>
-        <p>If you have questions about these Terms of Use, you can contact us at: <a href="/cdn-cgi/l/email-protection#eb9c828f8e9b8eab8c868a8287c5888486"><span class="__cf_email__" data-cfemail="d1a6b8b5b4a1b491b6bcb0b8bdffb2bebc">[email&#160;protected]</span></a>.</p>
+        <p>If you have questions about these Terms of Use, you can contact us at: <a href="/cdn-cgi/l/email-protection#b2c5dbd6d7c2d7f2d5dfd3dbde9cd1dddf"><span class="__cf_email__" data-cfemail="d9aeb0bdbca9bc99beb4b8b0b5f7bab6b4">[email&#160;protected]</span></a>.</p>
       </div>
       <div class="modal-close-row">
         <button type="button" class="modal-close-btn" data-close="termsModal">Close</button>
@@ -1248,10 +1239,10 @@
     const modelPaw = document.getElementById("modelPaw");
 
     const mainContent = document.getElementById("mainContent");
+    const aboutContent = document.getElementById("aboutContent");
     const alertsDashboard = document.getElementById("alertsDashboard");
 
     const aboutLink = document.getElementById("aboutLink");
-    const aboutModal = document.getElementById("aboutModal");
     const myAlertsLink = document.getElementById("myAlertsLink");
     const logoLink = document.getElementById("logoLink");
 
@@ -1259,6 +1250,7 @@
     const alertsEmpty = document.getElementById("alertsEmpty");
     const alertsTable = document.getElementById("alertsTable");
     const clearInactiveWrapper = document.getElementById("clearInactiveWrapper");
+    const dealStatsSummary = document.getElementById("dealStatsSummary");
 
     const footerYear = document.getElementById("footerYear");
     const privacyLink = document.getElementById("privacyLink");
@@ -1288,17 +1280,13 @@
       document.body.style.overflow = "";
     }
 
-if (aboutLink && aboutModal) {
-  aboutLink.addEventListener("click", () => openModal(aboutModal));
-}
+    if (privacyLink && privacyModal) {
+      privacyLink.addEventListener("click", () => openModal(privacyModal));
+    }
 
-if (privacyLink && privacyModal) {
-  privacyLink.addEventListener("click", () => openModal(privacyModal));
-}
-
-if (termsLink && termsModal) {
-  termsLink.addEventListener("click", () => openModal(termsModal));
-}
+    if (termsLink && termsModal) {
+      termsLink.addEventListener("click", () => openModal(termsModal));
+    }
 
     document.querySelectorAll(".modal-close-btn").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -1521,7 +1509,26 @@ if (termsLink && termsModal) {
       clearInactiveWrapper.appendChild(actionsDiv);
     }
 
+    async function refreshDealStats() {
+      if (!dealStatsSummary) return;
+      dealStatsSummary.textContent = "Loading deal stats…";
 
+      try {
+        const res = await fetch("/api/deals-stats");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+
+        dealStatsSummary.textContent =
+          `Total sales: ${data.totalDeals?.toLocaleString?.() ?? data.totalDeals ?? 0} · ` +
+          `Total with images: ${data.dealsWithImages?.toLocaleString?.() ?? data.dealsWithImages ?? 0} · ` +
+          `≥10% off: ${data.off10OrMore?.toLocaleString?.() ?? data.off10OrMore ?? 0} · ` +
+          `≥25% off: ${data.off25OrMore?.toLocaleString?.() ?? data.off25OrMore ?? 0} · ` +
+          `≥50% off: ${data.off50OrMore?.toLocaleString?.() ?? data.off50OrMore ?? 0}`;
+      } catch (err) {
+        console.error("Error loading deal stats:", err);
+        dealStatsSummary.textContent = "Deal stats are unavailable right now.";
+      }
+    }
 
     function renderAlertsDashboard() {
       const list = loadAlerts();
@@ -1800,7 +1807,7 @@ if (termsLink && termsModal) {
     function resetModelState() {
       modelInput.disabled = true;
       modelInput.value = "";
-      modelInput.placeholder = "Model (optional)";
+      modelInput.placeholder = "";
       modelInput.classList.remove("model-active");
       modelInput.classList.add("model-inactive");
       modelSuggestions.style.display = "none";
@@ -1811,7 +1818,7 @@ if (termsLink && termsModal) {
 
     function confirmBrandSelection() {
       if (!modelInput.disabled) {
-        modelInput.placeholder = "Model (optional)";
+        modelInput.placeholder = "Enter Shoe Model";
         brandSelected = true;
         brandPaw.classList.add("hidden");
         brandPaw.classList.remove("rock");
@@ -1822,8 +1829,8 @@ if (termsLink && termsModal) {
 
     function updateFetchReady() {
       const brandKey = resolveBrand();
-      // Model is now optional - button is ready if we have a brand
-      const ready = !!brandKey && !modelInput.disabled;
+      const modelHasText = !!modelInput.value.trim();
+      const ready = !!brandKey && !modelInput.disabled && modelHasText;
       fetchBtn.classList.toggle("ready", ready);
     }
 
@@ -1874,6 +1881,7 @@ if (termsLink && termsModal) {
 
     function hideAllContentBelowStatus() {
       mainContent.classList.add("hidden");
+      aboutContent.classList.add("hidden");
       alertsDashboard.classList.add("hidden");
       resultsEl.innerHTML = "";
       dailyDeals.style.display = "none";
@@ -1883,18 +1891,27 @@ if (termsLink && termsModal) {
     }
 
     function showHome() {
+      aboutContent.classList.add("hidden");
       alertsDashboard.classList.add("hidden");
       mainContent.classList.remove("hidden");
       if (!resultsEl.innerHTML.trim()) dailyDeals.style.display = "block";
     }
 
+    function showAbout() {
+      mainContent.classList.add("hidden");
+      alertsDashboard.classList.add("hidden");
+      aboutContent.classList.remove("hidden");
+      statusMessageEl.textContent = "";
+    }
 
     function showMyAlerts() {
       hideAllContentBelowStatus();
       alertsDashboard.classList.remove("hidden");
       renderAlertsDashboard();
+      refreshDealStats();
     }
 
+    aboutLink.addEventListener("click", showAbout);
     myAlertsLink.addEventListener("click", showMyAlerts);
     logoLink.addEventListener("click", showHome);
 
@@ -1902,65 +1919,63 @@ if (termsLink && termsModal) {
     updatePaws();
     dailyDeals.style.display = "block";
 
-brandInput.addEventListener("input", () => {
-  const typed = brandInput.value.trim();
-  if (typed) enableModel();
-  else resetModelState();
-  const matches = filterStartsWith(brands, typed);
-  showSuggestions(brandSuggestions, matches, (value) => {
-    brandInput.value = value;
-    brandSuggestions.style.display = "none";
-    enableModel();
-    confirmBrandSelection();
-    setTimeout(() => modelInput.focus(), 0);
-    updatePaws();
-  });
-  updatePaws();
-});
+    brandInput.addEventListener("input", () => {
+      const typed = brandInput.value.trim();
+      if (typed) enableModel();
+      else resetModelState();
 
+      const matches = filterStartsWith(brands, typed);
 
+      showSuggestions(brandSuggestions, matches, (value) => {
+        brandInput.value = value;
+        brandSuggestions.style.display = "none";
+        enableModel();
+        confirmBrandSelection();
+        setTimeout(() => modelInput.focus(), 0);
+        updatePaws();
+      });
 
-brandInput.addEventListener("blur", () => setTimeout(() => { brandSuggestions.style.display = "none"; }, 120));
-
-brandInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    const typed = brandInput.value.trim();
-    if (typed) {
-      e.preventDefault();
-      enableModel();
-      confirmBrandSelection();
-      modelInput.focus();
       updatePaws();
-    }
-  }
-});
+    });
 
-modelInput.addEventListener("input", () => {
-  const brandKey = resolveBrand();
-  const text = modelInput.value.trim();
-  if (!brandKey || !brandModels[brandKey]) {
-    modelSuggestions.style.display = "none";
-    updatePaws();
-    return;
-  }
-  const models = brandModels[brandKey];
-  const matches = filterStartsWith(models, text);
-  showSuggestions(modelSuggestions, matches, (value) => {
-    modelInput.value = value;
-    modelSuggestions.style.display = "none";
-    setTimeout(() => fetchBtn.focus(), 0);
-    updatePaws();
-  });
-  updatePaws();
-});
+    brandInput.addEventListener("blur", () => setTimeout(() => { brandSuggestions.style.display = "none"; }, 120));
 
-brandInput.addEventListener("click", () => {
-  brandInput.select();
-});
+    brandInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const typed = brandInput.value.trim();
+        if (typed) {
+          e.preventDefault();
+          enableModel();
+          confirmBrandSelection();
+          modelInput.focus();
+          updatePaws();
+        }
+      }
+    });
 
-modelInput.addEventListener("click", () => {
-  modelInput.select();
-});
+    modelInput.addEventListener("input", () => {
+      const brandKey = resolveBrand();
+      const text = modelInput.value.trim();
+
+      if (!brandKey || !brandModels[brandKey]) {
+        modelSuggestions.style.display = "none";
+        updatePaws();
+        return;
+      }
+
+      const models = brandModels[brandKey];
+      const matches = filterStartsWith(models, text);
+
+      showSuggestions(modelSuggestions, matches, (value) => {
+        modelInput.value = value;
+        modelSuggestions.style.display = "none";
+        setTimeout(() => fetchBtn.focus(), 0);
+        updatePaws();
+      });
+
+      updatePaws();
+    });
+
     modelInput.addEventListener("blur", () => setTimeout(() => { modelSuggestions.style.display = "none"; }, 120));
 
     alertPriceInput.addEventListener("input", () => {
@@ -2091,90 +2106,90 @@ modelInput.addEventListener("click", () => {
     loadDailyDeals();
 
     form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  
-  // Get whatever the user typed - model is now optional
-  const brandTyped = brandInput.value.trim();
-  const modelTyped = modelInput.value.trim();
-  
-  if (!brandTyped) {
-    statusMessageEl.textContent = "Please enter a brand.";
-    updatePaws();
-    return;
-  }
-  
-  currentSearch = { brand: brandTyped, model: modelTyped };
-  
-  // Update status message based on search type
-  const searchType = modelTyped ? `${brandTyped} ${modelTyped}` : `all ${brandTyped} shoes`;
-  statusMessageEl.textContent = `Searching for ${searchType}…`;
-  resultsEl.innerHTML = "";
-  dailyDeals.style.display = "none";
-  
-  resetAlertSection();
-  alertWrapper.style.display = "flex";
-  
-  const existingActive = findActiveAlertFor(brandTyped, modelTyped);
-  if (existingActive) {
-    alertPromptBtn.style.display = "none";
-    const daysLeft = computeDaysLeft(existingActive);
-    alertExistingInfo.innerHTML = `
-      <strong>You have an active alert set for this shoe.</strong><br><br>
-      <strong>Shoe:</strong> ${existingActive.brand} ${existingActive.model}<br>
-      <strong>Days Remaining:</strong> ${daysLeft}<br>
-      <strong>Target Price:</strong> $${Number(existingActive.targetPrice).toFixed(2)}<br><br>
-      Open <strong>My Alerts</strong> to manage it.
-    `;
-    alertExistingInfo.style.display = "block";
-  } else {
-    alertPromptBtn.style.display = "block";
-    alertExistingInfo.style.display = "none";
-  }
-  
-  alertProductName.textContent = modelTyped ? `${brandTyped} ${modelTyped}` : `${brandTyped} shoes`;
-  
-  const query = modelTyped ? `${brandTyped} ${modelTyped}` : brandTyped;
-  let data;
-  
-  try {
-    const res = await fetch("/api/search?" + new URLSearchParams({ query }));
-    data = await res.json();
-  } catch (err) {
-    console.error("Search error:", err);
-    statusMessageEl.textContent = "Search failed. Please try again.";
-    return;
-  }
-  
-  const results = (data && data.results) ? data.results : [];
-  
-  if (!results.length) {
-    const searchText = modelTyped ? `${brandTyped} ${modelTyped}` : `${brandTyped} shoes`;
-    statusMessageEl.textContent = `No results found for ${searchText} — set a price alert and we'll keep sniffing.`;
-    return;
-  }
-  
-statusMessageEl.textContent = `Top ${results.length} deal${results.length === 1 ? '' : 's'} found for ${modelTyped ? brandTyped + ' ' + modelTyped : brandTyped + ' shoes'}`;
+      e.preventDefault();
+
+      const brandKey = resolveBrand();
+      const modelCanonical = resolveModelKey(brandKey, modelInput.value);
+
+      if (!brandKey || !modelCanonical) {
+        statusMessageEl.textContent = "Please provide a brand & model.";
+        updatePaws();
+        return;
+      }
+
+      if (!aboutContent.classList.contains("hidden") || !alertsDashboard.classList.contains("hidden")) {
+        showHome();
+      }
+
+      currentSearch = { brand: brandKey, model: modelCanonical };
+
+      statusMessageEl.textContent = "Searching deals…";
       resultsEl.innerHTML = "";
-  
-  results.forEach(item => {
-    const card = createDealCard(item);
-    resultsEl.appendChild(card);
-  });
-});
+      dailyDeals.style.display = "none";
+
+      resetAlertSection();
+      alertWrapper.style.display = "flex";
+
+      const existingActive = findActiveAlertFor(brandKey, modelCanonical);
+      if (existingActive) {
+        alertPromptBtn.style.display = "none";
+        const daysLeft = computeDaysLeft(existingActive);
+        alertExistingInfo.innerHTML = `
+          <strong>You have an active alert set for this shoe.</strong><br><br>
+          <strong>Shoe:</strong> ${existingActive.brand} ${existingActive.model}<br>
+          <strong>Days Remaining:</strong> ${daysLeft}<br>
+          <strong>Target Price:</strong> $${Number(existingActive.targetPrice).toFixed(2)}<br><br>
+          Open <strong>My Alerts</strong> to manage it.
+        `;
+        alertExistingInfo.style.display = "block";
+      } else {
+        alertPromptBtn.style.display = "block";
+        alertExistingInfo.style.display = "none";
+      }
+
+      alertProductName.textContent = `${brandKey} ${modelCanonical}`;
+
+      const query = `${brandKey} ${modelCanonical}`;
+      let data;
+
+      try {
+        const res = await fetch("/api/search?" + new URLSearchParams({ query }));
+        data = await res.json();
+      } catch (err) {
+        console.error("Search error:", err);
+        statusMessageEl.textContent = "Search failed. Please try again.";
+        return;
+      }
+
+      const results = (data && data.results) ? data.results : [];
+
+      if (!results.length) {
+        statusMessageEl.textContent = "No results found — set a price alert and we'll keep sniffing.";
+        return;
+      }
+
+      statusMessageEl.textContent = `Top ${results.length} deal(s) found.`;
+      resultsEl.innerHTML = "";
+
+      results.forEach(item => {
+        const card = createDealCard(item);
+        resultsEl.appendChild(card);
+      });
+    });
 
     alertPromptBtn.addEventListener("click", () => {
       alertPromptBtn.style.display = "none";
       alertForm.style.display = "flex";
-      alertProductName.textContent = currentSearch.model ? `${currentSearch.brand} ${currentSearch.model}` : `${currentSearch.brand} shoes`;
+      alertProductName.textContent = `${currentSearch.brand} ${currentSearch.model}`;
     });
 
     alertSubmitBtn.addEventListener("click", async () => {
       const priceNum = Number(alertPriceInput.value.trim());
       const contact = alertContactInput.value.trim();
       const brand = currentSearch.brand;
-      const model = currentSearch.model || ""; // Model is now optional
+      const model = currentSearch.model;
 
-      if (!brand) {
+      if (!brand || !model) {
         alert("Please search for a shoe first, then set an alert.");
         return;
       }
