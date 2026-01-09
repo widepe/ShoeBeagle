@@ -203,8 +203,8 @@ async function scrapeRunningWarehouse() {
         });
       });
 
-      // Be polite
-      await sleep(1500);
+      // Be polite so adding 3sec pause between pages being looked at
+      await sleep(3000);
     }
 
     console.log(
@@ -217,14 +217,13 @@ async function scrapeRunningWarehouse() {
   }
 }
 
-
 /**
  * Scrape Zappos clearance/sale page
  */
 async function scrapeZappos() {
   const deals = [];
   const url = 'https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso';
-
+  
   try {
     const response = await axios.get(url, {
       headers: {
@@ -234,6 +233,84 @@ async function scrapeZappos() {
       },
       timeout: 15000
     });
+
+    const $ = cheerio.load(response.data);
+
+    $('[data-product-id], .product, article').each((i, element) => {
+      const $el = $(element);
+      
+      const title = $el.find('[itemprop="name"], .product-name, h2, h3').first().text().trim();
+      
+      // Get the product URL
+      const link = $el.find('a[href*="/product/"]').first().attr('href');
+      const fullLink = link && !link.startsWith('http') 
+        ? `https://www.zappos.com${link}` 
+        : link;
+      
+      // Get the image
+      const imgSrc = $el.find('img').first().attr('src') || $el.find('img').first().attr('data-src');
+      const imageUrl = imgSrc || null;
+      
+      const priceText =
+        $el
+          .find('[data-gtm_impression_price]')
+          .first()
+          .attr("data-gtm_impression_price") ||
+        $el
+          .find(".price, .sale-price, [class*='price']")
+          .first()
+          .text()
+          .trim();
+
+      // Parse all $X.XX numbers we can see in the price area
+      const dollarMatches =
+        (priceText.match(/\$[\d.,]+/g) || [])
+          .map((txt) => parsePrice(txt))
+          .filter((n) => Number.isFinite(n));
+
+      // Fallback: parse the whole string as a single price
+      let sale = parsePrice(priceText);
+      let original = null;
+
+      if (dollarMatches.length >= 2) {
+        // For strings like "$99.88 $140.00" we treat the lower as sale, higher as original
+        sale = Math.min(...dollarMatches);
+        original = Math.max(...dollarMatches);
+      }
+
+      const discountPct =
+        Number.isFinite(sale) &&
+        Number.isFinite(original) &&
+        original > 0 &&
+        sale < original
+          ? Math.round(((original - sale) / original) * 100)
+          : 0;
+
+      if (title && sale > 0 && fullLink) {
+        const { brand, model } = parseBrandModel(title);
+        
+        deals.push({
+          title,
+          brand,
+          model,
+          store: "Zappos",
+          price: sale,
+          originalPrice: original,
+          image: imageUrl,
+          url: fullLink,
+          discount: discountPct > 0 ? `${discountPct}% OFF` : null,
+          scrapedAt: new Date().toISOString()
+        });
+      }
+    });
+
+  } catch (error) {
+    console.error('[SCRAPER] Zappos error:', error.message);
+    throw error;
+  }
+
+  return deals;
+}
 
     const $ = cheerio.load(response.data);
 
