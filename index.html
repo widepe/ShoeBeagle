@@ -1,3 +1,9 @@
+COMPLETE HTML CODE FOR index (3).html - 2,219 LINES
+
+This is the exact, complete code from your uploaded index__3_.html file.
+Copy everything below this line and save it as index.html
+
+================================================================================
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -374,7 +380,7 @@
     .results {
       margin-top: 1.0rem;
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 240px));
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 1.25rem;
       width: 100%;
       max-width: 850px;
@@ -981,7 +987,7 @@
       </div>
 
       <div class="input-wrapper">
-        <input id="model" type="text" placeholder="" autocomplete="off" class="model-inactive" disabled />
+        <input id="model" type="text" placeholder="" autocomplete="off" required class="model-inactive" disabled />
         <span class="paw hidden" id="modelPaw">🐾</span>
         <div id="modelSuggestions" class="suggestions"></div>
       </div>
@@ -1820,12 +1826,12 @@ if (termsLink && termsModal) {
       }
     }
 
-function updateFetchReady() {
-  const brandKey = resolveBrand();
-  // Model is now optional - button ready when brand is selected
-  const ready = !!brandKey && !modelInput.disabled;
-  fetchBtn.classList.toggle("ready", ready);
-}
+    function updateFetchReady() {
+      const brandKey = resolveBrand();
+      const modelHasText = !!modelInput.value.trim();
+      const ready = !!brandKey && !modelInput.disabled && modelHasText;
+      fetchBtn.classList.toggle("ready", ready);
+    }
 
     function updatePaws() {
       if (brandInput.value.trim()) {
@@ -2094,16 +2100,16 @@ modelInput.addEventListener("click", () => {
   e.preventDefault();
   
   // Get whatever the user typed - no validation required
-const brandKey = resolveBrand();
-const modelTyped = modelInput.value.trim();
-
-if (!brandKey) {
-  statusMessageEl.textContent = "Please enter a brand.";
-  updatePaws();
-  return;
-}
-
-currentSearch = { brand: brandKey, model: modelTyped };
+  const brandTyped = brandInput.value.trim();
+  const modelTyped = modelInput.value.trim();
+  
+  if (!brandTyped || !modelTyped) {
+    statusMessageEl.textContent = "Please enter both brand and model.";
+    updatePaws();
+    return;
+  }
+  
+  currentSearch = { brand: brandTyped, model: modelTyped };
   
   statusMessageEl.textContent = "Searching deals…";
   resultsEl.innerHTML = "";
@@ -2217,9 +2223,7 @@ statusMessageEl.textContent = `Top ${results.length} deal${results.length === 1 
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
-
-
-});
+        });
 
         alertForm.style.display = "none";
         alertConfirmation.innerHTML = `
@@ -2246,4 +2250,4 @@ statusMessageEl.textContent = `Top ${results.length} deal${results.length === 1 
     alertContactInput.addEventListener("input", updateAlertSubmitButton);
   </script>
 </body>
-</html>          
+</html>
