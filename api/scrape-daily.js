@@ -28,42 +28,29 @@ module.exports = async (req, res) => {
     const allDeals = [];
     const scraperResults = {};
 
-    /* DISABLED - Running Warehouse turned off per user request
-    // Scrape Running Warehouse
-    try {
-      const rwDeals = await scrapeRunningWarehouse();
-      allDeals.push(...rwDeals);
-      scraperResults['Running Warehouse'] = { success: true, count: rwDeals.length };
-      console.log(`[SCRAPER] Running Warehouse: ${rwDeals.length} deals`);
-    } catch (error) {
-      scraperResults['Running Warehouse'] = { success: false, error: error.message };
-      console.error('[SCRAPER] Running Warehouse failed:', error.message);
-    }
-    */
+/* DISABLED FOR TESTING
+// Scrape Running Warehouse
+try {
+  const rwDeals = await scrapeRunningWarehouse();
+  allDeals.push(...rwDeals);
+  scraperResults['Running Warehouse'] = { success: true, count: rwDeals.length };
+  console.log(`[SCRAPER] Running Warehouse: ${rwDeals.length} deals`);
+} catch (error) {
+  scraperResults['Running Warehouse'] = { success: false, error: error.message };
+  console.error('[SCRAPER] Running Warehouse failed:', error.message);
+}
+*/
 
-    /* DISABLED - JavaScript rendering issue (requires Puppeteer)
-    // Scrape Zappos
+    // Scrape Fleet Feet
     try {
-      await sleep(2000);
-      const zapposDeals = await scrapeZappos();
-      allDeals.push(...zapposDeals);
-      scraperResults['Zappos'] = { success: true, count: zapposDeals.length };
-      console.log(`[SCRAPER] Zappos: ${zapposDeals.length} deals`);
+      await sleep(2000); // Be respectful - 2 second delay between sites
+      const fleetFeetDeals = await scrapeFleetFeet();
+      allDeals.push(...fleetFeetDeals);
+      scraperResults['Fleet Feet'] = { success: true, count: fleetFeetDeals.length };
+      console.log(`[SCRAPER] Fleet Feet: ${fleetFeetDeals.length} deals`);
     } catch (error) {
-      scraperResults['Zappos'] = { success: false, error: error.message };
-      console.error('[SCRAPER] Zappos failed:', error.message);
-    }
-    */
-
-    // Scrape Dick's Sporting Goods
-    try {
-      const dicksDeals = await scrapeDicksSportingGoods();
-      allDeals.push(...dicksDeals);
-      scraperResults["Dick's Sporting Goods"] = { success: true, count: dicksDeals.length };
-      console.log(`[SCRAPER] Dick's Sporting Goods: ${dicksDeals.length} deals`);
-    } catch (error) {
-      scraperResults["Dick's Sporting Goods"] = { success: false, error: error.message };
-      console.error("[SCRAPER] Dick's Sporting Goods failed:", error.message);
+      scraperResults['Fleet Feet'] = { success: false, error: error.message };
+      console.error('[SCRAPER] Fleet Feet failed:', error.message);
     }
 
     // Calculate statistics
@@ -111,16 +98,16 @@ module.exports = async (req, res) => {
   }
 };
 
-/* DISABLED - Running Warehouse turned off per user request
-**
+/**
  * Scrape Running Warehouse sale page
- *
+ */
 async function scrapeRunningWarehouse() {
-  console.log("[SCRAPER] Starting Running Warehouse scrape…");
+  console.log("[SCRAPER] Starting Running Warehouse scrape...");
 
+  // Men's and Women's sale pages
   const urls = [
-    "https://www.runningwarehouse.com/catpage-SALEMS.html",
-    "https://www.runningwarehouse.com/catpage-SALEWS.html",
+    "https://www.runningwarehouse.com/catpage-SALEMS.html", // Men's
+    "https://www.runningwarehouse.com/catpage-SALEWS.html", // Women's
   ];
 
   const deals = [];
@@ -133,7 +120,7 @@ async function scrapeRunningWarehouse() {
         headers: {
           "User-Agent":
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*-/-*;q=0.8",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
         timeout: 30000,
       });
@@ -141,6 +128,8 @@ async function scrapeRunningWarehouse() {
       const html = response.data;
       const $ = cheerio.load(html);
 
+      // Each product is a link with text like:
+      // "Clearance Brand Model Men's Shoes - Color $ 111.95 $140.00 *"
       $("a").each((_, el) => {
         const anchor = $(el);
         let text = anchor.text().replace(/\s+/g, " ").trim();
@@ -148,11 +137,13 @@ async function scrapeRunningWarehouse() {
         if (!text.startsWith("Clearance ")) return;
         if (!/Shoes\b/i.test(text)) return;
 
+        // Remove trailing asterisk
         text = text.replace(/\*\s*$/, "").trim();
 
         const href = anchor.attr("href") || "";
         if (!href) return;
 
+        // Parse sale + original prices
         const { salePrice, originalPrice } = parseSaleAndOriginalPrices(text);
         if (!salePrice || !Number.isFinite(salePrice)) return;
 
@@ -168,16 +159,20 @@ async function scrapeRunningWarehouse() {
           }
         }
 
-        const titleWithoutPrices = text.replace(/\$\s*\d[\d,]*\.?\d*-/g, "").trim();
+        // Clean title (remove prices)
+        const titleWithoutPrices = text.replace(/\$\s*\d[\d,]*\.?\d*/g, "").trim();
         const title = titleWithoutPrices;
 
+        // Parse brand and model
         const { brand, model } = parseBrandModel(title);
 
+        // Build full URL
         let cleanUrl = href;
         if (!/^https?:\/\//i.test(cleanUrl)) {
           cleanUrl = `https://www.runningwarehouse.com/${cleanUrl.replace(/^\/+/, "")}`;
         }
 
+        // Try to find image
         let cleanImage = null;
         const container = anchor.closest("tr,td,div,li,article");
         if (container.length) {
@@ -212,6 +207,7 @@ async function scrapeRunningWarehouse() {
         });
       });
 
+      // Be polite - 1.5 second delay between pages
       await sleep(1500);
     }
 
@@ -224,207 +220,138 @@ async function scrapeRunningWarehouse() {
     throw error;
   }
 }
-*/
-
-/* DISABLED - JavaScript rendering issue (requires Puppeteer)
-**
- * Scrape Zappos clearance/sale page
- *
-async function scrapeZappos() {
-  const deals = [];
-  const url = 'https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso';
-
-  try {
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ShoeBeagleBot/1.0; +https://shoebeagle.com)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*-/-*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-      timeout: 15000
-    });
-
-    const $ = cheerio.load(response.data);
-
-    $('[data-product-id], .product, article').each((i, element) => {
-      const $el = $(element);
-      
-      const title = $el.find('[itemprop="name"], .product-name, h2, h3').first().text().trim();
-      const priceText =
-        $el
-          .find('[data-gtm_impression_price]')
-          .first()
-          .attr("data-gtm_impression_price") ||
-        $el
-          .find(".price, .sale-price, [class*='price']")
-          .first()
-          .text()
-          .trim();
-
-      const dollarMatches =
-        (priceText.match(/\$[\d.,]+/g) || [])
-          .map((txt) => parsePrice(txt))
-          .filter((n) => Number.isFinite(n));
-
-      let sale = parsePrice(priceText);
-      let original = null;
-
-      if (dollarMatches.length >= 2) {
-        sale = Math.min(...dollarMatches);
-        original = Math.max(...dollarMatches);
-      }
-
-      const discountPct =
-        Number.isFinite(sale) &&
-        Number.isFinite(original) &&
-        original > 0 &&
-        sale < original
-          ? Math.round(((original - sale) / original) * 100)
-          : 0;
-
-      if (title && sale > 0 && link) {
-        deals.push({
-          title,
-          store: "Zappos",
-          price: sale,
-          originalPrice: original,
-          image: imageUrl,
-          url: link,
-          discount: discountPct > 0 ? `${discountPct}% OFF` : null
-        });
-      }
-
-    });
-
-  } catch (error) {
-    console.error('[SCRAPER] Zappos error:', error.message);
-    throw error;
-  }
-
-  return deals;
-}
-*/
 
 /**
- * Scrape Dick's Sporting Goods clearance running footwear
+ * Scrape Fleet Feet clearance running shoes
  */
-async function scrapeDicksSportingGoods() {
-  console.log("[SCRAPER] Starting Dick's Sporting Goods scrape...");
+async function scrapeFleetFeet() {
+  console.log("[SCRAPER] Starting Fleet Feet scrape...");
 
-  const url = 'https://www.dickssportinggoods.com/f/clearance-running-footwear';
+  const urls = [
+    "https://www.fleetfeet.com/browse/shoes/mens?clearance=on",
+    "https://www.fleetfeet.com/browse/shoes/womens?clearance=on"
+  ];
+
   const deals = [];
 
   try {
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9'
-      },
-      timeout: 30000
-    });
+    for (const url of urls) {
+      console.log(`[SCRAPER] Fetching Fleet Feet page: ${url}`);
 
-    const $ = cheerio.load(response.data);
-
-    // Each product is a link with structure like:
-    // <a href="/p/nike-mens-pegasus-41-running-shoes-...">
-    //   <img data-src="..." />
-    //   ...brand/model info in text...
-    // </a>
-    
-    // Find all product links
-    $('a[href*="/p/"]').each((_, el) => {
-      const $link = $(el);
-      const href = $link.attr('href');
-      
-      // Must be a product page
-      if (!href || !href.includes('/p/')) return;
-      
-      // Get the product title from the link text or nearby text
-      let titleText = $link.text().replace(/\s+/g, ' ').trim();
-      
-      // Sometimes the title is in a specific element within the link
-      const titleEl = $link.find('[class*="product"], [data-automation*="name"]').first();
-      if (titleEl.length && titleEl.text().trim()) {
-        titleText = titleEl.text().replace(/\s+/g, ' ').trim();
-      }
-      
-      // Skip if no valid title
-      if (!titleText || titleText.length < 10) return;
-      
-      // Must contain running-related keywords
-      if (!/running|pegasus|ghost|vomero|nimbus|clifton|mach|ride|guide|kayano|boston|ultra|gel-|adizero|fresh foam|fuelcell/i.test(titleText)) return;
-      
-      // Parse prices from the text
-      const priceMatches = titleText.match(/\$\s*[\d,]+\.?\d*/g);
-      let salePrice = null;
-      let originalPrice = null;
-      
-      if (priceMatches && priceMatches.length > 0) {
-        const prices = priceMatches.map(p => parsePrice(p)).filter(p => p > 0);
-        
-        if (prices.length === 1) {
-          salePrice = prices[0];
-        } else if (prices.length >= 2) {
-          // First price is usually sale, second is original
-          salePrice = Math.min(...prices);
-          originalPrice = Math.max(...prices);
-        }
-      }
-      
-      // Skip if no valid price
-      if (!salePrice || salePrice <= 0) return;
-      
-      // Clean the title (remove price text)
-      const cleanTitle = titleText.replace(/\$\s*[\d,]+\.?\d*/g, '').replace(/\s+/g, ' ').trim();
-      
-      // Parse brand and model
-      const { brand, model } = parseBrandModel(cleanTitle);
-      
-      // Get image URL
-      let imageUrl = null;
-      const $img = $link.find('img').first();
-      if ($img.length) {
-        imageUrl = $img.attr('data-src') || $img.attr('src');
-        if (imageUrl && !imageUrl.startsWith('http')) {
-          imageUrl = 'https://www.dickssportinggoods.com' + (imageUrl.startsWith('/') ? '' : '/') + imageUrl;
-        }
-      }
-      
-      // Build full URL
-      let fullUrl = href;
-      if (!fullUrl.startsWith('http')) {
-        fullUrl = 'https://www.dickssportinggoods.com' + (href.startsWith('/') ? '' : '/') + href;
-      }
-      
-      // Calculate discount
-      let discount = null;
-      if (originalPrice && originalPrice > salePrice) {
-        const pct = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
-        if (pct > 0) {
-          discount = `${pct}% OFF`;
-        }
-      }
-      
-      deals.push({
-        title: cleanTitle,
-        brand,
-        model,
-        store: "Dick's Sporting Goods",
-        price: salePrice,
-        originalPrice: originalPrice || null,
-        url: fullUrl,
-        image: imageUrl,
-        discount,
-        scrapedAt: new Date().toISOString()
+      const response = await axios.get(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9'
+        },
+        timeout: 30000
       });
-    });
 
-    console.log(`[SCRAPER] Dick's Sporting Goods scrape complete. Found ${deals.length} deals.`);
+      const $ = cheerio.load(response.data);
+
+      // Fleet Feet uses links to product pages
+      // Structure: <a href="/products/mens-asics-gel-kayano-31">
+      //   <img src="...">
+      //   "Men's ASICS Gel-Kayano 31 Running Shoes"
+      //   "original price $165 sale/discounted price $124.95"
+      // </a>
+
+      $('a[href^="/products/"]').each((_, el) => {
+        const $link = $(el);
+        const href = $link.attr('href');
+
+        // Skip if not a product link
+        if (!href || !href.startsWith('/products/')) return;
+
+        // Get all text from the link
+        const fullText = $link.text().replace(/\s+/g, ' ').trim();
+
+        // Must contain shoe-related keywords
+        if (!/running|shoes|race|trail|walking|sneakers/i.test(fullText)) return;
+
+        // Skip if it's clearly a brand link or navigation
+        if (fullText.length < 20) return;
+
+        // Extract title (first part before prices)
+        // Example: "Men's ASICS Gel-Kayano 31 Running Shoes original price $165..."
+        const titleMatch = fullText.match(/^(.+?)\s*(?:original price|sale|discounted|\$)/i);
+        const title = titleMatch ? titleMatch[1].trim() : fullText.split('$')[0].trim();
+
+        // Parse brand and model
+        const { brand, model } = parseBrandModel(title);
+
+        // Extract prices from text
+        // Pattern: "original price $165 sale/discounted price $124.95"
+        const priceMatches = fullText.match(/\$\s*[\d,]+\.?\d*/g);
+        
+        let salePrice = null;
+        let originalPrice = null;
+
+        if (priceMatches && priceMatches.length > 0) {
+          const prices = priceMatches.map(p => parsePrice(p)).filter(p => p > 0);
+          
+          if (prices.length === 1) {
+            salePrice = prices[0];
+          } else if (prices.length >= 2) {
+            // Fleet Feet shows: "original price $165 sale/discounted price $124.95"
+            // So higher price is original, lower is sale
+            originalPrice = Math.max(...prices);
+            salePrice = Math.min(...prices);
+          }
+        }
+
+        // Skip if no valid sale price
+        if (!salePrice || salePrice <= 0) return;
+
+        // Get image URL
+        let imageUrl = null;
+        const $img = $link.find('img').first();
+        if ($img.length) {
+          imageUrl = $img.attr('src') || $img.attr('data-src');
+          // Fleet Feet uses cdn.fleetfeet.com
+          if (imageUrl && !imageUrl.startsWith('http')) {
+            imageUrl = 'https://cdn.fleetfeet.com' + (imageUrl.startsWith('/') ? '' : '/') + imageUrl;
+          }
+        }
+
+        // Build full URL
+        let fullUrl = href;
+        if (!fullUrl.startsWith('http')) {
+          fullUrl = 'https://www.fleetfeet.com' + (href.startsWith('/') ? '' : '/') + href;
+        }
+
+        // Calculate discount
+        let discount = null;
+        if (originalPrice && originalPrice > salePrice) {
+          const pct = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+          if (pct > 0) {
+            discount = `${pct}% OFF`;
+          }
+        }
+
+        deals.push({
+          title,
+          brand,
+          model,
+          store: "Fleet Feet",
+          price: salePrice,
+          originalPrice: originalPrice || null,
+          url: fullUrl,
+          image: imageUrl,
+          discount,
+          scrapedAt: new Date().toISOString()
+        });
+      });
+
+      // Be polite - 2 second delay between pages
+      await sleep(2000);
+    }
+
+    console.log(`[SCRAPER] Fleet Feet scrape complete. Found ${deals.length} deals.`);
     return deals;
 
   } catch (error) {
-    console.error("[SCRAPER] Dick's Sporting Goods error:", error.message);
+    console.error("[SCRAPER] Fleet Feet error:", error.message);
     throw error;
   }
 }
@@ -439,7 +366,8 @@ function parseBrandModel(title) {
     'Nike', 'Adidas', 'adidas', 'New Balance', 'Brooks', 'ASICS', 'Asics',
     'HOKA', 'Hoka', 'Saucony', 'On', 'Altra', 'Mizuno',
     'Salomon', 'Reebok', 'Under Armour', 'Puma', 'PUMA',
-    'Karhu', 'Topo Athletic', 'Newton', 'Saysh', 'TYR'
+    'Karhu', 'KARHU', 'Topo Athletic', 'Newton', 'Saysh', 'TYR',
+    'Craft', 'OOFOS', 'Skora'
   ];
 
   let brand = 'Unknown';
@@ -456,7 +384,7 @@ function parseBrandModel(title) {
   }
 
   // Clean up common suffixes
-  model = model.replace(/\s*-?\s*(Men's|Women's|Mens|Womens|Running|Shoes)\s*$/gi, '');
+  model = model.replace(/\s*-?\s*(Men's|Women's|Mens|Womens|Running|Shoes|Race|Trail|Walking)\s*$/gi, '');
   model = model.replace(/\s+/g, ' ').trim();
 
   return { brand, model };
@@ -470,6 +398,7 @@ function parseSaleAndOriginalPrices(text) {
     return { salePrice: 0, originalPrice: 0 };
   }
 
+  // Grab all dollar-ish numbers in the string
   const matches = text.match(/\d[\d,]*\.?\d*/g);
   if (!matches) {
     return { salePrice: 0, originalPrice: 0 };
@@ -483,11 +412,13 @@ function parseSaleAndOriginalPrices(text) {
     return { salePrice: 0, originalPrice: 0 };
   }
 
+  // If there's only one price, assume no discount
   if (values.length === 1) {
     const v = values[0];
     return { salePrice: v, originalPrice: v };
   }
 
+  // On Running Warehouse, the lower number is the sale, higher is original
   const salePrice = Math.min(...values);
   const originalPrice = Math.max(...values);
 
