@@ -67,9 +67,10 @@ module.exports = async (req, res) => {
     };
 
     // Save to Vercel Blob Storage
-    const blob = await put('deals.json', JSON.stringify(output, null, 2), {
-      access: 'public'
-    });
+const blob = await put('deals.json', JSON.stringify(output, null, 2), {
+  access: 'public',
+  addRandomSuffix: false
+});
 
     console.log('[SCRAPER] Saved to blob:', blob.url);
 
