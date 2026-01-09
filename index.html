@@ -981,7 +981,7 @@
       </div>
 
       <div class="input-wrapper">
-        <input id="model" type="text" placeholder="" autocomplete="off" required class="model-inactive" disabled />
+        <input id="model" type="text" placeholder="Model (optional)" autocomplete="off" class="model-inactive" disabled />
         <span class="paw hidden" id="modelPaw">🐾</span>
         <div id="modelSuggestions" class="suggestions"></div>
       </div>
@@ -1152,11 +1152,11 @@
         <ul>
           <li>Stop using the site at any time.</li>
           <li>Cancel or adjust your alerts in the "My Alerts" area.</li>
-          <li>Request that we delete your alert-related information by contacting us at <a href="mailto:widepe@gmail.com">widepe@gmail.com</a>.</li>
+          <li>Request that we delete your alert-related information by contacting us at <a href="/cdn-cgi/l/email-protection#691e000d0c190c290e04080005470a0604"><span class="__cf_email__" data-cfemail="c6b1afa2a3b6a386a1aba7afaae8a5a9ab">[email&#160;protected]</span></a>.</li>
         </ul>
 
         <h3>10. Contact us</h3>
-        <p>If you have questions about this Privacy Policy or how we handle your data, you can contact us at: <a href="mailto:widepe@gmail.com">widepe@gmail.com</a>.</p>
+        <p>If you have questions about this Privacy Policy or how we handle your data, you can contact us at: <a href="/cdn-cgi/l/email-protection#4f38262b2a3f2a0f28222e2623612c2022"><span class="__cf_email__" data-cfemail="55223c31302530153238343c397b363a38">[email&#160;protected]</span></a>.</p>
       </div>
       <div class="modal-close-row">
         <button type="button" class="modal-close-btn" data-close="privacyModal">Close</button>
@@ -1210,7 +1210,7 @@
         <p>We may update these Terms of Use from time to time. The "Last Updated" date at the top will tell you when we last made changes. Your continued use of the site after changes are posted means you accept the updated terms.</p>
 
         <h3>11. Contact us</h3>
-        <p>If you have questions about these Terms of Use, you can contact us at: <a href="mailto:widepe@gmail.com">widepe@gmail.com</a>.</p>
+        <p>If you have questions about these Terms of Use, you can contact us at: <a href="/cdn-cgi/l/email-protection#eb9c828f8e9b8eab8c868a8287c5888486"><span class="__cf_email__" data-cfemail="d1a6b8b5b4a1b491b6bcb0b8bdffb2bebc">[email&#160;protected]</span></a>.</p>
       </div>
       <div class="modal-close-row">
         <button type="button" class="modal-close-btn" data-close="termsModal">Close</button>
@@ -1218,7 +1218,7 @@
     </div>
   </div>
 
-  <script>
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
     const form = document.getElementById("search-form");
     const statusMessageEl = document.getElementById("statusMessage");
     const resultsEl = document.getElementById("results");
@@ -1800,7 +1800,7 @@ if (termsLink && termsModal) {
     function resetModelState() {
       modelInput.disabled = true;
       modelInput.value = "";
-      modelInput.placeholder = "";
+      modelInput.placeholder = "Model (optional)";
       modelInput.classList.remove("model-active");
       modelInput.classList.add("model-inactive");
       modelSuggestions.style.display = "none";
@@ -1811,7 +1811,7 @@ if (termsLink && termsModal) {
 
     function confirmBrandSelection() {
       if (!modelInput.disabled) {
-        modelInput.placeholder = "Enter Shoe Model";
+        modelInput.placeholder = "Model (optional)";
         brandSelected = true;
         brandPaw.classList.add("hidden");
         brandPaw.classList.remove("rock");
@@ -1822,8 +1822,8 @@ if (termsLink && termsModal) {
 
     function updateFetchReady() {
       const brandKey = resolveBrand();
-      const modelHasText = !!modelInput.value.trim();
-      const ready = !!brandKey && !modelInput.disabled && modelHasText;
+      // Model is now optional - button is ready if we have a brand
+      const ready = !!brandKey && !modelInput.disabled;
       fetchBtn.classList.toggle("ready", ready);
     }
 
@@ -2093,19 +2093,21 @@ modelInput.addEventListener("click", () => {
     form.addEventListener("submit", async (e) => {
   e.preventDefault();
   
-  // Get whatever the user typed - no validation required
+  // Get whatever the user typed - model is now optional
   const brandTyped = brandInput.value.trim();
   const modelTyped = modelInput.value.trim();
   
-  if (!brandTyped || !modelTyped) {
-    statusMessageEl.textContent = "Please enter both brand and model.";
+  if (!brandTyped) {
+    statusMessageEl.textContent = "Please enter a brand.";
     updatePaws();
     return;
   }
   
   currentSearch = { brand: brandTyped, model: modelTyped };
   
-  statusMessageEl.textContent = "Searching deals…";
+  // Update status message based on search type
+  const searchType = modelTyped ? `${brandTyped} ${modelTyped}` : `all ${brandTyped} shoes`;
+  statusMessageEl.textContent = `Searching for ${searchType}…`;
   resultsEl.innerHTML = "";
   dailyDeals.style.display = "none";
   
@@ -2129,9 +2131,9 @@ modelInput.addEventListener("click", () => {
     alertExistingInfo.style.display = "none";
   }
   
-  alertProductName.textContent = `${brandTyped} ${modelTyped}`;
+  alertProductName.textContent = modelTyped ? `${brandTyped} ${modelTyped}` : `${brandTyped} shoes`;
   
-  const query = `${brandTyped} ${modelTyped}`;
+  const query = modelTyped ? `${brandTyped} ${modelTyped}` : brandTyped;
   let data;
   
   try {
@@ -2146,11 +2148,12 @@ modelInput.addEventListener("click", () => {
   const results = (data && data.results) ? data.results : [];
   
   if (!results.length) {
-    statusMessageEl.textContent = `No results found for ${brandTyped} ${modelTyped} — set a price alert and we'll keep sniffing.`;
+    const searchText = modelTyped ? `${brandTyped} ${modelTyped}` : `${brandTyped} shoes`;
+    statusMessageEl.textContent = `No results found for ${searchText} — set a price alert and we'll keep sniffing.`;
     return;
   }
   
-statusMessageEl.textContent = `Top ${results.length} deal${results.length === 1 ? '' : 's'} found for ${brandTyped} ${modelTyped}`;
+statusMessageEl.textContent = `Top ${results.length} deal${results.length === 1 ? '' : 's'} found for ${modelTyped ? brandTyped + ' ' + modelTyped : brandTyped + ' shoes'}`;
       resultsEl.innerHTML = "";
   
   results.forEach(item => {
@@ -2162,16 +2165,16 @@ statusMessageEl.textContent = `Top ${results.length} deal${results.length === 1 
     alertPromptBtn.addEventListener("click", () => {
       alertPromptBtn.style.display = "none";
       alertForm.style.display = "flex";
-      alertProductName.textContent = `${currentSearch.brand} ${currentSearch.model}`;
+      alertProductName.textContent = currentSearch.model ? `${currentSearch.brand} ${currentSearch.model}` : `${currentSearch.brand} shoes`;
     });
 
     alertSubmitBtn.addEventListener("click", async () => {
       const priceNum = Number(alertPriceInput.value.trim());
       const contact = alertContactInput.value.trim();
       const brand = currentSearch.brand;
-      const model = currentSearch.model;
+      const model = currentSearch.model || ""; // Model is now optional
 
-      if (!brand || !model) {
+      if (!brand) {
         alert("Please search for a shoe first, then set an alert.");
         return;
       }
@@ -2217,19 +2220,4 @@ statusMessageEl.textContent = `Top ${results.length} deal${results.length === 1 
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
-        });
-      } catch (err) {
-        console.error("Alert submission error:", err);
-      }
-
-      alertForm.style.display = "none";
-      alertConfirmation.innerHTML = `
-        <strong>✓ Price Alert Set!</strong><br><br>
-        Alert created for <strong>${brand} ${model}</strong> at <strong>$${Number(priceNum).toFixed(2)}</strong>.<br><br>
-        Manage it anytime in <strong>My Alerts</strong>.
-      `;
-      alertConfirmation.style.display = "block";
-    });
-  </script>
-</body>
-</html>
+        
