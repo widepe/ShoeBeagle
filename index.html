@@ -1053,6 +1053,8 @@
     <div id="alertsDashboard" class="alerts-dashboard hidden">
       <div class="alerts-title">My Alerts</div>
       <div class="alerts-instruction">Tap or Click Row to Manage Alert</div>
+      <!-- NEW: stats summary line -->
+      <div class="alerts-instruction" id="dealStatsSummary"></div>
 
       <div class="alerts-table-wrapper">
         <table class="alerts-table" aria-label="My Alerts Table" id="alertsTable">
@@ -1141,11 +1143,11 @@
         <ul>
           <li>Stop using the site at any time.</li>
           <li>Cancel or adjust your alerts in the "My Alerts" area.</li>
-          <li>Request that we delete your alert-related information by contacting us at <a href="/cdn-cgi/l/email-protection#32455b5657425772555f535b5e1c515d5f"><span class="__cf_email__" data-cfemail="bec9d7dadbcedbfed9d3dfd7d290ddd1d3">[email&#160;protected]</span></a>.</li>
+          <li>Request that we delete your alert-related information by contacting us at <a href="mailto:widepe@gmail.com">widepe@gmail.com</a>.</li>
         </ul>
 
         <h3>10. Contact us</h3>
-        <p>If you have questions about this Privacy Policy or how we handle your data, you can contact us at: <a href="/cdn-cgi/l/email-protection#32455b5657425772555f535b5e1c515d5f"><span class="__cf_email__" data-cfemail="5027393435203510373d31393c7e333f3d">[email&#160;protected]</span></a>.</p>
+        <p>If you have questions about this Privacy Policy or how we handle your data, you can contact us at: <a href="mailto:widepe@gmail.com">widepe@gmail.com</a>.</p>
       </div>
       <div class="modal-close-row">
         <button type="button" class="modal-close-btn" data-close="privacyModal">Close</button>
@@ -1199,7 +1201,7 @@
         <p>We may update these Terms of Use from time to time. The "Last Updated" date at the top will tell you when we last made changes. Your continued use of the site after changes are posted means you accept the updated terms.</p>
 
         <h3>11. Contact us</h3>
-        <p>If you have questions about these Terms of Use, you can contact us at: <a href="/cdn-cgi/l/email-protection#dcabb5b8b9acb99cbbb1bdb5b0f2bfb3b1"><span class="__cf_email__" data-cfemail="7f08161b1a0f1a3f18121e1613511c1012">[email&#160;protected]</span></a>.</p>
+        <p>If you have questions about these Terms of Use, you can contact us at: <a href="mailto:widepe@gmail.com">widepe@gmail.com</a>.</p>
       </div>
       <div class="modal-close-row">
         <button type="button" class="modal-close-btn" data-close="termsModal">Close</button>
@@ -1207,7 +1209,7 @@
     </div>
   </div>
 
-  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+  <script>
     const form = document.getElementById("search-form");
     const statusMessageEl = document.getElementById("statusMessage");
     const resultsEl = document.getElementById("results");
@@ -1248,6 +1250,7 @@
     const alertsEmpty = document.getElementById("alertsEmpty");
     const alertsTable = document.getElementById("alertsTable");
     const clearInactiveWrapper = document.getElementById("clearInactiveWrapper");
+    const dealStatsSummary = document.getElementById("dealStatsSummary");
 
     const footerYear = document.getElementById("footerYear");
     const privacyLink = document.getElementById("privacyLink");
@@ -1504,6 +1507,27 @@
       actionsDiv.appendChild(yesBtn);
       actionsDiv.appendChild(noBtn);
       clearInactiveWrapper.appendChild(actionsDiv);
+    }
+
+    async function refreshDealStats() {
+      if (!dealStatsSummary) return;
+      dealStatsSummary.textContent = "Loading deal stats…";
+
+      try {
+        const res = await fetch("/api/deals-stats");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+
+        dealStatsSummary.textContent =
+          `Total sales: ${data.totalDeals?.toLocaleString?.() ?? data.totalDeals ?? 0} · ` +
+          `Total with images: ${data.dealsWithImages?.toLocaleString?.() ?? data.dealsWithImages ?? 0} · ` +
+          `≥10% off: ${data.off10OrMore?.toLocaleString?.() ?? data.off10OrMore ?? 0} · ` +
+          `≥25% off: ${data.off25OrMore?.toLocaleString?.() ?? data.off25OrMore ?? 0} · ` +
+          `≥50% off: ${data.off50OrMore?.toLocaleString?.() ?? data.off50OrMore ?? 0}`;
+      } catch (err) {
+        console.error("Error loading deal stats:", err);
+        dealStatsSummary.textContent = "Deal stats are unavailable right now.";
+      }
     }
 
     function renderAlertsDashboard() {
@@ -1884,6 +1908,7 @@
       hideAllContentBelowStatus();
       alertsDashboard.classList.remove("hidden");
       renderAlertsDashboard();
+      refreshDealStats();
     }
 
     aboutLink.addEventListener("click", showAbout);
@@ -2210,4 +2235,19 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
-        
+        });
+      } catch (err) {
+        console.error("Alert submission error:", err);
+      }
+
+      alertForm.style.display = "none";
+      alertConfirmation.innerHTML = `
+        <strong>✓ Price Alert Set!</strong><br><br>
+        Alert created for <strong>${brand} ${model}</strong> at <strong>$${Number(priceNum).toFixed(2)}</strong>.<br><br>
+        Manage it anytime in <strong>My Alerts</strong>.
+      `;
+      alertConfirmation.style.display = "block";
+    });
+  </script>
+</body>
+</html>
