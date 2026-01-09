@@ -28,22 +28,23 @@ module.exports = async (req, res) => {
     const allDeals = [];
     const scraperResults = {};
 
-// Scrape Running Warehouse
-/* TEMPORARILY DISABLED - TESTING ZAPPOS
-try {
-  const rwDeals = await scrapeRunningWarehouse();
-  allDeals.push(...rwDeals);
-  scraperResults['Running Warehouse'] = { success: true, count: rwDeals.length };
-  console.log(`[SCRAPER] Running Warehouse: ${rwDeals.length} deals`);
-} catch (error) {
-  scraperResults['Running Warehouse'] = { success: false, error: error.message };
-  console.error('[SCRAPER] Running Warehouse failed:', error.message);
-}
-*/
+    /* DISABLED - Running Warehouse turned off per user request
+    // Scrape Running Warehouse
+    try {
+      const rwDeals = await scrapeRunningWarehouse();
+      allDeals.push(...rwDeals);
+      scraperResults['Running Warehouse'] = { success: true, count: rwDeals.length };
+      console.log(`[SCRAPER] Running Warehouse: ${rwDeals.length} deals`);
+    } catch (error) {
+      scraperResults['Running Warehouse'] = { success: false, error: error.message };
+      console.error('[SCRAPER] Running Warehouse failed:', error.message);
+    }
+    */
 
+    /* DISABLED - JavaScript rendering issue (requires Puppeteer)
     // Scrape Zappos
     try {
-      await sleep(2000); // Be respectful - 2 second delay between sites
+      await sleep(2000);
       const zapposDeals = await scrapeZappos();
       allDeals.push(...zapposDeals);
       scraperResults['Zappos'] = { success: true, count: zapposDeals.length };
@@ -51,6 +52,18 @@ try {
     } catch (error) {
       scraperResults['Zappos'] = { success: false, error: error.message };
       console.error('[SCRAPER] Zappos failed:', error.message);
+    }
+    */
+
+    // Scrape Dick's Sporting Goods
+    try {
+      const dicksDeals = await scrapeDicksSportingGoods();
+      allDeals.push(...dicksDeals);
+      scraperResults["Dick's Sporting Goods"] = { success: true, count: dicksDeals.length };
+      console.log(`[SCRAPER] Dick's Sporting Goods: ${dicksDeals.length} deals`);
+    } catch (error) {
+      scraperResults["Dick's Sporting Goods"] = { success: false, error: error.message };
+      console.error("[SCRAPER] Dick's Sporting Goods failed:", error.message);
     }
 
     // Calculate statistics
@@ -70,8 +83,7 @@ try {
 
     // Save to Vercel Blob Storage
     const blob = await put('deals.json', JSON.stringify(output, null, 2), {
-      access: 'public',
-      addRandomSuffix: false
+      access: 'public'
     });
 
     console.log('[SCRAPER] Saved to blob:', blob.url);
@@ -99,16 +111,16 @@ try {
   }
 };
 
-/**
+/* DISABLED - Running Warehouse turned off per user request
+**
  * Scrape Running Warehouse sale page
- */
+ *
 async function scrapeRunningWarehouse() {
   console.log("[SCRAPER] Starting Running Warehouse scrape…");
 
-  // These are the two main sale pages you were already using
   const urls = [
-    "https://www.runningwarehouse.com/catpage-SALEMS.html", // Men's
-    "https://www.runningwarehouse.com/catpage-SALEWS.html", // Women's
+    "https://www.runningwarehouse.com/catpage-SALEMS.html",
+    "https://www.runningwarehouse.com/catpage-SALEWS.html",
   ];
 
   const deals = [];
@@ -121,7 +133,7 @@ async function scrapeRunningWarehouse() {
         headers: {
           "User-Agent":
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*-/-*;q=0.8",
         },
         timeout: 30000,
       });
@@ -129,8 +141,6 @@ async function scrapeRunningWarehouse() {
       const html = response.data;
       const $ = cheerio.load(html);
 
-      // Each product is essentially a big link whose text looks like:
-      // "Clearance Brand Model Men's Shoes - Color $ 111.95 $140.00 *"
       $("a").each((_, el) => {
         const anchor = $(el);
         let text = anchor.text().replace(/\s+/g, " ").trim();
@@ -138,13 +148,11 @@ async function scrapeRunningWarehouse() {
         if (!text.startsWith("Clearance ")) return;
         if (!/Shoes\b/i.test(text)) return;
 
-        // Peel off the trailing asterisk, etc
         text = text.replace(/\*\s*$/, "").trim();
 
-        const href = (anchor.attr("href") || "").trim().replace(/[\n\r]/g, "");
+        const href = anchor.attr("href") || "";
         if (!href) return;
 
-        // Parse sale + original prices out of the text
         const { salePrice, originalPrice } = parseSaleAndOriginalPrices(text);
         if (!salePrice || !Number.isFinite(salePrice)) return;
 
@@ -160,15 +168,16 @@ async function scrapeRunningWarehouse() {
           }
         }
 
-        // Clean title (drop the prices from the text)
-        const titleWithoutPrices = text.replace(/\$\s*\d[\d,]*\.?\d*/g, "").trim();
+        const titleWithoutPrices = text.replace(/\$\s*\d[\d,]*\.?\d*-/g, "").trim();
         const title = titleWithoutPrices;
 
-        // Brand/model from the title, using your existing helper
         const { brand, model } = parseBrandModel(title);
 
+        let cleanUrl = href;
+        if (!/^https?:\/\//i.test(cleanUrl)) {
+          cleanUrl = `https://www.runningwarehouse.com/${cleanUrl.replace(/^\/+/, "")}`;
+        }
 
-        // Try to find an image somewhere in the same product “chunk”
         let cleanImage = null;
         const container = anchor.closest("tr,td,div,li,article");
         if (container.length) {
@@ -196,15 +205,14 @@ async function scrapeRunningWarehouse() {
           store: "Running Warehouse",
           price,
           originalPrice: hasValidOriginal ? originalPrice : null,
-          url: href,
+          url: cleanUrl,
           image: cleanImage,
           discount,
           scrapedAt: new Date().toISOString(),
         });
       });
 
-      // Be polite so adding 3sec pause between pages being looked at
-      await sleep(3000);
+      await sleep(1500);
     }
 
     console.log(
@@ -216,19 +224,21 @@ async function scrapeRunningWarehouse() {
     throw error;
   }
 }
+*/
 
-/**
- * Scrape Zappos clearance/ on sale page
- */
+/* DISABLED - JavaScript rendering issue (requires Puppeteer)
+**
+ * Scrape Zappos clearance/sale page
+ *
 async function scrapeZappos() {
   const deals = [];
-  const url = 'const url = 'https://www.zappos.com/filters/running-shoes/4AEB4gIBHA.zso?t=running%20shoes';';
-  
+  const url = 'https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso';
+
   try {
     const response = await axios.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; ShoeBeagleBot/1.0; +https://shoebeagle.com)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*-/-*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
       },
       timeout: 15000
@@ -240,17 +250,6 @@ async function scrapeZappos() {
       const $el = $(element);
       
       const title = $el.find('[itemprop="name"], .product-name, h2, h3').first().text().trim();
-      
-      // Get the product URL
-      const link = $el.find('a[href*="/product/"]').first().attr('href');
-      const fullLink = link && !link.startsWith('http') 
-        ? `https://www.zappos.com${link}` 
-        : link;
-      
-      // Get the image
-      const imgSrc = $el.find('img').first().attr('src') || $el.find('img').first().attr('data-src');
-      const imageUrl = imgSrc || null;
-      
       const priceText =
         $el
           .find('[data-gtm_impression_price]')
@@ -262,18 +261,15 @@ async function scrapeZappos() {
           .text()
           .trim();
 
-      // Parse all $X.XX numbers we can see in the price area
       const dollarMatches =
         (priceText.match(/\$[\d.,]+/g) || [])
           .map((txt) => parsePrice(txt))
           .filter((n) => Number.isFinite(n));
 
-      // Fallback: parse the whole string as a single price
       let sale = parsePrice(priceText);
       let original = null;
 
       if (dollarMatches.length >= 2) {
-        // For strings like "$99.88 $140.00" we treat the lower as sale, higher as original
         sale = Math.min(...dollarMatches);
         original = Math.max(...dollarMatches);
       }
@@ -286,22 +282,18 @@ async function scrapeZappos() {
           ? Math.round(((original - sale) / original) * 100)
           : 0;
 
-      if (title && sale > 0 && fullLink) {
-        const { brand, model } = parseBrandModel(title);
-        
+      if (title && sale > 0 && link) {
         deals.push({
           title,
-          brand,
-          model,
           store: "Zappos",
           price: sale,
           originalPrice: original,
           image: imageUrl,
-          url: fullLink,
-          discount: discountPct > 0 ? `${discountPct}% OFF` : null,
-          scrapedAt: new Date().toISOString()
+          url: link,
+          discount: discountPct > 0 ? `${discountPct}% OFF` : null
         });
       }
+
     });
 
   } catch (error) {
@@ -311,16 +303,143 @@ async function scrapeZappos() {
 
   return deals;
 }
+*/
 
+/**
+ * Scrape Dick's Sporting Goods clearance running footwear
+ */
+async function scrapeDicksSportingGoods() {
+  console.log("[SCRAPER] Starting Dick's Sporting Goods scrape...");
 
+  const url = 'https://www.dickssportinggoods.com/f/clearance-running-footwear';
+  const deals = [];
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9'
+      },
+      timeout: 30000
+    });
+
+    const $ = cheerio.load(response.data);
+
+    // Each product is a link with structure like:
+    // <a href="/p/nike-mens-pegasus-41-running-shoes-...">
+    //   <img data-src="..." />
+    //   ...brand/model info in text...
+    // </a>
+    
+    // Find all product links
+    $('a[href*="/p/"]').each((_, el) => {
+      const $link = $(el);
+      const href = $link.attr('href');
+      
+      // Must be a product page
+      if (!href || !href.includes('/p/')) return;
+      
+      // Get the product title from the link text or nearby text
+      let titleText = $link.text().replace(/\s+/g, ' ').trim();
+      
+      // Sometimes the title is in a specific element within the link
+      const titleEl = $link.find('[class*="product"], [data-automation*="name"]').first();
+      if (titleEl.length && titleEl.text().trim()) {
+        titleText = titleEl.text().replace(/\s+/g, ' ').trim();
+      }
+      
+      // Skip if no valid title
+      if (!titleText || titleText.length < 10) return;
+      
+      // Must contain running-related keywords
+      if (!/running|pegasus|ghost|vomero|nimbus|clifton|mach|ride|guide|kayano|boston|ultra|gel-|adizero|fresh foam|fuelcell/i.test(titleText)) return;
+      
+      // Parse prices from the text
+      const priceMatches = titleText.match(/\$\s*[\d,]+\.?\d*/g);
+      let salePrice = null;
+      let originalPrice = null;
+      
+      if (priceMatches && priceMatches.length > 0) {
+        const prices = priceMatches.map(p => parsePrice(p)).filter(p => p > 0);
+        
+        if (prices.length === 1) {
+          salePrice = prices[0];
+        } else if (prices.length >= 2) {
+          // First price is usually sale, second is original
+          salePrice = Math.min(...prices);
+          originalPrice = Math.max(...prices);
+        }
+      }
+      
+      // Skip if no valid price
+      if (!salePrice || salePrice <= 0) return;
+      
+      // Clean the title (remove price text)
+      const cleanTitle = titleText.replace(/\$\s*[\d,]+\.?\d*/g, '').replace(/\s+/g, ' ').trim();
+      
+      // Parse brand and model
+      const { brand, model } = parseBrandModel(cleanTitle);
+      
+      // Get image URL
+      let imageUrl = null;
+      const $img = $link.find('img').first();
+      if ($img.length) {
+        imageUrl = $img.attr('data-src') || $img.attr('src');
+        if (imageUrl && !imageUrl.startsWith('http')) {
+          imageUrl = 'https://www.dickssportinggoods.com' + (imageUrl.startsWith('/') ? '' : '/') + imageUrl;
+        }
+      }
+      
+      // Build full URL
+      let fullUrl = href;
+      if (!fullUrl.startsWith('http')) {
+        fullUrl = 'https://www.dickssportinggoods.com' + (href.startsWith('/') ? '' : '/') + href;
+      }
+      
+      // Calculate discount
+      let discount = null;
+      if (originalPrice && originalPrice > salePrice) {
+        const pct = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+        if (pct > 0) {
+          discount = `${pct}% OFF`;
+        }
+      }
+      
+      deals.push({
+        title: cleanTitle,
+        brand,
+        model,
+        store: "Dick's Sporting Goods",
+        price: salePrice,
+        originalPrice: originalPrice || null,
+        url: fullUrl,
+        image: imageUrl,
+        discount,
+        scrapedAt: new Date().toISOString()
+      });
+    });
+
+    console.log(`[SCRAPER] Dick's Sporting Goods scrape complete. Found ${deals.length} deals.`);
+    return deals;
+
+  } catch (error) {
+    console.error("[SCRAPER] Dick's Sporting Goods error:", error.message);
+    throw error;
+  }
+}
+
+/**
+ * Helper: Parse brand and model from title
+ */
 function parseBrandModel(title) {
   if (!title) return { brand: 'Unknown', model: '' };
   
   const brands = [
-    'Nike', 'Adidas', 'New Balance', 'Brooks', 'Asics',
-    'Hoka', 'Saucony', 'On', 'Altra', 'Mizuno',
-    'Salomon', 'Reebok', 'Under Armour', 'Puma',
-    'Karhu', 'Topo Athletic', 'Newton'
+    'Nike', 'Adidas', 'adidas', 'New Balance', 'Brooks', 'ASICS', 'Asics',
+    'HOKA', 'Hoka', 'Saucony', 'On', 'Altra', 'Mizuno',
+    'Salomon', 'Reebok', 'Under Armour', 'Puma', 'PUMA',
+    'Karhu', 'Topo Athletic', 'Newton', 'Saysh', 'TYR'
   ];
 
   let brand = 'Unknown';
@@ -336,46 +455,48 @@ function parseBrandModel(title) {
     }
   }
 
-  model = model.replace(/\s*-\s*(Men's|Women's|Mens|Womens)\s*$/i, '');
+  // Clean up common suffixes
+  model = model.replace(/\s*-?\s*(Men's|Women's|Mens|Womens|Running|Shoes)\s*$/gi, '');
+  model = model.replace(/\s+/g, ' ').trim();
 
   return { brand, model };
 }
+
+/**
+ * Helper: Parse sale and original prices from text
+ */
 function parseSaleAndOriginalPrices(text) {
   if (!text) {
     return { salePrice: 0, originalPrice: 0 };
   }
 
-  // Match dollar amounts like $114.88 or $155.00
-  // This avoids matching model numbers like "5" in "Pegasus Trail 5"
-  const matches = text.match(/\$\s*(\d[\d,]*\.?\d*)/g);
+  const matches = text.match(/\d[\d,]*\.?\d*/g);
   if (!matches) {
     return { salePrice: 0, originalPrice: 0 };
   }
 
   const values = matches
-    .map((m) => {
-      // Remove $ and any spaces, then parse
-      const cleaned = m.replace(/[$\s]/g, '').replace(/,/g, '');
-      return parseFloat(cleaned);
-    })
-    .filter((v) => Number.isFinite(v) && v > 0);
+    .map((m) => parseFloat(m.replace(/,/g, "")))
+    .filter((v) => Number.isFinite(v));
 
   if (!values.length) {
     return { salePrice: 0, originalPrice: 0 };
   }
 
-  // If there’s only one price, assume no discount
   if (values.length === 1) {
     const v = values[0];
     return { salePrice: v, originalPrice: v };
   }
 
-  // On Running Warehouse, the lower number is the sale, higher is original
   const salePrice = Math.min(...values);
   const originalPrice = Math.max(...values);
 
   return { salePrice, originalPrice };
 }
+
+/**
+ * Helper: Parse price from text
+ */
 function parsePrice(priceText) {
   if (!priceText) return 0;
   
@@ -386,6 +507,9 @@ function parsePrice(priceText) {
   return isNaN(price) ? 0 : price;
 }
 
+/**
+ * Helper: Sleep function
+ */
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
