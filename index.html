@@ -1918,8 +1918,8 @@ if (termsLink && termsModal) {
   updatePaws();
 });
 
-brandInput.addEventListener("focus", () => {
-  // Clear everything when user starts a new search
+brandInput.addEventListener("click", () => {
+  // Clear everything when user clicks to start a new search
   brandInput.value = "";
   modelInput.value = "";
   resultsEl.innerHTML = "";
