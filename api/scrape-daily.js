@@ -165,14 +165,14 @@ async function scrapeRunningWarehouse() {
         // Brand/model from the title, using your existing helper
         const { brand, model } = parseBrandModel(title);
 
-// Build a full URL
+// Build a full URL - always strip and rebuild to avoid doubling
 let cleanUrl = href;
-// Remove any existing domain prefix first
-cleanUrl = cleanUrl.replace(/^https?:\/\/www\.runningwarehouse\.com\//, "");
-// Now add it back once
-if (!/^https?:\/\//i.test(cleanUrl)) {
-  cleanUrl = `https://www.runningwarehouse.com/${cleanUrl.replace(/^\/+/, "")}`;
-}
+// Strip any domain that might already be there
+cleanUrl = cleanUrl.replace(/^https?:\/\/[^\/]+/, "");
+// Remove leading slashes
+cleanUrl = cleanUrl.replace(/^\/+/, "");
+// Add domain exactly once
+cleanUrl = `https://www.runningwarehouse.com/${cleanUrl}`;
 
         // Try to find an image somewhere in the same product “chunk”
         let cleanImage = null;
