@@ -1039,17 +1039,27 @@
       </div>
     </div>
 
-    <div id="aboutContent" class="about-section hidden">
-      <h2>About Us</h2>
-      <p>Shoe Beagle is a price comparison website dedicated to helping runners find the best deals on running shoes. We provide side-by-side price comparisons across multiple retailers, allowing users to search by brand and model to find the lowest prices.</p>
-      <p>Our platform features price alerts, real-time deal updates, and direct links to merchant sites where users can complete their purchases.</p>
-      <p>We do our best to sniff out the best running shoe deals for you!</p>
-      <div style="text-align: center; margin: 1.2rem 0 0.35rem;">
-        <img src="/images/marty.svg" alt="Marty the Beagle" style="width: 200px; height: auto;">
+  <!-- About Us Modal -->
+  <div id="aboutModal" class="modal-overlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+      <div class="modal-header">
+        <img src="/images/logo.svg" alt="Shoe Beagle Logo">
+        <h2 id="aboutTitle">About Us</h2>
       </div>
-      <p><strong>Affiliate Disclosure:</strong> Some of the links on Shoe Beagle are affiliate links. This means Shoe Beagle may earn a small commission if you click a link and make a purchase, at no extra cost to you.</p>
+      <div class="modal-body">
+        <p>Shoe Beagle is a price comparison website dedicated to helping runners find the best deals on running shoes. We provide side-by-side price comparisons across multiple retailers, allowing users to search by brand and model to find the lowest prices.</p>
+        <p>Our platform features price alerts, real-time deal updates, and direct links to merchant sites where users can complete their purchases.</p>
+        <p>We do our best to sniff out the best running shoe deals for you!</p>
+        <div style="text-align: center; margin: 1.2rem 0 0.35rem;">
+          <img src="/images/marty.svg" alt="Marty the Beagle" style="width: 200px; height: auto;">
+        </div>
+        <p><strong>Affiliate Disclosure:</strong> Some of the links on Shoe Beagle are affiliate links. This means Shoe Beagle may earn a small commission if you click a link and make a purchase, at no extra cost to you.</p>
+      </div>
+      <div class="modal-close-row">
+        <button type="button" class="modal-close-btn" data-close="aboutModal">Close</button>
+      </div>
     </div>
-
+  </div>
     <div id="alertsDashboard" class="alerts-dashboard hidden">
       <div class="alerts-title">My Alerts</div>
       <div class="alerts-instruction">Tap or Click Row to Manage Alert</div>
@@ -1086,7 +1096,7 @@
     <div class="footer">
       © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
       <br>
-       <a id="aboutLink">About Us</a> |
+       <a id="aboutLink">About</a> |
        <a id="privacyLink">Privacy</a> |
        <a id="termsLink">Terms</a>
     </div>
@@ -1238,10 +1248,10 @@
     const modelPaw = document.getElementById("modelPaw");
 
     const mainContent = document.getElementById("mainContent");
-    const aboutContent = document.getElementById("aboutContent");
     const alertsDashboard = document.getElementById("alertsDashboard");
 
     const aboutLink = document.getElementById("aboutLink");
+    const aboutModal = document.getElementById("aboutModal");
     const myAlertsLink = document.getElementById("myAlertsLink");
     const logoLink = document.getElementById("logoLink");
 
@@ -1278,13 +1288,17 @@
       document.body.style.overflow = "";
     }
 
-    if (privacyLink && privacyModal) {
-      privacyLink.addEventListener("click", () => openModal(privacyModal));
-    }
+if (aboutLink && aboutModal) {
+  aboutLink.addEventListener("click", () => openModal(aboutModal));
+}
 
-    if (termsLink && termsModal) {
-      termsLink.addEventListener("click", () => openModal(termsModal));
-    }
+if (privacyLink && privacyModal) {
+  privacyLink.addEventListener("click", () => openModal(privacyModal));
+}
+
+if (termsLink && termsModal) {
+  termsLink.addEventListener("click", () => openModal(termsModal));
+}
 
     document.querySelectorAll(".modal-close-btn").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -1860,7 +1874,6 @@
 
     function hideAllContentBelowStatus() {
       mainContent.classList.add("hidden");
-      aboutContent.classList.add("hidden");
       alertsDashboard.classList.add("hidden");
       resultsEl.innerHTML = "";
       dailyDeals.style.display = "none";
@@ -1870,18 +1883,11 @@
     }
 
     function showHome() {
-      aboutContent.classList.add("hidden");
       alertsDashboard.classList.add("hidden");
       mainContent.classList.remove("hidden");
       if (!resultsEl.innerHTML.trim()) dailyDeals.style.display = "block";
     }
 
-    function showAbout() {
-      mainContent.classList.add("hidden");
-      alertsDashboard.classList.add("hidden");
-      aboutContent.classList.remove("hidden");
-      statusMessageEl.textContent = "";
-    }
 
     function showMyAlerts() {
       hideAllContentBelowStatus();
@@ -1889,7 +1895,6 @@
       renderAlertsDashboard();
     }
 
-    aboutLink.addEventListener("click", showAbout);
     myAlertsLink.addEventListener("click", showMyAlerts);
     logoLink.addEventListener("click", showHome);
 
