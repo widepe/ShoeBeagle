@@ -218,11 +218,11 @@ async function scrapeRunningWarehouse() {
 }
 
 /**
- * Scrape Zappos clearance/sale page
+ * Scrape Zappos clearance/ on sale page
  */
 async function scrapeZappos() {
   const deals = [];
-  const url = 'https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso';
+  const url = 'https://www.zappos.com/filters/running-shoes/4AEB4gIBHA.zso?t=running%20shoes';
   
   try {
     const response = await axios.get(url, {
