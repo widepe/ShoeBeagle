@@ -1,5 +1,5 @@
 // api/daily-deals.js
-const { list } = require("@vercel/blob");
+const axios = require("axios");
 
 // Simple random sampler without modifying original array
 function getRandomSample(array, count) {
@@ -33,7 +33,7 @@ function hasGoodImage(deal) {
   return true;
 }
 
-// "Discounted" = either numeric markdown OR a non-"Full Price" discount label
+// "Discounted" = either numeric markdown OR a non–"Full Price" discount label
 function isDiscounted(deal) {
   if (!deal) return false;
 
@@ -51,7 +51,6 @@ function isDiscounted(deal) {
     const txt = deal.discount.trim();
     if (!txt) return false;
     if (/full price/i.test(txt)) return false;
-    // Any non-empty discount label that isn't "Full Price" counts as discounted
     return true;
   }
 
@@ -66,26 +65,14 @@ module.exports = async (req, res) => {
   const startedAt = Date.now();
 
   try {
-    // Fetch from Vercel Blob Storage by name
-const { blobs } = await list({ prefix: "deals.json" });
-
-if (!blobs || blobs.length === 0) {
-  console.error("[/api/daily-deals] Could not locate deals blob");
-  return res.status(500).json({
-    error: "Failed to load deals data",
-    requestId,
-  });
-}
-
-const blob = blobs[0];
+    // FIXED: Now points to the consistent deals.json URL (no random suffix)
+    const blobUrl =
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json";
 
     let dealsData;
     try {
-      const response = await fetch(blob.url);
-      if (!response.ok) {
-        throw new Error(`Blob fetch failed: ${response.status}`);
-      }
-      dealsData = await response.json();
+      const response = await axios.get(blobUrl);
+      dealsData = response.data;
     } catch (blobError) {
       console.error("[/api/daily-deals] Error fetching from blob:", {
         requestId,
@@ -97,10 +84,10 @@ const blob = blobs[0];
       });
     }
 
-    // Support both { deals: [...] } and bare array [...]
+    // Extract deals array from the response
     const allDeals = (dealsData && Array.isArray(dealsData.deals))
       ? dealsData.deals
-      : (Array.isArray(dealsData) ? dealsData : []);
+      : (dealsData && dealsData.deals) || [];
 
     console.log("[/api/daily-deals] Loaded deals:", {
       requestId,
