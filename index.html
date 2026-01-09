@@ -1054,7 +1054,6 @@
       <div class="alerts-title">My Alerts</div>
       <div class="alerts-instruction">Tap or Click Row to Manage Alert</div>
       <!-- NEW: stats summary line -->
-      <div class="alerts-instruction" id="dealStatsSummary"></div>
 
       <div class="alerts-table-wrapper">
         <table class="alerts-table" aria-label="My Alerts Table" id="alertsTable">
@@ -1250,7 +1249,6 @@
     const alertsEmpty = document.getElementById("alertsEmpty");
     const alertsTable = document.getElementById("alertsTable");
     const clearInactiveWrapper = document.getElementById("clearInactiveWrapper");
-    const dealStatsSummary = document.getElementById("dealStatsSummary");
 
     const footerYear = document.getElementById("footerYear");
     const privacyLink = document.getElementById("privacyLink");
@@ -1509,26 +1507,7 @@
       clearInactiveWrapper.appendChild(actionsDiv);
     }
 
-    async function refreshDealStats() {
-      if (!dealStatsSummary) return;
-      dealStatsSummary.textContent = "Loading deal stats…";
 
-      try {
-        const res = await fetch("/api/deals-stats");
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const data = await res.json();
-
-        dealStatsSummary.textContent =
-          `Total sales: ${data.totalDeals?.toLocaleString?.() ?? data.totalDeals ?? 0} · ` +
-          `Total with images: ${data.dealsWithImages?.toLocaleString?.() ?? data.dealsWithImages ?? 0} · ` +
-          `≥10% off: ${data.off10OrMore?.toLocaleString?.() ?? data.off10OrMore ?? 0} · ` +
-          `≥25% off: ${data.off25OrMore?.toLocaleString?.() ?? data.off25OrMore ?? 0} · ` +
-          `≥50% off: ${data.off50OrMore?.toLocaleString?.() ?? data.off50OrMore ?? 0}`;
-      } catch (err) {
-        console.error("Error loading deal stats:", err);
-        dealStatsSummary.textContent = "Deal stats are unavailable right now.";
-      }
-    }
 
     function renderAlertsDashboard() {
       const list = loadAlerts();
@@ -1908,7 +1887,6 @@
       hideAllContentBelowStatus();
       alertsDashboard.classList.remove("hidden");
       renderAlertsDashboard();
-      refreshDealStats();
     }
 
     aboutLink.addEventListener("click", showAbout);
