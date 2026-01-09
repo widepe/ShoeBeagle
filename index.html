@@ -1919,11 +1919,14 @@ if (termsLink && termsModal) {
 });
 
 brandInput.addEventListener("focus", () => {
-  // Clear the search when user starts typing a new search
+  // Clear everything when user starts a new search
+  brandInput.value = "";
+  modelInput.value = "";
   resultsEl.innerHTML = "";
   dailyDeals.style.display = "block";
   alertWrapper.style.display = "none";
   statusMessageEl.textContent = "";
+  resetModelState();
 });
 
     brandInput.addEventListener("blur", () => setTimeout(() => { brandSuggestions.style.display = "none"; }, 120));
