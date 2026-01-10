@@ -28,7 +28,7 @@ module.exports = async (req, res) => {
     const allDeals = [];
     const scraperResults = {};
 
-    /* DISABLED FOR TESTING - Enable after Fleet Feet is working
+
     // Scrape Running Warehouse
     try {
       const rwDeals = await scrapeRunningWarehouse();
@@ -39,7 +39,7 @@ module.exports = async (req, res) => {
       scraperResults['Running Warehouse'] = { success: false, error: error.message };
       console.error('[SCRAPER] Running Warehouse failed:', error.message);
     }
-    */
+ 
 
     // Scrape Fleet Feet
     try {
