@@ -30,6 +30,8 @@ function seededRandom(seed) {
 // Randomly sample from array using date-based seed
 // Returns same results all day, different results each day
 function getRandomSample(array, count) {
+  if (!array || array.length === 0) return [];
+  
   // Use today's date as seed (YYYY-MM-DD format, changes at midnight UTC)
   const today = new Date().toISOString().split('T')[0]; // e.g., "2026-01-09"
   
@@ -55,65 +57,51 @@ function getRandomSample(array, count) {
 
 // Parse price fields that might be numbers or strings like "$99.88"
 function parseMoney(value) {
-  if (value === null || value === undefined) return NaN;
-  const cleaned = String(value).replace(/[^0-9.]/g, "");
-  const num = Number(cleaned);
-  return Number.isFinite(num) ? num : NaN;
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    const num = parseFloat(cleaned);
+    return Number.isFinite(num) ? num : 0;
+  }
+  return 0;
 }
 
 function hasGoodImage(deal) {
-  if (!deal || typeof deal.image !== "string") return false;
-  const img = deal.image.trim();
-  if (!img) return false;
-  if (!/^https?:\/\//i.test(img)) return false;
-  if (img.toLowerCase().includes("no-image")) return false;
-  return true;
+  return (
+    deal.image &&
+    typeof deal.image === "string" &&
+    deal.image.trim() &&
+    !deal.image.includes("no-image") &&
+    !deal.image.includes("placeholder")
+  );
 }
 
-// "Discounted" = either numeric markdown OR a non–"Full Price" discount label
 function isDiscounted(deal) {
-  if (!deal) return false;
-
   const price = parseMoney(deal.price);
   const original = parseMoney(deal.originalPrice);
-
-  const numericDiscount =
-    Number.isFinite(price) &&
-    Number.isFinite(original) &&
-    original > price;
-
-  if (numericDiscount) return true;
-
-  if (typeof deal.discount === "string") {
-    const txt = deal.discount.trim();
-    if (!txt) return false;
-    if (/full price/i.test(txt)) return false;
+  if (deal.discount && typeof deal.discount === "string") return true;
+  if (Number.isFinite(price) && Number.isFinite(original) && original > price) {
     return true;
   }
-
   return false;
 }
 
 module.exports = async (req, res) => {
-  const requestId =
-    (req.headers && (req.headers["x-vercel-id"] || req.headers["x-request-id"])) ||
-    `local-${Date.now()}`;
-
-  const startedAt = Date.now();
+  const requestId = `${req.headers["x-vercel-id"] || "local"}-${Date.now()}`;
 
   try {
-    // FIXED: Now points to the consistent deals.json URL (no random suffix)
-    const blobUrl =
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json";
+    console.log("[/api/daily-deals] Request started", { requestId });
+
+    const blobUrl = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json";
 
     let dealsData;
     try {
-      const response = await axios.get(blobUrl);
-      dealsData = response.data;
-    } catch (blobError) {
-      console.error("[/api/daily-deals] Error fetching from blob:", {
+      const resp = await axios.get(blobUrl, { timeout: 8000 });
+      dealsData = resp.data;
+    } catch (fetchErr) {
+      console.error("[/api/daily-deals] Failed to fetch blob:", {
         requestId,
-        message: blobError.message,
+        error: fetchErr.message,
       });
       return res.status(500).json({
         error: "Failed to load deals data",
@@ -129,10 +117,17 @@ module.exports = async (req, res) => {
     console.log("[/api/daily-deals] Loaded deals:", {
       requestId,
       total: allDeals.length,
-      hasDealsField: !!dealsData?.deals,
     });
 
-    // Filter for deals with discounts and images (quality pool)
+    if (allDeals.length === 0) {
+      return res.status(200).json({
+        deals: [],
+        total: 0,
+        message: "No deals available",
+        requestId,
+      });
+    }
+
     // ========================================================================
     // DAILY DEALS SELECTION STRATEGY
     // ========================================================================
@@ -167,17 +162,55 @@ module.exports = async (req, res) => {
       ? qualityDeals 
       : allDeals.filter(hasGoodImage);
 
+    console.log("[/api/daily-deals] Working pool size:", workingPool.length);
+
+    // Safety check: if we have fewer than 12 deals total, just return what we have
+    if (workingPool.length < 12) {
+      const shuffled = getRandomSample(workingPool, workingPool.length);
+      const selected = shuffled.map((deal) => {
+        const price = parseMoney(deal.price);
+        const original = parseMoney(deal.originalPrice);
+        let discountLabel = deal.discount || null;
+        if (!discountLabel && Number.isFinite(price) && Number.isFinite(original) && original > 0) {
+          const pct = Math.round(100 * (1 - price / original));
+          if (pct > 0) {
+            discountLabel = `${pct}% OFF`;
+          }
+        }
+        return {
+          title: deal.title || "Running Shoe Deal",
+          brand: deal.brand || "",
+          model: deal.model || "",
+          store: deal.store || "Store",
+          price: Number.isFinite(price) ? price : 0,
+          originalPrice: Number.isFinite(original) ? original : null,
+          discount: discountLabel,
+          image: deal.image || "",
+          url: deal.url || "#",
+        };
+      });
+
+      return res.status(200).json({
+        deals: selected,
+        total: selected.length,
+        requestId,
+      });
+    }
+
     // 1) TOP 20 BY PERCENTAGE OFF → Pick random 4
-    const top20ByPercent = [...workingPool].sort((a, b) => {
-      const pctA = a.originalPrice && a.price 
-        ? ((a.originalPrice - a.price) / a.originalPrice) * 100 
-        : 0;
-      const pctB = b.originalPrice && b.price 
-        ? ((b.originalPrice - b.price) / b.originalPrice) * 100 
-        : 0;
-      return pctB - pctA;
-    }).slice(0, 20);
-    const byPercent = getRandomSample(top20ByPercent, 4);
+    const top20ByPercent = [...workingPool]
+      .sort((a, b) => {
+        const pctA = a.originalPrice && a.price 
+          ? ((a.originalPrice - a.price) / a.originalPrice) * 100 
+          : 0;
+        const pctB = b.originalPrice && b.price 
+          ? ((b.originalPrice - b.price) / b.originalPrice) * 100 
+          : 0;
+        return pctB - pctA;
+      })
+      .slice(0, Math.min(20, workingPool.length));
+    
+    const byPercent = getRandomSample(top20ByPercent, Math.min(4, top20ByPercent.length));
 
     // 2) TOP 20 BY DOLLAR SAVINGS → Pick random 4 (excluding already picked)
     const top20ByDollar = [...workingPool]
@@ -187,16 +220,17 @@ module.exports = async (req, res) => {
         const savingsB = (b.originalPrice || 0) - (b.price || 0);
         return savingsB - savingsA;
       })
-      .slice(0, 20);
-    const byDollar = getRandomSample(top20ByDollar, 4);
+      .slice(0, Math.min(20, workingPool.length));
+    
+    const byDollar = getRandomSample(top20ByDollar, Math.min(4, top20ByDollar.length));
 
     // 3) 4 RANDOM from remaining (excluding already picked)
     const remaining = workingPool.filter(
       d => !byPercent.includes(d) && !byDollar.includes(d)
     );
-    const randomPicks = getRandomSample(remaining, 4);
+    const randomPicks = getRandomSample(remaining, Math.min(4, remaining.length));
 
-    // Combine all 12 deals and SHUFFLE them for random display order
+    // Combine all deals (might be less than 12 if pool is small)
     const selectedRaw = [...byPercent, ...byDollar, ...randomPicks];
     
     // Shuffle using the same date-based seed so order stays same all day
@@ -229,43 +263,34 @@ module.exports = async (req, res) => {
       }
 
       return {
-        title: deal.title,
-        price: Number.isFinite(price) ? price : null,
+        title: deal.title || "Running Shoe Deal",
+        brand: deal.brand || "",
+        model: deal.model || "",
+        store: deal.store || "Store",
+        price: Number.isFinite(price) ? price : 0,
         originalPrice: Number.isFinite(original) ? original : null,
         discount: discountLabel,
-        store: deal.store,
-        url: deal.url,
-        image: deal.image,
-        brand: deal.brand,
-        model: deal.model,
+        image: deal.image || "",
+        url: deal.url || "#",
       };
     });
 
-    const elapsedMs = Date.now() - startedAt;
-    console.log("[/api/daily-deals] Response:", {
+    console.log("[/api/daily-deals] Returning deals:", {
       requestId,
-      elapsedMs,
-      totalDeals: allDeals.length,
-      discountedWithImages: discountedWithImages.length,
-      withImagesOnly: withImagesOnly.length,
-      poolReason,
-      picked: selected.length,
+      count: selected.length,
     });
 
     return res.status(200).json({
-      requestId,
-      elapsedMs,
-      totalDeals: allDeals.length,
-      discountedWithImages: discountedWithImages.length,
-      withImagesOnly: withImagesOnly.length,
-      poolReason,
       deals: selected,
-    });
-  } catch (err) {
-    console.error("[/api/daily-deals] Fatal error:", {
+      total: selected.length,
       requestId,
-      message: err?.message || String(err),
-      stack: err?.stack,
+    });
+
+  } catch (error) {
+    console.error("[/api/daily-deals] Unexpected error:", {
+      requestId,
+      error: error.message,
+      stack: error.stack,
     });
 
     return res.status(500).json({
