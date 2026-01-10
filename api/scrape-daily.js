@@ -28,6 +28,7 @@ module.exports = async (req, res) => {
     const allDeals = [];
     const scraperResults = {};
 
+    /* DISABLED FOR TESTING - Enable after Fleet Feet is working
     // Scrape Running Warehouse
     try {
       const rwDeals = await scrapeRunningWarehouse();
@@ -38,6 +39,7 @@ module.exports = async (req, res) => {
       scraperResults['Running Warehouse'] = { success: false, error: error.message };
       console.error('[SCRAPER] Running Warehouse failed:', error.message);
     }
+    */
 
     // Scrape Fleet Feet
     try {
@@ -139,31 +141,14 @@ async function scrapeRunningWarehouse() {
         // Remove trailing asterisk
         text = text.replace(/\*\s*$/, "").trim();
 
-        // Clean up href: trim, handle multiple URLs/newlines
-        let rawHref = (anchor.attr("href") || "").trim();
-        if (!rawHref) return;
+        const href = anchor.attr("href") || "";
+        if (!href) return;
 
-        // Sometimes the href might contain multiple URLs separated by whitespace/newlines.
-        // Keep the last URL-ish token.
-        const hrefParts = rawHref.split(/\s+/).filter(Boolean);
-        let href = hrefParts[hrefParts.length - 1];
-
-        // Parse sale + original prices (only from $-prefixed numbers with sanity check)
+        // Parse sale + original prices
         const { salePrice, originalPrice } = parseSaleAndOriginalPrices(text);
         if (!salePrice || !Number.isFinite(salePrice)) return;
 
         const price = salePrice;
-
-        // FINAL sanity gate for RW: kill absurd prices
-        if (price < 20 || price > 700) {
-          console.warn("[SCRAPER][RW] Ignoring out-of-range price", {
-            title: text,
-            price,
-            originalPrice,
-          });
-          return;
-        }
-
         const hasValidOriginal =
           Number.isFinite(originalPrice) && originalPrice > price;
 
@@ -274,10 +259,10 @@ async function scrapeFleetFeet() {
 
       $('a[href^="/products/"]').each((_, el) => {
         const $link = $(el);
-        const rawHref = ($link.attr('href') || '').trim();
+        const href = $link.attr('href');
 
         // Skip if not a product link
-        if (!rawHref || !rawHref.startsWith('/products/')) return;
+        if (!href || !href.startsWith('/products/')) return;
 
         // Get all text from the link
         const fullText = $link.text().replace(/\s+/g, ' ').trim();
@@ -304,11 +289,8 @@ async function scrapeFleetFeet() {
         let originalPrice = null;
 
         if (priceMatches && priceMatches.length > 0) {
-          const prices = priceMatches
-            .map(p => parsePrice(p))
-            // sanity check: only keep realistic shoe prices
-            .filter(p => p >= 20 && p <= 700);
-
+          const prices = priceMatches.map(p => parsePrice(p)).filter(p => p > 0);
+          
           if (prices.length === 1) {
             salePrice = prices[0];
           } else if (prices.length >= 2) {
@@ -322,16 +304,6 @@ async function scrapeFleetFeet() {
         // Skip if no valid sale price
         if (!salePrice || salePrice <= 0) return;
 
-        // FINAL sanity gate for Fleet Feet
-        if (salePrice < 20 || salePrice > 700) {
-          console.warn("[SCRAPER][FleetFeet] Ignoring out-of-range price", {
-            title: fullText,
-            salePrice,
-            originalPrice,
-          });
-          return;
-        }
-
         // Get image URL
         let imageUrl = null;
         const $img = $link.find('img').first();
@@ -344,9 +316,9 @@ async function scrapeFleetFeet() {
         }
 
         // Build full URL
-        let fullUrl = rawHref;
+        let fullUrl = href;
         if (!fullUrl.startsWith('http')) {
-          fullUrl = 'https://www.fleetfeet.com' + (fullUrl.startsWith('/') ? '' : '/') + fullUrl;
+          fullUrl = 'https://www.fleetfeet.com' + (href.startsWith('/') ? '' : '/') + href;
         }
 
         // Calculate discount
@@ -420,41 +392,36 @@ function parseBrandModel(title) {
 }
 
 /**
- * Helper: Parse sale and original prices from text (Running Warehouse)
- * - Only uses $-prefixed numbers
- * - Applies sanity check: 20 <= price <= 700
+ * Helper: Parse sale and original prices from text
  */
 function parseSaleAndOriginalPrices(text) {
   if (!text) {
     return { salePrice: 0, originalPrice: 0 };
   }
 
-  // Match only numbers that are prefixed by a $, e.g. "$ 111.95", "$140.00"
-  const matches = [...text.matchAll(/\$\s*([\d,]+(?:\.\d+)?)/g)];
-  if (!matches.length) {
+  // Grab all dollar-ish numbers in the string
+  const matches = text.match(/\d[\d,]*\.?\d*/g);
+  if (!matches) {
     return { salePrice: 0, originalPrice: 0 };
   }
 
   const values = matches
-    .map((m) => parseFloat(m[1].replace(/,/g, "")))
+    .map((m) => parseFloat(m.replace(/,/g, "")))
     .filter((v) => Number.isFinite(v));
 
-  // Sanity filter: realistic running shoe prices
-  const saneValues = values.filter((v) => v >= 20 && v <= 700);
-
-  if (!saneValues.length) {
+  if (!values.length) {
     return { salePrice: 0, originalPrice: 0 };
   }
 
   // If there's only one price, assume no discount
-  if (saneValues.length === 1) {
-    const v = saneValues[0];
+  if (values.length === 1) {
+    const v = values[0];
     return { salePrice: v, originalPrice: v };
   }
 
   // On Running Warehouse, the lower number is the sale, higher is original
-  const salePrice = Math.min(...saneValues);
-  const originalPrice = Math.max(...saneValues);
+  const salePrice = Math.min(...values);
+  const originalPrice = Math.max(...values);
 
   return { salePrice, originalPrice };
 }
