@@ -28,7 +28,6 @@ module.exports = async (req, res) => {
     const allDeals = [];
     const scraperResults = {};
 
-
     // Scrape Running Warehouse
     try {
       const rwDeals = await scrapeRunningWarehouse();
@@ -39,7 +38,6 @@ module.exports = async (req, res) => {
       scraperResults['Running Warehouse'] = { success: false, error: error.message };
       console.error('[SCRAPER] Running Warehouse failed:', error.message);
     }
- 
 
     // Scrape Fleet Feet
     try {
@@ -144,7 +142,7 @@ async function scrapeRunningWarehouse() {
         const href = anchor.attr("href") || "";
         if (!href) return;
 
-        // Parse sale + original prices
+        // Parse sale + original prices (now only from $-prefixed numbers with sanity check)
         const { salePrice, originalPrice } = parseSaleAndOriginalPrices(text);
         if (!salePrice || !Number.isFinite(salePrice)) return;
 
@@ -289,8 +287,11 @@ async function scrapeFleetFeet() {
         let originalPrice = null;
 
         if (priceMatches && priceMatches.length > 0) {
-          const prices = priceMatches.map(p => parsePrice(p)).filter(p => p > 0);
-          
+          const prices = priceMatches
+            .map(p => parsePrice(p))
+            // sanity check: only keep realistic shoe prices
+            .filter(p => p >= 20 && p <= 700);
+
           if (prices.length === 1) {
             salePrice = prices[0];
           } else if (prices.length >= 2) {
@@ -392,36 +393,41 @@ function parseBrandModel(title) {
 }
 
 /**
- * Helper: Parse sale and original prices from text
+ * Helper: Parse sale and original prices from text (Running Warehouse)
+ * - Only uses $-prefixed numbers
+ * - Applies sanity check: 20 <= price <= 700
  */
 function parseSaleAndOriginalPrices(text) {
   if (!text) {
     return { salePrice: 0, originalPrice: 0 };
   }
 
-  // Grab all dollar-ish numbers in the string
-  const matches = text.match(/\d[\d,]*\.?\d*/g);
-  if (!matches) {
+  // Match only numbers that are prefixed by a $
+  const matches = [...text.matchAll(/\$\s*([\d,]+(?:\.\d+)?)/g)];
+  if (!matches.length) {
     return { salePrice: 0, originalPrice: 0 };
   }
 
   const values = matches
-    .map((m) => parseFloat(m.replace(/,/g, "")))
+    .map((m) => parseFloat(m[1].replace(/,/g, "")))
     .filter((v) => Number.isFinite(v));
 
-  if (!values.length) {
+  // Sanity filter: keep only realistic running shoe prices
+  const saneValues = values.filter(v => v >= 20 && v <= 700);
+
+  if (!saneValues.length) {
     return { salePrice: 0, originalPrice: 0 };
   }
 
   // If there's only one price, assume no discount
-  if (values.length === 1) {
-    const v = values[0];
+  if (saneValues.length === 1) {
+    const v = saneValues[0];
     return { salePrice: v, originalPrice: v };
   }
 
   // On Running Warehouse, the lower number is the sale, higher is original
-  const salePrice = Math.min(...values);
-  const originalPrice = Math.max(...values);
+  const salePrice = Math.min(...saneValues);
+  const originalPrice = Math.max(...saneValues);
 
   return { salePrice, originalPrice };
 }
