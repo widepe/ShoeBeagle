@@ -152,14 +152,6 @@ async function scrapeRunningWarehouse() {
         const hasValidOriginal =
           Number.isFinite(originalPrice) && originalPrice > price;
 
-        let discount = null;
-        if (hasValidOriginal) {
-          const pct = Math.round(((originalPrice - price) / originalPrice) * 100);
-          if (pct > 0) {
-            discount = `${pct}% OFF`;
-          }
-        }
-
         // Clean title (remove prices)
         const titleWithoutPrices = text.replace(/\$\s*\d[\d,]*\.?\d*/g, "").trim();
         const title = titleWithoutPrices;
@@ -203,7 +195,6 @@ async function scrapeRunningWarehouse() {
           originalPrice: hasValidOriginal ? originalPrice : null,
           url: cleanUrl,
           image: cleanImage,
-          discount,
           scrapedAt: new Date().toISOString(),
         });
       });
@@ -321,15 +312,6 @@ async function scrapeFleetFeet() {
           fullUrl = 'https://www.fleetfeet.com' + (href.startsWith('/') ? '' : '/') + href;
         }
 
-        // Calculate discount
-        let discount = null;
-        if (originalPrice && originalPrice > salePrice) {
-          const pct = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
-          if (pct > 0) {
-            discount = `${pct}% OFF`;
-          }
-        }
-
         deals.push({
           title,
           brand,
@@ -339,7 +321,6 @@ async function scrapeFleetFeet() {
           originalPrice: originalPrice || null,
           url: fullUrl,
           image: imageUrl,
-          discount,
           scrapedAt: new Date().toISOString()
         });
       });
