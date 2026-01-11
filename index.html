@@ -2163,11 +2163,12 @@ async function loadDailyDeals() {
 
     dailyDeals.style.display = "block";
 
-    // UPDATE TAGLINE WITH DEAL COUNT
- if (taglineEl) {
-  const count = data.totalDeals ?? deals.length;
+// UPDATE TAGLINE WITH DEAL COUNT (based on deals.length)
+if (taglineEl) {
+  const count = deals.length;
   taglineEl.textContent = `There are ${count.toLocaleString()} shoe deals today. Let's find yours!`;
 }
+
 
   } catch (err) {
     console.error("Error loading daily deals:", err);
