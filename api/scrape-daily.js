@@ -28,7 +28,6 @@ module.exports = async (req, res) => {
     const allDeals = [];
     const scraperResults = {};
 
-    /* DISABLED FOR TESTING - Enable after Fleet Feet is working
     // Scrape Running Warehouse
     try {
       const rwDeals = await scrapeRunningWarehouse();
@@ -39,7 +38,6 @@ module.exports = async (req, res) => {
       scraperResults['Running Warehouse'] = { success: false, error: error.message };
       console.error('[SCRAPER] Running Warehouse failed:', error.message);
     }
-    */
 
     // Scrape Fleet Feet
     try {
@@ -51,6 +49,18 @@ module.exports = async (req, res) => {
     } catch (error) {
       scraperResults['Fleet Feet'] = { success: false, error: error.message };
       console.error('[SCRAPER] Fleet Feet failed:', error.message);
+    }
+
+    // Scrape Luke's Locker
+    try {
+      await sleep(2000); // Be respectful - 2 second delay between sites
+      const lukesDeals = await scrapeLukesLocker();
+      allDeals.push(...lukesDeals);
+      scraperResults["Luke's Locker"] = { success: true, count: lukesDeals.length };
+      console.log(`[SCRAPER] Luke's Locker: ${lukesDeals.length} deals`);
+    } catch (error) {
+      scraperResults["Luke's Locker"] = { success: false, error: error.message };
+      console.error("[SCRAPER] Luke's Locker failed:", error.message);
     }
 
     // Calculate statistics
@@ -152,8 +162,11 @@ async function scrapeRunningWarehouse() {
         const hasValidOriginal =
           Number.isFinite(originalPrice) && originalPrice > price;
 
-        // Clean title (remove prices)
-        const titleWithoutPrices = text.replace(/\$\s*\d[\d,]*\.?\d*/g, "").trim();
+        // Clean title (remove prices and normalize spaces)
+        const titleWithoutPrices = text
+          .replace(/\$\s*\d[\d,]*\.?\d*/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
         const title = titleWithoutPrices;
 
         // Parse brand and model
@@ -241,39 +254,22 @@ async function scrapeFleetFeet() {
 
       const $ = cheerio.load(response.data);
 
-      // Fleet Feet uses links to product pages
-      // Structure: <a href="/products/mens-asics-gel-kayano-31">
-      //   <img src="...">
-      //   "Men's ASICS Gel-Kayano 31 Running Shoes"
-      //   "original price $165 sale/discounted price $124.95"
-      // </a>
-
       $('a[href^="/products/"]').each((_, el) => {
         const $link = $(el);
         const href = $link.attr('href');
 
-        // Skip if not a product link
         if (!href || !href.startsWith('/products/')) return;
 
-        // Get all text from the link
         const fullText = $link.text().replace(/\s+/g, ' ').trim();
 
-        // Must contain shoe-related keywords
         if (!/running|shoes|race|trail|walking|sneakers/i.test(fullText)) return;
-
-        // Skip if it's clearly a brand link or navigation
         if (fullText.length < 20) return;
 
-        // Extract title (first part before prices)
-        // Example: "Men's ASICS Gel-Kayano 31 Running Shoes original price $165..."
         const titleMatch = fullText.match(/^(.+?)\s*(?:original price|sale|discounted|\$)/i);
         const title = titleMatch ? titleMatch[1].trim() : fullText.split('$')[0].trim();
 
-        // Parse brand and model
         const { brand, model } = parseBrandModel(title);
 
-        // Extract prices from text
-        // Pattern: "original price $165 sale/discounted price $124.95"
         const priceMatches = fullText.match(/\$\s*[\d,]+\.?\d*/g);
         
         let salePrice = null;
@@ -285,28 +281,22 @@ async function scrapeFleetFeet() {
           if (prices.length === 1) {
             salePrice = prices[0];
           } else if (prices.length >= 2) {
-            // Fleet Feet shows: "original price $165 sale/discounted price $124.95"
-            // So higher price is original, lower is sale
             originalPrice = Math.max(...prices);
             salePrice = Math.min(...prices);
           }
         }
 
-        // Skip if no valid sale price
         if (!salePrice || salePrice <= 0) return;
 
-        // Get image URL
         let imageUrl = null;
         const $img = $link.find('img').first();
         if ($img.length) {
           imageUrl = $img.attr('src') || $img.attr('data-src');
-          // Fleet Feet uses cdn.fleetfeet.com
           if (imageUrl && !imageUrl.startsWith('http')) {
             imageUrl = 'https://cdn.fleetfeet.com' + (imageUrl.startsWith('/') ? '' : '/') + imageUrl;
           }
         }
 
-        // Build full URL
         let fullUrl = href;
         if (!fullUrl.startsWith('http')) {
           fullUrl = 'https://www.fleetfeet.com' + (href.startsWith('/') ? '' : '/') + href;
@@ -325,7 +315,6 @@ async function scrapeFleetFeet() {
         });
       });
 
-      // Be polite - 2 second delay between pages
       await sleep(2000);
     }
 
@@ -339,6 +328,125 @@ async function scrapeFleetFeet() {
 }
 
 /**
+ * Scrape Luke's Locker clearance running shoes
+ */
+async function scrapeLukesLocker() {
+  console.log("[SCRAPER] Starting Luke's Locker scrape...");
+
+  const url = "https://lukeslocker.com/collections/closeout";
+  const deals = [];
+
+  try {
+    console.log(`[SCRAPER] Fetching Luke's Locker page: ${url}`);
+
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9'
+      },
+      timeout: 30000
+    });
+
+    const $ = cheerio.load(response.data);
+
+    // Luke's Locker uses similar Shopify structure to Fleet Feet
+    // Product links: /collections/closeout/products/altra-womens-torin-7
+    $('a[href*="/products/"]').each((_, el) => {
+      const $link = $(el);
+      const href = $link.attr('href');
+
+      // Skip if not a product link or doesn't contain /products/
+      if (!href || !href.includes('/products/')) return;
+
+      // Get all text from the link
+      const fullText = $link.text().replace(/\s+/g, ' ').trim();
+
+      // Skip empty or navigation links
+      if (fullText.length < 10) return;
+
+      // Look for price indicators - Luke's shows "Sale price" and "Regular price"
+      if (!fullText.includes('$')) return;
+
+      // Extract title - usually the first line before "Sale price"
+      // Example: "ALTRA WOMEN'S TORIN 7 ALTRA Sale price $99.99 Regular price $150.00"
+      const titleMatch = fullText.match(/^(.+?)\s+(?:Sale price|Regular price|\$)/i);
+      let title = titleMatch ? titleMatch[1].trim() : '';
+
+      // If title extraction failed, try splitting on brand names
+      if (!title || title.length < 5) {
+        // Try to find brand name and extract everything before "Sale price"
+        const beforePrice = fullText.split(/Sale price|Regular price/i)[0];
+        title = beforePrice.replace(/\s+/g, ' ').trim();
+      }
+
+      // Skip if we couldn't get a reasonable title
+      if (!title || title.length < 5) return;
+
+      // Parse brand and model
+      const { brand, model } = parseBrandModel(title);
+
+      // Extract prices - Luke's format: "Sale price $99.99 Regular price $150.00"
+      const priceMatches = fullText.match(/\$\s*[\d,]+\.?\d*/g);
+      
+      let salePrice = null;
+      let originalPrice = null;
+
+      if (priceMatches && priceMatches.length > 0) {
+        const prices = priceMatches.map(p => parsePrice(p)).filter(p => p > 0);
+        
+        if (prices.length === 1) {
+          salePrice = prices[0];
+        } else if (prices.length >= 2) {
+          // Luke's shows sale price first, then regular price
+          salePrice = Math.min(...prices);
+          originalPrice = Math.max(...prices);
+        }
+      }
+
+      // Skip if no valid sale price
+      if (!salePrice || salePrice <= 0) return;
+
+      // Get image URL
+      let imageUrl = null;
+      const $img = $link.find('img').first();
+      if ($img.length) {
+        imageUrl = $img.attr('src') || $img.attr('data-src');
+        // Luke's Locker uses lukeslocker.com CDN
+        if (imageUrl && !imageUrl.startsWith('http')) {
+          imageUrl = 'https:' + (imageUrl.startsWith('//') ? imageUrl : '//' + imageUrl);
+        }
+      }
+
+      // Build full URL
+      let fullUrl = href;
+      if (!fullUrl.startsWith('http')) {
+        fullUrl = 'https://lukeslocker.com' + (href.startsWith('/') ? '' : '/') + href;
+      }
+
+      deals.push({
+        title,
+        brand,
+        model,
+        store: "Luke's Locker",
+        price: salePrice,
+        originalPrice: originalPrice || null,
+        url: fullUrl,
+        image: imageUrl,
+        scrapedAt: new Date().toISOString()
+      });
+    });
+
+    console.log(`[SCRAPER] Luke's Locker scrape complete. Found ${deals.length} deals.`);
+    return deals;
+
+  } catch (error) {
+    console.error("[SCRAPER] Luke's Locker error:", error.message);
+    throw error;
+  }
+}
+
+/**
  * Helper: Parse brand and model from title
  */
 function parseBrandModel(title) {
@@ -346,10 +454,10 @@ function parseBrandModel(title) {
   
   const brands = [
     'Nike', 'Adidas', 'adidas', 'New Balance', 'Brooks', 'ASICS', 'Asics',
-    'HOKA', 'Hoka', 'Saucony', 'On', 'Altra', 'Mizuno',
+    'HOKA', 'Hoka', 'HOKA ONE ONE', 'Saucony', 'On', 'ON RUNNING', 'Altra', 'ALTRA', 'Mizuno',
     'Salomon', 'Reebok', 'Under Armour', 'Puma', 'PUMA',
-    'Karhu', 'KARHU', 'Topo Athletic', 'Newton', 'Saysh', 'TYR',
-    'Craft', 'OOFOS', 'Skora'
+    'Karhu', 'KARHU', 'Topo Athletic', 'Topo', 'Newton', 'Saysh', 'TYR',
+    'Craft', 'OOFOS', 'Skora', 'Diadora', 'DIADORA', 'Hylo Athletics', 'HYLO ATHLETICS'
   ];
 
   let brand = 'Unknown';
@@ -380,7 +488,6 @@ function parseSaleAndOriginalPrices(text) {
     return { salePrice: 0, originalPrice: 0 };
   }
 
-  // Grab all dollar-ish numbers in the string
   const matches = text.match(/\d[\d,]*\.?\d*/g);
   if (!matches) {
     return { salePrice: 0, originalPrice: 0 };
@@ -394,13 +501,11 @@ function parseSaleAndOriginalPrices(text) {
     return { salePrice: 0, originalPrice: 0 };
   }
 
-  // If there's only one price, assume no discount
   if (values.length === 1) {
     const v = values[0];
     return { salePrice: v, originalPrice: v };
   }
 
-  // On Running Warehouse, the lower number is the sale, higher is original
   const salePrice = Math.min(...values);
   const originalPrice = Math.max(...values);
 
