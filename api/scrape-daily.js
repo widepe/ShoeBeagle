@@ -515,17 +515,24 @@ function parseSaleAndOriginalPrices(text) {
 
 
 /**
- * Helper: Parse price from text
+ * Helper: Parse price from text, reject numbers 3-5 digits without commas
  */
 function parsePrice(priceText) {
   if (!priceText) return 0;
-  
-  const cleaned = priceText.replace(/[^\d,\.]/g, '');
-  const normalized = cleaned.replace(',', '');
-  
-  const price = parseFloat(normalized);
+
+  // Require a $ and collapse whitespace
+  const cleaned = priceText.replace(/\s+/g, '')
+                           .replace(/[^\d.,]/g, '')
+                           .replace(',', '');
+
+  const price = parseFloat(cleaned);
+
+  // Guardrail: reject absurd numbers like 25000 caused by space-separated thousands
+  if (price > 1000) return 0;
+
   return isNaN(price) ? 0 : price;
 }
+
 
 /**
  * Helper: Sleep function
