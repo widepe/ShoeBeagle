@@ -173,10 +173,18 @@ async function scrapeRunningWarehouse() {
         const { brand, model } = parseBrandModel(title);
 
         // Build full URL
-        let cleanUrl = href;
-        if (!/^https?:\/\//i.test(cleanUrl)) {
-          cleanUrl = `https://www.runningwarehouse.com/${cleanUrl.replace(/^\/+/, "")}`;
-        }
+let cleanUrl = (href || '').trim();
+
+if (/^https?:\/\//i.test(cleanUrl)) {
+  // already an absolute URL, leave as-is
+} else if (cleanUrl.startsWith('//')) {
+  // protocol-relative URL like //www.runningwarehouse.com/...
+  cleanUrl = 'https:' + cleanUrl;
+} else {
+  // relative path like /ASICS_GT_2000_13/...
+  cleanUrl = `https://www.runningwarehouse.com/${cleanUrl.replace(/^\/+/, "")}`;
+}
+
 
         // Try to find image
         let cleanImage = null;
