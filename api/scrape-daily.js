@@ -63,18 +63,6 @@ module.exports = async (req, res) => {
       console.error("[SCRAPER] Luke's Locker failed:", error.message);
     }
 
-    // Scrape REI
-    try {
-      await sleep(2000); // Be respectful - 2 second delay between sites
-      const reiDeals = await scrapeREI();
-      allDeals.push(...reiDeals);
-      scraperResults["REI"] = { success: true, count: reiDeals.length };
-      console.log(`[SCRAPER] REI: ${reiDeals.length} deals`);
-    } catch (error) {
-      scraperResults["REI"] = { success: false, error: error.message };
-      console.error("[SCRAPER] REI failed:", error.message);
-    }
-
     // Calculate statistics
     const dealsByStore = {};
     allDeals.forEach(deal => {
@@ -459,140 +447,6 @@ async function scrapeLukesLocker() {
 }
 
 /**
- * Scrape REI running shoe deals (includes both regular sales and REI Outlet)
- */
-async function scrapeREI() {
-  console.log("[SCRAPER] Starting REI scrape...");
-
-  // Men's and Women's running shoes on sale
-  // The /f/scd-deals filter includes both regular sales AND REI Outlet items
-  const urls = [
-    "https://www.rei.com/c/mens-running-shoes/f/scd-deals",
-    "https://www.rei.com/c/womens-running-shoes/f/scd-deals"
-  ];
-
-  const deals = [];
-
-  try {
-    for (const url of urls) {
-      console.log(`[SCRAPER] Fetching REI page: ${url}`);
-
-      const response = await axios.get(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9'
-        },
-        timeout: 30000
-      });
-
-      const $ = cheerio.load(response.data);
-
-      // REI product links: /product/[ID]/[brand-model-name]
-      $('a[href^="/product/"]').each((_, el) => {
-        const $link = $(el);
-        const href = $link.attr('href');
-
-        if (!href || !href.startsWith('/product/')) return;
-
-        // Get the full text content
-        const fullText = $link.text().replace(/\s+/g, ' ').trim();
-
-        // Skip if it's not a product link (navigation, etc.)
-        if (fullText.length < 10) return;
-
-        // Skip if no price
-        if (!fullText.includes('$')) return;
-
-        // Extract title - REI format is typically: "Brand Model - Description $price.99 $originalprice.00"
-        // Or: "Brand Model - Description Rated 4.5 out of 5 stars $price.99"
-        let title = '';
-        
-        // Try to extract everything before the first price or "Rated" text
-        const titleMatch = fullText.match(/^(.+?)\s*(?:Rated|\$)/i);
-        if (titleMatch) {
-          title = titleMatch[1].trim();
-        } else {
-          // Fallback: take everything before first $
-          title = fullText.split('$')[0].trim();
-        }
-
-        // Clean up common REI suffixes
-        title = title.replace(/\s*-\s*(Men's|Women's)$/i, '');
-        title = title.replace(/\s+(Road-Running|Trail-Running)\s+Shoes$/i, '');
-
-        // Skip if title is too short
-        if (title.length < 5) return;
-
-        // Parse brand and model
-        const { brand, model } = parseBrandModel(title);
-
-        // Extract prices - REI typically shows sale price and may show original price
-        const priceMatches = fullText.match(/\$\s*[\d,]+\.?\d*/g);
-        
-        let salePrice = null;
-        let originalPrice = null;
-
-        if (priceMatches && priceMatches.length > 0) {
-          const prices = priceMatches.map(p => parsePrice(p)).filter(p => p > 0);
-          
-          if (prices.length === 1) {
-            salePrice = prices[0];
-          } else if (prices.length >= 2) {
-            // REI shows sale price first, then original price (struck through)
-            salePrice = Math.min(...prices);
-            originalPrice = Math.max(...prices);
-          }
-        }
-
-        // Skip if no valid sale price
-        if (!salePrice || salePrice <= 0) return;
-
-        // Get image URL
-        let imageUrl = null;
-        const $img = $link.find('img').first();
-        if ($img.length) {
-          imageUrl = $img.attr('src') || $img.attr('data-src') || $img.attr('data-lazy-src');
-          
-          // REI uses various image CDNs
-          if (imageUrl && !imageUrl.startsWith('http')) {
-            imageUrl = 'https://www.rei.com' + (imageUrl.startsWith('/') ? '' : '/') + imageUrl;
-          }
-        }
-
-        // Build full URL
-        let fullUrl = href;
-        if (!fullUrl.startsWith('http')) {
-          fullUrl = 'https://www.rei.com' + (href.startsWith('/') ? '' : '/') + href;
-        }
-
-        deals.push({
-          title,
-          brand,
-          model,
-          store: "REI",
-          price: salePrice,
-          originalPrice: originalPrice || null,
-          url: fullUrl,
-          image: imageUrl,
-          scrapedAt: new Date().toISOString()
-        });
-      });
-
-      // Be polite - 2 second delay between pages
-      await sleep(2000);
-    }
-
-    console.log(`[SCRAPER] REI scrape complete. Found ${deals.length} deals.`);
-    return deals;
-
-  } catch (error) {
-    console.error("[SCRAPER] REI error:", error.message);
-    throw error;
-  }
-}
-
-/**
  * Helper: Parse brand and model from title
  */
 function parseBrandModel(title) {
@@ -603,8 +457,7 @@ function parseBrandModel(title) {
     'HOKA', 'Hoka', 'HOKA ONE ONE', 'Saucony', 'On', 'ON RUNNING', 'Altra', 'ALTRA', 'Mizuno',
     'Salomon', 'Reebok', 'Under Armour', 'Puma', 'PUMA',
     'Karhu', 'KARHU', 'Topo Athletic', 'Topo', 'Newton', 'Saysh', 'TYR',
-    'Craft', 'OOFOS', 'Skora', 'Diadora', 'DIADORA', 'Hylo Athletics', 'HYLO ATHLETICS',
-    'La Sportiva', 'The North Face', 'Merrell', 'NNormal', 'norda'
+    'Craft', 'OOFOS', 'Skora', 'Diadora', 'DIADORA', 'Hylo Athletics', 'HYLO ATHLETICS'
   ];
 
   let brand = 'Unknown';
