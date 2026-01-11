@@ -154,9 +154,9 @@ async function scrapeRunningWarehouse() {
         const href = anchor.attr("href") || "";
         if (!href) return;
 
-        // Parse sale + original prices
-        const { salePrice, originalPrice } = parseSaleAndOriginalPrices(text);
-        if (!salePrice || !Number.isFinite(salePrice)) return;
+        // UNIVERSAL PRICE PARSER
+        const { salePrice, originalPrice, valid } = extractPrices($, anchor, text);
+        if (!valid || !salePrice || !Number.isFinite(salePrice)) return;
 
         const price = salePrice;
         const hasValidOriginal =
@@ -173,18 +173,17 @@ async function scrapeRunningWarehouse() {
         const { brand, model } = parseBrandModel(title);
 
         // Build full URL
-let cleanUrl = (href || '').trim();
+        let cleanUrl = (href || '').trim();
 
-if (/^https?:\/\//i.test(cleanUrl)) {
-  // already an absolute URL, leave as-is
-} else if (cleanUrl.startsWith('//')) {
-  // protocol-relative URL like //www.runningwarehouse.com/...
-  cleanUrl = 'https:' + cleanUrl;
-} else {
-  // relative path like /ASICS_GT_2000_13/...
-  cleanUrl = `https://www.runningwarehouse.com/${cleanUrl.replace(/^\/+/, "")}`;
-}
-
+        if (/^https?:\/\//i.test(cleanUrl)) {
+          // already an absolute URL, leave as-is
+        } else if (cleanUrl.startsWith('//')) {
+          // protocol-relative URL like //www.runningwarehouse.com/...
+          cleanUrl = 'https:' + cleanUrl;
+        } else {
+          // relative path like /ASICS_GT_2000_13/...
+          cleanUrl = `https://www.runningwarehouse.com/${cleanUrl.replace(/^\/+/, "")}`;
+        }
 
         // Try to find image
         let cleanImage = null;
@@ -278,23 +277,9 @@ async function scrapeFleetFeet() {
 
         const { brand, model } = parseBrandModel(title);
 
-        const priceMatches = fullText.match(/\$\s*[\d,]+\.?\d*/g);
-        
-        let salePrice = null;
-        let originalPrice = null;
-
-        if (priceMatches && priceMatches.length > 0) {
-          const prices = priceMatches.map(p => parsePrice(p)).filter(p => p > 0);
-          
-          if (prices.length === 1) {
-            salePrice = prices[0];
-          } else if (prices.length >= 2) {
-            originalPrice = Math.max(...prices);
-            salePrice = Math.min(...prices);
-          }
-        }
-
-        if (!salePrice || salePrice <= 0) return;
+        // UNIVERSAL PRICE PARSER
+        const { salePrice, originalPrice, valid } = extractPrices($, $link, fullText);
+        if (!valid || !salePrice || salePrice <= 0) return;
 
         let imageUrl = null;
         const $img = $link.find('img').first();
@@ -394,41 +379,9 @@ async function scrapeLukesLocker() {
       // Parse brand and model
       const { brand, model } = parseBrandModel(title);
 
-           // Extract prices - Luke's format: "Price $200.00 $150.00 Save $50.00"
-      const priceMatches = fullText.match(/\$\s*[\d,\.]+/g);
-
-      let salePrice = null;
-      let originalPrice = null;
-
-      if (priceMatches && priceMatches.length > 0) {
-        // Convert to numbers, drop invalids, dedupe, sort high → low
-        let prices = [...new Set(
-          priceMatches
-            .map(p => parsePrice(p))
-            .filter(p => p > 0)
-        )].sort((a, b) => b - a);
-
-        // If we have at least 3 prices and the smallest is exactly
-        // the difference between the two largest, it's "Save $XX" — drop it.
-        if (prices.length >= 3) {
-          const [orig, sale, maybeSave] = prices;
-          if (Math.abs((orig - sale) - maybeSave) < 0.01) {
-            prices = prices.slice(0, 2); // keep only orig & sale
-          }
-        }
-
-        if (prices.length === 1) {
-          salePrice = prices[0];
-        } else if (prices.length >= 2) {
-          // highest = original, second highest = sale
-          originalPrice = prices[0];
-          salePrice = prices[1];
-        }
-      }
-
-      // Skip if no valid sale price
-      if (!salePrice || salePrice <= 0) return;
-
+      // UNIVERSAL PRICE PARSER
+      const { salePrice, originalPrice, valid } = extractPrices($, $link, fullText);
+      if (!valid || !salePrice || salePrice <= 0) return;
 
       // Get image URL
       let imageUrl = null;
@@ -504,71 +457,200 @@ function parseBrandModel(title) {
 }
 
 /**
- * Helper: Parse sale and original prices from text
+ * UNIVERSAL PRICE EXTRACTOR
+ * Uses the shared logic we discussed.
+ * Returns: { salePrice: number|null, originalPrice: number|null, valid: boolean }
  */
-function parseSaleAndOriginalPrices(text) {
-  if (!text) {
-    return { salePrice: 0, originalPrice: 0 };
+function extractPrices($, $element, fullText) {
+  // 1) Extract all $ amounts from text
+  let prices = extractDollarAmounts(fullText);
+
+  // 2) Try to reconstruct prices with superscript cents from DOM
+  const supPrices = extractSuperscriptPrices($, $element);
+  if (supPrices.length) {
+    prices = prices.concat(supPrices);
   }
 
-  // Only match numbers that follow a $ sign
-  const matches = text.match(/\$\s*([\d,]+\.?\d*)/g);
-  if (!matches) {
-    return { salePrice: 0, originalPrice: 0 };
+  // 3) Filter to reasonable shoe price range
+  prices = prices.filter(p => Number.isFinite(p) && p >= 10 && p < 1000);
+  if (!prices.length) {
+    return { salePrice: null, originalPrice: null, valid: false };
   }
 
-  const values = matches
-    .map(m => parseFloat(m.replace(/[^\d.]/g, "")))
-    .filter(v => Number.isFinite(v));
+  // 4) Deduplicate prices (same value appearing multiple times in the text)
+  prices = [...new Set(prices.map(p => p.toFixed(2)))].map(s => parseFloat(s));
 
-  if (!values.length) {
-    return { salePrice: 0, originalPrice: 0 };
+  // If <2 prices → we don't know if it's discounted
+  if (prices.length < 2) {
+    return { salePrice: null, originalPrice: null, valid: false };
   }
 
-  if (values.length === 1) {
-    const v = values[0];
-    return { salePrice: v, originalPrice: v };
+  // If 4+ unique prices → too ambiguous
+  if (prices.length > 3) {
+    return { salePrice: null, originalPrice: null, valid: false };
   }
 
-  const salePrice = Math.min(...values);
-  const originalPrice = Math.max(...values);
+  // Sort high → low
+  prices.sort((a, b) => b - a);
 
-  return { salePrice, originalPrice };
+  // === 2 PRICES: max = original, min = sale, with sanity checks ===
+  if (prices.length === 2) {
+    const original = prices[0];
+    const sale = prices[1];
+
+    if (!(sale < original)) {
+      return { salePrice: null, originalPrice: null, valid: false };
+    }
+
+    const discountPercent = ((original - sale) / original) * 100;
+    if (discountPercent < 5 || discountPercent > 90) {
+      return { salePrice: null, originalPrice: null, valid: false };
+    }
+
+    return { salePrice: sale, originalPrice: original, valid: true };
+  }
+
+  // === 3 PRICES: original = largest, other two are sale & savings ===
+  if (prices.length === 3) {
+    const original = prices[0];
+    const remaining = prices.slice(1); // [x, y]
+    const [p1, p2] = remaining;
+    const tolPrice = 1; // $1 tolerance
+
+    // 3a) "Save $X" pattern
+    const saveAmount = findSaveAmount(fullText);
+    if (saveAmount != null) {
+      const isP1Save = Math.abs(p1 - saveAmount) <= tolPrice;
+      const isP2Save = Math.abs(p2 - saveAmount) <= tolPrice;
+
+      if (isP1Save && !isP2Save) {
+        const sale = p2;
+        const discountPercent = ((original - sale) / original) * 100;
+        if (discountPercent >= 5 && discountPercent <= 90 && sale < original) {
+          return { salePrice: sale, originalPrice: original, valid: true };
+        }
+      } else if (isP2Save && !isP1Save) {
+        const sale = p1;
+        const discountPercent = ((original - sale) / original) * 100;
+        if (discountPercent >= 5 && discountPercent <= 90 && sale < original) {
+          return { salePrice: sale, originalPrice: original, valid: true };
+        }
+      }
+      // If both or neither look like save amount, fall through.
+    }
+
+    // 3b) "% off" pattern (e.g. "25% off")
+    const percentOff = findPercentOff(fullText);
+    if (percentOff != null) {
+      const expectedSale = original * (1 - percentOff / 100);
+      let saleCandidate = null;
+      let bestDiff = Infinity;
+
+      for (const p of remaining) {
+        const diff = Math.abs(p - expectedSale);
+        if (diff <= tolPrice && diff < bestDiff) {
+          bestDiff = diff;
+          saleCandidate = p;
+        }
+      }
+
+      if (saleCandidate != null) {
+        const discountPercent = ((original - saleCandidate) / original) * 100;
+        if (discountPercent >= 5 && discountPercent <= 90 && saleCandidate < original) {
+          return {
+            salePrice: saleCandidate,
+            originalPrice: original,
+            valid: true
+          };
+        }
+      }
+    }
+
+    // 3c) Fallback: assume larger of remaining is sale
+    const sale = Math.max(...remaining);
+    const discountPercent = ((original - sale) / original) * 100;
+    if (discountPercent >= 5 && discountPercent <= 90 && sale < original) {
+      return { salePrice: sale, originalPrice: original, valid: true };
+    }
+
+    return { salePrice: null, originalPrice: null, valid: false };
+  }
+
+  // Should never reach here, but just in case:
+  return { salePrice: null, originalPrice: null, valid: false };
 }
-
 
 /**
- * Helper: Parse price from text, reject numbers 3-5 digits without commas
+ * Extract $X or $X.YY values from text
  */
-function parsePrice(priceText) {
-  if (!priceText) return 0;
+function extractDollarAmounts(text) {
+  if (!text) return [];
+  const matches = text.match(/\$\s*[\d,]+(?:\.\d{1,2})?/g);
+  if (!matches) return [];
 
-  // Detect if the original text explicitly shows cents (e.g. "109.95" or "200.00")
-  const hasExplicitDecimal = /\d\.\d{2}/.test(priceText);
-
-  // Keep only digits
-  const digits = priceText.replace(/\D/g, '');
-  if (!digits) return 0;
-
-  const intVal = parseInt(digits, 10);
-  if (!Number.isFinite(intVal)) return 0;
-
-  if (hasExplicitDecimal) {
-    // "109.95" -> "10995" -> 109.95
-    return intVal / 100;
-  }
-
-  // No decimal:
-  // If there are 4+ digits and the last two are 00, it's likely "200.00" rendered as "20000"
-  if (digits.length >= 4 && digits.endsWith('00')) {
-    return intVal / 100;
-  }
-
-  // Otherwise treat it as whole dollars: "140" -> 140
-  return intVal;
+  return matches
+    .map(m => parseFloat(m.replace(/[$,\s]/g, '')))
+    .filter(n => Number.isFinite(n));
 }
 
+/**
+ * Extract prices where cents are in superscript / small tags
+ */
+function extractSuperscriptPrices($, $element) {
+  const prices = [];
+  if (!$ || !$element || !$element.find) return prices;
 
+  // Look for elements that might contain "$DOLLARS" with children holding cents
+  $element.find('sup, .cents, .price-cents, small').each((_, el) => {
+    const $centsEl = $(el);
+    const centsText = $centsEl.text().trim();
+    if (!/^\d{1,2}$/.test(centsText)) return;
+
+    const $parent = $centsEl.parent();
+    const parentTextWithoutChildren = $parent
+      .clone()
+      .children()
+      .remove()
+      .end()
+      .text();
+
+    const dollarMatch = parentTextWithoutChildren.match(/\$\s*(\d+)/);
+    if (!dollarMatch) return;
+
+    const dollars = parseInt(dollarMatch[1], 10);
+    const cents = parseInt(centsText, 10);
+    if (!Number.isFinite(dollars) || !Number.isFinite(cents)) return;
+
+    const price = dollars + cents / 100;
+    if (price >= 10 && price < 1000) {
+      prices.push(price);
+    }
+  });
+
+  return prices;
+}
+
+/**
+ * Find "Save $X" amount in text
+ */
+function findSaveAmount(text) {
+  if (!text) return null;
+  const match = text.match(/save\s*\$\s*([\d,]+(?:\.\d{1,2})?)/i);
+  if (!match) return null;
+  const amount = parseFloat(match[1].replace(/,/g, ''));
+  return Number.isFinite(amount) ? amount : null;
+}
+
+/**
+ * Find "X% off" in text
+ */
+function findPercentOff(text) {
+  if (!text) return null;
+  const match = text.match(/(\d+)\s*%\s*off/i);
+  if (!match) return null;
+  const percent = parseInt(match[1], 10);
+  return percent > 0 && percent < 100 ? percent : null;
+}
 
 /**
  * Helper: Sleep function
