@@ -2249,7 +2249,7 @@ async function loadDailyDeals() {
   const results = (data && data.results) ? data.results : [];
   
   if (!results.length) {
-    statusMessageEl.textContent = `No results found for ${brandTyped} ${modelTyped} — set a price alert and we'll keep sniffing.`;
+    statusMessageEl.textContent = `No shoe deals today for ${brandTyped} ${modelTyped} — but check spelling.`;
     return;
   }
   
