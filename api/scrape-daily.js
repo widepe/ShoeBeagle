@@ -454,99 +454,116 @@ async function scrapeREIOutlet() {
       const response = await axios.get(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9'
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'DNT': '1',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-User': '?1',
+          'Cache-Control': 'max-age=0',
+          'Referer': 'https://www.rei.com/'
         },
-        timeout: 30000
+        timeout: 45000, // Increased from 30s to 45s
+        maxRedirects: 5
       });
 
       const $ = cheerio.load(response.data);
 
-      // REI uses product links in the format /product/PRODUCTID/brand-model-name
+      // Collect unique product links first to avoid duplicates
+      const productLinks = new Set();
       $('a[href*="/product/"]').each((_, el) => {
-        const $link = $(el);
-        const href = $link.attr('href');
-
-        if (!href || !href.includes('/product/')) return;
-
-        // Get all text from the link
-        const fullText = $link.text().replace(/\s+/g, ' ').trim();
-
-        // Skip if no price indicator or if it's too short
-        if (!fullText.includes('$') || fullText.length < 20) return;
-
-        // Extract title - REI typically shows "Brand Model Name - Men's/Women's"
-        // The product name is usually before the price
-        let title = '';
-        
-        // Try to find the product title in a more structured way
-        const $productTitle = $link.find('[class*="product"]').first();
-        if ($productTitle.length) {
-          title = $productTitle.text().replace(/\s+/g, ' ').trim();
+        const href = $(el).attr('href');
+        if (href && href.includes('/product/')) {
+          productLinks.add(href);
         }
-        
-        // Fallback: extract from full text before price
-        if (!title || title.length < 5) {
-          const beforePrice = fullText.split('$')[0];
-          // Remove review text and clean up
-          title = beforePrice
-            .replace(/\(\d+\)\d+\s*reviews.*$/i, '')
-            .replace(/Rated\s+[\d.]+\s+out\s+of\s+5\s+stars/i, '')
-            .replace(/Add.*to\s+Compare/i, '')
-            .replace(/Members use code.*$/i, '')
-            .replace(/Save\s+\d+%/i, '')
-            .replace(/compared to/i, '')
-            .replace(/Top Rated/i, '')
-            .replace(/New arrival/i, '')
-            .trim();
-        }
-
-        // Skip if we couldn't get a reasonable title
-        if (!title || title.length < 5) return;
-
-        // Remove common suffixes and clean up
-        title = title
-          .replace(/\s*-\s*(Men's|Women's|Mens|Womens)\s*$/i, '')
-          .replace(/\s+(Road-Running|Trail-Running|Running)\s+Shoes\s*$/i, '')
-          .trim();
-
-        // Parse brand and model
-        const { brand, model } = parseBrandModel(title);
-
-        // UNIVERSAL PRICE PARSER
-        const { salePrice, originalPrice, valid } = extractPrices($, $link, fullText);
-        if (!valid || !salePrice || salePrice <= 0) return;
-
-        // Get image URL
-        let imageUrl = null;
-        const $img = $link.find('img').first();
-        if ($img.length) {
-          imageUrl = $img.attr('src') || $img.attr('data-src') || $img.attr('data-lazy-src');
-          if (imageUrl && !imageUrl.startsWith('http')) {
-            imageUrl = 'https://www.rei.com' + (imageUrl.startsWith('/') ? '' : '/') + imageUrl;
-          }
-        }
-
-        // Build full URL
-        let fullUrl = href;
-        if (!fullUrl.startsWith('http')) {
-          fullUrl = 'https://www.rei.com' + (href.startsWith('/') ? '' : '/') + href;
-        }
-
-        deals.push({
-          title,
-          brand,
-          model,
-          store: "REI Outlet",
-          price: salePrice,
-          originalPrice: originalPrice || null,
-          url: fullUrl,
-          image: imageUrl,
-          scrapedAt: new Date().toISOString()
-        });
       });
 
-      await randomDelay();
+      // Process each unique product
+      productLinks.forEach(href => {
+        try {
+          const $link = $(`a[href="${href}"]`).first();
+          if (!$link.length) return;
+
+          // Get the product container
+          const $container = $link.closest('[class*="product"], [class*="card"], li, article');
+          const fullText = ($container.length ? $container : $link).text().replace(/\s+/g, ' ').trim();
+
+          if (!fullText.includes('$') || fullText.length < 20) return;
+
+          // Extract title - try multiple methods
+          let title = '';
+          
+          // Method 1: Look for title elements
+          const $titleEl = ($container.length ? $container : $link).find('h2, h3, h4, [class*="title"], [class*="name"]').first();
+          if ($titleEl.length) {
+            title = $titleEl.text().replace(/\s+/g, ' ').trim();
+          }
+
+          // Method 2: Parse from text
+          if (!title || title.length < 5) {
+            const beforePrice = fullText.split('$')[0];
+            title = beforePrice
+              .replace(/\(\d+\)\s*\d+\s*reviews.*$/i, '')
+              .replace(/Rated\s+[\d.]+\s+out\s+of\s+5\s+stars/i, '')
+              .replace(/Add.*to\s+Compare/i, '')
+              .replace(/Members\s+use\s+code.*$/i, '')
+              .replace(/Save\s+\d+%.*$/i, '')
+              .replace(/compared\s+to.*$/i, '')
+              .replace(/Top\s+Rated/i, '')
+              .replace(/New\s+arrival/i, '')
+              .replace(/REI\s+OUTLET/i, '')
+              .trim();
+          }
+
+          title = title
+            .replace(/\s*-\s*(Men's|Women's|Mens|Womens)\s*$/i, '')
+            .replace(/\s+(Road-Running|Trail-Running|Running)\s+Shoes\s*$/i, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+          if (!title || title.length < 5) return;
+
+          const { brand, model } = parseBrandModel(title);
+
+          const { salePrice, originalPrice, valid } = extractPrices($, $container.length ? $container : $link, fullText);
+          if (!valid || !salePrice || salePrice <= 0) return;
+
+          let imageUrl = null;
+          const $img = ($container.length ? $container : $link).find('img').first();
+          if ($img.length) {
+            imageUrl = $img.attr('src') || $img.attr('data-src') || $img.attr('data-lazy-src');
+            if (imageUrl && !imageUrl.startsWith('http')) {
+              imageUrl = 'https://www.rei.com' + (imageUrl.startsWith('/') ? '' : '/') + imageUrl;
+            }
+          }
+
+          let fullUrl = href;
+          if (!fullUrl.startsWith('http')) {
+            fullUrl = 'https://www.rei.com' + (href.startsWith('/') ? '' : '/') + href;
+          }
+
+          deals.push({
+            title,
+            brand,
+            model,
+            store: "REI Outlet",
+            price: salePrice,
+            originalPrice: originalPrice || null,
+            url: fullUrl,
+            image: imageUrl,
+            scrapedAt: new Date().toISOString()
+          });
+        } catch (err) {
+          // Skip individual product errors silently
+        }
+      });
+
+      // Longer delay for REI
+      await randomDelay(4000, 6000);
     }
 
     console.log(`[SCRAPER] REI Outlet scrape complete. Found ${deals.length} deals.`);
