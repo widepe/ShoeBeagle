@@ -317,18 +317,6 @@
       text-align: left;
       box-sizing: border-box;
     }
-    
-        /* Hot deals (>= 50% off) get a glow + shimmer */
-    .card.hot-deal {
-      position: relative;              /* needed for shimmer overlay */
-      overflow: hidden;               /* hide shimmer edges */
-      border-color: #ff6b4a;          /* keeps base border width, just color shift */
-      box-shadow:
-        0 0 0 2px rgba(255, 107, 74, 0.45),
-        0 6px 18px rgba(255, 107, 74, 0.35);
-      transform: translateY(-2px);
-      transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
-    }
 
     /* Shimmer overlay for hot-deal cards */
     .card.hot-deal::before {
