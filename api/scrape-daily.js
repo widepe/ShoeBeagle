@@ -41,7 +41,8 @@ module.exports = async (req, res) => {
 
     // Scrape Fleet Feet
     try {
-      await sleep(2000); // Be respectful - 2 second delay between sites
+      await randomDelay()
+; // Be respectful - 2 second delay between sites
       const fleetFeetDeals = await scrapeFleetFeet();
       allDeals.push(...fleetFeetDeals);
       scraperResults['Fleet Feet'] = { success: true, count: fleetFeetDeals.length };
@@ -53,7 +54,8 @@ module.exports = async (req, res) => {
 
     // Scrape Luke's Locker
     try {
-      await sleep(2000); // Be respectful - 2 second delay between sites
+      await randomDelay()
+; // Be respectful - 2 second delay between sites
       const lukesDeals = await scrapeLukesLocker();
       allDeals.push(...lukesDeals);
       scraperResults["Luke's Locker"] = { success: true, count: lukesDeals.length };
@@ -65,7 +67,8 @@ module.exports = async (req, res) => {
     
     // Scrape Famous Footwear
     try {
-      await sleep(2000); // Be respectful - 2 second delay between sites
+      await randomDelay()
+; // Be respectful - 2 second delay between sites
       const famousDeals = await scrapeFamousFootwear();
       allDeals.push(...famousDeals);
       scraperResults["Famous Footwear"] = { success: true, count: famousDeals.length };
@@ -232,7 +235,8 @@ async function scrapeRunningWarehouse() {
       });
 
       // Be polite - 1.5 second delay between pages
-      await sleep(1500);
+      await randomDelay()
+;
     }
 
     console.log(
@@ -320,7 +324,8 @@ async function scrapeFleetFeet() {
         });
       });
 
-      await sleep(2000);
+      await randomDelay()
+;
     }
 
     console.log(`[SCRAPER] Fleet Feet scrape complete. Found ${deals.length} deals.`);
@@ -523,7 +528,8 @@ async function scrapeFamousFootwear() {
       });
 
       // Be polite between Famous Footwear pages
-      await sleep(1500);
+      await randomDelay()
+;
     }
 
     console.log(`[SCRAPER] Famous Footwear scrape complete. Found ${deals.length} deals.`);
@@ -764,8 +770,11 @@ function findPercentOff(text) {
 }
 
 /**
- * Helper: Sleep function
+ * Random delay between min and max ms
+ * Default: 3–5 seconds
  */
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function randomDelay(min = 3000, max = 5000) {
+  const wait = Math.floor(Math.random() * (max - min + 1)) + min;
+  return new Promise(resolve => setTimeout(resolve, wait));
 }
+
