@@ -28,7 +28,7 @@ module.exports = async (req, res) => {
     const allDeals = [];
     const scraperResults = {};
 
-    // Scrape Running Warehouse
+/*    // Scrape Running Warehouse
     try {
       const rwDeals = await scrapeRunningWarehouse();
       allDeals.push(...rwDeals);
@@ -62,7 +62,7 @@ module.exports = async (req, res) => {
       scraperResults["Luke's Locker"] = { success: false, error: error.message };
       console.error("[SCRAPER] Luke's Locker failed:", error.message);
     }
-    
+    */
     // Scrape REI Outlet
     try {
       await randomDelay(); // Be respectful - 2 second delay between sites
