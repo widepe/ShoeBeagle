@@ -62,7 +62,19 @@ module.exports = async (req, res) => {
       scraperResults["Luke's Locker"] = { success: false, error: error.message };
       console.error("[SCRAPER] Luke's Locker failed:", error.message);
     }
-
+    
+    // Scrape Famous Footwear
+    try {
+      await sleep(2000); // Be respectful - 2 second delay between sites
+      const famousDeals = await scrapeFamousFootwear();
+      allDeals.push(...famousDeals);
+      scraperResults["Famous Footwear"] = { success: true, count: famousDeals.length };
+      console.log(`[SCRAPER] Famous Footwear: ${famousDeals.length} deals`);
+    } catch (error) {
+      scraperResults["Famous Footwear"] = { success: false, error: error.message };
+      console.error("[SCRAPER] Famous Footwear failed:", error.message);
+    }
+    
     // Calculate statistics
     const dealsByStore = {};
     allDeals.forEach(deal => {
@@ -421,7 +433,106 @@ async function scrapeLukesLocker() {
     throw error;
   }
 }
+/**
+ * Scrape Famous Footwear running shoe deals
+ * (uses the universal extractPrices helper)
+ */
+async function scrapeFamousFootwear() {
+  console.log("[SCRAPER] Starting Famous Footwear scrape...");
 
+  // TODO: Adjust these URLs to exactly the clearance/sale running-shoe pages you want
+  const urls = [
+    "https://www.famousfootwear.com/browse/sale/mens?icid=mdd_uncat_click_sale#sortCriteria=relevance&f-webgenders=Men's&cf-categories=Sneakers%20and%20Athletic%20Shoes,Running%20Shoes",
+    "https://www.famousfootwear.com/browse/sale?icid=sdd_vwall#sortCriteria=relevance&f-webgenders=Women's&cf-categories=Sneakers%20and%20Athletic%20Shoes,Running%20Shoes"
+  ];
+
+  const deals = [];
+
+  try {
+    for (const url of urls) {
+      console.log(`[SCRAPER] Fetching Famous Footwear page: ${url}`);
+
+      const response = await axios.get(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+        timeout: 30000,
+      });
+
+      const $ = cheerio.load(response.data);
+
+      // This selector is a starting point – you may refine it after inspecting Famous Footwear HTML.
+      // We look for product tiles with links that contain "$" in their text (so they include prices).
+      $("a").each((_, el) => {
+        const $link = $(el);
+        const href = $link.attr("href") || "";
+
+        // Skip links that don't go to a product page
+        if (!href || !href.includes("/product/")) return;
+
+        const fullText = $link.text().replace(/\s+/g, " ").trim();
+        if (!fullText.includes("$")) return;
+
+        // Optional: filter a bit to focus on shoes
+        if (!/shoe|sneaker|runner|running|athletic/i.test(fullText)) return;
+
+        // Title: text before the first "$"
+        const titlePart = fullText.split("$")[0].trim();
+        if (!titlePart || titlePart.length < 5) return;
+
+        const title = titlePart;
+        const { brand, model } = parseBrandModel(title);
+
+        // UNIVERSAL PRICE EXTRACTOR
+        const { salePrice, originalPrice, valid } = extractPrices($, $link, fullText);
+        if (!valid || !salePrice || !Number.isFinite(salePrice)) return;
+
+        // Build full URL
+        let fullUrl = href;
+        if (!/^https?:\/\//i.test(fullUrl)) {
+          fullUrl = "https://www.famousfootwear.com" + (href.startsWith("/") ? "" : "/") + href;
+        }
+
+        // Image (best-effort – may tweak selectors once you inspect HTML)
+        let imageUrl = null;
+        const $img = $link.find("img").first();
+        if ($img.length) {
+          imageUrl = $img.attr("src") || $img.attr("data-src");
+          if (imageUrl && !/^https?:\/\//i.test(imageUrl)) {
+            // Famous Footwear tends to use absolute URLs, but guard just in case
+            imageUrl = "https://www.famousfootwear.com" +
+              (imageUrl.startsWith("/") ? "" : "/") +
+              imageUrl;
+          }
+        }
+
+        deals.push({
+          title,
+          brand,
+          model,
+          store: "Famous Footwear",
+          price: salePrice,
+          originalPrice: originalPrice || null,
+          url: fullUrl,
+          image: imageUrl,
+          scrapedAt: new Date().toISOString(),
+        });
+      });
+
+      // Be polite between Famous Footwear pages
+      await sleep(1500);
+    }
+
+    console.log(`[SCRAPER] Famous Footwear scrape complete. Found ${deals.length} deals.`);
+    return deals;
+  } catch (error) {
+    console.error("[SCRAPER] Famous Footwear error:", error.message);
+    throw error;
+  }
+}
 /**
  * Helper: Parse brand and model from title
  */
