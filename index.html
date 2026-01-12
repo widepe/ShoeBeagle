@@ -317,7 +317,23 @@
       text-align: left;
       box-sizing: border-box;
     }
+    
+    /* Hot deals (>= 50% off) get a glow */
+    .card.hot-deal {
+      border-color: #ff6b4a; /* keeps base border width, just color shift */
+      box-shadow:
+        0 0 0 2px rgba(255, 107, 74, 0.45),
+        0 6px 18px rgba(255, 107, 74, 0.35);
+      transform: translateY(-2px);
+      transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+    }
 
+    .card.hot-deal:hover {
+      box-shadow:
+        0 0 0 3px rgba(255, 107, 74, 0.55),
+        0 10px 24px rgba(255, 107, 74, 0.40);
+      transform: translateY(-4px);
+    }
     .card-link {
       display: flex;
       flex-direction: column;
@@ -2063,12 +2079,19 @@ modelInput.addEventListener("click", () => {
       return "—";
     }
 
-    // Helper: create unified deal card (used for search + daily deals)
-        function createDealCard(item) {
+       // Helper: create unified deal card (used for search + daily deals)
+    function createDealCard(item) {
       const discount = getDiscountInfo(item); // uses price + originalPrice
+
+      // Hot deal = at least 50% off
+      const isHotDeal = discount.hasDiscount && discount.percent >= 50;
 
       const card = document.createElement("div");
       card.className = "card";
+      if (isHotDeal) {
+        card.classList.add("hot-deal");
+      }
+
 
       const link = document.createElement("a");
       link.className = "card-link";
