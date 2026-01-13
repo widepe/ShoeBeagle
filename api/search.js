@@ -32,21 +32,26 @@ module.exports = async (req, res) => {
   const startedAt = Date.now();
 
   try {
-    const rawQuery = req.query && req.query.query ? req.query.query : "";
-    const query = normalize(rawQuery);
+    // Accept separate brand and model parameters
+    const rawBrand = req.query && req.query.brand ? req.query.brand : "";
+    const rawModel = req.query && req.query.model ? req.query.model : "";
     
-    console.log("[/api/search] Request:", { requestId, rawQuery, query });
+    const brand = normalize(rawBrand);
+    const model = normalize(rawModel);
+    
+    console.log("[/api/search] Request:", { requestId, rawBrand, rawModel, brand, model });
 
-    if (!query) {
+    // Require at least one parameter
+    if (!brand && !model) {
       return res.status(400).json({
-        error: "Missing query parameter",
-        example: "/api/search?query=Nike%20Pegasus",
+        error: "Missing parameters - provide brand, model, or both",
+        example: "/api/search?brand=Nike&model=Pegasus",
         requestId
       });
     }
 
     // Check cache
-    const cacheKey = `search:${query}`;
+    const cacheKey = `search:${brand}:${model}`;
     const cached = getCached(cacheKey);
     if (cached) {
       console.log("[/api/search] Cache hit");
@@ -54,17 +59,17 @@ module.exports = async (req, res) => {
     }
 
     // Fetch from Vercel Blob Storage by name
-const { blobs } = await list({ prefix: "deals.json" });
+    const { blobs } = await list({ prefix: "deals.json" });
 
-if (!blobs || blobs.length === 0) {
-  console.error("[/api/daily-deals] Could not locate deals blob");
-  return res.status(500).json({
-    error: "Failed to load deals data",
-    requestId,
-  });
-}
+    if (!blobs || blobs.length === 0) {
+      console.error("[/api/search] Could not locate deals blob");
+      return res.status(500).json({
+        error: "Failed to load deals data",
+        requestId,
+      });
+    }
 
-const blob = blobs[0];
+    const blob = blobs[0];
 
     let dealsData;
     try {
@@ -91,31 +96,33 @@ const blob = blobs[0];
       lastUpdated: dealsData.lastUpdated || 'unknown'
     });
 
-    // Parse query
-    const parts = rawQuery.trim().split(/\s+/);
-    const brand = parts[0] || "";
-    const model = parts.slice(1).join(" ") || "";
-
     console.log("[/api/search] Parsed:", { brand, model });
 
-    // Filter deals
+    // Filter deals - flexible matching based on what's provided
     const results = deals
       .filter((deal) => {
         const dealBrand = normalize(deal.brand);
         const dealModel = normalize(deal.model);
-        const normalizedBrand = normalize(brand);
-        const normalizedModel = normalize(model);
+        const dealTitle = normalize(deal.title);
         
-        // Require brand match
-        if (!dealBrand.includes(normalizedBrand)) return false;
+        // If both brand and model provided, both must match
+        if (brand && model) {
+          const brandMatch = dealBrand.includes(brand);
+          const modelMatch = dealModel.includes(model) || dealTitle.includes(model);
+          return brandMatch && modelMatch;
+        }
         
-        // Model match: allow partial match either direction
-        if (!normalizedModel) return true; // Brand-only search
+        // If only brand provided, match brand
+        if (brand && !model) {
+          return dealBrand.includes(brand);
+        }
         
-        return (
-          dealModel.includes(normalizedModel) ||
-          normalizedModel.includes(dealModel)
-        );
+        // If only model provided, search model and title (allows "pegasus" to find Nike Pegasus)
+        if (!brand && model) {
+          return dealModel.includes(model) || dealTitle.includes(model);
+        }
+        
+        return false;
       })
       .map((deal) => ({
         title: deal.title,
