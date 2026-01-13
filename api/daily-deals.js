@@ -213,7 +213,7 @@ const top20ByPercent = [...workingPool]
 const byPercent = getRandomSample(top20ByPercent, Math.min(4, top20ByPercent.length));
 
 // 2) TOP 20 BY DOLLAR SAVINGS → Pick random 4 (excluding already picked)
-const alreadyPicked = new Set(byPercent); // Use Set for faster lookups
+const alreadyPicked = new Set(byPercent);
 
 const top20ByDollar = [...workingPool]
   .filter(d => !alreadyPicked.has(d))
@@ -222,13 +222,14 @@ const top20ByDollar = [...workingPool]
     const savingsB = (b.originalPrice || 0) - (b.price || 0);
     return savingsB - savingsA;
   })
-  .slice(0, 20); // Fixed: use actual filtered array length
+  .slice(0, 20);
 
 const byDollar = getRandomSample(top20ByDollar, Math.min(4, top20ByDollar.length));
 
-// 3) 4 RANDOM from remaining (excluding already picked)
-alreadyPicked.add(...byDollar); // Add byDollar picks to set
+// Update the set - FIXED THIS LINE
+byDollar.forEach(d => alreadyPicked.add(d)); // ✅ Correct way to add multiple items
 
+// 3) 4 RANDOM from remaining (excluding already picked)
 const remaining = workingPool.filter(d => !alreadyPicked.has(d));
 const randomPicks = getRandomSample(remaining, Math.min(4, remaining.length));
 
