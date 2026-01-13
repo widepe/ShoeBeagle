@@ -433,9 +433,6 @@ async function scrapeLukesLocker() {
     throw error;
   }
 }
-/**
- * Scrape Marathon Sports sale running shoes
- */
 async function scrapeMarathonSports() {
   console.log("[SCRAPER] Starting Marathon Sports scrape...");
 
@@ -456,51 +453,60 @@ async function scrapeMarathonSports() {
 
     const $ = cheerio.load(response.data);
 
-    // Marathon Sports product links start with /products/
+    // Marathon Sports: product links are /products/... 
+    // But title and price are in parent/sibling elements
     $('a[href^="/products/"]').each((_, el) => {
       const $link = $(el);
       const href = $link.attr('href');
 
       if (!href) return;
 
-      // Get all text from the link and nearby elements
-      const fullText = $link.text().replace(/\s+/g, ' ').trim();
+      // Find the parent container that holds all product info
+      const $container = $link.closest('div, article, li').filter(function() {
+        // Make sure this container has price info
+        return $(this).text().includes('price');
+      });
 
-      // Skip if no price indicators or too short
-      if (!fullText.includes('$') || fullText.length < 15) return;
+      if (!$container.length) return;
 
-      // Extract title - Marathon Sports format: "Brand Model"
-      // The title appears before "Men's/Women's Shoes price: $XX.XX"
+      // Get all text from the container
+      const containerText = $container.text().replace(/\s+/g, ' ').trim();
+
+      // Must have price indicators
+      if (!containerText.includes('$') || !containerText.includes('price')) return;
+
+      // Extract title from h2, h3, or class containing "title" or "name"
       let title = '';
+      const $titleEl = $container.find('h2, h3, .product-title, .product-name, [class*="title"]').first();
       
-      // Try to extract from the h2 or product name element
-      const $title = $link.find('h2, .product-name, [class*="title"]').first();
-      if ($title.length) {
-        title = $title.text().replace(/\s+/g, ' ').trim();
+      if ($titleEl.length) {
+        title = $titleEl.text().replace(/\s+/g, ' ').trim();
       } else {
-        // Fallback: extract from full text before price indicators
-        const titleMatch = fullText.match(/^(.+?)\s*(?:Men's|Women's|Shoes|original price|price:)/i);
-        title = titleMatch ? titleMatch[1].trim() : fullText.split('$')[0].trim();
+        // Fallback: look for title pattern before "Men's" or "Women's"
+        const titleMatch = containerText.match(/^(.+?)\s+(Men's|Women's)/i);
+        if (titleMatch) {
+          title = titleMatch[1].trim();
+        }
       }
 
       // Clean up title
       title = title.replace(/\s+(Men's|Women's|Shoes)\s*$/gi, '').trim();
 
-      if (!title || title.length < 3) return;
+      if (!title || title.length < 5) return;
 
       // Parse brand and model
       const { brand, model } = parseBrandModel(title);
 
-      // Use your UNIVERSAL PRICE PARSER
-      const { salePrice, originalPrice, valid } = extractPrices($, $link, fullText);
+      // Use UNIVERSAL PRICE PARSER on the container text
+      const { salePrice, originalPrice, valid } = extractPrices($, $container, containerText);
+      
       if (!valid || !salePrice || salePrice <= 0) return;
 
-      // Get image URL
+      // Get image URL from the link
       let imageUrl = null;
       const $img = $link.find('img').first();
       if ($img.length) {
         imageUrl = $img.attr('src') || $img.attr('data-src');
-        // Marathon Sports uses CDN
         if (imageUrl && !imageUrl.startsWith('http')) {
           imageUrl = 'https:' + (imageUrl.startsWith('//') ? imageUrl : '//' + imageUrl);
         }
