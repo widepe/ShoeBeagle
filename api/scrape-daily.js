@@ -576,7 +576,7 @@ function parseBrandModel(title) {
   let model = title;
 
   for (const b of brands) {
-    const regex = new RegExp(`\\b${b}\\b`, 'gi');  // FIXED: added opening (
+    const regex = new RegExp(`\\b${b}\\b`, 'gi'); 
     if (regex.test(title)) {
       brand = b;
       model = title.replace(regex, '').trim();
