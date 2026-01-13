@@ -134,27 +134,6 @@
       flex: 1 1 200px;
     }
 
-    /* Paw icon inside inputs */
-    .paw {
-      position: absolute;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 1rem;
-      opacity: 0.75;
-      pointer-events: none;
-      transform-origin: 50% 70%;
-    }
-
-    .paw.hidden { display: none; }
-
-    @keyframes pawRock {
-      0%   { transform: translateY(-50%) rotate(-10deg); }
-      50%  { transform: translateY(-50%) rotate(10deg); }
-      100% { transform: translateY(-50%) rotate(-10deg); }
-    }
-
-    .paw.rock { animation: pawRock 1.1s ease-in-out infinite; }
 
     /* Icon rock animations */
     @keyframes iconRock {
@@ -1004,13 +983,11 @@
   <form id="search-form" method="POST">
   <div class="input-wrapper">
         <input id="brand" type="text" placeholder="Enter Shoe Brand" autocomplete="off" required />
-        <span class="paw rock" id="brandPaw">🐾</span>
         <div id="brandSuggestions" class="suggestions"></div>
       </div>
 
       <div class="input-wrapper">
         <input id="model" type="text" placeholder="" autocomplete="off" required class="model-inactive" disabled />
-        <span class="paw hidden" id="modelPaw">🐾</span>
         <div id="modelSuggestions" class="suggestions"></div>
       </div>
 
@@ -1045,7 +1022,6 @@
           <div class="alert-form-row">
             <div class="price-input-wrapper">
               <input id="alertPrice" type="number" step="1" placeholder="Enter Dollar Amount" min="1">
-              <span class="paw rock" id="alertPricePaw">🐾</span>
             </div>
           </div>
 
@@ -2226,11 +2202,10 @@ async function loadDailyDeals() {
   const brandTyped = brandInput.value.trim();
   const modelTyped = modelInput.value.trim();
   
-  if (!brandTyped || !modelTyped) {
-    statusMessageEl.textContent = "Please enter both brand and model.";
-    updatePaws();
-    return;
-  }
+if (!brandTyped && !modelTyped) {
+  statusMessageEl.textContent = "Please enter a brand, model, or both.";
+  return;
+}
   
   currentSearch = { brand: brandTyped, model: modelTyped };
   
@@ -2260,24 +2235,30 @@ async function loadDailyDeals() {
   
   alertProductName.textContent = `${brandTyped} ${modelTyped}`;
   
-  const query = `${brandTyped} ${modelTyped}`;
-  let data;
-  
-  try {
-    const res = await fetch("/api/search?" + new URLSearchParams({ query }));
-    data = await res.json();
-  } catch (err) {
-    console.error("Search error:", err);
-    statusMessageEl.textContent = "Search failed. Please try again.";
-    return;
-  }
-  
-  const results = (data && data.results) ? data.results : [];
-  
-  if (!results.length) {
-    statusMessageEl.textContent = `No shoe deals today for ${brandTyped} ${modelTyped} — but check spelling.`;
-    return;
-  }
+const params = new URLSearchParams();
+if (brandTyped) params.append('brand', brandTyped);
+if (modelTyped) params.append('model', modelTyped);
+
+let data;
+
+try {
+  const res = await fetch("/api/search?" + params.toString());
+  data = await res.json();
+} catch (err) {
+  console.error("Search error:", err);
+  statusMessageEl.textContent = "Search failed. Please try again.";
+  return;
+}
+
+const results = (data && data.results) ? data.results : [];
+
+if (!results.length) {
+  const searchTerm = brandTyped && modelTyped 
+    ? `${brandTyped} ${modelTyped}`
+    : brandTyped || modelTyped;
+  statusMessageEl.textContent = `No shoe deals today for ${searchTerm} — but check spelling.`;
+  return;
+}
   
 statusMessageEl.textContent = `Top ${results.length} deal${results.length === 1 ? '' : 's'} found for ${brandTyped} ${modelTyped}`;
       resultsEl.innerHTML = "";
