@@ -520,15 +520,22 @@ async function scrapeMarathonSports() {
         
         if (!valid || !salePrice || salePrice <= 0) return;
 
-        // Get image URL from the link
-        let imageUrl = null;
-        const $img = $link.find('img').first();
-        if ($img.length) {
-          imageUrl = $img.attr('src') || $img.attr('data-src');
-          if (imageUrl && !imageUrl.startsWith('http')) {
-            imageUrl = 'https:' + (imageUrl.startsWith('//') ? imageUrl : '//' + imageUrl);
-          }
-        }
+  // Get image URL - check both link and container
+let imageUrl = null;
+let $img = $link.find('img').first();
+
+// If not in link, check the container
+if (!$img.length) {
+  $img = $container.find('img').first();
+}
+
+if ($img.length) {
+  imageUrl = $img.attr('src') || $img.attr('data-src');
+  // Image URLs are already absolute on Marathon Sports
+  if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('//')) {
+    imageUrl = 'https://www.marathonsports.com' + (imageUrl.startsWith('/') ? '' : '/') + imageUrl;
+  }
+}
 
         // Mark this URL as seen
         seenUrls.add(fullUrl);
