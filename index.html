@@ -1001,23 +1001,21 @@
       <img src="/images/logo.svg" class="brand-logo" alt="Shoe Beagle Logo" id="logoLink">
     </div>
 
-  <form id="search-form" method="POST">
+ <form id="search-form" method="POST">
   <div class="input-wrapper">
-        <input id="brand" type="text" placeholder="Enter Shoe Brand" autocomplete="off" required />
-        <span class="paw rock" id="brandPaw">🐾</span>
-        <div id="brandSuggestions" class="suggestions"></div>
-      </div>
-
-      <div class="input-wrapper">
-<input id="model" type="text" placeholder="Enter Shoe Model" autocomplete="off" />    
-        <span class="paw hidden" id="modelPaw">🐾</span>
-        <div id="modelSuggestions" class="suggestions"></div>
-      </div>
-
-      <div class="button-wrapper">
-        <button id="fetchBtn" type="submit" class="search-btn"><span class="magnify-icon">🔍</span> Fetch!</button>
-      </div>
-    </form>
+    <input id="brand" type="text" placeholder="Enter Shoe Brand" autocomplete="off" />
+    <div id="brandSuggestions" class="suggestions"></div>
+  </div>
+  
+  <div class="input-wrapper">
+    <input id="model" type="text" placeholder="Enter Shoe Model" autocomplete="off" />
+    <div id="modelSuggestions" class="suggestions"></div>
+  </div>
+  
+  <div class="button-wrapper">
+    <button id="fetchBtn" type="submit" class="search-btn"><span class="magnify-icon">🔍</span> Fetch!</button>
+  </div>
+</form>
 
    <div class="tagline" id="tagline"></div>
     <div class="status-message" id="statusMessage"></div>
@@ -1030,7 +1028,7 @@
       </div>
 
       <div class="results" id="results"></div>
-      <p class="disclaimer">Shoe Beagle does not sell products directly and is not responsible for changes in price, availability, or shipping terms on retailer sites.</p>
+      <p class="disclaimer">Shoe Beagle does not sell products nor is it responsible for changes in price, availability, or shipping terms on retailer sites.</p>
 
       <div class="alert-wrapper" id="alertWrapper" style="display:none;">
         <button class="alert-prompt-btn" id="alertPromptBtn"><span class="bell-icon">🔔</span> Set Price Alert?</button>
@@ -2217,11 +2215,10 @@ async function loadDailyDeals() {
   const brandTyped = brandInput.value.trim();
   const modelTyped = modelInput.value.trim();
   
-  if (!brandTyped || !modelTyped) {
-    statusMessageEl.textContent = "Please enter both brand and model.";
-    updatePaws();
-    return;
-  }
+if (!brandTyped && !modelTyped) {
+  statusMessageEl.textContent = "Please enter a brand, model, or both.";
+  return;
+}
   
   currentSearch = { brand: brandTyped, model: modelTyped };
   
