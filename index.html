@@ -1328,8 +1328,7 @@
     const brandSuggestions = document.getElementById("brandSuggestions");
     const modelSuggestions = document.getElementById("modelSuggestions");
 
-    const brandPaw = document.getElementById("brandPaw");
-    const modelPaw = document.getElementById("modelPaw");
+
 
     const mainContent = document.getElementById("mainContent");
     const alertsDashboard = document.getElementById("alertsDashboard");
@@ -1892,31 +1891,10 @@ function resetModelState() {
   brandSelected = false;
 }
 
-    function confirmBrandSelection() {
-      if (!modelInput.disabled) {
-        modelInput.placeholder = "Enter Shoe Model";
-        brandSelected = true;
-        brandPaw.classList.add("hidden");
-        brandPaw.classList.remove("rock");
-        modelPaw.classList.remove("hidden");
-        modelPaw.classList.add("rock");
-      }
-    }
+  
+   
 
-    function updateFetchReady() {
-      const brandKey = resolveBrand();
-      const modelHasText = !!modelInput.value.trim();
-      const ready = !!brandKey && !modelInput.disabled && modelHasText;
-      fetchBtn.classList.toggle("ready", ready);
-    }
-
-    function updatePaws() {
-      if (brandInput.value.trim()) {
-        brandPaw.classList.add("hidden");
-      } else if (!brandSelected) {
-        brandPaw.classList.remove("hidden");
-        brandPaw.classList.add("rock");
-      }
+   
 
       if (brandSelected && !modelInput.disabled) {
         if (!modelInput.value.trim()) {
@@ -1931,7 +1909,6 @@ function resetModelState() {
         modelPaw.classList.remove("rock");
       }
 
-      updateFetchReady();
     }
 
     function updateAlertSubmitButton() {
@@ -1985,7 +1962,7 @@ function showHome() {
     logoLink.addEventListener("click", showHome);
 
     resetModelState();
-    updatePaws();
+     
     dailyDeals.style.display = "block";
 
 brandInput.addEventListener("input", () => {
@@ -1995,9 +1972,9 @@ brandInput.addEventListener("input", () => {
     brandInput.value = value;
     brandSuggestions.style.display = "none";
     setTimeout(() => modelInput.focus(), 0);
-    updatePaws();
+     
   });
-  updatePaws();
+   
 });
 
 
@@ -2009,10 +1986,8 @@ brandInput.addEventListener("keydown", (e) => {
     const typed = brandInput.value.trim();
     if (typed) {
       e.preventDefault();
-      enableModel();
-      confirmBrandSelection();
       modelInput.focus();
-      updatePaws();
+       
     }
   }
 });
@@ -2022,7 +1997,7 @@ modelInput.addEventListener("input", () => {
   const text = modelInput.value.trim();
   if (!brandKey || !brandModels[brandKey]) {
     modelSuggestions.style.display = "none";
-    updatePaws();
+     
     return;
   }
   const models = brandModels[brandKey];
@@ -2031,9 +2006,9 @@ modelInput.addEventListener("input", () => {
     modelInput.value = value;
     modelSuggestions.style.display = "none";
     setTimeout(() => fetchBtn.focus(), 0);
-    updatePaws();
+     
   });
-  updatePaws();
+   
 });
 
 brandInput.addEventListener("click", () => {
@@ -2248,12 +2223,15 @@ if (!brandTyped && !modelTyped) {
   
   alertProductName.textContent = `${brandTyped} ${modelTyped}`;
   
-  const query = `${brandTyped} ${modelTyped}`;
-  let data;
-  
-  try {
-    const res = await fetch("/api/search?" + new URLSearchParams({ query }));
-    data = await res.json();
+const params = new URLSearchParams();
+if (brandTyped) params.append('brand', brandTyped);
+if (modelTyped) params.append('model', modelTyped);
+
+let data;
+
+try {
+  const res = await fetch("/api/search?" + params.toString());
+  data = await res.json();
   } catch (err) {
     console.error("Search error:", err);
     statusMessageEl.textContent = "Search failed. Please try again.";
