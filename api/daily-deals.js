@@ -197,7 +197,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    // 1) TOP 20 BY PERCENTAGE OFF → Pick random 4
+  // 1) TOP 20 BY PERCENTAGE OFF → Pick random 4
 const top20ByPercent = [...workingPool]
   .sort((a, b) => {
     const pctA = a.originalPrice && a.price 
@@ -212,11 +212,12 @@ const top20ByPercent = [...workingPool]
 
 const byPercent = getRandomSample(top20ByPercent, Math.min(4, top20ByPercent.length));
 
-// 2) TOP 20 BY DOLLAR SAVINGS → Pick random 4 (excluding already picked)
-const alreadyPicked = new Set(byPercent);
+// Track picked URLs instead of objects
+const pickedUrls = new Set(byPercent.map(d => d.url));
 
+// 2) TOP 20 BY DOLLAR SAVINGS → Pick random 4 (excluding already picked)
 const top20ByDollar = [...workingPool]
-  .filter(d => !alreadyPicked.has(d))
+  .filter(d => !pickedUrls.has(d.url))  // Filter by URL
   .sort((a, b) => {
     const savingsA = (a.originalPrice || 0) - (a.price || 0);
     const savingsB = (b.originalPrice || 0) - (b.price || 0);
@@ -226,11 +227,11 @@ const top20ByDollar = [...workingPool]
 
 const byDollar = getRandomSample(top20ByDollar, Math.min(4, top20ByDollar.length));
 
-// Update the set - FIXED THIS LINE
-byDollar.forEach(d => alreadyPicked.add(d)); // ✅ Correct way to add multiple items
+// Add new picks to URL set
+byDollar.forEach(d => pickedUrls.add(d.url));
 
 // 3) 4 RANDOM from remaining (excluding already picked)
-const remaining = workingPool.filter(d => !alreadyPicked.has(d));
+const remaining = workingPool.filter(d => !pickedUrls.has(d.url));  // Filter by URL
 const randomPicks = getRandomSample(remaining, Math.min(4, remaining.length));
 
     // Combine all deals (might be less than 12 if pool is small)
