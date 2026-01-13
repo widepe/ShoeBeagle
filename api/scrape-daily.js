@@ -576,7 +576,7 @@ function parseBrandModel(title) {
     'HOKA', 'Hylo Athletics', 'Karhu', 'Merrell', 'Mizuno', 'New Balance', 
     'Newton', 'Nike', 'norda', 'Nnormal', 'On', 'On Running', 'Oofos', 'Puma', 'Reebok', 'Salomon', 
     'Saucony', 'Saysh', 'Skechers', 'Skora', 'The North Face', 'Topo', 'Topo Athletic', 'Tyr', 
-    'Under Armour', 'Vibram', 'VJ Shoes', 'X-Bionic', 'Xero'
+    'Under Armour', 'Vibram', 'VJ', 'VJ Shoes', 'VJ', 'X-Bionic', 'Xero'
   ];
 
   let brand = 'Unknown';
