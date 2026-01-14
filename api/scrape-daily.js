@@ -103,14 +103,23 @@ async function fetchZapposDeals() {
  * Runs the REI Outlet Apify actor and returns its dataset as Deal[].
  */
 async function fetchReiDeals() {
+  console.log('[REI DEBUG] fetchReiDeals called');
+  
   if (!process.env.APIFY_REI_ACTOR_ID) {
+    console.error('[REI DEBUG] APIFY_REI_ACTOR_ID is not set!');
     throw new Error('APIFY_REI_ACTOR_ID is not set');
   }
+
+  console.log('[REI DEBUG] Actor ID:', process.env.APIFY_REI_ACTOR_ID);
+  console.log('[REI DEBUG] Starting actor run...');
 
   // 1. Start a run of your REI actor and wait for it to finish
   const run = await apifyClient
     .actor(process.env.APIFY_REI_ACTOR_ID)
     .call({});
+
+  console.log('[REI DEBUG] Actor run completed. Run ID:', run.id);
+  console.log('[REI DEBUG] Default dataset ID:', run.defaultDatasetId);
 
   // 2. Read all items from default dataset for this run
   const allItems = [];
@@ -118,15 +127,21 @@ async function fetchReiDeals() {
   const limit = 500; // plenty for REI Outlet
 
   while (true) {
+    console.log('[REI DEBUG] Fetching items. Offset:', offset, 'Limit:', limit);
+    
     const { items, total } = await apifyClient
       .dataset(run.defaultDatasetId)
       .listItems({ offset, limit });
 
+    console.log('[REI DEBUG] Received', items.length, 'items. Total in dataset:', total);
+    
     allItems.push(...items);
     offset += items.length;
 
     if (offset >= total || items.length === 0) break;
   }
+
+  console.log('[REI DEBUG] Total items fetched:', allItems.length);
 
   // Map REI actor items into your unified Deal shape
   const mapped = allItems.map((item) => {
@@ -151,6 +166,7 @@ async function fetchReiDeals() {
     };
   });
 
+  console.log('[REI DEBUG] Mapped', mapped.length, 'deals');
   return mapped;
 }
 
@@ -238,14 +254,27 @@ module.exports = async (req, res) => {
       console.error('[SCRAPER] Road Runner Sports failed:', error.message);
     }
 
-    // Scrape REI Outlet via Apify
+    // Scrape REI Outlet via Apify - ENHANCED ERROR LOGGING
     try {
+      console.log('[SCRAPER] ====== STARTING REI OUTLET SCRAPE ======');
+      console.log('[SCRAPER] REI Actor ID:', process.env.APIFY_REI_ACTOR_ID);
+      console.log('[SCRAPER] Apify Token present:', !!process.env.APIFY_TOKEN);
+      
       await randomDelay(); // politeness delay
+      console.log('[SCRAPER] Calling fetchReiDeals()...');
+      
       const reiDeals = await fetchReiDeals();
+      
+      console.log('[SCRAPER] fetchReiDeals returned:', reiDeals.length, 'deals');
       allDeals.push(...reiDeals);
       scraperResults['REI Outlet'] = { success: true, count: reiDeals.length };
       console.log(`[SCRAPER] REI Outlet: ${reiDeals.length} deals`);
+      console.log('[SCRAPER] ====== REI OUTLET SCRAPE COMPLETE ======');
     } catch (error) {
+      console.error('[SCRAPER] ====== REI OUTLET SCRAPE FAILED ======');
+      console.error('[SCRAPER] REI Outlet error type:', error.constructor.name);
+      console.error('[SCRAPER] REI Outlet error message:', error.message);
+      console.error('[SCRAPER] REI Outlet error stack:', error.stack);
       scraperResults['REI Outlet'] = { success: false, error: error.message };
       console.error('[SCRAPER] REI Outlet failed:', error.message);
     }    
