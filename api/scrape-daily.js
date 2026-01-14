@@ -98,6 +98,65 @@ async function fetchZapposDeals() {
 
   return allItems;
 }
+
+/**
+ * Runs the REI Outlet Apify actor and returns its dataset as Deal[].
+ */
+async function fetchReiDeals() {
+  if (!process.env.APIFY_REI_ACTOR_ID) {
+    throw new Error('APIFY_REI_ACTOR_ID is not set');
+  }
+
+  // 1. Start a run of your REI actor and wait for it to finish
+  const run = await apifyClient
+    .actor(process.env.APIFY_REI_ACTOR_ID)
+    .call({});
+
+  // 2. Read all items from default dataset for this run
+  const allItems = [];
+  let offset = 0;
+  const limit = 500; // plenty for REI Outlet
+
+  while (true) {
+    const { items, total } = await apifyClient
+      .dataset(run.defaultDatasetId)
+      .listItems({ offset, limit });
+
+    allItems.push(...items);
+    offset += items.length;
+
+    if (offset >= total || items.length === 0) break;
+  }
+
+  // Map REI actor items into your unified Deal shape
+  const mapped = allItems.map((item) => {
+    const brand = item.brand || 'Unknown';
+    const model = item.model || '';
+    const title =
+      item.title ||
+      `${brand} ${model}`.trim() ||
+      'REI Outlet Shoe';
+
+    return {
+      title,
+      brand,
+      model,
+      price: item.price ?? null,
+      originalPrice: item.originalPrice ?? null,
+      store: item.store || 'REI Outlet',
+      url: item.url,
+      image: item.image ?? null,
+      discount: item.discount ?? null,
+      scrapedAt: new Date().toISOString(),
+    };
+  });
+
+  return mapped;
+}
+
+
+
+
 /**
  * Main handler - triggered by Vercel Cron
  */
@@ -178,6 +237,18 @@ module.exports = async (req, res) => {
       scraperResults['Road Runner Sports'] = { success: false, error: error.message };
       console.error('[SCRAPER] Road Runner Sports failed:', error.message);
     }
+
+    // Scrape REI Outlet via Apify
+    try {
+      await randomDelay(); // politeness delay
+      const reiDeals = await fetchReiDeals();
+      allDeals.push(...reiDeals);
+      scraperResults['REI Outlet'] = { success: true, count: reiDeals.length };
+      console.log(`[SCRAPER] REI Outlet: ${reiDeals.length} deals`);
+    } catch (error) {
+      scraperResults['REI Outlet'] = { success: false, error: error.message };
+      console.error('[SCRAPER] REI Outlet failed:', error.message);
+    }    
 
 // Scrape Zappos via Apify
     try {
