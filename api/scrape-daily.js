@@ -62,8 +62,42 @@ async function fetchRoadRunnerDeals() {
 
   return allItems;
 }
+/**
+ * Runs the Zappos Apify actor and returns its dataset as Deal[].
+ */
+async function fetchZapposDeals() {
+  if (!process.env.APIFY_ZAPPOS_ACTOR_ID) {
+    throw new Error('APIFY_ZAPPOS_ACTOR_ID is not set');
+  }
 
+  // 1. Start a run of your Zappos actor and wait for it to finish
+  const run = await apifyClient
+    .actor(process.env.APIFY_ZAPPOS_ACTOR_ID)
+    .call({});
 
+  // 2. Read all items from default dataset for this run
+  const allItems = [];
+  let offset = 0;
+  const limit = 500;
+
+  while (true) {
+    const { items, total } = await apifyClient
+      .dataset(run.defaultDatasetId)
+      .listItems({ offset, limit });
+
+    allItems.push(...items);
+    offset += items.length;
+
+    if (offset >= total || items.length === 0) break;
+  }
+
+  // Safety: ensure store is set
+  for (const d of allItems) {
+    if (!d.store) d.store = 'Zappos';
+  }
+
+  return allItems;
+}
 /**
  * Main handler - triggered by Vercel Cron
  */
@@ -132,8 +166,7 @@ module.exports = async (req, res) => {
       scraperResults["Marathon Sports"] = { success: false, error: error.message };
       console.error("[SCRAPER] Marathon Sports failed:", error.message);
  }
-
-
+    
     // Scrape Road Runner Sports via Apify
     try {
       await randomDelay(); // keep your politeness delay between sites
@@ -146,8 +179,17 @@ module.exports = async (req, res) => {
       console.error('[SCRAPER] Road Runner Sports failed:', error.message);
     }
 
-
-    
+// Scrape Zappos via Apify
+    try {
+      await randomDelay(); // keep your politeness delay between sites
+      const zapposDeals = await fetchZapposDeals();
+      allDeals.push(...zapposDeals);
+      scraperResults['Zappos'] = { success: true, count: zapposDeals.length };
+      console.log(`[SCRAPER] Zappos: ${zapposDeals.length} deals`);
+    } catch (error) {
+      scraperResults['Zappos'] = { success: false, error: error.message };
+      console.error('[SCRAPER] Zappos failed:', error.message);
+    }    
     // Calculate statistics
       const dealsByStore = {};
       allDeals.forEach(deal => {
