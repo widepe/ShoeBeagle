@@ -12,15 +12,12 @@
     }
 
     /* Wrap the image so we can pin the badge to it */
-.card-image-wrapper {
-  position: relative;
-  width: 100%;
-  height: 150px;     /* visible window */
-  overflow: hidden;  /* crop extra */
-  display: flex;
-  align-items: center;   /* vertical center */
-  justify-content: center; /* horizontal center */
-}
+    /* Wrap the image so we can pin the badge to it */
+    .card-image-wrapper {
+      position: relative;
+      width: 100%;
+    }
+
 
 
     /* Discount badge in corner of image */
@@ -331,16 +328,16 @@
       color: inherit;
       height: 100%;
     }
+    .card img {
+      width: 100%;
+      border-radius: 0.6rem;
+      object-fit: contain;
+      height: 150px;
+      background: white;
+      border: 1px solid #214478ff;
+      box-sizing: border-box;
+    }
 
- .card img {
-  display: block;
-  width: 100%;
-  height: auto;
-  background: white;
-  border: 1px solid #214478ff;
-  border-radius: 0.6rem;
-  box-sizing: border-box;
-}
 
 
     .card-title {
