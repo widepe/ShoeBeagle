@@ -346,10 +346,7 @@
   box-sizing: border-box;
 }
 
-
-
-
-
+/*
 .card-title {
   font-size: 0.92rem;
   font-weight: 600;
@@ -357,8 +354,17 @@
   display: -webkit-box;
   -webkit-line-clamp: 3;     /* number of visible lines */
   -webkit-box-orient: vertical;
+} */
+.card-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;    /* allow up to 4 lines */
+  -webkit-box-orient: vertical;
+  overflow: hidden;         /* hide extra text */
+  text-overflow: ellipsis;  /* optional ... */
+  min-height: calc(1.2em * 4);  /* reserve room for 4 lines */
 }
-
     .card-store {
       font-size: 0.82rem;
       color: #49543a;
