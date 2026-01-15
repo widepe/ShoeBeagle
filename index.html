@@ -11,11 +11,17 @@
       position: relative;
     }
 
-    /* Wrap the image so we can pin the badge to it */
-    .card-image-wrapper {
-      position: relative;
-      width: 100%;
-    }
+   .card-image-wrapper {
+  position: relative;
+  width: 100%;
+  height: 150px;              /* fixed visible height */
+  overflow: hidden;           /* clip anything that overflows */
+  border-radius: 0.6rem;
+  background: white;
+  border: 1px solid #214478ff;
+  box-sizing: border-box;
+}
+
 
     /* Discount badge in corner of image */
     .discount-badge {
@@ -339,16 +345,15 @@
       height: 100%;
     }
 
-    .card img {
+.card img {
   width: 100%;
-  height: 150px;          /* fixed height box */
-  object-fit: cover;      /* fill box, crop overflow */
-  object-position: center;/* center the crop */
-  border-radius: 0.6rem;
-  background: white;
-  border: 1px solid #214478ff;
-  box-sizing: border-box;
+  height: 100%;        /* fill the wrapper’s 150px */
+  object-fit: cover;   /* fill + crop */
+  object-position: center;
+  display: block;      /* remove inline-img gaps */
+  /* no border/background here – wrapper handles that now */
 }
+
 
 
 .card-title {
