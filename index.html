@@ -310,7 +310,7 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
-  width: 100%;
+  width: fit content;
   max-width: 350px;
   margin: 0 auto;
   justify-items: center;
@@ -979,16 +979,19 @@
 @media (min-width: 600px) {
   .card-display {
     grid-template-columns: repeat(3, 1fr);
-    max-width: 850px;
+    width: fit-content;
+    max-width:350;
+    margin: 0;
     justify-items: center;  }
 }
 
 /* DESKTOP: 4 columns (900px+) */
-@media (min-width: 900px) {
+@media (min-width: 600px) {
   .card-display {
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1.25rem;
-    max-width: 850px;
+    grid-template-columns: repeat(3, 1fr);
+    width: fit-content;        /* CHANGED */
+    max-width: none;           /* CHANGED - Remove max-width restriction */
+    margin: 0 auto;
     justify-items: center;  }
 }
   </style>
