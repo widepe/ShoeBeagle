@@ -12,10 +12,12 @@
     }
 
      /* Wrap the image so we can pin the badge to it */
-    .card-image-wrapper {
-      position: relative;
-      width: 100%;
-    }
+   .card-image-wrapper {
+  position: relative;
+  width: 100%;
+  height: 150px;
+  overflow: hidden;
+}
 
 
 
@@ -329,12 +331,12 @@
     }
 
 .card img {
+  display: block;
   width: 100%;
-  border-radius: 0.6rem;
-  height: 150px;               /* taller than 150px wrapper */
-  object-fit: cover;           /* fill width, crop excess */
+  height: auto;
   background: white;
   border: 1px solid #214478ff;
+  border-radius: 0.6rem;
   box-sizing: border-box;
 }
 
