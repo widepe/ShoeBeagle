@@ -310,12 +310,26 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
-  width: fit content;
+  width: fit-content;
   max-width: 350px;
   margin: 0 auto;
   justify-items: center;
 }
 
+
+.card {
+  background: #d9e1ebff;
+  border: 2px solid #214478ff;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  box-sizing: border-box;
+  width: 300px;           /* Fixed width */
+  margin: 0 auto;         /* Centers the card */
+}
+    
     /* Unified card style: search + daily deals */
 .card img {
   width: 100%;
