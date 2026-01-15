@@ -2337,9 +2337,13 @@ statusMessageEl.textContent = `Top ${results.length} deal${results.length === 1 
 <!-- TEMPORARY STORE SCANNER - FOR TESTING ONLY -->
 <!-- Remove this entire section when done scanning -->
 <!-- ============================================ -->
-<div style="position: fixed; top: 10px; right: 10px; background: white; padding: 20px; border: 2px solid #333; z-index: 9999; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-  <h3 style="margin: 0 0 10px 0;">Store Scanner (Temp)</h3>
-  <select id="tempStoreFilter" style="width: 200px; padding: 8px; font-size: 14px;">
+<div style="position: fixed; top: 10px; right: 10px; background: white; padding: 15px; border: 2px solid #333; z-index: 9999; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 300px;">
+  <h3 style="margin: 0 0 10px 0; font-size: 1.1rem;">Store Scanner (Temp)</h3>
+  
+  <!-- Debug info -->
+  <div id="debugInfo" style="font-size: 11px; background: #f0f0f0; padding: 8px; margin-bottom: 10px; border-radius: 4px; max-height: 100px; overflow-y: auto;"></div>
+  
+  <select id="tempStoreFilter" style="width: 100%; padding: 8px; font-size: 14px; margin-bottom: 10px;">
     <option value="">Select a store...</option>
     <option value="Running Warehouse">Running Warehouse</option>
     <option value="Fleet Feet">Fleet Feet</option>
@@ -2350,48 +2354,154 @@ statusMessageEl.textContent = `Top ${results.length} deal${results.length === 1 
     <option value="REI Outlet">REI Outlet</option>
     <option value="Zappos">Zappos</option>
   </select>
-  <div id="tempStoreResults" style="margin-top: 15px; max-height: 500px; overflow-y: auto; font-size: 12px;"></div>
+  <button id="tempCloseScanner" style="width: 100%; padding: 6px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; margin-bottom: 10px;">Close Scanner</button>
+  <div id="tempStoreResults" style="max-height: calc(100vh - 300px); overflow-y: auto;"></div>
 </div>
 
+<style>
+/* Temp scanner card styles - match your main card styles */
+#tempStoreResults .scanner-card {
+  background: #d9e1ebff;
+  border: 2px solid #214478ff;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  box-sizing: border-box;
+  position: relative;
+}
+
+#tempStoreResults .scanner-card.hot-deal {
+  background: rgba(255, 204, 170, 1);
+}
+
+#tempStoreResults .scanner-card-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+#tempStoreResults .scanner-card-image-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+#tempStoreResults .scanner-card img {
+  width: 100%;
+  height: 150px;
+  border-radius: 0.6rem;
+  object-fit: cover;
+  object-position: center;
+  background: #fafafa;
+  border: 1px solid #214478ff;
+  box-sizing: border-box;
+}
+
+#tempStoreResults .scanner-discount-badge {
+  position: absolute;
+  top: 0.35rem;
+  left: 0.35rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #e87a00, #b85000);
+  color: #ffffff;
+}
+
+#tempStoreResults .scanner-discount-badge.hot-badge {
+  background: linear-gradient(135deg, #ff4b4b, #b00020);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 14px rgba(255, 0, 0, 0.9);
+}
+
+#tempStoreResults .scanner-card-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.3;
+  height: calc(1.3em * 4);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+
+#tempStoreResults .scanner-card-store {
+  font-size: 0.82rem;
+  color: #49543a;
+}
+
+#tempStoreResults .scanner-card-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  font-size: 0.95rem;
+}
+
+#tempStoreResults .scanner-price {
+  font-weight: 700;
+  color: #214478ff;
+}
+
+#tempStoreResults .scanner-card-original {
+  text-decoration: line-through;
+  font-size: 0.8rem;
+  color: #777;
+}
+</style>
+
 <script>
-// TEMPORARY STORE SCANNER - Remove when done
-document.getElementById('tempStoreFilter').addEventListener('change', async (e) => {
-  const store = e.target.value;
+// TEMPORARY STORE SCANNER - DIAGNOSTIC VERSION
+(function() {
+  const storeFilter = document.getElementById('tempStoreFilter');
   const resultsDiv = document.getElementById('tempStoreResults');
+  const closeBtn = document.getElementById('tempCloseScanner');
+  const debugInfo = document.getElementById('debugInfo');
   
-  if (!store) {
-    resultsDiv.innerHTML = '';
-    return;
-  }
+  let allDeals = [];
   
-  resultsDiv.innerHTML = '<p>Loading...</p>';
+  // Close button functionality
+  closeBtn.addEventListener('click', () => {
+    const scanner = closeBtn.closest('div[style*="position: fixed"]');
+    if (scanner) scanner.remove();
+  });
   
-  try {
-    // Fetch deals from blob - UPDATE THIS URL with your actual blob URL
-    const response = await fetch('https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json');
-    const data = await response.json();
-    
-    // Filter by selected store
-    const storeDeals = data.deals.filter(deal => deal.store === store);
-    
-    // Display results
-    resultsDiv.innerHTML = `
-      <strong>${storeDeals.length} deals from ${store}</strong><br><br>
-      ${storeDeals.map(deal => `
-        <div style="margin-bottom: 10px; padding: 8px; background: #f5f5f5; border-left: 3px solid #333;">
-          <strong>${deal.brand} ${deal.model}</strong><br>
-          $${deal.price}${deal.originalPrice ? ` <s>$${deal.originalPrice}</s>` : ''}<br>
-          <a href="${deal.url}" target="_blank" style="font-size: 11px;">View →</a>
-        </div>
-      `).join('')}
-    `;
-  } catch (error) {
-    resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
-  }
-});
-</script>
-<!-- ============================================ -->
-<!-- END TEMPORARY STORE SCANNER -->
-<!-- ============================================ -->  
+  // Load data on page load and show store counts
+  (async function loadData() {
+    try {
+      const response = await fetch('https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json');
+      const data = await response.json();
+      allDeals = data.deals || [];
+      
+      // Count deals by store
+      const storeCounts = {};
+      allDeals.forEach(deal => {
+        const store = deal.store || 'Unknown';
+        storeCounts[store] = (storeCounts[store] || 0) + 1;
+      });
+      
+      // Display debug info
+      const storeList = Object.entries(storeCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([store, count]) => `${store}: ${count}`)
+        .join('<br>');
+      
+      debugInfo.innerHTML = `<strong>Stores in data:</strong><br>${storeList}`;
+      
+    } catch (error) {
+      debugInfo.innerHTML = `<strong style="color: red;">Error loading data:</strong><br>${error.message}`;
+    }
+  })();
+  
+  // Helper: Calculate discount info (same as your main code)
+  function getDiscountInfo(item) {
+    const price = Number(item.price);
+    const original = item.originalPrice != null ? Number(item.originalPrice) : NaN;
+
+    if (
+      Number.isFinite(pric  
 </body>
 </html>
