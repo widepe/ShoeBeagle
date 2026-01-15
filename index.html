@@ -339,15 +339,16 @@
       height: 100%;
     }
 
-    .card img {
-      width: 100%;
-      border-radius: 0.6rem;
-      object-fit: contain;
-      height: 150px;
-      background: #fafafa;
-      border: 1px solid #214478ff;
-      box-sizing: border-box;
-    }
+.card img {
+  width: 100%;
+  height: 200px;              /* Fixed height */
+  border-radius: 0.6rem;
+  object-fit: cover;          /* CHANGED: cover clips equally */
+  object-position: center;    /* Centers the image for equal clipping */
+  background: #fafafa;
+  border: 1px solid #214478ff;
+  box-sizing: border-box;
+}
 
 .card-title {
   font-size: 0.92rem;
