@@ -312,7 +312,7 @@
   gap: 1rem;
   width: fit-content;
   max-width: 350px;
-  margin: 0 auto;
+  margin: 0 auto;           /* always center horizontally */
   justify-items: center;
 }
 
@@ -991,20 +991,15 @@
 @media (min-width: 600px) {
   .card-display {
     grid-template-columns: repeat(3, 1fr);
-    width: fit-content;
-    max-width:350;
-    margin: 0;
-    justify-items: center;  }
+    max-width: none;
+  }
 }
 
 /* DESKTOP: 4 columns (900px+) */
-@media (min-width: 600px) {
+@media (min-width: 900px) {
   .card-display {
-    grid-template-columns: repeat(3, 1fr);
-    width: fit-content;        /* CHANGED */
-    max-width: none;           /* CHANGED - Remove max-width restriction */
-    margin: 0 auto;
-    justify-items: center;  }
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
   </style>
 </head>
