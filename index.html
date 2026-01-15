@@ -318,13 +318,11 @@
 
     /* Unified card style: search + daily deals */
 .card img {
-  width: calc(100% - 16px);   /* 16px narrower than container */
+  width: 100%;
   height: 160px;
-  margin: 0 auto;             /* Centers the image horizontally */
-  display: block;             /* Needed for margin: 0 auto to work */
   border-radius: 0.6rem;
-  object-fit: cover;          /* Fills the space, clips top/bottom equally */
-  object-position: center;    /* Centers image for equal clipping */
+  object-fit: contain;
+  object-position: center;
   background: white;
   border: 1px solid #214478ff;
   box-sizing: border-box;
