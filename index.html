@@ -305,13 +305,14 @@
       text-align: center;
     }
 
-.daily-deals-grid {
+/* Card display grid */
+.card-display {
   display: grid;
-  grid-template-columns: 1fr; /* Mobile: 1 column */
+  grid-template-columns: 1fr;
   gap: 1rem;
   width: 100%;
-  max-width: 350px;      /* Prevents stretching on landscape phones */
-  margin: 0 auto;        /* Centers the column */
+  max-width: 350px;
+  margin: 0 auto;
 }
 
     /* Unified card style: search + daily deals */
@@ -392,16 +393,6 @@
       margin-top: 0.05rem;
     }
 
-.results {
-  margin-top: 1.0rem;
-  display: grid;
-  grid-template-columns: 1fr; /* Mobile: 1 column */
-  gap: 1rem;
-  width: 100%;
-  max-width: 350px;      /* Prevents stretching on landscape phones */
-  margin-left: auto;     /* Centers the column */
-  margin-right: auto;
-}
 
     .disclaimer {
       font-size: 0.8rem;
@@ -983,20 +974,18 @@
     }
 /* TABLET: 3 columns (600px+) */
 @media (min-width: 600px) {
-  .daily-deals-grid,
-  .results {
+  .card-display {
     grid-template-columns: repeat(3, 1fr);
-    max-width: 850px;   
+    max-width: 850px;
   }
 }
 
 /* DESKTOP: 4 columns (900px+) */
 @media (min-width: 900px) {
-  .daily-deals-grid,
-  .results {
+  .card-display {
     grid-template-columns: repeat(4, 1fr);
     gap: 1.25rem;
-    max-width: 850px;   
+    max-width: 850px;
   }
 }
   </style>
@@ -1037,10 +1026,10 @@
 
       <div class="daily-deals" id="dailyDeals">
         <div class="daily-deals-header">Marty's Daily Deals</div>
-        <div class="daily-deals-grid" id="dailyDealsGrid"></div>
+        <div class="card-display" id="dailyDealsGrid"></div>
       </div>
 
-      <div class="results" id="results"></div>
+      <div class="card-display" id="results"></div>
       <p class="disclaimer">Shoe Beagle does not sell products nor is it responsible for changes in price, availability, or shipping terms on retailer sites.</p>
 
       <div class="alert-wrapper" id="alertWrapper" style="display:none;">
