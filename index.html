@@ -292,10 +292,11 @@
 
     /* Daily Deals Section */
     .daily-deals {
-      width: 100%;
-      max-width: 850px;
-      margin-top: 1.0rem;
-    }
+  width: 100%;
+  max-width: 850px;
+  margin: 1.0rem auto 0;   /* horizontally center */
+}
+
 
     .daily-deals-header {
       font-size: 1.8rem;
@@ -308,13 +309,13 @@
 /* Card display grid */
 .card-display {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1rem;
-  width: fit-content;
-  max-width: 350px;
-  margin: 0 auto;           /* always center horizontally */
-  justify-items: center;
+  max-width: 900px;
+  margin: 0 auto;         /* always centered */
+  justify-items: stretch; /* let cards fill their column */
 }
+
 
 
 .card {
@@ -603,16 +604,17 @@
     .alert-existing-info strong { color: #214478ff; }
 
     /* My Alerts dashboard */
-    .alerts-dashboard {
-      width: 100%;
-      max-width: 850px;
-      background: #ffffffc9;
-      border: 2px solid #214478ff;
-      border-radius: 0.75rem;
-      padding: 1.25rem 1.25rem 1.5rem;
-      margin-top: 1.0rem;
-      box-sizing: border-box;
-    }
+ .alerts-dashboard {
+  width: 100%;
+  max-width: 850px;
+  background: #ffffffc9;
+  border: 2px solid #214478ff;
+  border-radius: 0.75rem;
+  padding: 1.25rem 1.25rem 1.5rem;
+  margin: 1.0rem auto 0;   /* horizontally center */
+  box-sizing: border-box;
+}
+
 
     .alerts-title {
       color: #214478ff;
@@ -987,20 +989,7 @@
     .modal-close-btn:hover {
       background: #1a3661;
     }
-/* TABLET: 3 columns (600px+) */
-@media (min-width: 600px) {
-  .card-display {
-    grid-template-columns: repeat(3, 1fr);
-    max-width: none;
-  }
-}
 
-/* DESKTOP: 4 columns (900px+) */
-@media (min-width: 900px) {
-  .card-display {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
   </style>
 </head>
 
