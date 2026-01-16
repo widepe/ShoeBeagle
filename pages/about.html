@@ -1,1 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>About – Shoe Beagle</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
+  <style>
+    body {
+      margin: 0;
+      padding: 2rem 1rem;
+      background: #f4ede3ff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #2d2d2d;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 850px;
+      background: #ffffff;
+      border-radius: 0.75rem;
+      border: 2px solid #214478ff;
+      padding: 1.75rem 2rem;
+      box-sizing: border-box;
+      line-height: 1.6;
+    }
+
+    .logo {
+      display: block;
+      width: 300px;
+      max-width: 60%;
+      margin: 0 auto 1rem;
+      cursor: pointer;
+      transition: opacity 0.2s ease;
+    }
+    .logo:hover {
+      opacity: 0.9;
+    }
+
+    h2 {
+      text-align: center;
+      margin-top: 0.5rem;
+      margin-bottom: 1rem;
+      font-size: 1.8rem;
+      color: #214478ff;
+    }
+
+    p {
+      margin: 0.7rem 0;
+      font-size: 1rem;
+      color: #2d2d2d;
+    }
+
+    .marty {
+      display: block;
+      width: 200px;
+      max-width: 80%;
+      margin: 1.2rem auto 1rem;
+    }
+
+    .home-btn {
+      display: block;
+      margin: 1.5rem auto 0;
+      padding: 0.6rem 1.25rem;
+      border-radius: 999px;
+      border: 1px solid #214478ff;
+      background: #214478ff;
+      color: white;
+      font-size: 0.95rem;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      font-weight: 600;
+      transition: background 0.2s ease;
+      width: max-content;
+    }
+
+    .home-btn:hover {
+      background: #1a3661;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+
+    <!-- Clickable logo → home -->
+    <a href="/">
+      <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="logo">
+    </a>
+
+    <h2>About Us</h2>
+
+    <p>Shoe Beagle is a price comparison website dedicated to helping runners find the best deals on running shoes. We provide side-by-side price comparisons across multiple retailers, allowing users to search by brand and model to find the lowest prices.</p>
+
+    <p>Our platform features price alerts, real-time deal updates, and direct links to merchant sites where users can complete their purchases.</p>
+
+    <p>We do our best to sniff out the best running shoe deals for you!</p>
+
+    <img src="/images/marty.svg" alt="Marty the Beagle" class="marty">
+
+    <p><strong>Affiliate Disclosure:</strong> Some of the links on Shoe Beagle are affiliate links. This means Shoe Beagle may earn a small commission if you click a link and make a purchase, at no extra cost to you.</p>
+
+    <!-- “Close” → acts like Home -->
+    <a href="/" class="home-btn">Close</a>
+
+  </div>
+</body>
+</html>
