@@ -99,24 +99,41 @@
       min-height: 120px;
     }
 
-    .contact-form button {
-      display: block;
-      margin: 0 auto;       /* centers horizontally */      
-      padding: 0.75rem 1.5rem;
-      background: #214478ff;
-      border: 1px solid #214478ff;
-      border-radius: 0.5rem;
-      color: #ffffff;
-      cursor: pointer;
-      font-size: 1rem;
-      font-weight: 600;
-    }
-
-    .contact-form button:hover {
-      background: #1a3661;
-    }
-
-    .status {
+   /* Green SEND button */
+.contact-form button[type="submit"] {
+  display: block;
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  background: #2ea043ff;            /* Green */
+  border: 1px solid #2ea043ff;
+  border-radius: 999px;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: background 0.2s ease;
+}
+.contact-form button[type="submit"]:hover {
+  background: #248436;
+}
+/* CLOSE button identical to Privacy (blue pill) */
+#contactCloseBtn {
+  display: block;
+  margin: 0.75rem auto 0;
+  padding: 0.6rem 1.25rem;
+  border-radius: 999px;
+  border: 1px solid #214478ff;
+  background: #214478ff;
+  color: white;
+  font-size: 0.95rem;
+  cursor: pointer;
+  font-weight: 600;
+  text-align: center;
+  transition: background 0.2s ease;
+}
+#contactCloseBtn:hover {
+  background: #1a3661;
+}    .status {
       margin-top: 0.75rem;
       padding: 0.65rem;
       border-radius: 0.5rem;
