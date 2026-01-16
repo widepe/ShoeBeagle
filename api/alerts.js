@@ -83,7 +83,7 @@ export default async function handler(req, res) {
     <p style="margin:0 0 8px; font-size:14px;"><strong>Target Price:</strong> $${priceDisplay}</p>
     <p style="margin:16px 0 0; font-size:14px;">We'll notify you immediately if we detect a deal at or below your target price. This alert will remain active for 30 days.</p>
     <p style="margin:12px 0 0; font-size:13px; color:#374151;">
-      To manage or cancel your alert(s) anytime, click
+      Save this email to manage or cancel your alert(s) by clicking
       <a href="https://shoebeagle.com/pages/myalerts.html"
          style="color:#214478ff; font-weight:600; text-decoration:none;">
         HERE
