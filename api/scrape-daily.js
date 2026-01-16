@@ -853,40 +853,56 @@ async function scrapeMarathonSports() {
     throw error;
   }
 }
-
+function escapeRegExp(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 /**
  * Helper: Parse brand and model from title
  */
 function parseBrandModel(title) {
-  if (!title) return { brand: 'Unknown', model: '' };
-  
+  if (!title) return { brand: "Unknown", model: "" };
+
+  // Keep your brand list, but you can add/remove freely
   const brands = [
-    '361 Degrees', 'adidas', 'Allbirds', 'Altra', 'ASICS', 'Brooks', 'Craft', 'Diadora', 
-    'HOKA', 'Hylo Athletics', 'INOV8', 'Karhu', 'Merrell', 'Mizuno', 'New Balance', 
-    'Newton', 'Nike', 'norda', 'Nnormal', 'On', 'On Running', 'Oofos', 'Puma', 'Reebok', 'Salomon', 
-    'Saucony', 'Saysh', 'Skechers', 'Skora', 'The North Face', 'Topo', 'Topo Athletic', 'Tyr', 
-    'Under Armour', 'Vibram', 'Vivobarefoot', 'VJ', 'VJ Shoes', 'VJ', 'X-Bionic', 'Xero'
+    "361 Degrees", "adidas", "Allbirds", "Altra", "ASICS", "Brooks", "Craft", "Diadora",
+    "HOKA", "Hylo Athletics", "INOV8", "Inov-8", "Karhu", "La Sportiva", "Lems",
+    "Merrell", "Mizuno", "New Balance", "Newton", "Nike", "norda", "Nnormal",
+    "On Running", "On", "Oofos", "Pearl Izumi", "Puma", "Reebok", "Salomon",
+    "Saucony", "Saysh", "Skechers", "Skora", "The North Face", "Topo Athletic", "Topo",
+    "Tyr", "Under Armour", "Vibram FiveFingers", "Vibram", "Vivobarefoot",
+    "VJ Shoes", "VJ", "X-Bionic", "Xero Shoes", "Xero"
   ];
 
-  let brand = 'Unknown';
+  // IMPORTANT: match longer brand names first (prevents "On" matching before "On Running")
+  const brandsSorted = [...brands].sort((a, b) => b.length - a.length);
+
+  let brand = "Unknown";
   let model = title;
 
-  for (const b of brands) {
-    const regex = new RegExp(`\\b${b}\\b`, 'gi'); 
+  for (const b of brandsSorted) {
+    const escaped = escapeRegExp(b);
+
+    // Allow spaces/hyphens to behave naturally, but require "whole word-ish" matches.
+    // Use lookarounds so brands with spaces/symbols still match cleanly.
+    const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
+
     if (regex.test(title)) {
       brand = b;
-      model = title.replace(regex, '').trim();
-      model = model.replace(/\s+/g, ' ');
+
+      // Remove just that brand occurrence, then clean spacing
+      model = title.replace(new RegExp(escaped, "i"), "").trim();
+      model = model.replace(/\s+/g, " ");
+
       break;
     }
   }
 
-  // Clean up common suffixes (delegated to modelNameCleaner.js)
+  // Delegate cleanup (your modelNameCleaner)
   model = cleanModelName(model);
-
 
   return { brand, model };
 }
+
 
 /**
  * UNIVERSAL PRICE EXTRACTOR
