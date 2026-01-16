@@ -25,7 +25,7 @@
       background: #ffffff;
       border-radius: 0.75rem;
       border: 2px solid #214478ff;
-      padding: 1.75rem 2rem 1rem; /* snug bottom */
+      padding: 1.75rem 2rem 1rem;
       box-sizing: border-box;
       line-height: 1.6;
     }
@@ -55,11 +55,18 @@
       color: #2d2d2d;
     }
 
+    /* 💥 Marty floats left with text wrapping */
     .marty {
-      display: block;
       width: 200px;
-      max-width: 80%;
-      margin: 1.2rem auto 1rem;
+      max-width: 45%;
+      float: left;
+      margin: 0 1rem 0.75rem 0;
+      display: block;
+    }
+
+    /* Stops float so the Close button doesn’t wrap beside Marty */
+    .clear {
+      clear: both;
     }
 
     /* Close/Home button */
@@ -79,7 +86,6 @@
       transition: background 0.2s ease;
       width: max-content;
     }
-
     .home-btn:hover {
       background: #1a3661;
     }
@@ -111,12 +117,14 @@
 
   <div class="container">
 
-    <!-- Clickable logo → home -->
     <a href="/">
       <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="logo">
     </a>
 
     <h2>About Us</h2>
+
+    <!-- Marty floats left and text wraps -->
+    <img src="/images/marty.svg" alt="Marty the Beagle" class="marty">
 
     <p>Shoe Beagle is a price comparison website dedicated to helping runners find the best deals on running shoes. We provide side-by-side price comparisons across multiple retailers, allowing users to search by brand and model to find the lowest prices.</p>
 
@@ -124,16 +132,15 @@
 
     <p>We do our best to sniff out the best running shoe deals for you!</p>
 
-    <img src="/images/marty.svg" alt="Marty the Beagle" class="marty">
-
     <p><strong>Affiliate Disclosure:</strong> Some of the links on Shoe Beagle are affiliate links. This means Shoe Beagle may earn a small commission if you click a link and make a purchase, at no extra cost to you.</p>
 
-    <!-- Close returns home -->
+    <!-- Stop Marty float so button sits below -->
+    <div class="clear"></div>
+
     <a href="/" class="home-btn">Close</a>
 
   </div>
 
-  <!-- Footer -->
   <div class="footer">
     <a href="/pages/about.html">About</a> |
     <a href="/pages/contact.html">Contact</a> |
