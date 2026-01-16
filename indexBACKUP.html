@@ -304,8 +304,9 @@
 
     .daily-deals-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 200px));      gap: 1rem;
       width: 100%;
+      justify-content: center;
     }
 
     /* Unified card style: search + daily deals */
@@ -350,6 +351,12 @@
   min-height: calc(1.2em * 4);  /* reserve room for 4 lines */
 }
 
+    /*
+    .card-title {
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+*/
     .card-store {
       font-size: 0.82rem;
       color: #49543a;
@@ -382,9 +389,10 @@
     .results {
       margin-top: 1.0rem;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(180px, 200px));
       gap: 1.25rem;
       width: 100%;
+      justify-content: center;
       max-width: 850px;
     }
 
@@ -1102,13 +1110,13 @@
 
     <!-- Footer -->
     <div class="footer">
-      © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
-      <br>
-       <a id="aboutLink">About</a> |
-        <a id="contactLink">Contact</a> |
-        <a id="privacyLink">Privacy</a> |
-       <a id="termsLink">Terms</a>
-    </div>
+
+        <a href="/pages/about.html">About</a> |
+        <a href="/pages/contact.html">Contact</a> |
+        <a href="/pages/privacy.html">Privacy</a> |
+        <a href="/pages/terms.html">Terms</a> |
+        <br>
+        © <span id="footerYear"></span> Shoe Beagle. All rights reserved.    </div>
   </div>
 
   <!-- Privacy Policy Modal -->
