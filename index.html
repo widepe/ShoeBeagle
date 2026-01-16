@@ -989,7 +989,15 @@
       </div>
 
       <div class="input-wrapper">
-        <input id="model" type="text" placeholder="" autocomplete="off" required class="model-inactive" disabled />
+        <input
+  id="model"
+  type="text"
+  placeholder="Enter Shoe Model"
+  autocomplete="off"
+  required
+  class="model-active"
+/>
+
         <span class="paw hidden" id="modelPaw">🐾</span>
         <div id="modelSuggestions" class="suggestions"></div>
       </div>
@@ -1970,14 +1978,11 @@ function showHome() {
     myAlertsLink.addEventListener("click", showMyAlerts);
     logoLink.addEventListener("click", showHome);
 
-    resetModelState();
     updatePaws();
     dailyDeals.style.display = "block";
 
 brandInput.addEventListener("input", () => {
   const typed = brandInput.value.trim();
-  if (typed) enableModel();
-  else resetModelState();
   const matches = filterStartsWith(brands, typed);
   showSuggestions(brandSuggestions, matches, (value) => {
     brandInput.value = value;
@@ -1989,6 +1994,7 @@ brandInput.addEventListener("input", () => {
   });
   updatePaws();
 });
+
 
 
 
