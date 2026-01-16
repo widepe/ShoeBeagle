@@ -112,6 +112,20 @@
     }
 
     .brand-logo:hover { opacity: 0.9; }
+    
+input[type="text"],
+input[type="search"] {
+  width: 100%;
+  height: 42px;
+  padding: 0 2.1rem 0 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #214478ff;
+  background: #fafdf4;
+  font-size: 1rem;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+  color: #444;
+}
 
     form {
       display: flex;
@@ -158,45 +172,6 @@
       display: inline-block;
       animation: iconRock 1.1s ease-in-out infinite;
       transform-origin: center center;
-    }
-
-    .alert-prompt-btn .bell-icon {
-      display: inline-block;
-      animation: iconRock 1.1s ease-in-out infinite;
-      transform-origin: center center;
-    }
-
-    .alert-submit-btn.ready .envelope-icon {
-      display: inline-block;
-      animation: iconRock 1.1s ease-in-out infinite;
-      transform-origin: center center;
-    }
-
-    input[type="text"],
-    input[type="search"],
-    input[type="number"],
-    input[type="email"],
-    input[type="tel"] {
-      width: 100%;
-      height: 42px;
-      padding: 0 2.1rem 0 0.75rem;
-      border-radius: 0.5rem;
-      border: 1px solid #214478ff;
-      background: #fafdf4;
-      font-size: 1rem;
-      box-sizing: border-box;
-      transition: border-color 0.2s ease, background-color 0.2s ease;
-      color: #444;
-    }
-
-    /* Remove number input arrows */
-    input[type="number"]::-webkit-inner-spin-button,
-    input[type="number"]::-webkit-outer-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
-    input[type="number"] {
-      -moz-appearance: textfield;
     }
 
     input::placeholder { color: #999; opacity: 1; }
@@ -685,51 +660,30 @@ form.addEventListener("keydown", (e) => {
         }
 
 
-    function updatePaws() {
+   function updatePaws() {
   brandPaw.classList.toggle("hidden", !!brandInput.value.trim());
   modelPaw.classList.toggle("hidden", !!modelInput.value.trim());
   updateFetchReady();
 }
 
-
-      updateFetchReady();
-    }
-
-    function updateAlertSubmitButton() {
-      const price = alertPriceInput.value.trim();
-      const contact = alertContactInput.value.trim();
-      const priceValid = price && parseFloat(price) > 0;
-      const contactValid = contact.length > 0 && contact.includes('@');
-      const isReady = priceValid && contactValid;
-      alertSubmitBtn.classList.toggle("ready", isReady);
-    }
-
-    function resetAlertSection() {
-      alertPromptBtn.style.display = "block";
-      alertForm.style.display = "none";
-      alertConfirmation.style.display = "none";
-      alertExistingInfo.style.display = "none";
-      alertPriceInput.value = "";
-      alertContactInput.value = "";
-      alertPricePaw.classList.remove("hidden");
-      updateAlertSubmitButton();
-    }
+// initial
 
     updatePaws();
     dailyDeals.style.display = "block";
 
     brandInput.addEventListener("input", () => {
-      const typed = brandInput.value.trim();
-      const matches = filterStartsWith(brands, typed);
-      showSuggestions(brandSuggestions, matches, (value) => {
-         brandInput.value = value;
-         brandSuggestions.style.display = "none";
-         setTimeout(() => modelInput.focus(), 0); // optional
-      updatePaws();
-    });
+  const typed = brandInput.value.trim();
+  const matches = filterStartsWith(brands, typed);
 
-      updatePaws();
-    });
+  showSuggestions(brandSuggestions, matches, (value) => {
+    brandInput.value = value;
+    brandSuggestions.style.display = "none";
+    setTimeout(() => modelInput.focus(), 0); // optional
+    updatePaws();
+  });
+
+  updatePaws();
+});
 
     brandInput.addEventListener("blur", () => setTimeout(() => { brandSuggestions.style.display = "none"; }, 120));
 
@@ -764,17 +718,6 @@ form.addEventListener("keydown", (e) => {
     });
 
     modelInput.addEventListener("blur", () => setTimeout(() => { modelSuggestions.style.display = "none"; }, 120));
-
-    alertPriceInput.addEventListener("input", () => {
-      if (alertPriceInput.value.trim()) {
-        alertPricePaw.classList.add("hidden");
-      } else {
-        alertPricePaw.classList.remove("hidden");
-      }
-      updateAlertSubmitButton();
-    });
-
-    alertContactInput.addEventListener("input", updateAlertSubmitButton);
 
     // Helper: create unified deal card (used for search + daily deals)
     function createDealCard(item) {
@@ -914,27 +857,7 @@ link.appendChild(titleDiv);
       resultsEl.innerHTML = "";
       dailyDeals.style.display = "none";
 
-      resetAlertSection();
-      alertWrapper.style.display = "flex";
 
-      const existingActive = findActiveAlertFor(brandTyped, modelTyped);
-      if (existingActive) {
-        alertPromptBtn.style.display = "none";
-        const daysLeft = computeDaysLeft(existingActive);
-        alertExistingInfo.innerHTML = `
-          <strong>You have an active alert set for this shoe.</strong><br><br>
-          <strong>Shoe:</strong> ${existingActive.brand} ${existingActive.model}<br>
-          <strong>Days Remaining:</strong> ${daysLeft}<br>
-          <strong>Target Price:</strong> $${Number(existingActive.targetPrice).toFixed(2)}<br><br>
-          Open <strong><a href="/pages/myalerts.html">My Alerts</a></strong> to manage it.
-        `;
-        alertExistingInfo.style.display = "block";
-      } else {
-        alertPromptBtn.style.display = "block";
-        alertExistingInfo.style.display = "none";
-      }
-
-      alertProductName.textContent = displayQuery;
 
       const query = displayQuery;
       let data;
@@ -949,11 +872,11 @@ link.appendChild(titleDiv);
       }
 
       const results = (data && data.results) ? data.results : [];
-
-      if (!results.length) {
-        statusMessageEl.textContent = `No results found for ${displayQuery} — set a price alert and we'll keep sniffing.`;
-        return;
-      }
+if (!results.length) {
+  statusMessageEl.textContent = `No results found for ${displayQuery}.`;
+  dailyDeals.style.display = "block";
+  return;
+}
 
       statusMessageEl.textContent =
         `Top ${results.length} deal${results.length === 1 ? '' : 's'} found for ${displayQuery}`;
@@ -965,87 +888,6 @@ link.appendChild(titleDiv);
       });
     });
 
-    alertPromptBtn.addEventListener("click", () => {
-      alertPromptBtn.style.display = "none";
-      alertForm.style.display = "flex";
-    });
-
-    alertSubmitBtn.addEventListener("click", async () => {
-      const priceNum = Number(alertPriceInput.value.trim());
-      const contact = alertContactInput.value.trim();
-      const brand = currentSearch.brand;
-      const model = currentSearch.model;
-
-      if (!brand || !model) {
-        alert("Please search for a shoe first, then set an alert.");
-        return;
-      }
-
-      if (!isFinite(priceNum) || priceNum <= 0) {
-        alert("Please enter a valid target price greater than 0.");
-        return;
-      }
-
-      const existingActive = findActiveAlertFor(brand, model);
-      if (existingActive) {
-        alertForm.style.display = "none";
-        alertConfirmation.innerHTML = `
-          <strong>This shoe already has an active alert.</strong><br><br>
-          To edit the alert, please manage it in <strong><a href="/pages/myalerts.html">My Alerts</a></strong>.
-        `;
-        alertConfirmation.style.display = "block";
-        return;
-      }
-
-      const isEmail = contact.includes('@');
-      const payload = {
-        product: `${brand} ${model}`,
-        targetPrice: Number(priceNum).toFixed(2),
-        email: isEmail ? contact : "",
-        phone: isEmail ? "" : contact
-      };
-
-      const newAlert = {
-        id: `a_${Math.random().toString(36).slice(2)}_${Date.now()}`,
-        key: alertKey(brand, model),
-        setAt: nowMs(),
-        brand,
-        model,
-        targetPrice: Number(priceNum).toFixed(2),
-        cancelledAt: null,
-        contact
-      };
-      upsertAlert(newAlert);
-
-      try {
-        await fetch("/api/alerts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-
-        alertForm.style.display = "none";
-        alertConfirmation.innerHTML = `
-          <strong>Price alert set!</strong><br><br>
-          We'll notify you at <strong>${contact}</strong> when <strong>${brand} ${model}</strong> drops below <strong>$${Number(priceNum).toFixed(2)}</strong>.
-        `;
-        alertConfirmation.style.display = "block";
-      } catch (err) {
-        console.error("Alert submission error:", err);
-        alert("Failed to set alert. Please try again.");
-      }
-    });
-
-    alertPriceInput.addEventListener("input", () => {
-      if (alertPriceInput.value.trim()) {
-        alertPricePaw.classList.add("hidden");
-      } else {
-        alertPricePaw.classList.remove("hidden");
-      }
-      updateAlertSubmitButton();
-    });
-
-    alertContactInput.addEventListener("input", updateAlertSubmitButton);
   </script>
 </body>
 </html>
