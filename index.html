@@ -983,19 +983,13 @@
 
   <form id="search-form" method="POST">
   <div class="input-wrapper">
-        <input id="brand" type="text" placeholder="Enter Shoe Brand" autocomplete="off" required />
+        <input id="brand" type="text" placeholder="Enter Shoe Brand" autocomplete="off"/>
         <span class="paw rock" id="brandPaw">🐾</span>
         <div id="brandSuggestions" class="suggestions"></div>
       </div>
 
       <div class="input-wrapper">
-        <input
-  id="model"
-  type="text"
-  placeholder="Enter Shoe Model"
-  autocomplete="off"
-  required
-  class="model-active"
+        <input id="model" type="text" placeholder="Enter Shoe Model" autocomplete="off" class="model-active"
 />
 
         <span class="paw hidden" id="modelPaw">🐾</span>
@@ -2168,28 +2162,31 @@ modelInput.addEventListener("click", () => {
     // Initial daily deals load
     loadDailyDeals();
 
-    form.addEventListener("submit", async (e) => {
+   form.addEventListener("submit", async (e) => {
   e.preventDefault();
-  
-  // Get whatever the user typed - no validation required
+
   const brandTyped = brandInput.value.trim();
   const modelTyped = modelInput.value.trim();
-  
-  if (!brandTyped || !modelTyped) {
-    statusMessageEl.textContent = "Please enter both brand and model.";
+
+  // ✅ Require at least one of brand/model, not both
+  if (!brandTyped && !modelTyped) {
+    statusMessageEl.textContent = "Please enter a brand or a model.";
     updatePaws();
     return;
   }
-  
+
   currentSearch = { brand: brandTyped, model: modelTyped };
-  
+
+  // Used for display + query; avoids extra spaces if one is blank
+  const displayQuery = [brandTyped, modelTyped].filter(Boolean).join(" ");
+
   statusMessageEl.textContent = "Searching deals…";
   resultsEl.innerHTML = "";
   dailyDeals.style.display = "none";
-  
+
   resetAlertSection();
   alertWrapper.style.display = "flex";
-  
+
   const existingActive = findActiveAlertFor(brandTyped, modelTyped);
   if (existingActive) {
     alertPromptBtn.style.display = "none";
@@ -2206,12 +2203,15 @@ modelInput.addEventListener("click", () => {
     alertPromptBtn.style.display = "block";
     alertExistingInfo.style.display = "none";
   }
-  
-  alertProductName.textContent = `${brandTyped} ${modelTyped}`;
-  
-  const query = `${brandTyped} ${modelTyped}`;
+
+  // Show whatever the user actually searched for
+ const displayQuery = [brandTyped, modelTyped].filter(Boolean).join(" ");
+alertProductName.textContent = displayQuery;
+
+
+  const query = displayQuery;
   let data;
-  
+
   try {
     const res = await fetch("/api/search?" + new URLSearchParams({ query }));
     data = await res.json();
@@ -2220,27 +2220,28 @@ modelInput.addEventListener("click", () => {
     statusMessageEl.textContent = "Search failed. Please try again.";
     return;
   }
-  
+
   const results = (data && data.results) ? data.results : [];
-  
+
   if (!results.length) {
-    statusMessageEl.textContent = `No results found for ${brandTyped} ${modelTyped} — set a price alert and we'll keep sniffing.`;
+    statusMessageEl.textContent = `No results found for ${displayQuery} — set a price alert and we'll keep sniffing.`;
     return;
   }
-  
-statusMessageEl.textContent = `Top ${results.length} deal${results.length === 1 ? '' : 's'} found for ${brandTyped} ${modelTyped}`;
-      resultsEl.innerHTML = "";
-  
+
+  statusMessageEl.textContent =
+    `Top ${results.length} deal${results.length === 1 ? '' : 's'} found for ${displayQuery}`;
+  resultsEl.innerHTML = "";
+
   results.forEach(item => {
     const card = createDealCard(item);
     resultsEl.appendChild(card);
   });
 });
 
+
     alertPromptBtn.addEventListener("click", () => {
       alertPromptBtn.style.display = "none";
       alertForm.style.display = "flex";
-      alertProductName.textContent = `${currentSearch.brand} ${currentSearch.model}`;
     });
 
     alertSubmitBtn.addEventListener("click", async () => {
