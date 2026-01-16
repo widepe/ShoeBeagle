@@ -853,6 +853,7 @@ async function scrapeMarathonSports() {
     throw error;
   }
 }
+
 function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -886,16 +887,16 @@ function parseBrandModel(title) {
     // Use lookarounds so brands with spaces/symbols still match cleanly.
     const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
 
-    if (regex.test(title)) {
-      brand = b;
+   if (regex.test(title)) {
+     brand = b;
 
-      // Remove just that brand occurrence, then clean spacing
-      model = title.replace(new RegExp(escaped, "i"), "").trim();
-      model = model.replace(/\s+/g, " ");
+     // Remove the same boundary-safe match we detected
+     model = title.replace(regex, " ").trim();
+     model = model.replace(/\s+/g, " ");
 
-      break;
-    }
-  }
+     break;
+     }
+}
 
   // Delegate cleanup (your modelNameCleaner)
   model = cleanModelName(model);
