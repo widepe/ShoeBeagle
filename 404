@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>404 — Page Not Found | Shoe Beagle</title>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      background: #f4ede3;
+      color: #2d2d2d;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 850px;
+      background: #ffffffc9;
+      border: 2px solid #214478ff;
+      border-radius: 0.75rem;
+      margin-top: 2rem;
+      padding: 2rem;
+      box-sizing: border-box;
+      text-align: center;
+    }
+
+    .brand-logo {
+      width: 600px;
+      height: auto;
+      max-width: 100%;
+      cursor: pointer;
+      display: block;
+      margin: 0 auto 1rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      color: #214478ff;
+      margin-bottom: 0.5rem;
+    }
+
+    p {
+      font-size: 1rem;
+      line-height: 1.5;
+      margin: 0.5rem 0 1.5rem;
+    }
+
+    .home-btn {
+      display: inline-block;
+      padding: 0.7rem 1.4rem;
+      border-radius: 0.6rem;
+      background: #214478ff;
+      color: white;
+      text-decoration: none;
+      font-size: 1rem;
+      font-weight: 600;
+      border: 1px solid #214478ff;
+      transition: background 0.2s ease;
+    }
+
+    .home-btn:hover {
+      background: #1a3661;
+    }
+
+    .footer {
+      margin-top: 2rem;
+      padding: 0.75rem 1rem;
+      text-align: center;
+      font-size: 0.82rem;
+      color: #444;
+    }
+
+    .footer a {
+      color: #214478ff;
+      text-decoration: none;
+      font-weight: 600;
+      margin: 0 0.25rem;
+      cursor: pointer;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Logo link to Go Home -->
+  <a href="/" aria-label="Back to Home">
+    <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="brand-logo">
+  </a>
+
+  <div class="container">
+    <h1>404 — Marty Lost the Scent 🐾</h1>
+    <p>Looks like the page you're sniffing for has wandered off.</p>
+    <p>But don’t worry — the trail isn’t cold!</p>
+
+    <a href="/" class="home-btn">Return Home</a>
+  </div>
+
+  <div class="footer">
+    <a href="/pages/about.html">About</a> |
+    <a href="/pages/contact.html">Contact</a> |
+    <a href="/pages/privacy.html">Privacy</a> |
+    <a href="/pages/terms.html">Terms</a>
+    <br>
+    © 2026 Shoe Beagle. All rights reserved.
+  </div>
+
+</body>
+</html>
