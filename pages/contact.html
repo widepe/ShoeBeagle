@@ -214,24 +214,28 @@
       };
 
       try {
-        const res = await fetch("/api/contact", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
+       const res = await fetch("/api/contact", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(payload)
+});
 
-        if (!res.ok) {
-          throw new Error("Network error");
-        }
+const data = await res.json().catch(() => ({}));
 
-        statusBox.textContent = "Message sent — thank you! 🐾";
-        statusBox.style.background = "rgba(46, 160, 67, 0.20)";
-        statusBox.style.color = "#1f6a2a";
+if (!res.ok) {
+  throw new Error(data.error || "Failed to send — please try again.");
+}
 
-        form.reset();
+statusBox.textContent = "Message sent — thank you! 🐾";
+statusBox.style.background = "rgba(46, 160, 67, 0.20)";
+statusBox.style.color = "#1f6a2a";
+
+form.reset();
+
       } catch (err) {
         console.error(err);
-        statusBox.textContent = "Failed to send — please try again.";
+        statusBox.textContent = err.message || "Failed to send — please try again.";
+
         statusBox.style.background = "rgba(220, 53, 69, 0.14)";
         statusBox.style.color = "#8a1f2c";
       }
