@@ -4,21 +4,23 @@
 const sgMail = require("@sendgrid/mail");
 
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-const CONTACT_EMAIL = process.env.CONTACT_EMAIL;
-const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || CONTACT_EMAIL;
+const CONTACT_EMAIL = process.env.CONTACT_EMAIL;          // where YOU receive messages
+const FROM_EMAIL =
+  process.env.SENDGRID_FROM_EMAIL || CONTACT_EMAIL || "contact@shoebeagle.com";
 
 if (SENDGRID_API_KEY) {
   sgMail.setApiKey(SENDGRID_API_KEY);
 }
 
 module.exports = async (req, res) => {
-  // Only allow POST requests
+  // Only allow POST
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // Check config
   if (!SENDGRID_API_KEY || !CONTACT_EMAIL) {
-    console.error("Missing SENDGRID_API_KEY or CONTACT_EMAIL env vars");
+    console.error("Missing SENDGRID_API_KEY or CONTACT_EMAIL env vars.");
     return res
       .status(500)
       .json({ error: "Email service not configured on the server." });
@@ -27,64 +29,58 @@ module.exports = async (req, res) => {
   try {
     const { name, email, message } = req.body || {};
 
-    // Validate inputs (keeps your original checks)
+    // Basic validation
     if (!name || !email || !message) {
       return res.status(400).json({ error: "All fields are required." });
     }
 
     if (!email.includes("@")) {
-      return res.status(400).json({ error: "Invalid email address." });
+      return res.status(400).json({ error: "Please enter a valid email address." });
     }
 
-    if (message.length < 10) {
+    if (message.trim().length < 10) {
       return res
         .status(400)
-        .json({ error: "Message must be at least 10 characters." });
+        .json({ error: "Message must be at least 10 characters long." });
     }
 
-    const safeName = String(name).trim();
-    const safeEmail = String(email).trim();
-    const safeMessage = String(message).trim();
-
-    const subject = `New contact message from ${safeName || "Shoe Beagle visitor"}`;
-
-    const textBody = `
-New contact message from Shoe Beagle:
-
-Name: ${safeName}
-Email: ${safeEmail}
+    // Build the email
+    const mail = {
+      to: CONTACT_EMAIL,          // goes to you
+      from: FROM_EMAIL,           // must be your authenticated domain
+      replyTo: email,             // so hitting “reply” goes to the visitor
+      subject: `New contact from ${name} via Shoe Beagle`,
+      text: `
+Name: ${name}
+Email: ${email}
 
 Message:
-${safeMessage}
-    `.trim();
-
-    const htmlBody = `
-      <p><strong>New contact message from Shoe Beagle:</strong></p>
-      <p><strong>Name:</strong> ${safeName}</p>
-      <p><strong>Email:</strong> ${safeEmail}</p>
-      <p><strong>Message:</strong></p>
-      <p style="white-space:pre-line;">${safeMessage}</p>
-    `;
-
-    const msg = {
-      to: CONTACT_EMAIL,
-      from: FROM_EMAIL,     // must be a verified sender in SendGrid
-      replyTo: safeEmail,   // so you can just "Reply" in your inbox
-      subject,
-      text: textBody,
-      html: htmlBody,
+${message}
+      `.trim(),
+      html: `
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Message:</strong></p>
+        <p style="white-space:pre-wrap;">${message}</p>
+      `,
     };
 
-    await sgMail.send(msg);
+    // Send via SendGrid
+    await sgMail.send(mail);
 
     return res.status(200).json({
       success: true,
-      message: "Message sent! We'll get back to you soon.",
+      message: "Message sent successfully.",
     });
   } catch (error) {
     console.error("Contact form error:", error);
-    return res
-      .status(500)
-      .json({ error: "Failed to send message. Please try again." });
+
+    // Try to surface SendGrid's own error message if present
+    const sgMsg =
+      error?.response?.body?.errors?.[0]?.message ||
+      error?.message ||
+      "Failed to send message. Please try again later.";
+
+    return res.status(500).json({ error: sgMsg });
   }
 };
