@@ -2,138 +2,245 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Contact – Shoe Beagle</title>
+  <title>Contact - Shoe Beagle</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
-      padding: 2rem 1rem;
-      background: #f4ede3ff;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f4ede3;
       color: #2d2d2d;
+      display: flex;
+      justify-content: center;
+      padding: 2rem 1rem;
+      min-height: 100vh;
+    }
+
+    .page-container {
+      width: 100%;
+      max-width: 900px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      min-height: 100vh;
-      box-sizing: border-box;
+      gap: 1.5rem;
     }
 
-    .container {
+    .brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .brand-logo {
+      width: 600px;
+      height: auto;
+      max-width: 100%;
+      object-fit: contain;
+      cursor: pointer;
+    }
+
+    .card {
       width: 100%;
       max-width: 850px;
-      background: #ffffff;
-      border-radius: 0.75rem;
+      background: #ffffffc9;
       border: 2px solid #214478ff;
-      padding: 1.75rem 2rem 1rem;
+      border-radius: 0.75rem;
+      padding: 1.5rem 2rem 1.25rem;
       box-sizing: border-box;
-      line-height: 1.6;
     }
 
-    .logo {
-      display: block;
-      width: 600px;
-      max-width: 100%;
-      margin: 0 auto 1rem;
-      cursor: pointer;
-      transition: opacity 0.2s ease;
-    }
-    .logo:hover { opacity: 0.9; }
-
-    h2 {
-      text-align: center;
-      margin-top: 0.25rem;
-      margin-bottom: 1rem;
+    h1 {
+      margin-top: 0;
+      margin-bottom: 0.75rem;
       font-size: 1.8rem;
       color: #214478ff;
+      text-align: center;
     }
 
-    p {
-      margin: 0.7rem 0;
-      font-size: 1rem;
+    p.intro {
+      margin-top: 0;
+      margin-bottom: 1.25rem;
+      text-align: center;
+      font-size: 0.98rem;
+      color: #444;
+    }
+
+    .contact-form {
+      margin-top: 0.5rem;
+    }
+
+    .contact-form label {
+      display: block;
+      margin-bottom: 0.35rem;
+      font-weight: 600;
+      color: #214478ff;
+      font-size: 0.95rem;
+    }
+
+    .contact-form input,
+    .contact-form textarea {
+      width: 100%;
+      padding: 0.6rem;
+      margin-bottom: 1rem;
+      border: 1px solid #214478ff;
+      border-radius: 0.5rem;
+      font-size: 0.95rem;
+      font-family: inherit;
+      background: #fafdf4;
       color: #2d2d2d;
     }
 
-    ul {
-      margin: 0.5rem 0 1rem 1.2rem;
+    .contact-form textarea {
+      resize: vertical;
+      min-height: 120px;
     }
 
-    .home-btn {
-      display: block;
-      margin: 1.5rem auto 0.25rem;
-      padding: 0.6rem 1.25rem;
-      border-radius: 999px;
-      border: 1px solid #214478ff;
+    .contact-form button {
+      padding: 0.75rem 1.5rem;
       background: #214478ff;
-      color: white;
-      font-size: 0.95rem;
+      border: 1px solid #214478ff;
+      border-radius: 0.5rem;
+      color: #ffffff;
       cursor: pointer;
-      text-align: center;
-      text-decoration: none;
+      font-size: 1rem;
       font-weight: 600;
-      transition: background 0.2s ease;
-      width: max-content;
+      display: inline-block;
     }
-    .home-btn:hover {
+
+    .contact-form button:hover {
       background: #1a3661;
     }
 
-    .footer {
-      margin-top: 1.5rem;
-      padding: 0.75rem 1rem;
+    .status {
+      margin-top: 0.75rem;
+      padding: 0.65rem;
+      border-radius: 0.5rem;
       text-align: center;
+      font-size: 0.9rem;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .footer {
+      width: 100%;
+      max-width: 850px;
+      margin-top: 0.5rem;
+      padding: 0.75rem 1rem 0;
+      background: rgba(244, 237, 227, 0.97);
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
       font-size: 0.82rem;
       color: #444;
+      text-align: center;
+      box-sizing: border-box;
     }
 
     .footer a {
       color: #214478ff;
       text-decoration: none;
       font-weight: 600;
-      margin: 0 0.25rem;
       cursor: pointer;
+      margin: 0 0.25rem;
     }
 
     .footer a:hover {
       text-decoration: underline;
     }
+
+    .footer .links {
+      margin-bottom: 0.25rem;
+    }
   </style>
 </head>
-
 <body>
+  <div class="page-container">
+    <div class="brand">
+      <a href="/">
+        <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="brand-logo" />
+      </a>
+    </div>
 
-  <div class="container">
+    <div class="card">
+      <h1>Contact Us</h1>
+      <p class="intro">
+        Have a question, suggestion, or found a bug? Send us a note and we’ll sniff into it.
+      </p>
 
-    <a href="/">
-      <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="logo">
-    </a>
+      <form id="contactForm" class="contact-form">
+        <label for="contactName">Your Name</label>
+        <input type="text" id="contactName" required />
 
-    <h2>Contact Us</h2>
+        <label for="contactEmail">Your Email</label>
+        <input type="email" id="contactEmail" required />
 
-    <p>We’d love to hear from you!</p>
+        <label for="contactMessage">Message</label>
+        <textarea id="contactMessage" required></textarea>
 
-    <p>If you have questions, feedback, partnership ideas, or spot a deal we should sniff out,
-    feel free to reach out:</p>
+        <button type="submit" id="contactSubmitBtn">Send Message</button>
+        <div id="contactStatus" class="status hidden"></div>
+      </form>
+    </div>
 
-    <p><strong>Email:</strong> support@shoebeagle.com</p>
-
-    <p>We read all messages and try to respond as soon as we can.</p>
-
-    <p>Want to request a feature or report a bug?</p>
-    <ul>
-      <li>Let us know what browser and device you're using</li>
-      <li>Include the shoe name or retailer if your question is about a listing</li>
-    </ul>
-
-    <p>Happy running — and happy deal hunting! 🐾</p>
-
-    <a href="/" class="home-btn">Close</a>
-
+    <div class="footer">
+      <div class="links">
+        <a href="/pages/about.html">About</a> |
+        <a href="/pages/contact.html">Contact</a> |
+        <a href="/pages/privacy.html">Privacy</a> |
+        <a href="/pages/terms.html">Terms</a>
+      </div>
+      <div>© 2026 Shoe Beagle. All rights reserved.</div>
+    </div>
   </div>
 
-  <div class="footer">
-    © 2026 Shoe Beagle. All rights reserved.
-  </div>
+  <script>
+    const form = document.getElementById("contactForm");
+    const statusBox = document.getElementById("contactStatus");
+    const contactName = document.getElementById("contactName");
+    const contactEmail = document.getElementById("contactEmail");
+    const contactMessage = document.getElementById("contactMessage");
 
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      statusBox.classList.remove("hidden");
+      statusBox.textContent = "Sending...";
+      statusBox.style.background = "rgba(33, 68, 120, 0.1)";
+      statusBox.style.color = "#214478ff";
+
+      const payload = {
+        name: contactName.value.trim(),
+        email: contactEmail.value.trim(),
+        message: contactMessage.value.trim()
+      };
+
+      try {
+        const res = await fetch("/api/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          throw new Error("Network error");
+        }
+
+        statusBox.textContent = "Message sent — thank you! 🐾";
+        statusBox.style.background = "rgba(46, 160, 67, 0.20)";
+        statusBox.style.color = "#1f6a2a";
+
+        form.reset();
+      } catch (err) {
+        console.error(err);
+        statusBox.textContent = "Failed to send — please try again.";
+        statusBox.style.background = "rgba(220, 53, 69, 0.14)";
+        statusBox.style.color = "#8a1f2c";
+      }
+    });
+  </script>
 </body>
 </html>
