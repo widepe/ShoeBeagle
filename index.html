@@ -723,9 +723,29 @@
       }
     }
 
+    // Load total deals count and update tagline
+async function dailyDealCount() {
+  const taglineEl = document.querySelector('.tagline');
+  
+  try {
+    const blobUrl = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json";
+    const res = await fetch(blobUrl);
+    const data = await res.json();
+    
+    const totalDeals = data.totalDeals || 0;
+    
+    if (taglineEl && totalDeals > 0) {
+      taglineEl.textContent = `There are ${totalDeals} running shoe deals today, let's find yours!`;
+    }
+  } catch (err) {
+    console.error("Error loading total deals count:", err);
+    // Keep default tagline if fetch fails
+  }
+}
     // Initial daily deals load
     loadDailyDeals();
-
+    dailyDealCount();
+    
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
