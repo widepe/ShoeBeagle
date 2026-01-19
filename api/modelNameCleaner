@@ -21,7 +21,7 @@ function cleanModelName(input) {
   model = model.replace(/\b(limited (time|edition)|while supplies last)\b/gi, "");
   model = model.replace(/\b(new arrival|just in|back in stock|low stock|almost gone)\b/gi, "");
   model = model.replace(/\b(brand new|new with(out)? box|open box|like new)\b/gi, "");
-  model = model.replace(/\b(in stock|out of stock|pre-?order|coming soon)\b/gi, "");
+  model = model.replace(/\b(in stock|pre-?order|coming soon)\b/gi, "");
   model = model.replace(/\b(hot deal|deal of the day)\b/gi, "");
   
   // Remove price mentions
