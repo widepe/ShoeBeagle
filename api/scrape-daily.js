@@ -290,26 +290,25 @@ module.exports = async (req, res) => {
       console.error('[SCRAPER] Zappos failed:', error.message);
     }
 
-   // === GLOBAL DE-DUPLICATION BY URL ONLY ===
-console.log('[SCRAPER] De-duplicating deals by URL...');
+  // === DEDUPLICATION BY STORE + URL so If same URL and store, data is removed ===
+console.log('[SCRAPER] De-duplicating deals by store + URL...');
 const uniqueDeals = [];
-const seenUrls = new Set();
+const seenStoreUrls = new Set();
 
 for (const d of allDeals) {
   if (!d) continue;
 
   const urlKey = (d.url || '').trim();
 
-  // If no URL, we can't key it reliably, so just keep it
   if (!urlKey) {
     uniqueDeals.push(d);
     continue;
   }
 
-  // Duplicate if we've already seen this exact URL (any store)
-  if (seenUrls.has(urlKey)) continue;
+  const compositeKey = `${d.store}|${urlKey}`;
+  if (seenStoreUrls.has(compositeKey)) continue;
 
-  seenUrls.add(urlKey);
+  seenStoreUrls.add(compositeKey);
   uniqueDeals.push(d);
 }
 
