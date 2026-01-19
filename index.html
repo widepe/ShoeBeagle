@@ -246,12 +246,14 @@
       text-align: center;
     }
 
-    .daily-deals-grid {
+    .shoe-grid {
+      margin-top: 1.0rem;
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 200px));
-      gap: 1rem;
+      gap: 1.25rem;
       width: 100%;
       justify-content: center;
+      max-width: 900px;
     }
 
     /* Unified card style: search + daily deals */
@@ -311,16 +313,6 @@
     .price {
       font-weight: 700;
       color: #214478ff;
-    }
-
-    .results {
-      margin-top: 1.0rem;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 200px));
-      gap: 1.25rem;
-      width: 100%;
-      justify-content: center;
-      max-width: 900px;
     }
 
     .disclaimer {
@@ -390,10 +382,10 @@
     <div id="mainContent">
       <div class="daily-deals" id="dailyDeals">
         <div class="daily-deals-header">Marty's Daily Deals</div>
-        <div class="daily-deals-grid" id="dailyDealsGrid"></div>
+        <div class="shoe-grid" id="dailyDealsGrid"></div>
       </div>
 
-      <div class="results" id="results"></div>
+      <div class="shoe-grid" id="results"></div>
       <p class="disclaimer">Shoe Beagle does not sell products directly and is not responsible for changes in price, availability, or shipping terms on retailer sites.</p>
     </div>
 
