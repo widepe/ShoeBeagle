@@ -2,9 +2,6 @@
 // Merges: (1) your daily deals scraper output + (2) the 3 Holabird scraper outputs
 // Writes the final canonical blob: deals.json
 //
-// ✅ Works whether your sources are saved blobs or API endpoints.
-// Recommended: set the BLOB URL env vars below so this function just downloads + merges.
-//
 // Env vars (recommended):
 //   OTHER_DEALS_BLOB_URL
 //   HOLABIRD_MENS_ROAD_BLOB_URL
@@ -12,14 +9,11 @@
 //   HOLABIRD_TRAIL_UNISEX_BLOB_URL
 //
 // Optional fallback (if you do NOT set blob URLs):
-//   This endpoint will call your scraper endpoints directly to fetch deals:
+//   Calls scraper endpoints directly:
 //     /api/scrape-daily
 //     /api/scrapers/holabird-mens-road
 //     /api/scrapers/holabird-womens-road
 //     /api/scrapers/holabird-trail-unisex
-//
-// IMPORTANT: if you still want /api/scrape-daily to run, make sure it writes deals-other.json
-// (so it doesn’t overwrite the final deals.json that this merger creates).
 
 const axios = require("axios");
 const { put } = require("@vercel/blob");
@@ -27,7 +21,6 @@ const { put } = require("@vercel/blob");
 /** ------------ Utilities ------------ **/
 
 function getBaseUrl(req) {
-  // Works for Vercel cron + normal requests
   const proto = req.headers["x-forwarded-proto"] || "https";
   const host = req.headers["x-forwarded-host"] || req.headers.host;
   return `${proto}://${host}`;
@@ -37,12 +30,6 @@ function safeArray(x) {
   return Array.isArray(x) ? x : [];
 }
 
-// Accepts many shapes:
-// - raw array: [deal, deal]
-// - { deals: [...] }
-// - { items: [...] }
-// - { output: { deals: [...] } }
-// - { data: { deals: [...] } }
 function extractDealsFromPayload(payload) {
   if (!payload) return [];
   if (Array.isArray(payload)) return payload;
@@ -53,7 +40,6 @@ function extractDealsFromPayload(payload) {
   if (payload.output && Array.isArray(payload.output.deals)) return payload.output.deals;
   if (payload.data && Array.isArray(payload.data.deals)) return payload.data.deals;
 
-  // Some endpoints might return { success, blobUrl, ... } only. No deals available.
   return [];
 }
 
@@ -69,9 +55,107 @@ function computeDiscountPercent(d) {
   return ((o - p) / o) * 100;
 }
 
+/** ------------ Theme-change-resistant sanitization ------------ **/
+
+function normalizeWhitespace(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
+function stripHtmlToText(maybeHtml) {
+  const s = String(maybeHtml || "");
+  if (!s) return "";
+  // fast path: no tags
+  if (!/[<>]/.test(s)) return normalizeWhitespace(s);
+  // safest possible without cheerio here: remove tags
+  return normalizeWhitespace(s.replace(/<[^>]*>/g, " "));
+}
+
+function looksLikeCssOrJunk(s) {
+  const t = normalizeWhitespace(s);
+  if (!t) return true;
+  if (t.length < 3) return true;
+  if (/^#[-_a-z0-9]+/i.test(t)) return true; // "#review-stars-..."
+  if (t.includes("{") && t.includes("}") && t.includes(":")) return true; // "a{margin:0}"
+  if (t.startsWith("@media") || t.startsWith(":root")) return true;
+  return false;
+}
+
+function cleanTitleText(raw) {
+  let t = stripHtmlToText(raw);
+
+  // remove common promo lead-ins
+  t = t.replace(/^(extra\s*\d+\s*%\s*off)\s+/i, "");
+  t = t.replace(/^(sale|clearance|closeout)\s+/i, "");
+
+  t = normalizeWhitespace(t);
+  if (looksLikeCssOrJunk(t)) return "";
+  return t;
+}
+
+function absolutizeUrl(u, base) {
+  let url = String(u || "").trim();
+  if (!url) return "";
+
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith("//")) return "https:" + url;
+  if (url.startsWith("/")) return base.replace(/\/+$/, "") + url;
+
+  return base.replace(/\/+$/, "") + "/" + url.replace(/^\/+/, "");
+}
+
+function storeBaseUrl(store) {
+  const s = String(store || "").toLowerCase();
+
+  // IMPORTANT: these are just for absolutizing relative URLs/images,
+  // not for scraping.
+  if (s.includes("holabird")) return "https://www.holabirdsports.com";
+  if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
+  if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
+  if (s.includes("luke")) return "https://lukeslocker.com";
+  if (s.includes("marathon sports")) return "https://www.marathonsports.com";
+  if (s.includes("rei")) return "https://www.rei.com";
+  if (s.includes("zappos")) return "https://www.zappos.com";
+  if (s.includes("road runner")) return "https://www.roadrunnersports.com";
+
+  return "https://example.com";
+}
+
+function sanitizeDeal(deal) {
+  if (!deal) return null;
+
+  const base = storeBaseUrl(deal.store);
+
+  const title = cleanTitleText(deal.title);
+  const brand = cleanTitleText(deal.brand) || stripHtmlToText(deal.brand) || "Unknown";
+  const model = cleanTitleText(deal.model);
+
+  let url = String(deal.url || "").trim();
+  if (url) url = absolutizeUrl(url, base);
+
+  let image = null;
+  if (typeof deal.image === "string" && deal.image.trim()) {
+    image = absolutizeUrl(deal.image.trim(), base);
+  }
+
+  // If title is empty but brand/model exist, fallback
+  const finalTitle = title || normalizeWhitespace(`${brand} ${model}`).trim();
+
+  // If that still looks junky, zero it out
+  const safeTitle = looksLikeCssOrJunk(finalTitle) ? "" : finalTitle;
+
+  return {
+    ...deal,
+    title: safeTitle,
+    brand,
+    model,
+    url,
+    image,
+  };
+}
+
 /**
- * Your existing centralized filter, copied here so the merged output is clean.
- * Keep this consistent with your app.
+ * Centralized filter (same logic as your current scrape-daily).
+ * NOTE: This requires originalPrice; it will drop any deal missing it.
  */
 function isValidRunningShoe(deal) {
   if (!deal || !deal.url || !deal.title) return false;
@@ -79,16 +163,10 @@ function isValidRunningShoe(deal) {
   const price = toNumber(deal.price);
   const originalPrice = toNumber(deal.originalPrice);
 
-  // Must have valid prices
   if (!price || !originalPrice) return false;
-
-  // Sale price must be less than original price
   if (price >= originalPrice) return false;
-
-  // Price must be in reasonable range for shoes ($10-$1000)
   if (price < 10 || price > 1000) return false;
 
-  // Discount must be between 5% and 90%
   const discount = ((originalPrice - price) / originalPrice) * 100;
   if (discount < 5 || discount > 90) return false;
 
@@ -115,7 +193,7 @@ function isValidRunningShoe(deal) {
     "headband", "wristband",
     "sunglasses", "eyewear",
     "sleeve", "sleeves",
-    "throw", // track & field throw shoes
+    "throw",
     "out of stock",
     "kids", "kid",
     "youth",
@@ -133,28 +211,26 @@ function isValidRunningShoe(deal) {
 function normalizeDeal(d) {
   if (!d) return null;
 
-  // Normalize key fields (avoid strings that look like numbers, etc.)
-  const price = toNumber(d.price);
-  const originalPrice = toNumber(d.originalPrice);
+  // sanitize strings (theme-change resistant)
+  const sanitized = sanitizeDeal(d);
+  if (!sanitized) return null;
 
-  const title = typeof d.title === "string" ? d.title.trim() : "";
-  const brand = typeof d.brand === "string" ? d.brand.trim() : "Unknown";
-  const model = typeof d.model === "string" ? d.model.trim() : "";
-  const store = typeof d.store === "string" ? d.store.trim() : "Unknown";
-  const url = typeof d.url === "string" ? d.url.trim() : "";
-  const image = typeof d.image === "string" ? d.image.trim() : null;
+  const price = toNumber(sanitized.price);
+  const originalPrice = toNumber(sanitized.originalPrice);
 
   return {
-    ...d,
-    title,
-    brand,
-    model,
-    store,
-    url,
-    image,
+    ...sanitized,
+    // normalize numeric fields
     price,
     originalPrice,
-    scrapedAt: d.scrapedAt || new Date().toISOString(),
+    // normalize blanks
+    title: typeof sanitized.title === "string" ? sanitized.title.trim() : "",
+    brand: typeof sanitized.brand === "string" ? sanitized.brand.trim() : "Unknown",
+    model: typeof sanitized.model === "string" ? sanitized.model.trim() : "",
+    store: typeof sanitized.store === "string" ? sanitized.store.trim() : "Unknown",
+    url: typeof sanitized.url === "string" ? sanitized.url.trim() : "",
+    image: typeof sanitized.image === "string" ? sanitized.image.trim() : null,
+    scrapedAt: sanitized.scrapedAt || new Date().toISOString(),
   };
 }
 
@@ -164,14 +240,18 @@ function dedupeDeals(deals) {
 
   for (const d of deals) {
     if (!d) continue;
+
     const urlKey = (d.url || "").trim();
     const storeKey = (d.store || "Unknown").trim();
+
     if (!urlKey) {
       unique.push(d);
       continue;
     }
+
     const key = `${storeKey}|${urlKey}`;
     if (seen.has(key)) continue;
+
     seen.add(key);
     unique.push(d);
   }
@@ -192,18 +272,15 @@ async function fetchJson(url) {
 }
 
 async function loadDealsFromBlobOrEndpoint({ name, blobUrl, endpointUrl }) {
-  // Try blob first if provided
   if (blobUrl) {
     const payload = await fetchJson(blobUrl);
     const deals = extractDealsFromPayload(payload);
     return { name, source: "blob", deals };
   }
 
-  // Fallback to endpoint if provided
   if (endpointUrl) {
     const payload = await fetchJson(endpointUrl);
 
-    // If endpoint returns deals directly
     let deals = extractDealsFromPayload(payload);
 
     // If endpoint returns only { blobUrl }, try that blob
@@ -225,7 +302,6 @@ module.exports = async (req, res) => {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  // Optional cron secret check (matches your existing pattern)
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
@@ -273,7 +349,6 @@ module.exports = async (req, res) => {
       },
     ];
 
-    // Load all sources in parallel, but don’t fail the whole merge if one is down
     const settled = await Promise.allSettled(
       sources.map((s) => loadDealsFromBlobOrEndpoint(s))
     );
@@ -296,19 +371,21 @@ module.exports = async (req, res) => {
     console.log("[MERGE] Source counts:", perSource);
     console.log("[MERGE] Total raw deals:", allDealsRaw.length);
 
-    // Normalize
+    // 1) Normalize + sanitize (theme-change resistant)
     const normalized = allDealsRaw.map(normalizeDeal).filter(Boolean);
 
-    // Filter
+    // 2) Filter (running shoes only, strict discount requirements)
     const filtered = normalized.filter(isValidRunningShoe);
 
-    // Dedupe
+    // 3) Dedupe across ALL sources
     const unique = dedupeDeals(filtered);
 
-    // Sort by discount desc (stable-ish)
+    // 4) Shuffle then sort by discount %
+    // (shuffle helps preserve variety among equal-discount items)
+    unique.sort(() => Math.random() - 0.5);
     unique.sort((a, b) => computeDiscountPercent(b) - computeDiscountPercent(a));
 
-    // Stats
+    // 5) Stats
     const dealsByStore = {};
     for (const d of unique) {
       const s = d.store || "Unknown";
@@ -323,7 +400,7 @@ module.exports = async (req, res) => {
       deals: unique,
     };
 
-    // Write final canonical blob used by the app
+    // 6) Write final canonical blob used by the app
     const blob = await put("deals.json", JSON.stringify(output, null, 2), {
       access: "public",
       addRandomSuffix: false,
