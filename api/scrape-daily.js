@@ -1045,8 +1045,6 @@ async function scrapeHolabirdSports() {
         await randomDelay(1000, 2000);  // Faster: 1-2 seconds instead of 3-5
       }
     }
-      }
-    }
 
     console.log(`[SCRAPER] Holabird Sports scrape complete. Found ${deals.length} deals.`);
     return deals;
