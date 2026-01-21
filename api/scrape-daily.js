@@ -2,8 +2,6 @@
 // Daily scraper for running shoe deals
 // Runs once per day via Vercel Cron
 
-//  Edit later in function holabird as it only scrapes up to 3 pages    while (hasMore && page <= 3) {
-
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { put } = require('@vercel/blob');
@@ -398,19 +396,6 @@ module.exports = async (req, res) => {
       scraperResults["Marathon Sports"] = { success: false, error: error.message };
       console.error("[SCRAPER] Marathon Sports failed:", error.message);
     }
-    
-
-    // Scrape Holabird Sports
-    try {
-      await randomDelay();
-      const holabirdDeals = await scrapeHolabirdSports();
-      allDeals.push(...holabirdDeals);
-      scraperResults['Holabird Sports'] = { success: true, count: holabirdDeals.length };
-      console.log(`[SCRAPER] Holabird Sports: ${holabirdDeals.length} deals`);
-    } catch (error) {
-      scraperResults['Holabird Sports'] = { success: false, error: error.message };
-      console.error('[SCRAPER] Holabird Sports failed:', error.message);
-    }
 
     
     // Scrape Road Runner Sports via Apify
@@ -549,7 +534,8 @@ module.exports = async (req, res) => {
       deals: dealsToUse
     };
 
-    const blob = await put('deals.json', JSON.stringify(output, null, 2), {
+    const blob = await put('deals-other.json', JSON.stringify(output, null, 2), {
+
       access: 'public',
       addRandomSuffix: false
     });
@@ -917,127 +903,7 @@ async function scrapeMarathonSports() {
   }
 }
 
-/**
- * Scrape Holabird Sports running shoe deals
- */
-async function scrapeHolabirdSports() {
-  console.log("[SCRAPER] Starting Holabird Sports scrape...");
 
-  const collections = [
-    { path: "running-deals", filter: "Type_Running-Shoes+" },
-    { path: "shoe-deals", filter: "Type_Trail-Running-Shoes+" }
-  ];
-
-  const deals = [];
-  const seenUrls = new Set();
-
-  try {
-    for (const collection of collections) {
-      console.log(`[SCRAPER] Scraping collection: ${collection.path} with filter: ${collection.filter}`);
-
-      let page = 1;
-      let hasMore = true;
-
-      while (hasMore && page <= 3) {
-        const url = `https://www.holabirdsports.com/collections/${collection.path}/${collection.filter}?page=${page}`;
-
-        console.log(`[SCRAPER] Fetching page ${page}: ${url}`);
-
-        const response = await axios.get(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-            'Accept': 'text/html',
-          },
-          timeout: 30000
-        });
-
-        const $ = cheerio.load(response.data);
-
-        let foundProducts = 0;
-
-        $('a[href*="/products/"]').each((_, el) => {
-          const $link = $(el);
-          const href = ($link.attr('href') || '').trim();
-
-          if (!href || !href.includes('/products/')) return;
-
-          // Hard filters: avoid review anchors, scripts/styles, etc.
-          if (href.includes('#')) return;
-          if ($link.closest('script,style,noscript').length) return;
-
-          const productUrl = absolutizeUrl(href, "https://www.holabirdsports.com");
-          if (seenUrls.has(productUrl)) return;
-
-          const $container = $link.closest('div, article, li').filter(function() {
-            const text = $(this).text();
-            return text.includes('$') && (text.includes('Sale') || text.includes('Regular'));
-          });
-
-          if (!$container.length) return;
-
-          const containerText = normalizeWhitespace($container.text());
-
-          // Title: prefer img alt, but img might live in container not link
-          let title = '';
-          let $img = $link.find('img').first();
-          if (!$img.length) $img = $container.find('img').first();
-          if ($img.length) title = $img.attr('alt') || '';
-
-          if (!title || title.length < 5) {
-            const $titleEl = $container.find('h2, h3, .product-title, .product-card__title, [class*="title"], [class*="name"]').first();
-            if ($titleEl.length) title = normalizeWhitespace($titleEl.text());
-          }
-
-          title = cleanTitleText(title);
-          if (!title) return;
-
-          const { brand, model } = parseBrandModel(title);
-
-          const { salePrice, originalPrice, valid } = extractPrices($, $container, containerText);
-          if (!valid || !salePrice || salePrice <= 0) return;
-          if (!originalPrice || originalPrice <= salePrice) return;
-
-          let imageUrl = pickBestImgUrl($, $img, "https://www.holabirdsports.com");
-          if (!imageUrl) {
-            imageUrl = pickBackgroundImageUrl($container, "https://www.holabirdsports.com");
-          }
-
-          seenUrls.add(productUrl);
-          foundProducts++;
-
-          deals.push({
-            title,
-            brand,
-            model,
-            store: "Holabird Sports",
-            price: salePrice,
-            originalPrice,
-            url: productUrl,
-            image: imageUrl,
-            scrapedAt: new Date().toISOString()
-          });
-        });
-
-        console.log(`[SCRAPER] Page ${page}: found ${foundProducts} products`);
-
-        if (foundProducts === 0 && page === 1) {
-          hasMore = false;
-          break;
-        }
-
-        page++;
-        await randomDelay(1000, 2000);
-      }
-    }
-
-    console.log(`[SCRAPER] Holabird Sports scrape complete. Found ${deals.length} deals.`);
-    return deals;
-
-  } catch (error) {
-    console.error("[SCRAPER] Holabird Sports error:", error.message);
-    throw error;
-  }
-}
 
 function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
