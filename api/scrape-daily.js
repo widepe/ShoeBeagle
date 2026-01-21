@@ -942,7 +942,7 @@ async function scrapeHolabirdSports() {
       let page = 1;
       let hasMore = true;
 
-      while (hasMore && page <= 3) {
+      while (hasMore) {
         const url = `https://www.holabirdsports.com/collections/${collection.path}/${collection.filter}?page=${page}`;
         
         console.log(`[SCRAPER] Fetching page ${page}: ${url}`);
