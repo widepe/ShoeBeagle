@@ -29,6 +29,121 @@ const apifyClient = new ApifyClient({
   token: process.env.APIFY_TOKEN,
 });
 
+// =====================
+// Robust normalization layer (theme-change resistant)
+// =====================
+
+function normalizeWhitespace(s) {
+  return String(s || '').replace(/\s+/g, ' ').trim();
+}
+
+function stripHtmlToText(maybeHtml) {
+  const s = String(maybeHtml || '');
+  if (!s) return '';
+  if (!/[<>]/.test(s)) return normalizeWhitespace(s);
+
+  try {
+    const $ = cheerio.load(`<div id="x">${s}</div>`);
+    return normalizeWhitespace($('#x').text());
+  } catch {
+    return normalizeWhitespace(s.replace(/<[^>]*>/g, ' '));
+  }
+}
+
+function looksLikeCssOrJunk(s) {
+  const t = normalizeWhitespace(s);
+  if (!t) return true;
+  if (t.length < 5) return true;
+  if (/^#[-_a-z0-9]+/i.test(t)) return true; // "#review-stars-..."
+  if (t.includes('{') && t.includes('}') && t.includes(':')) return true; // "a { margin:0; }"
+  if (t.startsWith('@media') || t.startsWith(':root')) return true;
+  return false;
+}
+
+function cleanTitleText(raw) {
+  let t = stripHtmlToText(raw);
+
+  // remove common promo lead-ins
+  t = t.replace(/^(extra\s*\d+\s*%\s*off)\s+/i, '');
+  t = t.replace(/^(sale|clearance|closeout)\s+/i, '');
+
+  t = normalizeWhitespace(t);
+  if (looksLikeCssOrJunk(t)) return '';
+  return t;
+}
+
+function absolutizeUrl(u, base) {
+  let url = String(u || '').trim();
+  if (!url) return '';
+
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith('//')) return 'https:' + url;
+  if (url.startsWith('/')) return base.replace(/\/+$/, '') + url;
+
+  return base.replace(/\/+$/, '') + '/' + url.replace(/^\/+/, '');
+}
+
+function pickBestImgUrl($, $img, base) {
+  if (!$img || !$img.length) return null;
+
+  const direct =
+    $img.attr('data-src') ||
+    $img.attr('data-original') ||
+    $img.attr('data-lazy') ||
+    $img.attr('src');
+
+  const srcset = $img.attr('data-srcset') || $img.attr('srcset');
+
+  let candidate = (direct || '').trim();
+
+  if (!candidate && srcset) {
+    const parts = srcset.split(',').map(s => s.trim()).filter(Boolean);
+    // choose last = usually largest
+    const last = parts[parts.length - 1] || '';
+    candidate = last.split(' ')[0]?.trim() || '';
+  }
+
+  if (!candidate || candidate.startsWith('data:') || candidate === '#') return null;
+  return absolutizeUrl(candidate, base);
+}
+
+function pickBackgroundImageUrl($el, base) {
+  if (!$el || !$el.length) return null;
+  const style = String($el.attr('style') || '');
+  const m = style.match(/background-image\s*:\s*url\((['"]?)(.+?)\1\)/i);
+  if (!m) return null;
+  const url = (m[2] || '').trim();
+  if (!url || url.startsWith('data:')) return null;
+  return absolutizeUrl(url, base);
+}
+
+function sanitizeDeal(deal, baseForUrls) {
+  if (!deal) return deal;
+
+  deal.title = cleanTitleText(deal.title);
+  deal.brand = cleanTitleText(deal.brand) || stripHtmlToText(deal.brand) || 'Unknown';
+  deal.model = cleanTitleText(deal.model);
+
+  if (deal.url) deal.url = absolutizeUrl(deal.url, baseForUrls);
+
+  if (typeof deal.image === 'string' && deal.image.trim()) {
+    deal.image = absolutizeUrl(deal.image.trim(), baseForUrls);
+  } else {
+    deal.image = null;
+  }
+
+  // If title is empty but brand/model exist, fallback
+  if (!deal.title && deal.brand && deal.model) {
+    deal.title = normalizeWhitespace(`${deal.brand} ${deal.model}`);
+  }
+
+  return deal;
+}
+
+// =====================
+// CENTRALIZED FILTER
+// =====================
+
 /**
  * CENTRALIZED FILTER: Validates that a deal is a legitimate running shoe
  * @param {Deal} deal - The deal to validate
@@ -36,36 +151,25 @@ const apifyClient = new ApifyClient({
  */
 function isValidRunningShoe(deal) {
   // Basic data integrity checks
-  if (!deal || !deal.url || !deal.title) {
-    return false;
-  }
-  
+  if (!deal || !deal.url || !deal.title) return false;
+
   // Must have valid prices
-  if (!deal.price || !deal.originalPrice) {
-    return false;
-  }
-  
+  if (!deal.price || !deal.originalPrice) return false;
+
   // Sale price must be less than original price
-  if (deal.price >= deal.originalPrice) {
-    return false;
-  }
-  
+  if (deal.price >= deal.originalPrice) return false;
+
   // Price must be in reasonable range for shoes ($10-$1000)
-  if (deal.price < 10 || deal.price > 1000) {
-    return false;
-  }
-  
+  if (deal.price < 10 || deal.price > 1000) return false;
+
   // Discount must be between 5% and 90%
   const discount = ((deal.originalPrice - deal.price) / deal.originalPrice) * 100;
-  if (discount < 5 || discount > 90) {
-    return false;
-  }
-  
+  if (discount < 5 || discount > 90) return false;
+
   // Product type filtering - exclude non-shoe items
   const title = (deal.title || '').toLowerCase();
-  
-  // List of non-shoe items to exclude
-   const excludePatterns = [
+
+  const excludePatterns = [
     'sock', 'socks',
     'apparel', 'shirt', 'shorts', 'tights', 'pants',
     'hat', 'cap', 'beanie',
@@ -85,23 +189,19 @@ function isValidRunningShoe(deal) {
     'arm warmer', 'leg warmer',
     'headband', 'wristband',
     'sunglasses', 'eyewear',
-    'sleeve', 'sleeves', 
-    'throw',  //  track & field throw shoes
-    'out of stock', 
-    'kids', 'kid',  
-    'youth', 
-    'junior', 'juniors' 
+    'sleeve', 'sleeves',
+    'throw', // track & field throw shoes
+    'out of stock',
+    'kids', 'kid',
+    'youth',
+    'junior', 'juniors'
   ];
-  
-  // Check if title contains any excluded patterns
+
   for (const pattern of excludePatterns) {
-    // Use word boundary to avoid false positives
     const regex = new RegExp(`\\b${pattern}\\b`, 'i');
-    if (regex.test(title)) {
-      return false;
-    }
+    if (regex.test(title)) return false;
   }
-  
+
   return true;
 }
 
@@ -113,49 +213,8 @@ async function fetchRoadRunnerDeals() {
     throw new Error('APIFY_ROADRUNNER_ACTOR_ID is not set');
   }
 
-  // 1. Start a run of your actor and wait for it to finish
-  const run = await apifyClient
-    .actor(process.env.APIFY_ROADRUNNER_ACTOR_ID)
-    .call({});
+  const run = await apifyClient.actor(process.env.APIFY_ROADRUNNER_ACTOR_ID).call({});
 
-  // 2. Read all items from default dataset for this run
-  const allItems = [];
-  let offset = 0;
-  const limit = 500; // plenty for Road Runner sale pages
-
-  while (true) {
-    const { items, total } = await apifyClient
-      .dataset(run.defaultDatasetId)
-      .listItems({ offset, limit });
-
-    allItems.push(...items);
-    offset += items.length;
-
-    if (offset >= total || items.length === 0) break;
-  }
-
-  // Safety: ensure store is set
-  for (const d of allItems) {
-    if (!d.store) d.store = 'Road Runner Sports';
-  }
-
-  return allItems;
-}
-
-/**
- * Runs the Zappos Apify actor and returns its dataset as Deal[].
- */
-async function fetchZapposDeals() {
-  if (!process.env.APIFY_ZAPPOS_ACTOR_ID) {
-    throw new Error('APIFY_ZAPPOS_ACTOR_ID is not set');
-  }
-
-  // 1. Start a run of your Zappos actor and wait for it to finish
-  const run = await apifyClient
-    .actor(process.env.APIFY_ZAPPOS_ACTOR_ID)
-    .call({});
-
-  // 2. Read all items from default dataset for this run
   const allItems = [];
   let offset = 0;
   const limit = 500;
@@ -171,7 +230,38 @@ async function fetchZapposDeals() {
     if (offset >= total || items.length === 0) break;
   }
 
-  // Safety: ensure store is set
+  for (const d of allItems) {
+    if (!d.store) d.store = 'Road Runner Sports';
+  }
+
+  return allItems;
+}
+
+/**
+ * Runs the Zappos Apify actor and returns its dataset as Deal[].
+ */
+async function fetchZapposDeals() {
+  if (!process.env.APIFY_ZAPPOS_ACTOR_ID) {
+    throw new Error('APIFY_ZAPPOS_ACTOR_ID is not set');
+  }
+
+  const run = await apifyClient.actor(process.env.APIFY_ZAPPOS_ACTOR_ID).call({});
+
+  const allItems = [];
+  let offset = 0;
+  const limit = 500;
+
+  while (true) {
+    const { items, total } = await apifyClient
+      .dataset(run.defaultDatasetId)
+      .listItems({ offset, limit });
+
+    allItems.push(...items);
+    offset += items.length;
+
+    if (offset >= total || items.length === 0) break;
+  }
+
   for (const d of allItems) {
     if (!d.store) d.store = 'Zappos';
   }
@@ -184,7 +274,7 @@ async function fetchZapposDeals() {
  */
 async function fetchReiDeals() {
   console.log('[REI DEBUG] fetchReiDeals called');
-  
+
   if (!process.env.APIFY_REI_ACTOR_ID) {
     console.error('[REI DEBUG] APIFY_REI_ACTOR_ID is not set!');
     throw new Error('APIFY_REI_ACTOR_ID is not set');
@@ -193,28 +283,24 @@ async function fetchReiDeals() {
   console.log('[REI DEBUG] Actor ID:', process.env.APIFY_REI_ACTOR_ID);
   console.log('[REI DEBUG] Starting actor run...');
 
-  // 1. Start a run of your REI actor and wait for it to finish
-  const run = await apifyClient
-    .actor(process.env.APIFY_REI_ACTOR_ID)
-    .call({});
+  const run = await apifyClient.actor(process.env.APIFY_REI_ACTOR_ID).call({});
 
   console.log('[REI DEBUG] Actor run completed. Run ID:', run.id);
   console.log('[REI DEBUG] Default dataset ID:', run.defaultDatasetId);
 
-  // 2. Read all items from default dataset for this run
   const allItems = [];
   let offset = 0;
-  const limit = 500; // plenty for REI Outlet
+  const limit = 500;
 
   while (true) {
     console.log('[REI DEBUG] Fetching items. Offset:', offset, 'Limit:', limit);
-    
+
     const { items, total } = await apifyClient
       .dataset(run.defaultDatasetId)
       .listItems({ offset, limit });
 
     console.log('[REI DEBUG] Received', items.length, 'items. Total in dataset:', total);
-    
+
     allItems.push(...items);
     offset += items.length;
 
@@ -223,14 +309,10 @@ async function fetchReiDeals() {
 
   console.log('[REI DEBUG] Total items fetched:', allItems.length);
 
-  // Map REI actor items into your unified Deal shape
   const mapped = allItems.map((item) => {
     const brand = item.brand || 'Unknown';
     const model = item.model || '';
-    const title =
-      item.title ||
-      `${brand} ${model}`.trim() ||
-      'REI Outlet Shoe';
+    const title = item.title || `${brand} ${model}`.trim() || 'REI Outlet Shoe';
 
     return {
       title,
@@ -254,12 +336,10 @@ async function fetchReiDeals() {
  * Main handler - triggered by Vercel Cron
  */
 module.exports = async (req, res) => {
-  // Security: Only allow GET requests
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Optional: Verify cron secret
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && req.headers['x-cron-secret'] !== cronSecret) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -271,7 +351,7 @@ module.exports = async (req, res) => {
   try {
     const allDeals = [];
     const scraperResults = {};
-/*
+    
     // Scrape Running Warehouse
     try {
       const rwDeals = await scrapeRunningWarehouse();
@@ -285,7 +365,7 @@ module.exports = async (req, res) => {
 
     // Scrape Fleet Feet
     try {
-      await randomDelay(); // Be respectful - 2 second delay between sites
+      await randomDelay();
       const fleetFeetDeals = await scrapeFleetFeet();
       allDeals.push(...fleetFeetDeals);
       scraperResults['Fleet Feet'] = { success: true, count: fleetFeetDeals.length };
@@ -297,7 +377,7 @@ module.exports = async (req, res) => {
 
     // Scrape Luke's Locker
     try {
-      await randomDelay(); // Be respectful - 2 second delay between sites
+      await randomDelay();
       const lukesDeals = await scrapeLukesLocker();
       allDeals.push(...lukesDeals);
       scraperResults["Luke's Locker"] = { success: true, count: lukesDeals.length };
@@ -309,7 +389,7 @@ module.exports = async (req, res) => {
 
     // Scrape Marathon Sports
     try {
-      await randomDelay(); // Be respectful - 2 second delay between sites
+      await randomDelay();
       const marathonDeals = await scrapeMarathonSports();
       allDeals.push(...marathonDeals);
       scraperResults["Marathon Sports"] = { success: true, count: marathonDeals.length };
@@ -318,8 +398,9 @@ module.exports = async (req, res) => {
       scraperResults["Marathon Sports"] = { success: false, error: error.message };
       console.error("[SCRAPER] Marathon Sports failed:", error.message);
     }
-*/
-   // Scrape Holabird Sports
+    
+
+    // Scrape Holabird Sports
     try {
       await randomDelay();
       const holabirdDeals = await scrapeHolabirdSports();
@@ -329,11 +410,12 @@ module.exports = async (req, res) => {
     } catch (error) {
       scraperResults['Holabird Sports'] = { success: false, error: error.message };
       console.error('[SCRAPER] Holabird Sports failed:', error.message);
-    }    
-    /*
+    }
+
+    
     // Scrape Road Runner Sports via Apify
     try {
-      await randomDelay(); // keep your politeness delay between sites
+      await randomDelay();
       const rrDeals = await fetchRoadRunnerDeals();
       allDeals.push(...rrDeals);
       scraperResults['Road Runner Sports'] = { success: true, count: rrDeals.length };
@@ -343,17 +425,17 @@ module.exports = async (req, res) => {
       console.error('[SCRAPER] Road Runner Sports failed:', error.message);
     }
 
-    // Scrape REI Outlet via Apify - ENHANCED ERROR LOGGING
+    // Scrape REI Outlet via Apify
     try {
       console.log('[SCRAPER] ====== STARTING REI OUTLET SCRAPE ======');
       console.log('[SCRAPER] REI Actor ID:', process.env.APIFY_REI_ACTOR_ID);
       console.log('[SCRAPER] Apify Token present:', !!process.env.APIFY_TOKEN);
-      
-      await randomDelay(); // politeness delay
+
+      await randomDelay();
       console.log('[SCRAPER] Calling fetchReiDeals()...');
-      
+
       const reiDeals = await fetchReiDeals();
-      
+
       console.log('[SCRAPER] fetchReiDeals returned:', reiDeals.length, 'deals');
       allDeals.push(...reiDeals);
       scraperResults['REI Outlet'] = { success: true, count: reiDeals.length };
@@ -366,11 +448,11 @@ module.exports = async (req, res) => {
       console.error('[SCRAPER] REI Outlet error stack:', error.stack);
       scraperResults['REI Outlet'] = { success: false, error: error.message };
       console.error('[SCRAPER] REI Outlet failed:', error.message);
-    }    
+    }
 
     // Scrape Zappos via Apify
     try {
-      await randomDelay(); // keep your politeness delay between sites
+      await randomDelay();
       const zapposDeals = await fetchZapposDeals();
       allDeals.push(...zapposDeals);
       scraperResults['Zappos'] = { success: true, count: zapposDeals.length };
@@ -379,8 +461,23 @@ module.exports = async (req, res) => {
       scraperResults['Zappos'] = { success: false, error: error.message };
       console.error('[SCRAPER] Zappos failed:', error.message);
     }
-*/
+    
+
     console.log(`[SCRAPER] Total deals collected from all sources: ${allDeals.length}`);
+
+    // === GLOBAL SANITIZATION (theme-change resistant) ===
+    // Ensures no HTML/CSS leaks into title/model and normalizes URLs/images.
+    for (let i = 0; i < allDeals.length; i++) {
+      const d = allDeals[i];
+      const base =
+        d?.store === "Holabird Sports" ? "https://www.holabirdsports.com" :
+        d?.store === "Running Warehouse" ? "https://www.runningwarehouse.com" :
+        d?.store === "Fleet Feet" ? "https://www.fleetfeet.com" :
+        d?.store === "Luke's Locker" ? "https://lukeslocker.com" :
+        d?.store === "Marathon Sports" ? "https://www.marathonsports.com" :
+        "https://example.com";
+      allDeals[i] = sanitizeDeal(d, base);
+    }
 
     // === CENTRALIZED FILTERING ===
     console.log('[SCRAPER] Applying centralized filters to remove non-shoes and invalid deals...');
@@ -396,7 +493,6 @@ module.exports = async (req, res) => {
       if (!d) continue;
 
       const urlKey = (d.url || '').trim();
-
       if (!urlKey) {
         uniqueDeals.push(d);
         continue;
@@ -409,52 +505,42 @@ module.exports = async (req, res) => {
       uniqueDeals.push(d);
     }
 
-    console.log(
-      `[SCRAPER] De-duplication complete. Before: ${filteredDeals.length}, After: ${uniqueDeals.length} (removed ${filteredDeals.length - uniqueDeals.length} duplicates)`
-    );
+    console.log(`[SCRAPER] De-duplication complete. Before: ${filteredDeals.length}, After: ${uniqueDeals.length} (removed ${filteredDeals.length - uniqueDeals.length} duplicates)`);
 
-    // From here on, work with the deduped list
     const dealsToUse = uniqueDeals;
 
-    // STEP 1: Shuffle all deals to randomize baseline order
+    // Shuffle then sort by discount %
     console.log('[SCRAPER] Shuffling deals for fair distribution...');
     dealsToUse.sort(() => Math.random() - 0.5);
-    
-    // STEP 2: Sort by discount percentage (highest first)
-    // Stable sort preserves random order for items with same discount
+
     console.log('[SCRAPER] Sorting by discount percentage...');
     dealsToUse.sort((a, b) => {
-      const discountA = a.originalPrice && a.price 
-        ? ((a.originalPrice - a.price) / a.originalPrice * 100) 
+      const discountA = a.originalPrice && a.price
+        ? ((a.originalPrice - a.price) / a.originalPrice) * 100
         : 0;
-      const discountB = b.originalPrice && b.price 
-        ? ((b.originalPrice - b.price) / b.originalPrice * 100) 
+      const discountB = b.originalPrice && b.price
+        ? ((b.originalPrice - b.price) / b.originalPrice) * 100
         : 0;
-      return discountB - discountA;  // Highest discount first
+      return discountB - discountA;
     });
-    
+
     console.log(
       '[SCRAPER] Deals shuffled and sorted. Top deal:',
-      dealsToUse[0]?.title, 
-      'at', 
+      dealsToUse[0]?.title,
+      'at',
       dealsToUse[0]?.store,
-      '- Discount:', 
-      dealsToUse[0]?.originalPrice && dealsToUse[0]?.price 
-        ? Math.round(
-            (dealsToUse[0].originalPrice - dealsToUse[0].price) /
-            dealsToUse[0].originalPrice * 100
-          ) + '%'
+      '- Discount:',
+      dealsToUse[0]?.originalPrice && dealsToUse[0]?.price
+        ? Math.round((dealsToUse[0].originalPrice - dealsToUse[0].price) / dealsToUse[0].originalPrice * 100) + '%'
         : 'N/A'
     );
 
-    // Calculate statistics
     const dealsByStore = {};
     dealsToUse.forEach(deal => {
       const storeName = deal.store || 'Unknown';
       dealsByStore[storeName] = (dealsByStore[storeName] || 0) + 1;
     });
 
-    // Prepare output
     const output = {
       lastUpdated: new Date().toISOString(),
       totalDeals: dealsToUse.length,
@@ -463,7 +549,6 @@ module.exports = async (req, res) => {
       deals: dealsToUse
     };
 
-    // Save to Vercel Blob Storage (fixed filename, no random suffix)
     const blob = await put('deals.json', JSON.stringify(output, null, 2), {
       access: 'public',
       addRandomSuffix: false
@@ -500,10 +585,9 @@ module.exports = async (req, res) => {
 async function scrapeRunningWarehouse() {
   console.log("[SCRAPER] Starting Running Warehouse scrape...");
 
-  // Men's and Women's sale pages
   const urls = [
-    "https://www.runningwarehouse.com/catpage-SALEMS.html", // Men's
-    "https://www.runningwarehouse.com/catpage-SALEWS.html", // Women's
+    "https://www.runningwarehouse.com/catpage-SALEMS.html",
+    "https://www.runningwarehouse.com/catpage-SALEWS.html",
   ];
 
   const deals = [];
@@ -525,63 +609,40 @@ async function scrapeRunningWarehouse() {
       const html = response.data;
       const $ = cheerio.load(html);
 
-      // Each product is a link with text like:
-      // "Clearance Brand Model Men's Shoes - Color $ 111.95 $140.00 *"
       $("a").each((_, el) => {
         const anchor = $(el);
-        let text = anchor.text().replace(/\s+/g, " ").trim();
+        let text = normalizeWhitespace(anchor.text());
 
-        // Remove trailing asterisk
         text = text.replace(/\*\s*$/, "").trim();
 
         const href = anchor.attr("href") || "";
         if (!href) return;
 
-        // UNIVERSAL PRICE PARSER
         const { salePrice, originalPrice, valid } = extractPrices($, anchor, text);
         if (!valid || !salePrice || !Number.isFinite(salePrice)) return;
 
         const price = salePrice;
-        const hasValidOriginal =
-          Number.isFinite(originalPrice) && originalPrice > price;
+        const hasValidOriginal = Number.isFinite(originalPrice) && originalPrice > price;
 
-      const title = text.trim();
+        const title = cleanTitleText(text);
+        if (!title) return;
 
-        // Parse brand and model
         const { brand, model } = parseBrandModel(title);
 
-        // Build full URL
-        let cleanUrl = (href || '').trim();
-
+        let cleanUrl = href.trim();
         if (/^https?:\/\//i.test(cleanUrl)) {
-          // already an absolute URL, leave as-is
+          // ok
         } else if (cleanUrl.startsWith('//')) {
-          // protocol-relative URL like //www.runningwarehouse.com/...
           cleanUrl = 'https:' + cleanUrl;
         } else {
-          // relative path like /ASICS_GT_2000_13/...
           cleanUrl = `https://www.runningwarehouse.com/${cleanUrl.replace(/^\/+/, "")}`;
         }
 
-        // Try to find image
         let cleanImage = null;
         const container = anchor.closest("tr,td,div,li,article");
         if (container.length) {
           const imgEl = container.find("img").first();
-          const src =
-            imgEl.attr("data-src") ||
-            imgEl.attr("data-original") ||
-            imgEl.attr("src");
-          if (src) {
-            if (/^https?:\/\//i.test(src)) {
-              cleanImage = src;
-            } else {
-              cleanImage = `https://www.runningwarehouse.com/${src.replace(
-                /^\/+/,
-                ""
-              )}`;
-            }
-          }
+          cleanImage = pickBestImgUrl($, imgEl, "https://www.runningwarehouse.com");
         }
 
         if (seenUrls.has(cleanUrl)) return;
@@ -600,13 +661,10 @@ async function scrapeRunningWarehouse() {
         });
       });
 
-      // Be polite - 1.5 second delay between pages
       await randomDelay();
     }
 
-    console.log(
-      `[SCRAPER] Running Warehouse scrape complete. Found ${deals.length} deals.`
-    );
+    console.log(`[SCRAPER] Running Warehouse scrape complete. Found ${deals.length} deals.`);
     return deals;
   } catch (error) {
     console.error("[SCRAPER] Running Warehouse error:", error.message);
@@ -645,33 +703,24 @@ async function scrapeFleetFeet() {
 
       $('a[href^="/products/"]').each((_, el) => {
         const $link = $(el);
-        const href = $link.attr('href');
-
+        const href = ($link.attr('href') || '').trim();
         if (!href || !href.startsWith('/products/')) return;
 
-        const fullText = $link.text().replace(/\s+/g, ' ').trim();
-
-        const title = fullText.trim();
+        const fullText = normalizeWhitespace($link.text());
+        const title = cleanTitleText(fullText);
+        if (!title) return;
 
         const { brand, model } = parseBrandModel(title);
 
-        // UNIVERSAL PRICE PARSER
         const { salePrice, originalPrice, valid } = extractPrices($, $link, fullText);
         if (!valid || !salePrice || salePrice <= 0) return;
 
         let imageUrl = null;
-        const $img = $link.find('img').first();
-        if ($img.length) {
-          imageUrl = $img.attr('src') || $img.attr('data-src');
-          if (imageUrl && !imageUrl.startsWith('http')) {
-            imageUrl = 'https://cdn.fleetfeet.com' + (imageUrl.startsWith('/') ? '' : '/') + imageUrl;
-          }
-        }
+        let $img = $link.find('img').first();
+        if (!$img.length) $img = $link.closest('div, article, li').find('img').first();
+        imageUrl = pickBestImgUrl($, $img, "https://www.fleetfeet.com");
 
-        let fullUrl = href;
-        if (!fullUrl.startsWith('http')) {
-          fullUrl = 'https://www.fleetfeet.com' + (href.startsWith('/') ? '' : '/') + href;
-        }
+        let fullUrl = absolutizeUrl(href, "https://www.fleetfeet.com");
 
         if (seenUrls.has(fullUrl)) return;
         seenUrls.add(fullUrl);
@@ -694,7 +743,6 @@ async function scrapeFleetFeet() {
 
     console.log(`[SCRAPER] Fleet Feet scrape complete. Found ${deals.length} deals.`);
     return deals;
-
   } catch (error) {
     console.error("[SCRAPER] Fleet Feet error:", error.message);
     throw error;
@@ -724,49 +772,32 @@ async function scrapeLukesLocker() {
 
     const $ = cheerio.load(response.data);
 
-    // Luke's Locker uses similar Shopify structure to Fleet Feet
-    // Product links: /collections/closeout/products/altra-womens-torin-7
     $('a[href*="/products/"]').each((_, el) => {
       const $link = $(el);
-      const href = $link.attr('href');
-
-      // Skip if not a product link or doesn't contain /products/
+      const href = ($link.attr('href') || '').trim();
       if (!href || !href.includes('/products/')) return;
 
-      // Get all text from the link
-      const fullText = $link.text().replace(/\s+/g, ' ').trim();
+      if (href.includes('#')) return;
+      if ($link.closest('script,style,noscript').length) return;
 
-      // Skip empty or navigation links
+      const fullText = normalizeWhitespace($link.text());
       if (fullText.length < 10) return;
-
-      // Look for price indicators - Luke's shows "Sale price" and "Regular price"
       if (!fullText.includes('$')) return;
-    
-      const title = fullText.trim();
 
-      // Parse brand and model
+      const title = cleanTitleText(fullText);
+      if (!title) return;
+
       const { brand, model } = parseBrandModel(title);
 
-      // UNIVERSAL PRICE PARSER
       const { salePrice, originalPrice, valid } = extractPrices($, $link, fullText);
       if (!valid || !salePrice || salePrice <= 0) return;
 
-      // Get image URL
       let imageUrl = null;
-      const $img = $link.find('img').first();
-      if ($img.length) {
-        imageUrl = $img.attr('src') || $img.attr('data-src');
-        // Luke's Locker uses lukeslocker.com CDN
-        if (imageUrl && !imageUrl.startsWith('http')) {
-          imageUrl = 'https:' + (imageUrl.startsWith('//') ? imageUrl : '//' + imageUrl);
-        }
-      }
+      let $img = $link.find('img').first();
+      if (!$img.length) $img = $link.closest('div, article, li').find('img').first();
+      imageUrl = pickBestImgUrl($, $img, "https://lukeslocker.com");
 
-      // Build full URL
-      let fullUrl = href;
-      if (!fullUrl.startsWith('http')) {
-        fullUrl = 'https://lukeslocker.com' + (href.startsWith('/') ? '' : '/') + href;
-      }
+      const fullUrl = absolutizeUrl(href, "https://lukeslocker.com");
 
       deals.push({
         title,
@@ -783,7 +814,6 @@ async function scrapeLukesLocker() {
 
     console.log(`[SCRAPER] Luke's Locker scrape complete. Found ${deals.length} deals.`);
     return deals;
-
   } catch (error) {
     console.error("[SCRAPER] Luke's Locker error:", error.message);
     throw error;
@@ -797,13 +827,13 @@ async function scrapeMarathonSports() {
   console.log("[SCRAPER] Starting Marathon Sports scrape...");
 
   const urls = [
-    "https://www.marathonsports.com/shop/mens/shoes?sale=1",              // Men's sale shoes
-    "https://www.marathonsports.com/shop/womens/shoes?sale=1",            // Women's sale shoes
-    "https://www.marathonsports.com/shop?q=running%20shoes&sort=discount" // All running shoes sorted by discount
+    "https://www.marathonsports.com/shop/mens/shoes?sale=1",
+    "https://www.marathonsports.com/shop/womens/shoes?sale=1",
+    "https://www.marathonsports.com/shop?q=running%20shoes&sort=discount"
   ];
 
   const deals = [];
-  const seenUrls = new Set(); // Track unique products to avoid duplicates across pages
+  const seenUrls = new Set();
 
   try {
     for (const url of urls) {
@@ -820,80 +850,46 @@ async function scrapeMarathonSports() {
 
       const $ = cheerio.load(response.data);
 
-      // Marathon Sports: product links are /products/... 
-      // But title and price are in parent/sibling elements
       $('a[href^="/products/"]').each((_, el) => {
         const $link = $(el);
-        const href = $link.attr('href');
-
+        const href = ($link.attr('href') || '').trim();
         if (!href) return;
 
-        // Build full URL first for deduplication
-        let fullUrl = href;
-        if (!fullUrl.startsWith('http')) {
-          fullUrl = 'https://www.marathonsports.com' + (href.startsWith('/') ? '' : '/') + href;
-        }
-
-        // Skip if we've already seen this product
+        const fullUrl = absolutizeUrl(href, "https://www.marathonsports.com");
         if (seenUrls.has(fullUrl)) return;
 
-        // Find the parent container that holds all product info
         const $container = $link.closest('div, article, li').filter(function() {
-          // Make sure this container has price info
           return $(this).text().includes('price');
         });
 
         if (!$container.length) return;
 
-        // Get all text from the container
-        const containerText = $container.text().replace(/\s+/g, ' ').trim();
-
-        // Must have price indicators
+        const containerText = normalizeWhitespace($container.text());
         if (!containerText.includes('$') || !containerText.includes('price')) return;
 
-        // Extract title from h2, h3, or class containing "title" or "name"
         let title = '';
         const $titleEl = $container.find('h2, h3, .product-title, .product-name, [class*="title"]').first();
-        
+
         if ($titleEl.length) {
-          title = $titleEl.text().replace(/\s+/g, ' ').trim();
+          title = normalizeWhitespace($titleEl.text());
         } else {
-          // Fallback: look for title pattern before "Men's" or "Women's"
           const titleMatch = containerText.match(/^(.+?)\s+(Men's|Women's)/i);
-          if (titleMatch) {
-            title = titleMatch[1].trim();
-          }
+          if (titleMatch) title = titleMatch[1].trim();
         }
 
+        title = cleanTitleText(title);
+        if (!title) return;
 
-        if (!title || title.length < 5) return;
-
-        // Parse brand and model
         const { brand, model } = parseBrandModel(title);
 
-        // Use UNIVERSAL PRICE PARSER on the container text
         const { salePrice, originalPrice, valid } = extractPrices($, $container, containerText);
-        
         if (!valid || !salePrice || salePrice <= 0) return;
 
-        // Get image URL - check both link and container
         let imageUrl = null;
         let $img = $link.find('img').first();
+        if (!$img.length) $img = $container.find('img').first();
+        imageUrl = pickBestImgUrl($, $img, "https://www.marathonsports.com") || pickBackgroundImageUrl($container, "https://www.marathonsports.com");
 
-        // If not in link, check the container
-        if (!$img.length) {
-          $img = $container.find('img').first();
-        }
-
-        if ($img.length) {
-          imageUrl = $img.attr('src') || $img.attr('data-src');
-          // Image URLs are already absolute on Marathon Sports
-          if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('//')) {
-            imageUrl = 'https://www.marathonsports.com' + (imageUrl.startsWith('/') ? '' : '/') + imageUrl;
-          }
-        }
-
-        // Mark this URL as seen
         seenUrls.add(fullUrl);
 
         deals.push({
@@ -909,7 +905,6 @@ async function scrapeMarathonSports() {
         });
       });
 
-      // Be polite - delay between pages
       await randomDelay();
     }
 
@@ -924,7 +919,6 @@ async function scrapeMarathonSports() {
 
 /**
  * Scrape Holabird Sports running shoe deals
- * Uses Shopify's JSON API instead of HTML parsing
  */
 async function scrapeHolabirdSports() {
   console.log("[SCRAPER] Starting Holabird Sports scrape...");
@@ -946,7 +940,7 @@ async function scrapeHolabirdSports() {
 
       while (hasMore && page <= 3) {
         const url = `https://www.holabirdsports.com/collections/${collection.path}/${collection.filter}?page=${page}`;
-        
+
         console.log(`[SCRAPER] Fetching page ${page}: ${url}`);
 
         const response = await axios.get(url, {
@@ -958,23 +952,22 @@ async function scrapeHolabirdSports() {
         });
 
         const $ = cheerio.load(response.data);
-        
+
         let foundProducts = 0;
-        
-        // Look for product cards/containers
+
         $('a[href*="/products/"]').each((_, el) => {
           const $link = $(el);
-          const href = $link.attr('href');
+          const href = ($link.attr('href') || '').trim();
 
           if (!href || !href.includes('/products/')) return;
 
-          const productUrl = href.startsWith('http') 
-            ? href 
-            : `https://www.holabirdsports.com${href.startsWith('/') ? '' : '/'}${href}`;
+          // Hard filters: avoid review anchors, scripts/styles, etc.
+          if (href.includes('#')) return;
+          if ($link.closest('script,style,noscript').length) return;
 
+          const productUrl = absolutizeUrl(href, "https://www.holabirdsports.com");
           if (seenUrls.has(productUrl)) return;
 
-          // Find the parent product card
           const $container = $link.closest('div, article, li').filter(function() {
             const text = $(this).text();
             return text.includes('$') && (text.includes('Sale') || text.includes('Regular'));
@@ -982,42 +975,31 @@ async function scrapeHolabirdSports() {
 
           if (!$container.length) return;
 
-          const containerText = $container.text().replace(/\s+/g, ' ').trim();
+          const containerText = normalizeWhitespace($container.text());
 
-          // Get title from the image alt attribute (most reliable on Shopify)
+          // Title: prefer img alt, but img might live in container not link
           let title = '';
-          const $img = $link.find('img').first();
-          if ($img.length) {
-            title = $img.attr('alt') || '';
-          }
-          
-          // If no alt text, try to find a heading or title class
-          if (!title || title.length < 5) {
-            const $titleEl = $container.find('h2, h3, .product-title, .product-card__title, [class*="title"]').first();
-            if ($titleEl.length) {
-              title = $titleEl.text().replace(/\s+/g, ' ').trim();
-            }
-          }
+          let $img = $link.find('img').first();
+          if (!$img.length) $img = $container.find('img').first();
+          if ($img.length) title = $img.attr('alt') || '';
 
           if (!title || title.length < 5) {
-            console.log(`[SCRAPER] No title for: ${productUrl}`);
-            return;
+            const $titleEl = $container.find('h2, h3, .product-title, .product-card__title, [class*="title"], [class*="name"]').first();
+            if ($titleEl.length) title = normalizeWhitespace($titleEl.text());
           }
+
+          title = cleanTitleText(title);
+          if (!title) return;
 
           const { brand, model } = parseBrandModel(title);
+
           const { salePrice, originalPrice, valid } = extractPrices($, $container, containerText);
-          
           if (!valid || !salePrice || salePrice <= 0) return;
           if (!originalPrice || originalPrice <= salePrice) return;
 
-          let imageUrl = null;
-          if ($img && $img.length) {
-            imageUrl = $img.attr('src') || $img.attr('data-src');
-            if (imageUrl && !imageUrl.startsWith('http')) {
-              imageUrl = imageUrl.startsWith('//') 
-                ? 'https:' + imageUrl 
-                : 'https://www.holabirdsports.com' + (imageUrl.startsWith('/') ? '' : '/') + imageUrl;
-            }
+          let imageUrl = pickBestImgUrl($, $img, "https://www.holabirdsports.com");
+          if (!imageUrl) {
+            imageUrl = pickBackgroundImageUrl($container, "https://www.holabirdsports.com");
           }
 
           seenUrls.add(productUrl);
@@ -1044,7 +1026,7 @@ async function scrapeHolabirdSports() {
         }
 
         page++;
-        await randomDelay(1000, 2000);  // Faster: 1-2 seconds instead of 3-5
+        await randomDelay(1000, 2000);
       }
     }
 
@@ -1060,13 +1042,16 @@ async function scrapeHolabirdSports() {
 function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
 /**
  * Helper: Parse brand and model from title
  */
 function parseBrandModel(title) {
+  // NEW: sanitize incoming title before matching brands
+  title = cleanTitleText(title);
+
   if (!title) return { brand: "Unknown", model: "" };
 
-  // Keep your brand list, but you can add/remove freely
   const brands = [
     "361 Degrees", "adidas", "Allbirds", "Altra", "ASICS", "Brooks", "Craft", "Diadora",
     "HOKA", "Hylo Athletics", "INOV8", "Inov-8", "Karhu", "La Sportiva", "Lems",
@@ -1077,7 +1062,6 @@ function parseBrandModel(title) {
     "VJ Shoes", "VJ", "X-Bionic", "Xero Shoes", "Xero"
   ];
 
-  // IMPORTANT: match longer brand names first (prevents "On" matching before "On Running")
   const brandsSorted = [...brands].sort((a, b) => b.length - a.length);
 
   let brand = "Unknown";
@@ -1085,74 +1069,46 @@ function parseBrandModel(title) {
 
   for (const b of brandsSorted) {
     const escaped = escapeRegExp(b);
-
-    // Allow spaces/hyphens to behave naturally, but require "whole word-ish" matches.
-    // Use lookarounds so brands with spaces/symbols still match cleanly.
     const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
 
-   if (regex.test(title)) {
-     brand = b;
+    if (regex.test(title)) {
+      brand = b;
+      model = title.replace(regex, " ").trim();
+      model = model.replace(/\s+/g, " ");
+      break;
+    }
+  }
 
-     // Remove the same boundary-safe match we detected
-     model = title.replace(regex, " ").trim();
-     model = model.replace(/\s+/g, " ");
-
-     break;
-     }
-}
-
-  // Delegate cleanup (your modelNameCleaner)
   model = cleanModelName(model);
 
   return { brand, model };
 }
 
-
 /**
  * UNIVERSAL PRICE EXTRACTOR
- * Uses the shared logic we discussed.
  * Returns: { salePrice: number|null, originalPrice: number|null, valid: boolean }
  */
 function extractPrices($, $element, fullText) {
-  // 1) Extract all $ amounts from text
   let prices = extractDollarAmounts(fullText);
 
-  // 2) Try to reconstruct prices with superscript cents from DOM
   const supPrices = extractSuperscriptPrices($, $element);
-  if (supPrices.length) {
-    prices = prices.concat(supPrices);
-  }
+  if (supPrices.length) prices = prices.concat(supPrices);
 
-  // 3) Filter to reasonable shoe price range
   prices = prices.filter(p => Number.isFinite(p) && p >= 10 && p < 1000);
-  if (!prices.length) {
-    return { salePrice: null, originalPrice: null, valid: false };
-  }
+  if (!prices.length) return { salePrice: null, originalPrice: null, valid: false };
 
-  // 4) Deduplicate prices (same value appearing multiple times in the text)
   prices = [...new Set(prices.map(p => p.toFixed(2)))].map(s => parseFloat(s));
 
-  // If <2 prices → we don't know if it's discounted
-  if (prices.length < 2) {
-    return { salePrice: null, originalPrice: null, valid: false };
-  }
+  if (prices.length < 2) return { salePrice: null, originalPrice: null, valid: false };
+  if (prices.length > 3) return { salePrice: null, originalPrice: null, valid: false };
 
-  // If 4+ unique prices → too ambiguous
-  if (prices.length > 3) {
-    return { salePrice: null, originalPrice: null, valid: false };
-  }
-
-  // Sort high → low
   prices.sort((a, b) => b - a);
 
-  // === 2 PRICES: max = original, min = sale, with sanity checks ===
   if (prices.length === 2) {
     const original = prices[0];
     const sale = prices[1];
 
-    if (!(sale < original)) {
-      return { salePrice: null, originalPrice: null, valid: false };
-    }
+    if (!(sale < original)) return { salePrice: null, originalPrice: null, valid: false };
 
     const discountPercent = ((original - sale) / original) * 100;
     if (discountPercent < 5 || discountPercent > 90) {
@@ -1162,14 +1118,12 @@ function extractPrices($, $element, fullText) {
     return { salePrice: sale, originalPrice: original, valid: true };
   }
 
-  // === 3 PRICES: original = largest, other two are sale & savings ===
   if (prices.length === 3) {
     const original = prices[0];
-    const remaining = prices.slice(1); // [x, y]
+    const remaining = prices.slice(1);
     const [p1, p2] = remaining;
-    const tolPrice = 1; // $1 tolerance
+    const tolPrice = 1;
 
-    // 3a) "Save $X" pattern
     const saveAmount = findSaveAmount(fullText);
     if (saveAmount != null) {
       const isP1Save = Math.abs(p1 - saveAmount) <= tolPrice;
@@ -1188,10 +1142,8 @@ function extractPrices($, $element, fullText) {
           return { salePrice: sale, originalPrice: original, valid: true };
         }
       }
-      // If both or neither look like save amount, fall through.
     }
 
-    // 3b) "% off" pattern (e.g. "25% off")
     const percentOff = findPercentOff(fullText);
     if (percentOff != null) {
       const expectedSale = original * (1 - percentOff / 100);
@@ -1209,16 +1161,11 @@ function extractPrices($, $element, fullText) {
       if (saleCandidate != null) {
         const discountPercent = ((original - saleCandidate) / original) * 100;
         if (discountPercent >= 5 && discountPercent <= 90 && saleCandidate < original) {
-          return {
-            salePrice: saleCandidate,
-            originalPrice: original,
-            valid: true
-          };
+          return { salePrice: saleCandidate, originalPrice: original, valid: true };
         }
       }
     }
 
-    // 3c) Fallback: assume larger of remaining is sale
     const sale = Math.max(...remaining);
     const discountPercent = ((original - sale) / original) * 100;
     if (discountPercent >= 5 && discountPercent <= 90 && sale < original) {
@@ -1228,13 +1175,9 @@ function extractPrices($, $element, fullText) {
     return { salePrice: null, originalPrice: null, valid: false };
   }
 
-  // Should never reach here, but just in case:
   return { salePrice: null, originalPrice: null, valid: false };
 }
 
-/**
- * Extract $X or $X.YY values from text
- */
 function extractDollarAmounts(text) {
   if (!text) return [];
   const matches = text.match(/\$\s*[\d,]+(?:\.\d{1,2})?/g);
@@ -1245,26 +1188,17 @@ function extractDollarAmounts(text) {
     .filter(n => Number.isFinite(n));
 }
 
-/**
- * Extract prices where cents are in superscript / small tags
- */
 function extractSuperscriptPrices($, $element) {
   const prices = [];
   if (!$ || !$element || !$element.find) return prices;
 
-  // Look for elements that might contain "$DOLLARS" with children holding cents
   $element.find('sup, .cents, .price-cents, small').each((_, el) => {
     const $centsEl = $(el);
     const centsText = $centsEl.text().trim();
     if (!/^\d{1,2}$/.test(centsText)) return;
 
     const $parent = $centsEl.parent();
-    const parentTextWithoutChildren = $parent
-      .clone()
-      .children()
-      .remove()
-      .end()
-      .text();
+    const parentTextWithoutChildren = $parent.clone().children().remove().end().text();
 
     const dollarMatch = parentTextWithoutChildren.match(/\$\s*(\d+)/);
     if (!dollarMatch) return;
@@ -1274,17 +1208,12 @@ function extractSuperscriptPrices($, $element) {
     if (!Number.isFinite(dollars) || !Number.isFinite(cents)) return;
 
     const price = dollars + cents / 100;
-    if (price >= 10 && price < 1000) {
-      prices.push(price);
-    }
+    if (price >= 10 && price < 1000) prices.push(price);
   });
 
   return prices;
 }
 
-/**
- * Find "Save $X" amount in text
- */
 function findSaveAmount(text) {
   if (!text) return null;
   const match = text.match(/save\s*\$\s*([\d,]+(?:\.\d{1,2})?)/i);
@@ -1293,9 +1222,6 @@ function findSaveAmount(text) {
   return Number.isFinite(amount) ? amount : null;
 }
 
-/**
- * Find "X% off" in text
- */
 function findPercentOff(text) {
   if (!text) return null;
   const match = text.match(/(\d+)\s*%\s*off/i);
