@@ -269,7 +269,7 @@ module.exports = async (req, res) => {
   try {
     const allDeals = [];
     const scraperResults = {};
-
+/*
     // Scrape Running Warehouse
     try {
       const rwDeals = await scrapeRunningWarehouse();
@@ -316,7 +316,7 @@ module.exports = async (req, res) => {
       scraperResults["Marathon Sports"] = { success: false, error: error.message };
       console.error("[SCRAPER] Marathon Sports failed:", error.message);
     }
-
+*/
    // Scrape Holabird Sports
     try {
       await randomDelay();
@@ -328,7 +328,7 @@ module.exports = async (req, res) => {
       scraperResults['Holabird Sports'] = { success: false, error: error.message };
       console.error('[SCRAPER] Holabird Sports failed:', error.message);
     }    
-    
+    /*
     // Scrape Road Runner Sports via Apify
     try {
       await randomDelay(); // keep your politeness delay between sites
@@ -377,7 +377,7 @@ module.exports = async (req, res) => {
       scraperResults['Zappos'] = { success: false, error: error.message };
       console.error('[SCRAPER] Zappos failed:', error.message);
     }
-
+*/
     console.log(`[SCRAPER] Total deals collected from all sources: ${allDeals.length}`);
 
     // === CENTRALIZED FILTERING ===
@@ -928,31 +928,23 @@ async function scrapeHolabirdSports() {
   console.log("[SCRAPER] Starting Holabird Sports scrape...");
 
   const collections = [
-    {
-      name: "running-deals",
-      filter: "Type_Running-Shoes+"
-    },
-    {
-      name: "shoe-deals",
-      filter: "Type_Trail-Running-Shoes+"
-    }
+    "running-deals/Type_Running-Shoes+",
+    "shoe-deals/Type_Trail-Running-Shoes+"
   ];
 
   const deals = [];
   const seenUrls = new Set();
 
   try {
-    for (const collection of collections) {
-      console.log(`[SCRAPER] Scraping collection: ${collection.name} with filter: ${collection.filter}`);
+    for (const collectionPath of collections) {
+      console.log(`[SCRAPER] Scraping collection: ${collectionPath}`);
 
-      // Shopify collections can be accessed via JSON API
-      // Format: /collections/{handle}/products.json
       let page = 1;
       let hasMore = true;
 
       while (hasMore && page <= 3) {
         // Build the JSON API URL
-        const jsonUrl = `https://www.holabirdsports.com/collections/${collection.name}/${collection.filter}products.json?page=${page}`;
+        const jsonUrl = `https://www.holabirdsports.com/collections/${collectionPath}products.json?page=${page}`;
         
         console.log(`[SCRAPER] Fetching page ${page}: ${jsonUrl}`);
 
@@ -1038,8 +1030,6 @@ async function scrapeHolabirdSports() {
     throw error;
   }
 }
-
-
 function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
