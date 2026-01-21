@@ -1042,7 +1042,9 @@ async function scrapeHolabirdSports() {
         }
 
         page++;
-        await randomDelay();
+        await randomDelay(1000, 2000);  // Faster: 1-2 seconds instead of 3-5
+      }
+    }
       }
     }
 
