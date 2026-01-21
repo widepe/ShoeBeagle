@@ -943,7 +943,6 @@ async function scrapeHolabirdSports() {
       let hasMore = true;
 
       while (hasMore && page <= 3) {
-        // Build the URL matching the browser format
         const url = `https://www.holabirdsports.com/collections/${collection.path}/${collection.filter}?page=${page}`;
         
         console.log(`[SCRAPER] Fetching page ${page}: ${url}`);
@@ -956,10 +955,18 @@ async function scrapeHolabirdSports() {
           timeout: 30000
         });
 
+        console.log(`[SCRAPER] Response status: ${response.status}`);
+        console.log(`[SCRAPER] Response length: ${response.data.length} characters`);
+
         const $ = cheerio.load(response.data);
         
-        // Now parse HTML like your other scrapers
+        // Count ALL links with /products/
+        const allProductLinks = $('a[href*="/products/"]').length;
+        console.log(`[SCRAPER] Total product links found: ${allProductLinks}`);
+        
         let foundProducts = 0;
+        let skippedNoPrices = 0;
+        let skippedDuplicates = 0;
         
         $('a[href*="/products/"]').each((_, el) => {
           const $link = $(el);
@@ -968,13 +975,20 @@ async function scrapeHolabirdSports() {
           if (!href || !href.includes('/products/')) return;
 
           const fullText = $link.text().replace(/\s+/g, ' ').trim();
-          if (!fullText.includes('$')) return;
+          
+          if (!fullText.includes('$')) {
+            skippedNoPrices++;
+            return;
+          }
 
           const productUrl = href.startsWith('http') 
             ? href 
             : `https://www.holabirdsports.com${href.startsWith('/') ? '' : '/'}${href}`;
 
-          if (seenUrls.has(productUrl)) return;
+          if (seenUrls.has(productUrl)) {
+            skippedDuplicates++;
+            return;
+          }
 
           const title = fullText.trim();
           if (!title || title.length < 5) return;
@@ -982,8 +996,15 @@ async function scrapeHolabirdSports() {
           const { brand, model } = parseBrandModel(title);
           const { salePrice, originalPrice, valid } = extractPrices($, $link, fullText);
           
-          if (!valid || !salePrice || salePrice <= 0) return;
-          if (!originalPrice || originalPrice <= salePrice) return;
+          if (!valid || !salePrice || salePrice <= 0) {
+            console.log(`[SCRAPER] Invalid pricing for: ${title.substring(0, 50)}`);
+            return;
+          }
+          
+          if (!originalPrice || originalPrice <= salePrice) {
+            console.log(`[SCRAPER] No discount for: ${title.substring(0, 50)} - sale: ${salePrice}, orig: ${originalPrice}`);
+            return;
+          }
 
           let imageUrl = null;
           const $img = $link.find('img').first();
@@ -999,6 +1020,8 @@ async function scrapeHolabirdSports() {
           seenUrls.add(productUrl);
           foundProducts++;
 
+          console.log(`[SCRAPER] Added product: ${title.substring(0, 50)} - $${salePrice} (was $${originalPrice})`);
+
           deals.push({
             title,
             brand,
@@ -1012,7 +1035,7 @@ async function scrapeHolabirdSports() {
           });
         });
 
-        console.log(`[SCRAPER] Found ${foundProducts} products on page ${page}`);
+        console.log(`[SCRAPER] Page ${page} summary: ${foundProducts} valid, ${skippedNoPrices} no prices, ${skippedDuplicates} duplicates`);
 
         if (foundProducts === 0) {
           hasMore = false;
@@ -1029,10 +1052,10 @@ async function scrapeHolabirdSports() {
 
   } catch (error) {
     console.error("[SCRAPER] Holabird Sports error:", error.message);
+    console.error("[SCRAPER] Error stack:", error.stack);
     throw error;
   }
 }
-
 
 
 function escapeRegExp(str) {
