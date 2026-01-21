@@ -922,108 +922,110 @@ async function scrapeMarathonSports() {
 
 /**
  * Scrape Holabird Sports running shoe deals
- * Includes both road running shoes and trail running shoes
+ * Uses Shopify's JSON API instead of HTML parsing
  */
 async function scrapeHolabirdSports() {
   console.log("[SCRAPER] Starting Holabird Sports scrape...");
 
-  // Both running shoes and trail running shoes deal pages
-  const baseUrls = [
-    "https://www.holabirdsports.com/collections/running-deals/Type_Running-Shoes+",
-    "https://www.holabirdsports.com/collections/shoe-deals/Type_Trail-Running-Shoes+"
+  const collections = [
+    {
+      name: "running-deals",
+      filter: "Type_Running-Shoes+"
+    },
+    {
+      name: "shoe-deals",
+      filter: "Type_Trail-Running-Shoes+"
+    }
   ];
 
   const deals = [];
   const seenUrls = new Set();
 
   try {
-    // Loop through both collections
-    for (const baseUrl of baseUrls) {
-      console.log(`[SCRAPER] Scraping collection: ${baseUrl}`);
+    for (const collection of collections) {
+      console.log(`[SCRAPER] Scraping collection: ${collection.name} with filter: ${collection.filter}`);
 
-      // They may have pagination - check up to 3 pages per collection
-      for (let page = 1; page <= 3; page++) {
-        const url = `${baseUrl}?page=${page}`;
-        console.log(`[SCRAPER] Fetching Holabird Sports page ${page}: ${url}`);
+      // Shopify collections can be accessed via JSON API
+      // Format: /collections/{handle}/products.json
+      let page = 1;
+      let hasMore = true;
 
-        const response = await axios.get(url, {
+      while (hasMore && page <= 3) {
+        // Build the JSON API URL
+        const jsonUrl = `https://www.holabirdsports.com/collections/${collection.name}/${collection.filter}products.json?page=${page}`;
+        
+        console.log(`[SCRAPER] Fetching page ${page}: ${jsonUrl}`);
+
+        const response = await axios.get(jsonUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9'
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'Accept': 'application/json',
           },
           timeout: 30000
         });
 
-        const $ = cheerio.load(response.data);
+        const data = response.data;
+        
+        // Shopify returns {products: [...]}
+        const products = data.products || [];
+        
+        console.log(`[SCRAPER] Found ${products.length} products on page ${page}`);
 
-        // Find product links
-        $('a[href*="/products/"]').each((_, el) => {
-          const $link = $(el);
-          const href = $link.attr('href');
+        if (products.length === 0) {
+          hasMore = false;
+          break;
+        }
 
-          if (!href || !href.includes('/products/')) return;
+        for (const product of products) {
+          // Build product URL
+          const productUrl = `https://www.holabirdsports.com/products/${product.handle}`;
 
-          // Build full URL
-          let fullUrl = href;
-          if (!fullUrl.startsWith('http')) {
-            fullUrl = 'https://www.holabirdsports.com' + (href.startsWith('/') ? '' : '/') + href;
-          }
+          // Skip duplicates
+          if (seenUrls.has(productUrl)) continue;
 
-          // Skip duplicates across both collections
-          if (seenUrls.has(fullUrl)) return;
-
-          // Get all text from the link
-          const fullText = $link.text().replace(/\s+/g, ' ').trim();
-
-          // Must have price indicator
-          if (!fullText.includes('$')) return;
-
-          const title = fullText.trim();
-          if (!title || title.length < 5) return;
+          // Get title
+          const title = product.title || '';
+          if (!title || title.length < 5) continue;
 
           // Parse brand and model
           const { brand, model } = parseBrandModel(title);
 
-          // UNIVERSAL PRICE PARSER
-          const { salePrice, originalPrice, valid } = extractPrices($, $link, fullText);
-          if (!valid || !salePrice || salePrice <= 0) return;
+          // Get pricing from first variant (usually the default)
+          const variant = product.variants && product.variants[0];
+          if (!variant) continue;
 
-          // Get image URL
+          const price = variant.price ? parseFloat(variant.price) : null;
+          const originalPrice = variant.compare_at_price ? parseFloat(variant.compare_at_price) : null;
+
+          // Must have valid pricing
+          if (!price || !originalPrice || price >= originalPrice) continue;
+
+          // Get image
           let imageUrl = null;
-          const $img = $link.find('img').first();
-          if ($img.length) {
-            imageUrl = $img.attr('src') || $img.attr('data-src');
+          if (product.images && product.images[0]) {
+            imageUrl = product.images[0].src;
+            // Ensure https
             if (imageUrl && !imageUrl.startsWith('http')) {
-              if (imageUrl.startsWith('//')) {
-                imageUrl = 'https:' + imageUrl;
-              } else {
-                imageUrl = 'https://www.holabirdsports.com' + (imageUrl.startsWith('/') ? '' : '/') + imageUrl;
-              }
+              imageUrl = 'https:' + (imageUrl.startsWith('//') ? imageUrl : '//' + imageUrl);
             }
           }
 
-          seenUrls.add(fullUrl);
+          seenUrls.add(productUrl);
 
           deals.push({
             title,
             brand,
             model,
             store: "Holabird Sports",
-            price: salePrice,
-            originalPrice: originalPrice || null,
-            url: fullUrl,
+            price,
+            originalPrice,
+            url: productUrl,
             image: imageUrl,
             scrapedAt: new Date().toISOString()
           });
-        });
-
-        // Check if there are more pages (if no products found, stop)
-        if ($('a[href*="/products/"]').length === 0) {
-          console.log(`[SCRAPER] No products found on page ${page}, stopping pagination for this collection`);
-          break;
         }
 
+        page++;
         await randomDelay();
       }
     }
@@ -1036,20 +1038,6 @@ async function scrapeHolabirdSports() {
     throw error;
   }
 }
-
-// Then add this to your main handler in module.exports:
-// 
-// // Scrape Holabird Sports
-// try {
-//   await randomDelay();
-//   const holabirdDeals = await scrapeHolabirdSports();
-//   allDeals.push(...holabirdDeals);
-//   scraperResults['Holabird Sports'] = { success: true, count: holabirdDeals.length };
-//   console.log(`[SCRAPER] Holabird Sports: ${holabirdDeals.length} deals`);
-// } catch (error) {
-//   scraperResults['Holabird Sports'] = { success: false, error: error.message };
-//   console.error('[SCRAPER] Holabird Sports failed:', error.message);
-// }
 
 
 function escapeRegExp(str) {
