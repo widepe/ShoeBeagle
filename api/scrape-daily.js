@@ -2,6 +2,8 @@
 // Daily scraper for running shoe deals
 // Runs once per day via Vercel Cron
 
+//  Edit later in function holabird as it only scrapes up to 3 pages    while (hasMore && page <= 3) {) {
+
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { put } = require('@vercel/blob');
@@ -942,7 +944,7 @@ async function scrapeHolabirdSports() {
       let page = 1;
       let hasMore = true;
 
-      while (hasMore) {
+      while (hasMore && page <= 3) {) {
         const url = `https://www.holabirdsports.com/collections/${collection.path}/${collection.filter}?page=${page}`;
         
         console.log(`[SCRAPER] Fetching page ${page}: ${url}`);
