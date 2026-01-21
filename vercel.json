@@ -1,9 +1,20 @@
 {
   "crons": [
     {
-      "path": "/api/scrape-daily",
+      "path": "/api/scrapers/holabird-mens-road",
       "schedule": "3 9 * * *"
+    },
+    {
+      "path": "/api/scrapers/holabird-womens-road",
+      "schedule": "8 9 * * *"
+    },
+    {
+      "path": "/api/scrapers/holabird-trail-unisex",
+      "schedule": "13 9 * * *"
+    },
+    {
+      "path": "/api/build-deals",
+      "schedule": "20 9 * * *"
     }
   ]
 }
-
