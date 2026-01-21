@@ -635,10 +635,12 @@
         img.alt = item.title || "Running shoe deal";
         imgWrapper.appendChild(img);
       } else {
-        const img = document.createElement("img");
-        img.alt = "Running shoe";
-        imgWrapper.appendChild(img);
-      }
+  const img = document.createElement("img");
+  img.src = "https://placehold.co/600x400?text=Running+Shoe";
+  img.alt = "Running shoe";
+  imgWrapper.appendChild(img);
+}
+
 
       if (discount.hasDiscount) {
         const badge = document.createElement("div");
@@ -699,29 +701,37 @@
     }
 
     // Load daily deals from API and render as cards
-    async function loadDailyDeals() {
-      try {
-        const res = await fetch("/api/daily-deals");
-        const data = await res.json();
-        const deals = (data && Array.isArray(data.deals)) ? data.deals : [];
-        dailyDealsGrid.innerHTML = "";
+    // Load daily deals from the FINAL merged blob (deals.json) and render as cards
+async function loadDailyDeals() {
+  try {
+    const blobUrl = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json";
+    const res = await fetch(blobUrl);
+    const data = await res.json();
 
-        if (!deals.length) {
-          dailyDeals.style.display = "none";
-          return;
-        }
+    // deals.json shape: { totalDeals, deals: [...] }
+    const deals = (data && Array.isArray(data.deals)) ? data.deals : [];
 
-        deals.forEach(item => {
-          const card = createDealCard(item);
-          dailyDealsGrid.appendChild(card);
-        });
+    dailyDealsGrid.innerHTML = "";
 
-        dailyDeals.style.display = "block";
-      } catch (err) {
-        console.error("Error loading daily deals:", err);
-        dailyDeals.style.display = "none";
-      }
+    if (!deals.length) {
+      dailyDeals.style.display = "none";
+      return;
     }
+
+    // Optional: show only first N cards on homepage
+    const daily = deals.slice(0, 24);
+
+    daily.forEach(item => {
+      dailyDealsGrid.appendChild(createDealCard(item));
+    });
+
+    dailyDeals.style.display = "block";
+  } catch (err) {
+    console.error("Error loading daily deals:", err);
+    dailyDeals.style.display = "none";
+  }
+}
+
 
     // Load total deals count and update tagline
 async function dailyDealCount() {
