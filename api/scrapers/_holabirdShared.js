@@ -166,18 +166,34 @@ function extractBrandAndModel(title) {
     "norda", "inov8", "OOFOS", "Birkenstock", "Kane Footwear", "LANE EIGHT"
   ];
   
-  // Try to find brand at the start of the title (case-insensitive)
+  // FIXED: Find brand ANYWHERE in the title (not just at start)
   for (const brand of brands) {
-    const regex = new RegExp(`^${brand}\\s+(.+)$`, "i");
-    const match = title.match(regex);
-    if (match) {
-      const model = match[1].trim();
-      return { brand, model };
+    // Use word boundary \b to match whole words only, case-insensitive
+    const regex = new RegExp(`\\b${brand}\\b`, "i");
+    
+    if (regex.test(title)) {
+      // Remove the brand name and everything before it to get the model
+      const parts = title.split(regex);
+      
+      // Take the part after the brand name as the model
+      let model = parts.length > 1 ? parts[1].trim() : parts[0].trim();
+      
+      // Clean up common prefixes from the model
+      model = model.replace(/^[-:,\s]+/, "").trim();
+      
+      return { 
+        brand, 
+        model: model || title 
+      };
     }
   }
   
-  // If no brand match, split at first space and assume first word is brand
-  const parts = title.trim().split(/\s+/);
+  // If no brand match, try to extract from common patterns
+  // Remove common prefixes first (Men's, Women's, etc.)
+  const cleaned = title.replace(/^(Men's|Women's|Kids?|Youth|Junior|Unisex|Sale:?|New:?)\s+/gi, "").trim();
+  
+  // Split and assume first word is brand
+  const parts = cleaned.split(/\s+/);
   if (parts.length >= 2) {
     return {
       brand: parts[0],
