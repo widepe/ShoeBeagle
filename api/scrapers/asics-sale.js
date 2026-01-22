@@ -109,6 +109,12 @@ function extractAsicsProducts(html, sourceUrl) {
       image = null;
     }
     
+    // FIXED: Upgrade thumbnail images to larger versions
+    if (image && image.includes('$variantthumbnail$')) {
+      // Replace thumbnail with larger image size
+      image = image.replace('$variantthumbnail$', '$zoom$');
+    }
+    
     // Calculate discount
     const discount = originalPrice && price && originalPrice > price ?
       Math.round(((originalPrice - price) / originalPrice) * 100) : null;
