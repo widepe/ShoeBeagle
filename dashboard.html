@@ -16,6 +16,102 @@
 
     .container { max-width: 1400px; margin: 0 auto; }
 
+
+/* Store filter + results */
+.filter-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  margin: 10px 0 18px;
+  flex-wrap: wrap;
+}
+
+.filter-row label {
+  font-weight: 600;
+  color: #214478ff;
+}
+
+.filter-row select {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 2px solid #214478ff;
+  background: #ffffff;
+  font-size: 1rem;
+  min-width: 260px;
+}
+
+.deals-panel {
+  background: white;
+  border: 2px solid #214478ff;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.deals-panel h2 {
+  color: #214478ff;
+  margin-bottom: 10px;
+  font-size: 1.5rem;
+}
+
+.deals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 240px));
+  gap: 16px;
+  justify-content: center;
+}
+
+.deal-card {
+  border: 2px solid #214478ff;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #d9e1ebff;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+}
+
+.deal-card img {
+  width: 100%;
+  height: 150px;
+  object-fit: contain;
+  background: white;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+.deal-card-body {
+  padding: 10px 12px;
+}
+
+.deal-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+  line-height: 1.2;
+}
+
+.deal-meta {
+  font-size: 0.85rem;
+  color: #49543a;
+  margin-bottom: 8px;
+}
+
+.deal-price {
+  font-weight: 800;
+  color: #214478ff;
+}
+
+.deal-orig {
+  margin-left: 8px;
+  color: #777;
+  text-decoration: line-through;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+    
+
     /* NEW: Logo at top with 6px buffer */
     .brand-header {
       display: flex;
@@ -311,6 +407,25 @@
         <div class="bar-chart" id="storeChart"></div>
       </div>
 
+<!-- Deals Browser by Store -->
+<div class="deals-panel">
+  <h2>🔎 Browse Deals by Store</h2>
+
+  <div class="filter-row">
+    <label for="storeSelect">Store:</label>
+    <select id="storeSelect">
+      <option value="__all__">All Stores</option>
+    </select>
+    <div id="storeCount" style="color:#666;font-size:0.95rem;"></div>
+  </div>
+
+  <div class="deals-grid" id="storeDealsGrid"></div>
+</div>
+
+
+
+
+      
       <!-- NEW: Unknown Brands by Store -->
       <div class="stores-table">
         <h2>Unknown Brands by Store</h2>
@@ -721,7 +836,107 @@
 
       document.getElementById('priceChart').innerHTML = html;
     }
+let ALL_DEALS = [];
 
+function formatMoney(n) {
+  const x = Number(n);
+  return Number.isFinite(x) ? `$${x.toFixed(2)}` : "—";
+}
+
+function buildStoreDropdown(deals) {
+  const select = document.getElementById("storeSelect");
+  if (!select) return;
+
+  const stores = [...new Set(deals.map(d => d.store).filter(Boolean))].sort();
+
+  // Reset options (keep All Stores)
+  select.innerHTML = `<option value="__all__">All Stores</option>`;
+  stores.forEach(store => {
+    const opt = document.createElement("option");
+    opt.value = store;
+    opt.textContent = store;
+    select.appendChild(opt);
+  });
+
+  select.addEventListener("change", () => renderDealsForSelectedStore());
+}
+
+function renderDealsForSelectedStore() {
+  const select = document.getElementById("storeSelect");
+  const grid = document.getElementById("storeDealsGrid");
+  const countEl = document.getElementById("storeCount");
+  if (!select || !grid) return;
+
+  const chosen = select.value;
+
+  const filtered =
+    chosen === "__all__"
+      ? ALL_DEALS
+      : ALL_DEALS.filter(d => (d.store || "") === chosen);
+
+  // Show count
+  if (countEl) {
+    countEl.textContent = `${filtered.length.toLocaleString()} deal${filtered.length === 1 ? "" : "s"}`;
+  }
+
+  // Render (cap for performance)
+  const SHOW_MAX = 200; // adjust if you want more
+  const toShow = filtered.slice(0, SHOW_MAX);
+
+  grid.innerHTML = "";
+
+  if (!toShow.length) {
+    grid.innerHTML = `<div style="text-align:center;color:#666;padding:18px;">No deals found for this store.</div>`;
+    return;
+  }
+
+  toShow.forEach((d) => {
+    const a = document.createElement("a");
+    a.className = "deal-card";
+    a.href = d.url || "#";
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+
+    const img = document.createElement("img");
+    img.src = d.image || "https://placehold.co/600x400?text=Running+Shoe";
+    img.alt = (d.brand && d.model) ? `${d.brand} ${d.model}` : (d.title || "Deal");
+    a.appendChild(img);
+
+    const body = document.createElement("div");
+    body.className = "deal-card-body";
+
+    const title = document.createElement("div");
+    title.className = "deal-title";
+    title.textContent =
+      (d.brand || d.model)
+        ? [d.brand, d.model].filter(Boolean).join(" ")
+        : (d.title || "Deal");
+    body.appendChild(title);
+
+    const meta = document.createElement("div");
+    meta.className = "deal-meta";
+    meta.textContent = d.store || "";
+    body.appendChild(meta);
+
+    const priceRow = document.createElement("div");
+    priceRow.className = "deal-price";
+    priceRow.textContent = formatMoney(d.price);
+
+    const orig = Number(d.originalPrice);
+    const price = Number(d.price);
+    if (Number.isFinite(orig) && Number.isFinite(price) && orig > price) {
+      const origSpan = document.createElement("span");
+      origSpan.className = "deal-orig";
+      origSpan.textContent = formatMoney(orig);
+      priceRow.appendChild(origSpan);
+    }
+
+    body.appendChild(priceRow);
+    a.appendChild(body);
+
+    grid.appendChild(a);
+  });
+}
     loadStats();
   </script>
 </body>
