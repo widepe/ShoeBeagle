@@ -262,7 +262,23 @@
       font-weight: 600;
       transition: background 0.2s;
     }
+    .button-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin: 0 auto 30px;
+  flex-wrap: wrap; /* wraps nicely on smaller screens */
+}
+
+.button-row .refresh-btn {
+  min-width: 160px; /* ensures same visual width */
+  text-align: center;
+}
     .refresh-btn:hover { background: #1a3661; }
+    .button-row .refresh-btn:first-child {
+  background: #1a3661;
+}
 
     .bar-chart { margin-top: 20px; }
     .bar-row { margin-bottom: 12px; }
@@ -334,8 +350,16 @@
     <h1>Shoe Beagle Statistics</h1>
     <div class="last-updated" id="lastUpdated">Loading...</div>
 
-   <div class="button-row">
+<div class="button-row">
   <button class="refresh-btn" onclick="loadStats()">Refresh Data</button>
+  <button class="refresh-btn" onclick="openExternal('https://shoebeagle.com')">ShoeBeagle</button>
+  <button class="refresh-btn" onclick="openExternal('https://github.com')">GitHub</button>
+  <button class="refresh-btn" onclick="openExternal('https://vercel.com')">Vercel</button>
+  <button class="refresh-btn" onclick="openExternal('https://sendgrid.com')">SendGrid</button>
+  <button class="refresh-btn" onclick="openExternal('https://namecheap.com')">Namecheap</button>
+</div>
+
+" onclick="loadStats()">Refresh Data</button>
 
   <button class="link-btn" onclick="openExternal('https://shoebeagle.com')">
     ShoeBeagle
@@ -969,6 +993,9 @@ if (chosen === "__none__") {
 
     grid.appendChild(a);
   });
+}
+    function openExternal(url) {
+  window.open(url, "_blank", "noopener,noreferrer");
 }
     loadStats();
   </script>
