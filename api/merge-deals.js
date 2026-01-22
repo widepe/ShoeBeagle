@@ -278,10 +278,23 @@ async function fetchJson(url) {
 }
 
 async function loadDealsFromBlobOrEndpoint({ name, blobUrl, endpointUrl }) {
+  const metadata = {
+    name,
+    source: null,
+    deals: [],
+    blobUrl: null,
+    timestamp: null,
+    duration: null
+  };
+  
   if (blobUrl) {
     const payload = await fetchJson(blobUrl);
     const deals = extractDealsFromPayload(payload);
-    return { name, source: "blob", deals };
+    metadata.source = "blob";
+    metadata.deals = deals;
+    metadata.blobUrl = blobUrl;
+    metadata.timestamp = payload.lastUpdated || payload.timestamp || null;
+    return metadata;
   }
 
   if (endpointUrl) {
@@ -293,9 +306,18 @@ async function loadDealsFromBlobOrEndpoint({ name, blobUrl, endpointUrl }) {
     if ((!deals || deals.length === 0) && payload && typeof payload.blobUrl === "string") {
       const payload2 = await fetchJson(payload.blobUrl);
       deals = extractDealsFromPayload(payload2);
+      metadata.blobUrl = payload.blobUrl;
+      metadata.timestamp = payload2.lastUpdated || payload2.timestamp || payload.timestamp || null;
+    } else {
+      metadata.blobUrl = payload.blobUrl || null;
+      metadata.timestamp = payload.timestamp || payload.lastUpdated || null;
     }
-
-    return { name, source: "endpoint", deals };
+    
+    metadata.source = "endpoint";
+    metadata.deals = deals;
+    metadata.duration = payload.duration || null;
+    
+    return metadata;
   }
 
   return { name, source: "none", deals: [] };
@@ -387,17 +409,28 @@ module.exports = async (req, res) => {
     );
 
     const perSource = {};
+    const storeMetadata = {};
     const allDealsRaw = [];
 
     for (let i = 0; i < settled.length; i++) {
       const name = sources[i].name;
 
       if (settled[i].status === "fulfilled") {
-        const { source, deals } = settled[i].value;
+        const { source, deals, blobUrl, timestamp, duration } = settled[i].value;
         perSource[name] = { ok: true, via: source, count: safeArray(deals).length };
+        
+        // Store metadata for dashboard display
+        storeMetadata[name] = {
+          blobUrl: blobUrl || null,
+          timestamp: timestamp || null,
+          duration: duration || null,
+          count: safeArray(deals).length
+        };
+        
         allDealsRaw.push(...safeArray(deals));
       } else {
         perSource[name] = { ok: false, error: settled[i].reason?.message || String(settled[i].reason) };
+        storeMetadata[name] = { error: settled[i].reason?.message || String(settled[i].reason) };
       }
     }
 
@@ -448,6 +481,7 @@ module.exports = async (req, res) => {
       totalDeals: unique.length,
       dealsByStore,
       scraperResults: perSource,
+      storeMetadata,  // NEW: Individual store blob URLs, timestamps, durations
       blobUrl: blob.url,
       duration: `${duration}ms`,
       timestamp: output.lastUpdated,
