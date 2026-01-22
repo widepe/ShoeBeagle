@@ -12,7 +12,6 @@ function sanitizeText(input) {
     /{[^}]*}/.test(s) &&
     /(margin|display|font-size|padding|color|background|line-height)\s*:/i.test(s)
   ) {
-    // remove common widget/css blocks that leak into text()
     s = s.replace(/#[A-Za-z0-9_-]+\s*\{[^}]*\}/g, " ");
     s = s.replace(/\.[A-Za-z0-9_-]+\s*\{[^}]*\}/g, " ");
     s = s.replace(/#review-stars-[^}]*\}/gi, " ");
@@ -20,14 +19,14 @@ function sanitizeText(input) {
     s = s.replace(/\s+/g, " ").trim();
   }
 
-  // Strip tags if any (sometimes you end up with markup-like strings)
+  // Strip tags if any
   if (s.includes("<")) {
     s = s.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ");
     s = s.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ");
     s = s.replace(/<[^>]+>/g, " ");
   }
 
-  // Decode a few common entities
+  // Decode common entities
   s = s
     .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
@@ -65,6 +64,7 @@ function absolutizeUrl(url, base = "https://www.holabirdsports.com") {
 
 function pickLargestFromSrcset(srcset) {
   if (!srcset) return null;
+
   const parts = String(srcset)
     .split(",")
     .map((p) => p.trim())
@@ -96,17 +96,17 @@ function pickLargestFromSrcset(srcset) {
 function findBestImageUrl($, $link, $container) {
   const candidates = [];
 
-  function pushFromImg($imgEl) {
-    if (!$imgEl || !$imgEl.length) return;
+  function pushFromImg($img) {
+    if (!$img || !$img.length) return;
 
     const src =
-      $imgEl.attr("data-src") ||
-      $imgEl.attr("data-original") ||
-      $imgEl.attr("src");
+      $img.attr("data-src") ||
+      $img.attr("data-original") ||
+      $img.attr("src");
 
     const srcset =
-      $imgEl.attr("data-srcset") ||
-      $imgEl.attr("srcset");
+      $img.attr("data-srcset") ||
+      $img.attr("srcset");
 
     const picked = pickLargestFromSrcset(srcset);
 
@@ -114,74 +114,62 @@ function findBestImageUrl($, $link, $container) {
     if (src) candidates.push(src);
   }
 
-  if ($link && $link.find) pushFromImg($link.find("img").first());
-  if ($container && $container.find) pushFromImg($container.find("img").first());
+  if ($link?.find) pushFromImg($link.find("img").first());
+  if ($container?.find) pushFromImg($container.find("img").first());
 
-  if ($container && $container.find) {
+  if ($container?.find) {
     $container.find("img").each((_, el) => pushFromImg($(el)));
   }
 
-  const abs = candidates
-    .map((c) => (c ? String(c).trim() : ""))
-    .filter(Boolean)
-    .map((c) => absolutizeUrl(c));
-
-  return abs[0] || null;
+  return (
+    candidates
+      .map((c) => (c ? absolutizeUrl(c.trim()) : null))
+      .filter(Boolean)[0] || null
+  );
 }
 
 function extractDollarAmounts(text) {
   if (!text) return [];
   const matches = String(text).match(/\$\s*[\d,]+(?:\.\d{1,2})?/g);
   if (!matches) return [];
+
   return matches
     .map((m) => parseFloat(m.replace(/[$,\s]/g, "")))
-    .filter((n) => Number.isFinite(n));
+    .filter(Number.isFinite);
 }
 
-/**
- * Price extraction from card text: expects sale+original.
- * This matches your “shoe deal” use-case.
- */
 function extractPricesFromText(fullText) {
-  let prices = extractDollarAmounts(fullText);
+  let prices = extractDollarAmounts(fullText)
+    .filter((p) => p >= 10 && p < 1000);
 
-  prices = prices.filter((p) => Number.isFinite(p) && p >= 10 && p < 1000);
-  prices = [...new Set(prices.map((p) => p.toFixed(2)))].map((s) => parseFloat(s));
+  prices = [...new Set(prices.map((p) => p.toFixed(2)))].map(Number);
 
-  if (prices.length < 2) return { salePrice: null, originalPrice: null, valid: false };
-  if (prices.length > 4) return { salePrice: null, originalPrice: null, valid: false };
+  if (prices.length < 2 || prices.length > 4) {
+    return { valid: false };
+  }
 
-  // High -> low
   prices.sort((a, b) => b - a);
 
-  // Use top as original, lowest as sale (common for Shopify cards)
   const original = prices[0];
   const sale = prices[prices.length - 1];
 
-  if (!(sale < original)) return { salePrice: null, originalPrice: null, valid: false };
+  if (sale >= original) return { valid: false };
 
   const pct = ((original - sale) / original) * 100;
-  if (pct < 5 || pct > 90) return { salePrice: null, originalPrice: null, valid: false };
+  if (pct < 5 || pct > 90) return { valid: false };
 
   return { salePrice: sale, originalPrice: original, valid: true };
 }
 
 function randomDelay(min = 250, max = 700) {
   const wait = Math.floor(Math.random() * (max - min + 1)) + min;
-  return new Promise((resolve) => setTimeout(resolve, wait));
+  return new Promise((r) => setTimeout(r, wait));
 }
 
-/**
- * Theme-resilient collection scraper:
- * - Finds product links by /products/
- * - Extracts title from img alt OR container title-like nodes
- * - Extracts prices from container text (not fragile class selectors)
- * - Extracts best image via src/srcset/data-src/data-srcset
- */
 async function scrapeHolabirdCollection({ collectionUrl, maxPages = 50, stopAfterEmptyPages = 1 }) {
   const deals = [];
   const seen = new Set();
-  let emptyPagesInARow = 0;
+  let emptyPages = 0;
 
   for (let page = 1; page <= maxPages; page++) {
     const url = collectionUrl.includes("?")
@@ -199,73 +187,62 @@ async function scrapeHolabirdCollection({ collectionUrl, maxPages = 50, stopAfte
     });
 
     const $ = cheerio.load(resp.data);
-
-    let foundThisPage = 0;
+    let found = 0;
 
     $('a[href*="/products/"]').each((_, el) => {
       const $link = $(el);
       const href = $link.attr("href");
-      if (!href || !href.includes("/products/")) return;
-
-      // Skip anchors like #product-reviews-anchor (they create fake "products")
-      if (href.includes("#")) return;
+      if (!href || href.includes("#")) return;
 
       const productUrl = absolutizeUrl(href);
       if (!productUrl || seen.has(productUrl)) return;
 
-      // “Container” heuristics: grab a nearby parent; theme changes won’t break this badly.
       const $container = $link.closest("li, article, div").first();
-
       const containerText = sanitizeText($container.text());
-      if (!containerText || !containerText.includes("$")) return;
+      if (!containerText.includes("$")) return;
 
-     // Title strategy: prefer real title text on the card, NOT image info
-let title =
-  sanitizeText(
-    $container
-      .find(
-        // common Shopify/theme title patterns
-        "h1,h2,h3," +
-          "a[class*='title'],a[class*='name'],a[class*='heading']," +
-          "[class*='product-title'],[class*='product_name'],[class*='product-name']," +
-          "[class*='card__heading'],[class*='full-unstyled-link']," +
-          "[class*='grid-product__title'],[class*='product-item__title']"
-      )
-      .first()
-      .text()
-  ) ||
-  sanitizeText($link.attr("title")) ||
-  sanitizeText($link.text()) ||
-  sanitizeText($link.find("img").first().attr("alt")); // LAST resort only
-
+      let title =
+        sanitizeText(
+          $container
+            .find(
+              "h1,h2,h3," +
+              "a[href*='/products/']," +
+              "a[class*='title'],a[class*='name'],a[class*='heading']," +
+              "[class*='product-title'],[class*='product_name'],[class*='product-name']," +
+              "[class*='card__heading'],[class*='full-unstyled-link']," +
+              "[class*='grid-product__title'],[class*='product-item__title']"
+            )
+            .first()
+            .text()
+        ) ||
+        sanitizeText($link.attr("title")) ||
+        sanitizeText($link.text()) ||
+        sanitizeText($link.find("img").first().attr("alt"));
 
       if (!title) return;
-      if (/review-stars|oke-sr-count/i.test(title)) return;
 
-      const { salePrice, originalPrice, valid } = extractPricesFromText(containerText);
-      if (!valid || salePrice == null || originalPrice == null) return;
-
-      const image = findBestImageUrl($, $link, $container);
-
-      seen.add(productUrl);
-      foundThisPage++;
+      const prices = extractPricesFromText(containerText);
+      if (!prices.valid) return;
 
       deals.push({
         title,
         store: "Holabird Sports",
-        price: salePrice,
-        originalPrice,
+        price: prices.salePrice,
+        originalPrice: prices.originalPrice,
         url: productUrl,
-        image: image || null,
+        image: findBestImageUrl($, $link, $container),
         scrapedAt: new Date().toISOString(),
       });
+
+      seen.add(productUrl);
+      found++;
     });
 
-    if (foundThisPage === 0) {
-      emptyPagesInARow++;
-      if (emptyPagesInARow >= stopAfterEmptyPages) break;
+    if (found === 0) {
+      emptyPages++;
+      if (emptyPages >= stopAfterEmptyPages) break;
     } else {
-      emptyPagesInARow = 0;
+      emptyPages = 0;
     }
 
     await randomDelay();
@@ -277,12 +254,13 @@ let title =
 function dedupeByUrl(deals) {
   const out = [];
   const seen = new Set();
+
   for (const d of deals || []) {
-    const u = d?.url;
-    if (!u || seen.has(u)) continue;
-    seen.add(u);
+    if (!d?.url || seen.has(d.url)) continue;
+    seen.add(d.url);
     out.push(d);
   }
+
   return out;
 }
 
