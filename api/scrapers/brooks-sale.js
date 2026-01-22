@@ -1,150 +1,76 @@
-// api/scrapers/brooks-sale.js
-// FIXED VERSION with correct selectors from Brooks
+// api/scrapers/brooks-sale-debug2.js
+// More detailed debug to see what selectors are finding
 
 const FirecrawlApp = require('@mendable/firecrawl-js').default;
 const cheerio = require('cheerio');
-const { put } = require('@vercel/blob');
-
-function extractBrooksProducts(html) {
-  const $ = cheerio.load(html);
-  const products = [];
-  
-  // Brooks uses: o-products-grid__item for product containers
-  $('.o-products-grid__item').each((i, el) => {
-    const $product = $(el);
-    
-    // Get title from o-products-grid__item-title
-    const title = $product.find('.o-products-grid__item-title').text().trim();
-    
-    // Get prices - look for price elements
-    const priceText = (
-      $product.find('.price-sales').text().trim() ||
-      $product.find('[class*="price-sales"]').text().trim() ||
-      $product.find('.sales').text().trim()
-    );
-    
-    const originalPriceText = (
-      $product.find('.price-list').text().trim() ||
-      $product.find('[class*="price-list"]').text().trim() ||
-      $product.find('.strike-through').text().trim()
-    );
-    
-    // Get URL
-    const url = $product.find('a').first().attr('href');
-    
-    // Get image
-    const image = (
-      $product.find('img').first().attr('src') ||
-      $product.find('img').first().attr('data-src') ||
-      $product.find('[class*="image"]').find('img').attr('src')
-    );
-    
-    // Only add if we have at least a title
-    if (title && title.length > 3) {
-      // Parse prices
-      let price = null;
-      let originalPrice = null;
-      
-      if (priceText) {
-        const priceMatch = priceText.match(/\$?\s*(\d+(?:\.\d{2})?)/);
-        if (priceMatch) price = parseFloat(priceMatch[1]);
-      }
-      
-      if (originalPriceText) {
-        const origMatch = originalPriceText.match(/\$?\s*(\d+(?:\.\d{2})?)/);
-        if (origMatch) originalPrice = parseFloat(origMatch[1]);
-      }
-      
-      // Calculate discount percentage
-      const discount = originalPrice && price && originalPrice > price ?
-        Math.round(((originalPrice - price) / originalPrice) * 100) : null;
-      
-      // Extract model from title (remove "Brooks" if present)
-      const model = title.replace(/^Brooks\s+/i, '').trim();
-      
-      products.push({
-        title,
-        brand: 'Brooks',
-        model,
-        store: 'Brooks Running',
-        price,
-        originalPrice,
-        discount: discount ? `${discount}%` : null,
-        url: url ? (url.startsWith('http') ? url : `https://www.brooksrunning.com${url}`) : null,
-        image: image ? (image.startsWith('http') ? image : `https://www.brooksrunning.com${image}`) : null,
-        scrapedAt: new Date().toISOString()
-      });
-    }
-  });
-  
-  return products;
-}
-
-async function scrapeBrooksSale() {
-  const app = new FirecrawlApp({ 
-    apiKey: process.env.FIRECRAWL_API_KEY 
-  });
-  
-  console.log('Starting Brooks scrape with Firecrawl...');
-  
-  const scrapeResult = await app.scrapeUrl(
-    'https://www.brooksrunning.com/en_us/sale/?prefn1=productType&prefv1=Shoes',
-    {
-      formats: ['html'],
-      waitFor: 5000, // Wait 5 seconds for products to load
-      timeout: 30000
-    }
-  );
-  
-  console.log('Firecrawl scrape complete, parsing HTML...');
-  const products = extractBrooksProducts(scrapeResult.html);
-  console.log(`Found ${products.length} products`);
-  
-  return products;
-}
 
 module.exports = async (req, res) => {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-  
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && req.headers['x-cron-secret'] !== cronSecret) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
-  const start = Date.now();
-  
   try {
-    const deals = await scrapeBrooksSale();
-    
-    const output = {
-      lastUpdated: new Date().toISOString(),
-      store: 'Brooks Running',
-      segment: 'sale-shoes',
-      totalDeals: deals.length,
-      deals: deals
-    };
-    
-    const blob = await put('brooks-sale.json', JSON.stringify(output, null, 2), {
-      access: 'public',
-      addRandomSuffix: false
+    const app = new FirecrawlApp({ 
+      apiKey: process.env.FIRECRAWL_API_KEY 
     });
     
-    return res.status(200).json({
+    console.log('Fetching Brooks...');
+    
+    const scrapeResult = await app.scrapeUrl(
+      'https://www.brooksrunning.com/en_us/sale/?prefn1=productType&prefv1=Shoes',
+      {
+        formats: ['html'],
+        waitFor: 5000,
+        timeout: 30000
+      }
+    );
+    
+    const $ = cheerio.load(scrapeResult.html);
+    
+    // Test different selectors
+    const tests = {
+      'o-products-grid__item': $('.o-products-grid__item').length,
+      'product-tile': $('.product-tile').length,
+      'product': $('[class*="product"]').length,
+      'grid-item': $('[class*="grid-item"]').length,
+      'grid__item': $('[class*="grid__item"]').length,
+      'Any links': $('a').length,
+      'Any images': $('img').length
+    };
+    
+    // Try to find actual product containers
+    const sampleProducts = [];
+    $('.o-products-grid__item').slice(0, 3).each((i, el) => {
+      const $item = $(el);
+      sampleProducts.push({
+        html: $item.html().substring(0, 500),
+        text: $item.text().substring(0, 200),
+        classes: $item.attr('class'),
+        hasLinks: $item.find('a').length,
+        hasImages: $item.find('img').length
+      });
+    });
+    
+    // Also check if products are in a different structure
+    const alternativeCheck = [];
+    $('[class*="product"]').slice(0, 3).each((i, el) => {
+      const $item = $(el);
+      alternativeCheck.push({
+        classes: $item.attr('class'),
+        text: $item.text().substring(0, 100)
+      });
+    });
+    
+    return res.json({
       success: true,
-      totalDeals: deals.length,
-      blobUrl: blob.url,
-      duration: `${Date.now() - start}ms`,
-      timestamp: output.lastUpdated
+      selectorTests: tests,
+      sampleProducts: sampleProducts,
+      alternativeProducts: alternativeCheck,
+      htmlContainsGlycerin: scrapeResult.html.includes('Glycerin'),
+      htmlContainsAdrenaline: scrapeResult.html.includes('Adrenaline'),
+      tip: 'Check sampleProducts to see what HTML structure exists'
     });
     
   } catch (error) {
-    console.error('Error in Brooks scraper:', error);
     return res.status(500).json({
       success: false,
-      error: error.message,
-      duration: `${Date.now() - start}ms`
+      error: error.message
     });
   }
 };
