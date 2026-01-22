@@ -1,5 +1,5 @@
 // /api/merge-deals.js
-// Merges: (1) your daily deals scraper output + (2) the 3 Holabird scraper outputs
+// Merges: (1) your daily deals scraper output + (2) the 3 Holabird scraper outputs + (3) Brooks sale scraper
 // Writes the final canonical blob: deals.json
 //
 // Env vars (recommended):
@@ -7,6 +7,7 @@
 //   HOLABIRD_MENS_ROAD_BLOB_URL
 //   HOLABIRD_WOMENS_ROAD_BLOB_URL
 //   HOLABIRD_TRAIL_UNISEX_BLOB_URL
+//   BROOKS_SALE_BLOB_URL              ← NEW: Added for Brooks Running integration
 //
 // Optional fallback (if you do NOT set blob URLs):
 //   Calls scraper endpoints directly:
@@ -14,6 +15,7 @@
 //     /api/scrapers/holabird-mens-road
 //     /api/scrapers/holabird-womens-road
 //     /api/scrapers/holabird-trail-unisex
+//     /api/scrapers/brooks-sale         ← NEW: Added for Brooks Running integration
 
 const axios = require("axios");
 const { put } = require("@vercel/blob");
@@ -109,6 +111,7 @@ function storeBaseUrl(store) {
   // IMPORTANT: these are just for absolutizing relative URLs/images,
   // not for scraping.
   if (s.includes("holabird")) return "https://www.holabirdsports.com";
+  if (s.includes("brooks")) return "https://www.brooksrunning.com"; // ← NEW: Added Brooks support
   if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
   if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
   if (s.includes("luke")) return "https://lukeslocker.com";
@@ -310,22 +313,31 @@ module.exports = async (req, res) => {
   const start = Date.now();
   const baseUrl = getBaseUrl(req);
 
-  // Blob URLs (recommended)
+  // ============================================================================
+  // BLOB URLs (recommended - set these in Vercel environment variables)
+  // ============================================================================
   const OTHER_DEALS_BLOB_URL = process.env.OTHER_DEALS_BLOB_URL || "";
   const HOLABIRD_MENS_ROAD_BLOB_URL = process.env.HOLABIRD_MENS_ROAD_BLOB_URL || "";
   const HOLABIRD_WOMENS_ROAD_BLOB_URL = process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "";
   const HOLABIRD_TRAIL_UNISEX_BLOB_URL = process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "";
+  const BROOKS_SALE_BLOB_URL = process.env.BROOKS_SALE_BLOB_URL || ""; // ← NEW: Brooks Running
 
-  // Endpoint fallbacks (only used if blob URLs are missing)
+  // ============================================================================
+  // ENDPOINT FALLBACKS (only used if blob URLs are missing)
+  // ============================================================================
   const OTHER_DEALS_ENDPOINT = `${baseUrl}/api/scrape-daily`;
   const HOLABIRD_MENS_ROAD_ENDPOINT = `${baseUrl}/api/scrapers/holabird-mens-road`;
   const HOLABIRD_WOMENS_ROAD_ENDPOINT = `${baseUrl}/api/scrapers/holabird-womens-road`;
   const HOLABIRD_TRAIL_UNISEX_ENDPOINT = `${baseUrl}/api/scrapers/holabird-trail-unisex`;
+  const BROOKS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/brooks-sale`; // ← NEW: Brooks Running
 
   try {
     console.log("[MERGE] Starting merge:", new Date().toISOString());
     console.log("[MERGE] Base URL:", baseUrl);
 
+    // ============================================================================
+    // SOURCES ARRAY - Add all deal sources here
+    // ============================================================================
     const sources = [
       {
         name: "Other (scrape-daily)",
@@ -346,6 +358,14 @@ module.exports = async (req, res) => {
         name: "Holabird Trail + Unisex",
         blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL || null,
         endpointUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL ? null : HOLABIRD_TRAIL_UNISEX_ENDPOINT,
+      },
+      // ============================================================================
+      // NEW: Brooks Running Sale - Uses Firecrawl to scrape JavaScript-rendered site
+      // ============================================================================
+      {
+        name: "Brooks Sale",
+        blobUrl: BROOKS_SALE_BLOB_URL || null,
+        endpointUrl: BROOKS_SALE_BLOB_URL ? null : BROOKS_SALE_ENDPOINT,
       },
     ];
 
@@ -377,7 +397,7 @@ module.exports = async (req, res) => {
     // 2) Filter (running shoes only, strict discount requirements)
     const filtered = normalized.filter(isValidRunningShoe);
 
-    // 3) Dedupe across ALL sources
+    // 3) Dedupe across ALL sources (including Brooks)
     const unique = dedupeDeals(filtered);
 
     // 4) Shuffle then sort by discount %
