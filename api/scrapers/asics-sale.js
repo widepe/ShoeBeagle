@@ -1,6 +1,6 @@
 // api/scrapers/asics-sale.js
 // Scrapes all three ASICS sale pages using Firecrawl
-// FIXED: Uses correct productTile__root selector
+// UPDATED: Handles pagination to get all ~100 products per page
 
 const FirecrawlApp = require('@mendable/firecrawl-js').default;
 const cheerio = require('cheerio');
@@ -8,13 +8,12 @@ const { put } = require('@vercel/blob');
 
 /**
  * Extract products from ASICS HTML
- * Based on actual HTML structure: productTile__root
  */
 function extractAsicsProducts(html, sourceUrl) {
   const $ = cheerio.load(html);
   const products = [];
   
-  // Determine gender from URL for categorization
+  // Determine gender from URL
   let gender = 'Unisex';
   if (sourceUrl.includes('mens-clearance')) {
     gender = 'Men';
@@ -24,7 +23,7 @@ function extractAsicsProducts(html, sourceUrl) {
     gender = 'Unisex';
   }
   
-  // CORRECT SELECTOR: productTile__root (camelCase)
+  // CORRECT SELECTOR: productTile__root
   const $products = $('.productTile__root');
   
   console.log(`Found ${$products.length} products with .productTile__root selector`);
@@ -32,23 +31,19 @@ function extractAsicsProducts(html, sourceUrl) {
   $products.each((i, el) => {
     const $product = $(el);
     
-    // Extract title - ASICS uses specific structure
-    const title = $product.text().match(/([A-Z][A-Z\-\s\d]+(?:Men's|Women's|Unisex)?[^\$]*)/)?.[1]?.trim() || '';
-    
-    // Better approach: look for the product link text
+    // Get product link for title and URL
     const $link = $product.find('a[href*="/p/"]').first();
     const linkTitle = $link.attr('aria-label') || $link.text().trim();
     
-    // Clean up the title
-    let cleanTitle = linkTitle || title;
-    cleanTitle = cleanTitle
+    // Clean up title
+    let cleanTitle = linkTitle
       .replace(/Next slide/gi, '')
       .replace(/Previous slide/gi, '')
       .replace(/Sale/gi, '')
       .replace(/\s+/g, ' ')
       .trim();
     
-    // Extract just the shoe model name (before "Men's" or "Women's")
+    // Extract model name (before "Men's" or "Women's")
     const modelMatch = cleanTitle.match(/^([A-Z][A-Z\-\s\d]+?)(?=Men's|Women's|Unisex|\$)/i);
     if (modelMatch) {
       cleanTitle = modelMatch[1].trim();
@@ -56,7 +51,7 @@ function extractAsicsProducts(html, sourceUrl) {
     
     if (!cleanTitle || cleanTitle.length < 3) return;
     
-    // Extract prices from text
+    // Extract prices
     const productText = $product.text();
     const priceMatches = productText.match(/\$(\d+\.\d{2})/g);
     
@@ -64,14 +59,13 @@ function extractAsicsProducts(html, sourceUrl) {
     let originalPrice = null;
     
     if (priceMatches && priceMatches.length >= 2) {
-      // When there are 2 prices, first is original, second is sale
       originalPrice = parseFloat(priceMatches[0].replace('$', ''));
       price = parseFloat(priceMatches[1].replace('$', ''));
     } else if (priceMatches && priceMatches.length === 1) {
       price = parseFloat(priceMatches[0].replace('$', ''));
     }
     
-    // Swap if they're backwards (sale price should be lower)
+    // Ensure sale price is lower
     if (price && originalPrice && price > originalPrice) {
       [price, originalPrice] = [originalPrice, price];
     }
@@ -82,10 +76,9 @@ function extractAsicsProducts(html, sourceUrl) {
       url = `https://www.asics.com${url}`;
     }
     
-    // Get image - look for main product image
+    // Get image
     const $img = $product.find('img').first();
     let image = $img.attr('src') || $img.attr('data-src');
-    
     if (image && !image.startsWith('http')) {
       image = image.startsWith('//') ? `https:${image}` : `https://www.asics.com${image}`;
     }
@@ -94,10 +87,9 @@ function extractAsicsProducts(html, sourceUrl) {
     const discount = originalPrice && price && originalPrice > price ?
       Math.round(((originalPrice - price) / originalPrice) * 100) : null;
     
-    // Extract model (remove ASICS prefix if present)
+    // Model name
     const model = cleanTitle.replace(/^ASICS\s+/i, '').trim();
     
-    // Only add if we have valid data
     if (cleanTitle && (price || originalPrice) && url) {
       products.push({
         title: cleanTitle,
@@ -119,25 +111,64 @@ function extractAsicsProducts(html, sourceUrl) {
 }
 
 /**
- * Scrape a single ASICS URL
+ * Scrape ASICS page with pagination
+ * ASICS shows ~24 items initially, but has ~100 total
+ * We need to scroll or load more to get all products
  */
-async function scrapeAsicsUrl(app, url, description) {
-  console.log(`[ASICS] Scraping ${description}...`);
+async function scrapeAsicsUrlWithPagination(app, baseUrl, description) {
+  console.log(`[ASICS] Scraping ${description} with pagination...`);
+  
+  const allProducts = [];
   
   try {
-    const scrapeResult = await app.scrapeUrl(url, {
-      formats: ['html'],
-      waitFor: 5000,
-      timeout: 30000
-    });
+    // Strategy: Load multiple pages if they use ?page= parameter
+    // Or use scrolling if they use infinite scroll
     
-    const products = extractAsicsProducts(scrapeResult.html, url);
-    console.log(`[ASICS] ${description}: Found ${products.length} products`);
+    // First, try to get all products by setting a higher item count in URL
+    // ASICS often uses ?sz=XX parameter
+    const urls = [
+      baseUrl, // Original URL (shows 24)
+      baseUrl.includes('?') ? `${baseUrl}&sz=96` : `${baseUrl}?sz=96`, // Request 96 items
+    ];
     
-    return products;
+    for (const url of urls) {
+      try {
+        console.log(`[ASICS] Fetching: ${url}`);
+        
+        const scrapeResult = await app.scrapeUrl(url, {
+          formats: ['html'],
+          waitFor: 7000, // Wait longer for more products to load
+          timeout: 40000
+        });
+        
+        const products = extractAsicsProducts(scrapeResult.html, baseUrl);
+        
+        // Add new unique products
+        for (const product of products) {
+          if (!allProducts.find(p => p.url === product.url)) {
+            allProducts.push(product);
+          }
+        }
+        
+        console.log(`[ASICS] ${description}: Cumulative ${allProducts.length} products`);
+        
+        // If we got close to the requested amount, we got them all
+        if (products.length >= 90) {
+          console.log(`[ASICS] Got ${products.length} products, that's probably all of them`);
+          break;
+        }
+        
+      } catch (error) {
+        console.error(`[ASICS] Error fetching ${url}:`, error.message);
+      }
+    }
+    
+    console.log(`[ASICS] ${description}: Final count ${allProducts.length} products`);
+    return allProducts;
+    
   } catch (error) {
     console.error(`[ASICS] Error scraping ${description}:`, error.message);
-    return [];
+    return allProducts;
   }
 }
 
@@ -168,7 +199,9 @@ async function scrapeAllAsicsSales() {
   
   // Scrape all in parallel
   const results = await Promise.allSettled(
-    urls.map(({ url, description }) => scrapeAsicsUrl(app, url, description))
+    urls.map(({ url, description }) => 
+      scrapeAsicsUrlWithPagination(app, url, description)
+    )
   );
   
   // Combine results
