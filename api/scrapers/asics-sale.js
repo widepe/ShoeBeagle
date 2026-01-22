@@ -1,6 +1,6 @@
 // api/scrapers/asics-sale.js
 // Scrapes all three ASICS sale pages using Firecrawl
-// UPDATED: Better error handling to diagnose women's page failure
+// FIXED: Gender detection works with query parameters using category codes
 
 const FirecrawlApp = require('@mendable/firecrawl-js').default;
 const cheerio = require('cheerio');
@@ -8,6 +8,7 @@ const { put } = require('@vercel/blob');
 
 /**
  * Extract products from ASICS HTML
+ * FIXED: Uses category codes (aa10106000, aa20106000) for gender detection
  */
 function extractAsicsProducts(html, sourceUrl) {
   const $ = cheerio.load(html);
@@ -17,11 +18,12 @@ function extractAsicsProducts(html, sourceUrl) {
   const normalizedUrl = sourceUrl.toLowerCase();
   let gender = 'Unisex';
   
-  // Check for gender in URL path (aa10106000 = mens, aa20106000 = womens)
-  if (normalizedUrl.includes('aa10106000') || normalizedUrl.includes('mens-clearance')) {
-    gender = 'Men';
-  } else if (normalizedUrl.includes('aa20106000') || normalizedUrl.includes('womens-clearance')) {
+  // Check for gender in URL path
+  // IMPORTANT: Check women's FIRST since aa20106000 contains aa10106000 as substring!
+  if (normalizedUrl.includes('aa20106000') || normalizedUrl.includes('womens-clearance')) {
     gender = 'Women';
+  } else if (normalizedUrl.includes('aa10106000') || normalizedUrl.includes('mens-clearance')) {
+    gender = 'Men';
   } else if (normalizedUrl.includes('leaving-asics') || normalizedUrl.includes('aa60400001')) {
     gender = 'Unisex';
   }
