@@ -1,6 +1,6 @@
 // api/scrapers/asics-sale.js
 // Scrapes all three ASICS sale pages using Firecrawl
-// UPDATED: Handles pagination to get all ~100 products per page
+// UPDATED: Better error handling to diagnose women's page failure
 
 const FirecrawlApp = require('@mendable/firecrawl-js').default;
 const cheerio = require('cheerio');
@@ -26,7 +26,7 @@ function extractAsicsProducts(html, sourceUrl) {
   // CORRECT SELECTOR: productTile__root
   const $products = $('.productTile__root');
   
-  console.log(`Found ${$products.length} products with .productTile__root selector`);
+  console.log(`[ASICS] Found ${$products.length} products for ${gender}`);
   
   $products.each((i, el) => {
     const $product = $(el);
@@ -111,78 +111,58 @@ function extractAsicsProducts(html, sourceUrl) {
 }
 
 /**
- * Scrape ASICS page with pagination
- * ASICS shows ~24 items initially, but has ~100 total
- * We need to scroll or load more to get all products
+ * Scrape ASICS page with pagination - single attempt with larger size
  */
 async function scrapeAsicsUrlWithPagination(app, baseUrl, description) {
-  console.log(`[ASICS] Scraping ${description} with pagination...`);
-  
-  const allProducts = [];
+  console.log(`[ASICS] Scraping ${description}...`);
   
   try {
-    // Strategy: Load multiple pages if they use ?page= parameter
-    // Or use scrolling if they use infinite scroll
+    // Request 100 items directly (ASICS max seems to be around 96-100)
+    const url = baseUrl.includes('?') ? `${baseUrl}&sz=100` : `${baseUrl}?sz=100`;
     
-    // First, try to get all products by setting a higher item count in URL
-    // ASICS often uses ?sz=XX parameter
-    const urls = [
-      baseUrl, // Original URL (shows 24)
-      baseUrl.includes('?') ? `${baseUrl}&sz=96` : `${baseUrl}?sz=96`, // Request 96 items
-    ];
+    console.log(`[ASICS] Fetching: ${url}`);
     
-    for (const url of urls) {
-      try {
-        console.log(`[ASICS] Fetching: ${url}`);
-        
-        const scrapeResult = await app.scrapeUrl(url, {
-          formats: ['html'],
-          waitFor: 7000, // Wait longer for more products to load
-          timeout: 40000
-        });
-        
-        const products = extractAsicsProducts(scrapeResult.html, baseUrl);
-        
-        // Add new unique products
-        for (const product of products) {
-          if (!allProducts.find(p => p.url === product.url)) {
-            allProducts.push(product);
-          }
-        }
-        
-        console.log(`[ASICS] ${description}: Cumulative ${allProducts.length} products`);
-        
-        // If we got close to the requested amount, we got them all
-        if (products.length >= 90) {
-          console.log(`[ASICS] Got ${products.length} products, that's probably all of them`);
-          break;
-        }
-        
-      } catch (error) {
-        console.error(`[ASICS] Error fetching ${url}:`, error.message);
-      }
-    }
+    const scrapeResult = await app.scrapeUrl(url, {
+      formats: ['html'],
+      waitFor: 8000, // Wait 8 seconds for all products to load
+      timeout: 45000 // 45 second timeout
+    });
     
-    console.log(`[ASICS] ${description}: Final count ${allProducts.length} products`);
-    return allProducts;
+    const products = extractAsicsProducts(scrapeResult.html, baseUrl);
+    
+    console.log(`[ASICS] ${description}: Found ${products.length} products`);
+    
+    return { 
+      success: true, 
+      products, 
+      count: products.length,
+      url 
+    };
     
   } catch (error) {
     console.error(`[ASICS] Error scraping ${description}:`, error.message);
-    return allProducts;
+    return { 
+      success: false, 
+      products: [], 
+      count: 0,
+      error: error.message,
+      url: baseUrl 
+    };
   }
 }
 
 /**
- * Main scraper - scrapes all 3 ASICS pages
+ * Main scraper - scrapes all 3 ASICS pages SEQUENTIALLY (not parallel)
+ * Sequential is more reliable for avoiding rate limits
  */
 async function scrapeAllAsicsSales() {
   const app = new FirecrawlApp({ 
     apiKey: process.env.FIRECRAWL_API_KEY 
   });
   
-  console.log('[ASICS] Starting scrape of all sale pages...');
+  console.log('[ASICS] Starting scrape of all sale pages (sequential)...');
   
-  const urls = [
+  const pages = [
     {
       url: 'https://www.asics.com/us/en-us/mens-clearance/c/aa10106000/running/shoes/',
       description: "Men's Clearance"
@@ -197,22 +177,34 @@ async function scrapeAllAsicsSales() {
     }
   ];
   
-  // Scrape all in parallel
-  const results = await Promise.allSettled(
-    urls.map(({ url, description }) => 
-      scrapeAsicsUrlWithPagination(app, url, description)
-    )
-  );
-  
-  // Combine results
+  const results = [];
   const allProducts = [];
-  results.forEach((result, index) => {
-    if (result.status === 'fulfilled') {
-      allProducts.push(...result.value);
-    } else {
-      console.error(`[ASICS] Failed ${urls[index].description}:`, result.reason);
+  
+  // Scrape sequentially with delay between requests
+  for (let i = 0; i < pages.length; i++) {
+    const { url, description } = pages[i];
+    
+    console.log(`[ASICS] Starting page ${i + 1}/${pages.length}: ${description}`);
+    
+    const result = await scrapeAsicsUrlWithPagination(app, url, description);
+    results.push({
+      page: description,
+      success: result.success,
+      count: result.count,
+      error: result.error || null,
+      url: result.url
+    });
+    
+    if (result.success) {
+      allProducts.push(...result.products);
     }
-  });
+    
+    // Add 2 second delay between pages to avoid rate limiting
+    if (i < pages.length - 1) {
+      console.log('[ASICS] Waiting 2 seconds before next page...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
   
   // Deduplicate by URL
   const uniqueProducts = [];
@@ -231,8 +223,9 @@ async function scrapeAllAsicsSales() {
   }
   
   console.log(`[ASICS] Total unique products: ${uniqueProducts.length}`);
+  console.log(`[ASICS] Results per page:`, results);
   
-  return uniqueProducts;
+  return { products: uniqueProducts, pageResults: results };
 }
 
 /**
@@ -251,7 +244,7 @@ module.exports = async (req, res) => {
   const start = Date.now();
   
   try {
-    const deals = await scrapeAllAsicsSales();
+    const { products: deals, pageResults } = await scrapeAllAsicsSales();
     
     const output = {
       lastUpdated: new Date().toISOString(),
@@ -267,6 +260,7 @@ module.exports = async (req, res) => {
         Women: deals.filter(d => d.gender === 'Women').length,
         Unisex: deals.filter(d => d.gender === 'Unisex').length
       },
+      pageResults, // Include per-page diagnostics
       deals: deals
     };
     
@@ -281,6 +275,7 @@ module.exports = async (req, res) => {
       success: true,
       totalDeals: deals.length,
       dealsByGender: output.dealsByGender,
+      pageResults, // Show which pages succeeded/failed
       blobUrl: blob.url,
       duration: `${duration}ms`,
       timestamp: output.lastUpdated
