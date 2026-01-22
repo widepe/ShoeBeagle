@@ -1,4 +1,4 @@
-// api/brooks-sale.js
+// api/scrapers/brooks-sale.js
 const FirecrawlApp = require('@mendable/firecrawl-js').default;
 const cheerio = require('cheerio');
 const { put } = require('@vercel/blob');
@@ -128,10 +128,3 @@ module.exports = async (req, res) => {
     });
   }
 };
-```
-
-5. Click "Commit new file"
-
-**That's it!** Vercel will automatically deploy and you can test it at:
-```
-https://your-project.vercel.app/api/brooks-sale
