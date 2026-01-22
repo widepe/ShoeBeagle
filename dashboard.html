@@ -1005,4 +1005,263 @@
           <div class="health-metrics">
             <div class="health-metric">
               <div class="health-metric-label">Total Deals</div>
-              <div class="health-
+              <div class="health-metric-value">${health.dealCount.toLocaleString()}</div>
+            </div>
+          </div>
+
+          ${health.issues.length > 0 ? `
+            <div class="health-issues">
+              ${health.issues.map(issue => `
+                <div class="health-issue ${issue.type}">
+                  <span>${issue.message}</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : '<div style="margin-top: 10px; color: #28a745; font-weight: bold;">✓ All checks passed</div>'}
+        </div>
+      `).join('');
+
+      healthPanel.style.display = 'block';
+    }
+
+    // NEW: Unknown brands table
+    function displayUnknownBrandsByStore(unknownByStore) {
+      const tbody = document.getElementById('unknownBrandsTableBody');
+
+      const rows = Object.entries(unknownByStore)
+        .map(([store, obj]) => {
+          const pct = obj.total > 0 ? (obj.unknownCount / obj.total) * 100 : 0;
+          return { store, unknown: obj.unknownCount, total: obj.total, pct };
+        })
+        .filter(r => r.unknown > 0)
+        .sort((a, b) => b.unknown - a.unknown);
+
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4">No Unknown brands found 🎉</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = rows.map(r => `
+        <tr>
+          <td><strong>${r.store}</strong></td>
+          <td>${r.unknown.toLocaleString()}</td>
+          <td>${r.total.toLocaleString()}</td>
+          <td>${r.pct.toFixed(1)}%</td>
+        </tr>
+      `).join('');
+    }
+
+    function displayStoreTable(stores) {
+      const sorted = Object.entries(stores).sort((a, b) => b[1].count - a[1].count);
+
+      if (sorted.length === 0) {
+        document.getElementById('storesTableBody').innerHTML =
+          '<tr><td colspan="5">No store data available</td></tr>';
+        return;
+      }
+
+      const html = sorted.map(([name, data]) => {
+        const avgDiscount = data.count > 0 ? (data.totalDiscount / data.count).toFixed(1) : '0';
+        const avgSavings = data.count > 0 ? (data.totalSavings / data.count).toFixed(2) : '0';
+
+        const bestDeal = data.deals
+          .map(d => {
+            const o = Number(d.originalPrice) || 0;
+            const p = Number(d.price) || 0;
+            const pct = (o > p && o > 0) ? ((o - p) / o) * 100 : 0;
+            return { deal: d, pct };
+          })
+          .sort((a, b) => b.pct - a.pct)[0];
+
+        return `
+          <tr>
+            <td><strong>${name}</strong></td>
+            <td>${data.count}</td>
+            <td>${avgDiscount}%</td>
+            <td>$${avgSavings}</td>
+            <td>${bestDeal ? `${bestDeal.deal.brand || 'Unknown'} ${(bestDeal.deal.model || '')} (${bestDeal.pct.toFixed(0)}% off)` : '-'}</td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('storesTableBody').innerHTML = html;
+    }
+
+    function displayBrandTable(brands) {
+      const sorted = Object.entries(brands)
+        .sort((a, b) => b[1].count - a[1].count)
+        .slice(0, 20);
+
+      const html = sorted.map(([name, data], index) => {
+        const avgDiscount = data.count > 0 ? (data.totalDiscount / data.count).toFixed(1) : '0';
+        const priceRange = `$${(data.minPrice || 0).toFixed(0)} - $${(data.maxPrice || 0).toFixed(0)}`;
+
+        return `
+          <tr>
+            <td>${index + 1}</td>
+            <td><strong>${name}</strong></td>
+            <td>${data.count}</td>
+            <td>${avgDiscount}%</td>
+            <td>${priceRange}</td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('brandsTableBody').innerHTML = html;
+    }
+
+    function displayPriceDistribution(prices) {
+      const buckets = {
+        '$0-50': 0,
+        '$50-75': 0,
+        '$75-100': 0,
+        '$100-125': 0,
+        '$125-150': 0,
+        '$150+': 0
+      };
+
+      prices.forEach(price => {
+        if (price < 50) buckets['$0-50']++;
+        else if (price < 75) buckets['$50-75']++;
+        else if (price < 100) buckets['$75-100']++;
+        else if (price < 125) buckets['$100-125']++;
+        else if (price < 150) buckets['$125-150']++;
+        else buckets['$150+']++;
+      });
+
+      const maxCount = Math.max(...Object.values(buckets));
+
+      const html = Object.entries(buckets).map(([range, count]) => `
+        <div class="bar-row">
+          <div class="bar-label">
+            <span><strong>${range}</strong></span>
+            <span>${count} deals</span>
+          </div>
+          <div class="bar-bg">
+            <div class="bar-fill" style="width: ${maxCount > 0 ? (count / maxCount) * 100 : 0}%">
+              ${count}
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('priceChart').innerHTML = html;
+    }
+
+    let ALL_DEALS = [];
+
+    function formatMoney(n) {
+      const x = Number(n);
+      return Number.isFinite(x) ? `$${x.toFixed(2)}` : "—";
+    }
+
+    function buildStoreDropdown(deals) {
+      const select = document.getElementById("storeSelect");
+      if (!select) return;
+
+      const stores = [...new Set(deals.map(d => d.store).filter(Boolean))].sort();
+
+      // Reset options (keep All Stores)
+      select.innerHTML =
+      `<option value="__none__" selected>Select a store…</option>` +
+      `<option value="__all__">All Stores</option>`;
+
+      stores.forEach(store => {
+        const opt = document.createElement("option");
+        opt.value = store;
+        opt.textContent = store;
+        select.appendChild(opt);
+      });
+
+      select.addEventListener("change", () => renderDealsForSelectedStore());
+    }
+
+    function renderDealsForSelectedStore() {
+      const select = document.getElementById("storeSelect");
+      const grid = document.getElementById("storeDealsGrid");
+      const countEl = document.getElementById("storeCount");
+      if (!select || !grid) return;
+
+      const chosen = select.value;
+
+      let filtered = [];
+
+      if (chosen === "__none__") {
+        filtered = [];
+      } else if (chosen === "__all__") {
+        filtered = ALL_DEALS;
+      } else {
+        filtered = ALL_DEALS.filter(d => (d.store || "") === chosen);
+      }
+
+      // Show count
+      if (countEl) {
+        countEl.textContent = `${filtered.length.toLocaleString()} deal${filtered.length === 1 ? "" : "s"}`;
+      }
+
+      // Render (cap for performance)
+      const SHOW_MAX = 200; // adjust if you want more
+      const toShow = filtered.slice(0, SHOW_MAX);
+
+      grid.innerHTML = "";
+
+      if (!toShow.length) {
+        grid.innerHTML = `<div style="text-align:center;color:#666;padding:18px;">No deals found for this store.</div>`;
+        return;
+      }
+
+      toShow.forEach((d) => {
+        const a = document.createElement("a");
+        a.className = "deal-card";
+        a.href = d.url || "#";
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+
+        const img = document.createElement("img");
+        img.src = d.image || "https://placehold.co/600x400?text=Running+Shoe";
+        img.alt = (d.brand && d.model) ? `${d.brand} ${d.model}` : (d.title || "Deal");
+        a.appendChild(img);
+
+        const body = document.createElement("div");
+        body.className = "deal-card-body";
+
+        const title = document.createElement("div");
+        title.className = "deal-title";
+        title.textContent =
+          (d.brand || d.model)
+            ? [d.brand, d.model].filter(Boolean).join(" ")
+            : (d.title || "Deal");
+        body.appendChild(title);
+
+        const meta = document.createElement("div");
+        meta.className = "deal-meta";
+        meta.textContent = d.store || "";
+        body.appendChild(meta);
+
+        const priceRow = document.createElement("div");
+        priceRow.className = "deal-price";
+        priceRow.textContent = formatMoney(d.price);
+
+        const orig = Number(d.originalPrice);
+        const price = Number(d.price);
+        if (Number.isFinite(orig) && Number.isFinite(price) && orig > price) {
+          const origSpan = document.createElement("span");
+          origSpan.className = "deal-orig";
+          origSpan.textContent = formatMoney(orig);
+          priceRow.appendChild(origSpan);
+        }
+
+        body.appendChild(priceRow);
+        a.appendChild(body);
+
+        grid.appendChild(a);
+      });
+    }
+
+    function openExternal(url) {
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+    loadStats();
+  </script>
+</body>
+</html>
