@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,11 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ShoeBeagle - Deal Statistics Dashboard</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: system-ui, -apple-system, sans-serif;
@@ -19,9 +14,21 @@
       color: #2d2d2d;
     }
 
-    .container {
-      max-width: 1400px;
-      margin: 0 auto;
+    .container { max-width: 1400px; margin: 0 auto; }
+
+    /* NEW: Logo at top with 6px buffer */
+    .brand-header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 6px;   /* 6px buffer */
+      margin-bottom: 8px;
+    }
+    .brand-logo {
+      width: 520px;
+      max-width: 100%;
+      height: auto;
+      object-fit: contain;
     }
 
     h1 {
@@ -75,10 +82,7 @@
       margin: 10px 0;
     }
 
-    .stat-label {
-      color: #666;
-      font-size: 0.9rem;
-    }
+    .stat-label { color: #666; font-size: 0.9rem; }
 
     .top-deal {
       background: rgba(33, 68, 120, 0.05);
@@ -95,25 +99,11 @@
       font-size: 1.05rem;
     }
 
-    .top-deal-store {
-      color: #666;
-      font-size: 0.85rem;
-      margin-bottom: 8px;
-    }
+    .top-deal-store { color: #666; font-size: 0.85rem; margin-bottom: 8px; }
+    .top-deal-price { font-size: 1.2rem; color: #2d2d2d; margin: 5px 0; }
+    .top-deal-savings { color: #dc3545; font-weight: bold; font-size: 1.1rem; }
 
-    .top-deal-price {
-      font-size: 1.2rem;
-      color: #2d2d2d;
-      margin: 5px 0;
-    }
-
-    .top-deal-savings {
-      color: #dc3545;
-      font-weight: bold;
-      font-size: 1.1rem;
-    }
-
-    .stores-table {
+    .stores-table, .brand-table, .chart-container {
       background: white;
       border: 2px solid #214478ff;
       border-radius: 12px;
@@ -122,21 +112,19 @@
       overflow-x: auto;
     }
 
-    .stores-table h2 {
+    .stores-table h2, .brand-table h2, .chart-container h2 {
       color: #214478ff;
       margin-bottom: 15px;
       font-size: 1.5rem;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
+    table { width: 100%; border-collapse: collapse; }
 
     th, td {
       padding: 12px;
       text-align: left;
       border-bottom: 1px solid #ddd;
+      vertical-align: top;
     }
 
     th {
@@ -147,23 +135,7 @@
       top: 0;
     }
 
-    tr:hover {
-      background: rgba(33, 68, 120, 0.05);
-    }
-
-    .brand-table {
-      background: white;
-      border: 2px solid #214478ff;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 30px;
-    }
-
-    .brand-table h2 {
-      color: #214478ff;
-      margin-bottom: 15px;
-      font-size: 1.5rem;
-    }
+    tr:hover { background: rgba(33, 68, 120, 0.05); }
 
     .loading {
       text-align: center;
@@ -194,32 +166,10 @@
       font-weight: 600;
       transition: background 0.2s;
     }
+    .refresh-btn:hover { background: #1a3661; }
 
-    .refresh-btn:hover {
-      background: #1a3661;
-    }
-
-    .chart-container {
-      background: white;
-      border: 2px solid #214478ff;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 30px;
-    }
-
-    .chart-container h2 {
-      color: #214478ff;
-      margin-bottom: 15px;
-      font-size: 1.5rem;
-    }
-
-    .bar-chart {
-      margin-top: 20px;
-    }
-
-    .bar-row {
-      margin-bottom: 12px;
-    }
+    .bar-chart { margin-top: 20px; }
+    .bar-row { margin-bottom: 12px; }
 
     .bar-label {
       font-size: 0.9rem;
@@ -227,6 +177,7 @@
       margin-bottom: 4px;
       display: flex;
       justify-content: space-between;
+      gap: 12px;
     }
 
     .bar-bg {
@@ -265,73 +216,89 @@
       margin-bottom: 10px;
       font-family: system-ui;
     }
+
+    /* small helper for subtle note */
+    .note {
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 6px;
+    }
   </style>
 </head>
+
 <body>
   <div class="container">
-    <h1>🐕 ShoeBeagle Deal Statistics</h1>
+
+    <!-- NEW: Logo at top with 6px buffer -->
+    <div class="brand-header">
+      <img class="brand-logo" src="/images/logo.svg" alt="Shoe Beagle">
+    </div>
+
+    <!-- Removed the dog icon emoji -->
+    <h1>ShoeBeagle Deal Statistics</h1>
     <div class="subtitle">Real-time analytics of your running shoe deals</div>
     <div class="last-updated" id="lastUpdated">Loading...</div>
 
-    <button class="refresh-btn" onclick="loadStats()">🔄 Refresh Data</button>
+    <!-- Removed emoji from button -->
+    <button class="refresh-btn" onclick="loadStats()">Refresh Data</button>
 
     <div id="loading" class="loading">Loading deal statistics...</div>
     <div id="error" class="error" style="display: none;"></div>
 
     <!-- Debug Info -->
     <div id="debugInfo" class="debug-info" style="display: none;">
-      <h3>🔍 Debug Information</h3>
+      <h3>Debug Information</h3>
       <div id="debugContent"></div>
     </div>
 
     <div id="content" style="display: none;">
-      
+
       <!-- Key Metrics -->
       <div class="stats-grid">
         <div class="stat-card">
-          <h2>📊 Total Deals</h2>
+          <h2>Total Deals</h2>
           <div class="stat-value" id="totalDeals">-</div>
           <div class="stat-label">Across all stores</div>
         </div>
 
         <div class="stat-card">
-          <h2>🏪 Active Stores</h2>
+          <h2>Active Stores</h2>
           <div class="stat-value" id="totalStores">-</div>
           <div class="stat-label">Providing deals</div>
         </div>
 
         <div class="stat-card">
-          <h2>👟 Unique Brands</h2>
+          <h2>Unique Brands</h2>
           <div class="stat-value" id="totalBrands">-</div>
           <div class="stat-label">Different brands available</div>
         </div>
 
         <div class="stat-card">
-          <h2>💰 Average Discount</h2>
+          <h2>Average Discount</h2>
           <div class="stat-value" id="avgDiscount">-</div>
-          <div class="stat-label">Across all deals</div>
+          <div class="stat-label">Across all discounted deals</div>
         </div>
       </div>
 
       <!-- Top Deals -->
       <div class="stats-grid">
         <div class="stat-card">
-          <h2>🔥 Highest % Discount</h2>
+          <h2>Highest % Discount</h2>
           <div id="topPercentDeal" class="top-deal">Loading...</div>
         </div>
 
         <div class="stat-card">
-          <h2>💵 Biggest $ Savings</h2>
+          <h2>Biggest $ Savings</h2>
           <div id="topDollarDeal" class="top-deal">Loading...</div>
         </div>
 
         <div class="stat-card">
-          <h2>🏷️ Lowest Price</h2>
+          <h2>Lowest Price</h2>
           <div id="lowestPriceDeal" class="top-deal">Loading...</div>
         </div>
 
         <div class="stat-card">
-          <h2>💎 Best Value</h2>
+          <h2>Best Value</h2>
           <div id="bestValueDeal" class="top-deal">Loading...</div>
           <div class="stat-label" style="margin-top: 10px; font-style: italic;">
             Based on discount % + $ savings
@@ -341,13 +308,30 @@
 
       <!-- Deals by Store -->
       <div class="chart-container">
-        <h2>📈 Deals by Store</h2>
+        <h2>Deals by Store</h2>
         <div class="bar-chart" id="storeChart"></div>
+      </div>
+
+      <!-- NEW: Unknown Brands by Store -->
+      <div class="stores-table">
+        <h2>Unknown Brands by Store</h2>
+        <div class="note">Counts deals where <code>brand === "Unknown"</code> (includes missing/blank brands).</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Store Name</th>
+              <th>Unknown Brand Deals</th>
+              <th>Total Deals</th>
+              <th>% Unknown</th>
+            </tr>
+          </thead>
+          <tbody id="unknownBrandsTableBody"></tbody>
+        </table>
       </div>
 
       <!-- Store Table -->
       <div class="stores-table">
-        <h2>🏪 Store Breakdown</h2>
+        <h2>Store Breakdown</h2>
         <table>
           <thead>
             <tr>
@@ -364,7 +348,7 @@
 
       <!-- Brand Table -->
       <div class="brand-table">
-        <h2>👟 Top Brands (by deal count)</h2>
+        <h2>Top Brands (by deal count)</h2>
         <table>
           <thead>
             <tr>
@@ -381,7 +365,7 @@
 
       <!-- Price Distribution -->
       <div class="chart-container">
-        <h2>💵 Price Distribution</h2>
+        <h2>Price Distribution</h2>
         <div class="bar-chart" id="priceChart"></div>
       </div>
 
@@ -402,9 +386,10 @@
       debugInfo.style.display = 'none';
 
       try {
-        // Fetch deals data with cache busting
         const cacheBuster = Date.now();
-        const response = await fetch(`https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json?t=${cacheBuster}`);
+        const response = await fetch(`https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json?t=${cacheBuster}`, {
+          cache: "no-store"
+        });
         const data = await response.json();
 
         if (!data.deals || !Array.isArray(data.deals)) {
@@ -413,31 +398,26 @@
 
         const deals = data.deals;
 
-        // DEBUG: Show raw data info
-    // DEBUG: Show raw data info
-const unknownBrands = deals.filter(d => d.brand === 'Unknown').length;
-const uniqueBrands = [...new Set(deals.map(d => d.brand))].filter(b => b !== 'Unknown').sort();
+        // Debug summary
+        const unknownBrands = deals.filter(d => (d.brand || '').trim() === 'Unknown' || !(d.brand || '').trim()).length;
+        const uniqueBrands = [...new Set(deals.map(d => (d.brand || 'Unknown').trim()))]
+          .filter(b => b && b !== 'Unknown')
+          .sort();
 
-const debugHTML = `
-  <strong>Total deals in array:</strong> ${deals.length}<br>
-  <strong>Unknown brands:</strong> ${unknownBrands} (${((unknownBrands / deals.length) * 100).toFixed(1)}%)<br>
-  <strong>Deals by store (from JSON):</strong> ${JSON.stringify(data.dealsByStore)}<br>
-  <strong>Unique stores found:</strong> ${[...new Set(deals.map(d => d.store))].join(', ')}<br>
-  <strong>Shoe brands found (${uniqueBrands.length}):</strong> ${uniqueBrands.join(', ')}
-`;
+        const debugHTML = `
+          <strong>Total deals in array:</strong> ${deals.length}<br>
+          <strong>Unknown brands:</strong> ${unknownBrands} (${deals.length ? ((unknownBrands / deals.length) * 100).toFixed(1) : '0.0'}%)<br>
+          <strong>Deals by store (from JSON):</strong> ${JSON.stringify(data.dealsByStore)}<br>
+          <strong>Unique stores found:</strong> ${[...new Set(deals.map(d => d.store))].join(', ')}<br>
+          <strong>Shoe brands found (${uniqueBrands.length}):</strong> ${uniqueBrands.join(', ')}
+        `;
         debugContent.innerHTML = debugHTML;
         debugInfo.style.display = 'block';
 
-        // Update last updated time
-        document.getElementById('lastUpdated').textContent = 
+        document.getElementById('lastUpdated').textContent =
           `Last updated: ${new Date(data.lastUpdated || Date.now()).toLocaleString()}`;
 
-        // Calculate stats
         const stats = calculateStats(deals);
-
-        console.log('Stats calculated:', stats);
-
-        // Display stats
         displayStats(stats);
 
         loading.style.display = 'none';
@@ -457,14 +437,17 @@ const debugHTML = `
         stores: {},
         brands: {},
         discounts: [],
-        prices: []
+        prices: [],
+        unknownByStore: {} // NEW
       };
 
       deals.forEach(deal => {
         const price = Number(deal.price) || 0;
         const original = Number(deal.originalPrice) || 0;
-        const brand = deal.brand || 'Unknown';
-        const store = deal.store || 'Unknown';
+
+        const store = (deal.store || 'Unknown').trim() || 'Unknown';
+        const brandRaw = (deal.brand || '').trim();
+        const brand = brandRaw ? brandRaw : 'Unknown';
 
         // Calculate discount
         const dollarSavings = original > price ? original - price : 0;
@@ -484,21 +467,29 @@ const debugHTML = `
         stats.stores[store].totalSavings += dollarSavings;
         stats.stores[store].deals.push(deal);
 
+        // NEW: Unknown brand by store tracking
+        if (!stats.unknownByStore[store]) {
+          stats.unknownByStore[store] = { unknownCount: 0, total: 0 };
+        }
+        stats.unknownByStore[store].total++;
+        if (brand === 'Unknown') stats.unknownByStore[store].unknownCount++;
+
         // Brand stats
         if (!stats.brands[brand]) {
           stats.brands[brand] = {
             count: 0,
             totalDiscount: 0,
-            minPrice: price,
-            maxPrice: price
+            minPrice: price || Infinity,
+            maxPrice: price || 0
           };
         }
         stats.brands[brand].count++;
         stats.brands[brand].totalDiscount += percentOff;
-        stats.brands[brand].minPrice = Math.min(stats.brands[brand].minPrice, price);
-        stats.brands[brand].maxPrice = Math.max(stats.brands[brand].maxPrice, price);
+        if (price > 0) {
+          stats.brands[brand].minPrice = Math.min(stats.brands[brand].minPrice, price);
+          stats.brands[brand].maxPrice = Math.max(stats.brands[brand].maxPrice, price);
+        }
 
-        // Track all discounts and prices
         if (percentOff > 0) {
           stats.discounts.push({
             deal: deal,
@@ -508,37 +499,29 @@ const debugHTML = `
             valueScore: percentOff + (dollarSavings * 0.5)
           });
         }
-        
-        if (price > 0) {
-          stats.prices.push(price);
-        }
+
+        if (price > 0) stats.prices.push(price);
       });
 
-      console.log('Stores found:', Object.keys(stats.stores));
-      console.log('Store counts:', stats.stores);
+      // Normalize Infinity minPrice if brand only had 0 prices
+      Object.values(stats.brands).forEach(b => {
+        if (!Number.isFinite(b.minPrice)) b.minPrice = 0;
+      });
 
       return stats;
     }
 
     function displayStats(stats) {
-      // Total deals
       document.getElementById('totalDeals').textContent = stats.totalDeals.toLocaleString();
-
-      // Total stores
       document.getElementById('totalStores').textContent = Object.keys(stats.stores).length;
-
-      // Total brands
       document.getElementById('totalBrands').textContent = Object.keys(stats.brands).length;
 
-      // Average discount
       const avgDiscount = stats.discounts.length > 0
         ? stats.discounts.reduce((sum, d) => sum + d.percentOff, 0) / stats.discounts.length
         : 0;
       document.getElementById('avgDiscount').textContent = avgDiscount.toFixed(1) + '%';
 
-      // Top deals
       if (stats.discounts.length > 0) {
-        // Highest % discount
         const topPercent = [...stats.discounts].sort((a, b) => b.percentOff - a.percentOff)[0];
         document.getElementById('topPercentDeal').innerHTML = formatTopDeal(
           topPercent.deal,
@@ -546,7 +529,6 @@ const debugHTML = `
           topPercent.dollarSavings
         );
 
-        // Biggest $ savings
         const topDollar = [...stats.discounts].sort((a, b) => b.dollarSavings - a.dollarSavings)[0];
         document.getElementById('topDollarDeal').innerHTML = formatTopDeal(
           topDollar.deal,
@@ -554,7 +536,6 @@ const debugHTML = `
           topDollar.dollarSavings
         );
 
-        // Lowest price
         const lowestPrice = [...stats.discounts].sort((a, b) => a.price - b.price)[0];
         document.getElementById('lowestPriceDeal').innerHTML = formatTopDeal(
           lowestPrice.deal,
@@ -562,7 +543,6 @@ const debugHTML = `
           lowestPrice.dollarSavings
         );
 
-        // Best value
         const bestValue = [...stats.discounts].sort((a, b) => b.valueScore - a.valueScore)[0];
         document.getElementById('bestValueDeal').innerHTML = formatTopDeal(
           bestValue.deal,
@@ -571,27 +551,21 @@ const debugHTML = `
         );
       }
 
-      // Store chart
       displayStoreChart(stats.stores);
-
-      // Store table
+      displayUnknownBrandsByStore(stats.unknownByStore); // NEW
       displayStoreTable(stats.stores);
-
-      // Brand table
       displayBrandTable(stats.brands);
-
-      // Price distribution
       displayPriceDistribution(stats.prices);
     }
 
-    function formatTopDeal(deal, highlight, savings) {
+    function formatTopDeal(deal, highlight) {
       const price = Number(deal.price) || 0;
       const original = Number(deal.originalPrice) || 0;
       return `
-        <div class="top-deal-title">${deal.brand} ${deal.model}</div>
-        <div class="top-deal-store">📍 ${deal.store}</div>
+        <div class="top-deal-title">${(deal.brand || 'Unknown')} ${(deal.model || '')}</div>
+        <div class="top-deal-store">Store: ${deal.store || 'Unknown'}</div>
         <div class="top-deal-price">
-          $${price.toFixed(2)} 
+          $${price.toFixed(2)}
           ${original > price ? `<span style="color: #999; text-decoration: line-through; font-size: 0.9rem;">$${original.toFixed(2)}</span>` : ''}
         </div>
         <div class="top-deal-savings">${highlight}</div>
@@ -600,7 +574,7 @@ const debugHTML = `
 
     function displayStoreChart(stores) {
       const sorted = Object.entries(stores).sort((a, b) => b[1].count - a[1].count);
-      
+
       if (sorted.length === 0) {
         document.getElementById('storeChart').innerHTML = '<p>No store data available</p>';
         return;
@@ -625,22 +599,51 @@ const debugHTML = `
       document.getElementById('storeChart').innerHTML = html;
     }
 
+    // NEW: Unknown brands table
+    function displayUnknownBrandsByStore(unknownByStore) {
+      const tbody = document.getElementById('unknownBrandsTableBody');
+
+      const rows = Object.entries(unknownByStore)
+        .map(([store, obj]) => {
+          const pct = obj.total > 0 ? (obj.unknownCount / obj.total) * 100 : 0;
+          return { store, unknown: obj.unknownCount, total: obj.total, pct };
+        })
+        .filter(r => r.unknown > 0)
+        .sort((a, b) => b.unknown - a.unknown);
+
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4">No Unknown brands found 🎉</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = rows.map(r => `
+        <tr>
+          <td><strong>${r.store}</strong></td>
+          <td>${r.unknown.toLocaleString()}</td>
+          <td>${r.total.toLocaleString()}</td>
+          <td>${r.pct.toFixed(1)}%</td>
+        </tr>
+      `).join('');
+    }
+
     function displayStoreTable(stores) {
       const sorted = Object.entries(stores).sort((a, b) => b[1].count - a[1].count);
 
       if (sorted.length === 0) {
-        document.getElementById('storesTableBody').innerHTML = '<tr><td colspan="5">No store data available</td></tr>';
+        document.getElementById('storesTableBody').innerHTML =
+          '<tr><td colspan="5">No store data available</td></tr>';
         return;
       }
 
       const html = sorted.map(([name, data]) => {
         const avgDiscount = data.count > 0 ? (data.totalDiscount / data.count).toFixed(1) : '0';
         const avgSavings = data.count > 0 ? (data.totalSavings / data.count).toFixed(2) : '0';
-        
-        // Find best deal from this store
+
         const bestDeal = data.deals
           .map(d => {
-            const pct = d.originalPrice && d.price ? ((d.originalPrice - d.price) / d.originalPrice) * 100 : 0;
+            const o = Number(d.originalPrice) || 0;
+            const p = Number(d.price) || 0;
+            const pct = (o > p && o > 0) ? ((o - p) / o) * 100 : 0;
             return { deal: d, pct };
           })
           .sort((a, b) => b.pct - a.pct)[0];
@@ -651,7 +654,7 @@ const debugHTML = `
             <td>${data.count}</td>
             <td>${avgDiscount}%</td>
             <td>$${avgSavings}</td>
-            <td>${bestDeal ? `${bestDeal.deal.brand} ${bestDeal.deal.model} (${bestDeal.pct.toFixed(0)}% off)` : '-'}</td>
+            <td>${bestDeal ? `${bestDeal.deal.brand || 'Unknown'} ${(bestDeal.deal.model || '')} (${bestDeal.pct.toFixed(0)}% off)` : '-'}</td>
           </tr>
         `;
       }).join('');
@@ -666,7 +669,7 @@ const debugHTML = `
 
       const html = sorted.map(([name, data], index) => {
         const avgDiscount = data.count > 0 ? (data.totalDiscount / data.count).toFixed(1) : '0';
-        const priceRange = `$${data.minPrice.toFixed(0)} - $${data.maxPrice.toFixed(0)}`;
+        const priceRange = `$${(data.minPrice || 0).toFixed(0)} - $${(data.maxPrice || 0).toFixed(0)}`;
 
         return `
           <tr>
@@ -720,7 +723,6 @@ const debugHTML = `
       document.getElementById('priceChart').innerHTML = html;
     }
 
-    // Load stats on page load
     loadStats();
   </script>
 </body>
