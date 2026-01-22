@@ -1,0 +1,63 @@
+// api/scrapers/brooks-sale-debug-prices.js
+// Debug to find where Brooks prices actually are
+
+const FirecrawlApp = require('@mendable/firecrawl-js').default;
+const cheerio = require('cheerio');
+
+module.exports = async (req, res) => {
+  try {
+    const app = new FirecrawlApp({ 
+      apiKey: process.env.FIRECRAWL_API_KEY 
+    });
+    
+    console.log('Fetching Brooks page...');
+    
+    const scrapeResult = await app.scrapeUrl(
+      'https://www.brooksrunning.com/en_us/sale/?prefn1=productType&prefv1=Shoes',
+      {
+        formats: ['html'],
+        waitFor: 5000,
+        timeout: 30000
+      }
+    );
+    
+    const $ = cheerio.load(scrapeResult.html);
+    
+    // Get first product
+    const $firstProduct = $('.o-products-grid__item').first();
+    const $content = $firstProduct.find('.o-products-grid__item-content');
+    
+    // Debug info
+    const debug = {
+      title: $content.attr('data-cnstrc-item-name'),
+      productId: $content.attr('data-pid'),
+      
+      // Try to find ALL price-related elements
+      priceSelectors: {
+        'price-sales': $firstProduct.find('.price-sales').text().trim(),
+        'sales': $firstProduct.find('.sales').text().trim(),
+        'price-list': $firstProduct.find('.price-list').text().trim(),
+        'price': $firstProduct.find('.price').text().trim(),
+        '[class*="price"]_count': $firstProduct.find('[class*="price"]').length,
+        '[class*="price"]_text': $firstProduct.find('[class*="price"]').text().trim(),
+      },
+      
+      // Get all text from product
+      fullProductText: $firstProduct.text().substring(0, 500),
+      
+      // Sample HTML of product
+      productHTML: $firstProduct.html().substring(0, 1000)
+    };
+    
+    return res.status(200).json({
+      success: true,
+      debug
+    });
+    
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
