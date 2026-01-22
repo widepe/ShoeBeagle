@@ -511,7 +511,9 @@
         }
 
         const deals = data.deals;
-
+ALL_DEALS = deals;
+buildStoreDropdown(deals);
+renderDealsForSelectedStore();
         // Debug summary
         const unknownBrands = deals.filter(d => (d.brand || '').trim() === 'Unknown' || !(d.brand || '').trim()).length;
         const uniqueBrands = [...new Set(deals.map(d => (d.brand || 'Unknown').trim()))]
