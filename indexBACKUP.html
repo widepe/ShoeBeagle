@@ -48,7 +48,7 @@
       color: #2d2d2d;
       display: flex;
       justify-content: center;
-      padding: 2rem 1rem;
+      padding: 6px 1rem;
       min-height: 100vh;
     }
 
@@ -59,7 +59,7 @@
       flex-direction: column;
       gap: 0.65rem;
       align-items: center;
-      padding-top: 2rem;
+      padding-top: 0;
     }
 
     /* Top Navigation */
@@ -350,11 +350,11 @@
 
 <body>
   <div style="display:none;">Impact-Site-Verification: 484b0fd5-0544-4654-b916-4e921a2e5077</div>
-
+<!--
   <div class="top-nav">
     <a href="/pages/myalerts.html">My Alerts</a>
   </div>
-
+-->
   <div class="app">
     <div class="brand">
       <img src="/images/logo.svg" class="brand-logo" alt="Shoe Beagle Logo" id="logoLink">
@@ -635,10 +635,12 @@
         img.alt = item.title || "Running shoe deal";
         imgWrapper.appendChild(img);
       } else {
-        const img = document.createElement("img");
-        img.alt = "Running shoe";
-        imgWrapper.appendChild(img);
-      }
+  const img = document.createElement("img");
+  img.src = "https://placehold.co/600x400?text=Running+Shoe";
+  img.alt = "Running shoe";
+  imgWrapper.appendChild(img);
+}
+
 
       if (discount.hasDiscount) {
         const badge = document.createElement("div");
@@ -699,43 +701,53 @@
     }
 
     // Load daily deals from API and render as cards
-    async function loadDailyDeals() {
-      try {
-        const res = await fetch("/api/daily-deals");
-        const data = await res.json();
-        const deals = (data && Array.isArray(data.deals)) ? data.deals : [];
-        dailyDealsGrid.innerHTML = "";
+    // Load daily deals from the FINAL merged blob (deals.json) and render as cards
+async function loadDailyDeals() {
+  try {
+    const blobUrl = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json?cb=" + Date.now();
 
-        if (!deals.length) {
-          dailyDeals.style.display = "none";
-          return;
-        }
+    const res = await fetch(blobUrl);
+    const data = await res.json();
 
-        deals.forEach(item => {
-          const card = createDealCard(item);
-          dailyDealsGrid.appendChild(card);
-        });
+    // deals.json shape: { totalDeals, deals: [...] }
+    const deals = (data && Array.isArray(data.deals)) ? data.deals : [];
 
-        dailyDeals.style.display = "block";
-      } catch (err) {
-        console.error("Error loading daily deals:", err);
-        dailyDeals.style.display = "none";
-      }
+    dailyDealsGrid.innerHTML = "";
+
+    if (!deals.length) {
+      dailyDeals.style.display = "none";
+      return;
     }
+
+    // Optional: show only first N cards on homepage
+    const daily = deals.slice(0, 24);
+
+    daily.forEach(item => {
+      dailyDealsGrid.appendChild(createDealCard(item));
+    });
+
+    dailyDeals.style.display = "block";
+  } catch (err) {
+    console.error("Error loading daily deals:", err);
+    dailyDeals.style.display = "none";
+  }
+}
+
 
     // Load total deals count and update tagline
 async function dailyDealCount() {
   const taglineEl = document.querySelector('.tagline');
   
   try {
-    const blobUrl = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json";
+    const blobUrl = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json?cb=" + Date.now();
+
     const res = await fetch(blobUrl);
     const data = await res.json();
     
     const totalDeals = data.totalDeals || 0;
     
     if (taglineEl && totalDeals > 0) {
-      taglineEl.textContent = `There are ${totalDeals.toLocaleString()} running shoe deals today, let's find yours!`;
+      taglineEl.textContent = `There are ${totalDeals.toLocaleString()} deals today, let's find yours!`;
     }
   } catch (err) {
     console.error("Error loading total deals count:", err);
