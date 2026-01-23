@@ -264,7 +264,7 @@
       }
     }
 
-    /* Unified card style: search + daily deals */
+    /* Unified card style: horizontal layout with image on left */
     .card {
       background: #d9e1ebff;
       border: 2px solid #214478ff;
@@ -278,32 +278,47 @@
 
     .card-link {
       display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
+      flex-direction: row;
+      gap: 0.75rem;
       text-decoration: none;
       color: inherit;
       height: 100%;
+      align-items: center;
+    }
+
+    .card-image-wrapper {
+      flex-shrink: 0;
+      width: 120px;
+      height: 120px;
     }
 
     .card img {
       width: 100%;
+      height: 100%;
       border-radius: 0.6rem;
       object-fit: contain;
-      height: 150px;
       background: white;
       border: 1px solid #214478ff;
       box-sizing: border-box;
+    }
+
+    .card-content {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      flex: 1;
+      justify-content: center;
+      min-width: 0;
     }
 
     .card-title {
       font-size: 0.92rem;
       font-weight: 600;
       display: -webkit-box;
-      -webkit-line-clamp: 3;
+      -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
       text-overflow: ellipsis;
-      min-height: calc(1.2em * 3);
     }
 
     .card-store {
@@ -643,12 +658,11 @@
         img.alt = item.title || "Running shoe deal";
         imgWrapper.appendChild(img);
       } else {
-  const img = document.createElement("img");
-  img.src = "https://placehold.co/600x400?text=Running+Shoe";
-  img.alt = "Running shoe";
-  imgWrapper.appendChild(img);
-}
-
+        const img = document.createElement("img");
+        img.src = "https://placehold.co/600x400?text=Running+Shoe";
+        img.alt = "Running shoe";
+        imgWrapper.appendChild(img);
+      }
 
       if (discount.hasDiscount) {
         const badge = document.createElement("div");
@@ -658,6 +672,10 @@
       }
 
       link.appendChild(imgWrapper);
+
+      // --- content wrapper for text ---
+      const contentDiv = document.createElement("div");
+      contentDiv.className = "card-content";
 
       // --- brand + model (instead of title) ---
       const titleDiv = document.createElement("div");
@@ -671,13 +689,13 @@
           ? [brand, model].filter(Boolean).join(" ")
           : (item.title || "Deal");
 
-      link.appendChild(titleDiv);
+      contentDiv.appendChild(titleDiv);
 
       if (item.store) {
         const storeDiv = document.createElement("div");
         storeDiv.className = "card-store";
         storeDiv.textContent = item.store;
-        link.appendChild(storeDiv);
+        contentDiv.appendChild(storeDiv);
       }
 
       // --- price row (current + struck-through original) ---
@@ -702,7 +720,8 @@
         priceRow.appendChild(origSpan);
       }
 
-      link.appendChild(priceRow);
+      contentDiv.appendChild(priceRow);
+      link.appendChild(contentDiv);
 
       card.appendChild(link);
       return card;
