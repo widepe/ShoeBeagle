@@ -1,7 +1,7 @@
 // api/scrapers/asics-sale.js
 // Scrapes all three ASICS sale pages using Firecrawl
 // FIXED: Gender detection works with query parameters using category codes
-// FIXED: Image extraction now checks picture/source srcset + img srcset + common lazy attrs + background-image
+// FIXED: Image extraction now includes a robust fallback derived from the product URL
 
 const FirecrawlApp = require('@mendable/firecrawl-js').default;
 const cheerio = require('cheerio');
@@ -14,36 +14,14 @@ const { put } = require('@vercel/blob');
 function pickBestFromSrcset(srcset) {
   if (!srcset || typeof srcset !== 'string') return null;
 
-  // Keep entries, choose the largest width if widths exist, else last URL
-  const entries = srcset
+  const candidates = srcset
     .split(',')
     .map(s => s.trim())
+    .map(entry => entry.split(/\s+/)[0]) // URL part
     .filter(Boolean);
 
-  if (!entries.length) return null;
-
-  let bestUrl = null;
-  let bestW = -1;
-
-  for (const entry of entries) {
-    const parts = entry.split(/\s+/).filter(Boolean);
-    const url = parts[0];
-    const wPart = parts.find(p => /^\d+w$/.test(p));
-    const w = wPart ? parseInt(wPart.replace('w', ''), 10) : null;
-
-    if (w !== null && !Number.isNaN(w)) {
-      if (w > bestW) {
-        bestW = w;
-        bestUrl = url;
-      }
-    } else {
-      // If no widths, fall back to last entry later
-      bestUrl = url;
-    }
-  }
-
-  // If we never saw widths, bestUrl will be from last parsed entry
-  return bestUrl || null;
+  if (!candidates.length) return null;
+  return candidates[candidates.length - 1];
 }
 
 /**
@@ -61,84 +39,36 @@ function absolutizeAsicsUrl(url) {
   if (url.startsWith('http')) return url;
   if (url.startsWith('//')) return `https:${url}`;
   if (url.startsWith('/')) return `https://www.asics.com${url}`;
-  return `https://www.asics.com/${url.replace(/^\.?\//, '')}`;
+  return `https://www.asics.com/${url}`;
 }
 
 /**
- * Extract an image URL from a product tile.
- * Tries picture/source srcset first, then img srcset, then img src/data-src,
- * then background-image inline styles.
+ * Some ASICS tiles don't include a usable <img src/srcset> in the HTML we get back.
+ * But their product URLs usually include a style+color code like:
+ *   .../p/ANA_1012B755-402.html
+ * And their image CDN commonly follows this pattern:
+ *   https://images.asics.com/is/image/asics/1012B755_402_SR_RT_GLB?$zoom$
+ *
+ * This builds that as a fallback (best-effort).
  */
-function extractAsicsImageFromTile($tile) {
-  let image = null;
+function buildAsicsImageFromProductUrl(productUrl) {
+  if (!productUrl || typeof productUrl !== 'string') return null;
 
-  // 1) <picture><source srcset=...> or data-srcset
-  const $source = $tile.find('picture source').first();
-  if ($source && $source.length) {
-    const srcset =
-      $source.attr('srcset') ||
-      $source.attr('data-srcset') ||
-      $source.attr('data-lazy-srcset') ||
-      null;
+  // Example match: ANA_1012B755-402.html
+  const m = productUrl.match(/ANA_([A-Za-z0-9]+)-([A-Za-z0-9]+)\.html/i);
+  if (!m) return null;
 
-    image = pickBestFromSrcset(srcset) || null;
-  }
+  const style = m[1]; // 1012B755
+  const color = m[2]; // 402
 
-  // 2) img srcset / data-srcset variants
-  if (!image) {
-    const $img = $tile.find('img').first();
-    if ($img && $img.length) {
-      const imgSrcset =
-        $img.attr('srcset') ||
-        $img.attr('data-srcset') ||
-        $img.attr('data-lazy-srcset') ||
-        $img.attr('data-src-set') || // sometimes odd naming
-        null;
-
-      image = pickBestFromSrcset(imgSrcset) || null;
-    }
-  }
-
-  // 3) img src / lazy attrs
-  if (!image) {
-    const $img = $tile.find('img').first();
-    if ($img && $img.length) {
-      image =
-        $img.attr('src') ||
-        $img.attr('data-src') ||
-        $img.attr('data-lazy-src') ||
-        $img.attr('data-original') ||
-        $img.attr('data-image') ||
-        null;
-    }
-  }
-
-  // 4) background-image inline style fallback
-  if (!image) {
-    const $bg = $tile.find('[style*="background-image"]').first();
-    const style = ($bg && $bg.length ? $bg.attr('style') : '') || '';
-    const m = style.match(/background-image\s*:\s*url\(["']?(.*?)["']?\)/i);
-    if (m && m[1]) image = m[1];
-  }
-
-  image = absolutizeAsicsUrl(image);
-
-  // Skip placeholders / data URIs
-  if (image && (image.startsWith('data:') || image.toLowerCase().includes('placeholder'))) {
-    image = null;
-  }
-
-  // Upgrade thumbnail images to larger versions (if ASICS uses this pattern)
-  if (image && image.includes('$variantthumbnail$')) {
-    image = image.replace('$variantthumbnail$', '$zoom$');
-  }
-
-  return image || null;
+  // Common ASICS CDN naming
+  // Some valid examples use $sfcc-product$; we prefer $zoom$ for a larger image.
+  return `https://images.asics.com/is/image/asics/${style}_${color}_SR_RT_GLB?$zoom$`;
 }
 
 /**
  * Extract products from ASICS HTML
- * FIXED: Uses category codes (aa10106000, aa20106000) for gender detection
+ * Uses category codes (aa10106000, aa20106000) for gender detection
  */
 function extractAsicsProducts(html, sourceUrl) {
   const $ = cheerio.load(html);
@@ -172,7 +102,7 @@ function extractAsicsProducts(html, sourceUrl) {
     const linkTitle = $link.attr('aria-label') || $link.text().trim();
 
     // Clean up title
-    let cleanTitle = (linkTitle || '')
+    let cleanTitle = linkTitle
       .replace(/Next slide/gi, '')
       .replace(/Previous slide/gi, '')
       .replace(/Sale/gi, '')
@@ -212,8 +142,80 @@ function extractAsicsProducts(html, sourceUrl) {
       url = `https://www.asics.com${url}`;
     }
 
-    // FIXED: Image extraction
-    const image = extractAsicsImageFromTile($product);
+    // ----------------------------
+    // IMAGE EXTRACTION (ROBUST)
+    // ----------------------------
+    // Try multiple places where ASICS might store the image:
+    //   1) picture source[srcset]/[data-srcset]
+    //   2) img[srcset]/[data-srcset]/[data-lazy-srcset]
+    //   3) img[src]/[data-src]/[data-lazy-src]/[data-original]
+    //   4) noscript img[src] (common lazy-load fallback)
+    //   5) derived from product URL (high-success fallback)
+    let image = null;
+
+    // 1) picture source srcset
+    const sourceSrcset =
+      $product.find('picture source[srcset]').first().attr('srcset') ||
+      $product.find('picture source[data-srcset]').first().attr('data-srcset') ||
+      null;
+
+    image = pickBestFromSrcset(sourceSrcset);
+
+    // 2) img srcset variants
+    if (!image) {
+      const $img = $product.find('img').first();
+      const imgSrcset =
+        $img.attr('srcset') ||
+        $img.attr('data-srcset') ||
+        $img.attr('data-lazy-srcset') ||
+        null;
+
+      image = pickBestFromSrcset(imgSrcset);
+    }
+
+    // 3) img src variants
+    if (!image) {
+      const $img = $product.find('img').first();
+      image =
+        $img.attr('src') ||
+        $img.attr('data-src') ||
+        $img.attr('data-lazy-src') ||
+        $img.attr('data-original') ||
+        null;
+    }
+
+    // 4) noscript fallback
+    if (!image) {
+      const noscriptHtml = $product.find('noscript').first().html();
+      if (noscriptHtml) {
+        const $$ = cheerio.load(noscriptHtml);
+        const nsImg =
+          $$('img').first().attr('src') ||
+          $$('img').first().attr('data-src') ||
+          null;
+        image = nsImg || null;
+      }
+    }
+
+    image = absolutizeAsicsUrl(image);
+
+    // Skip data URIs and obvious placeholders
+    if (image && (image.startsWith('data:') || image.toLowerCase().includes('placeholder'))) {
+      image = null;
+    }
+
+    // Upgrade thumbnail images to larger versions (if present)
+    if (image && image.includes('$variantthumbnail$')) {
+      image = image.replace('$variantthumbnail$', '$zoom$');
+    }
+
+    // 5) FINAL fallback: derive from product URL
+    // This specifically fixes the cases like GEL-PULSE 16 where image was null.
+    if (!image && url) {
+      const derived = buildAsicsImageFromProductUrl(url);
+      if (derived) image = derived;
+    }
+    // ----------------------------
 
     // Calculate discount
     const discount =
@@ -264,7 +266,9 @@ async function scrapeAsicsUrlWithPagination(app, baseUrl, description) {
 
     const products = extractAsicsProducts(scrapeResult.html, baseUrl);
 
-    console.log(`[ASICS] ${description}: Found ${products.length} products`);
+    // quick diagnostic: how many missing images
+    const missingImages = products.filter(p => !p.image).length;
+    console.log(`[ASICS] ${description}: Found ${products.length} products (${missingImages} missing images)`);
 
     return {
       success: true,
@@ -355,7 +359,8 @@ async function scrapeAllAsicsSales() {
     }
   }
 
-  console.log(`[ASICS] Total unique products: ${uniqueProducts.length}`);
+  const missingImagesTotal = uniqueProducts.filter(p => !p.image).length;
+  console.log(`[ASICS] Total unique products: ${uniqueProducts.length} (${missingImagesTotal} missing images)`);
   console.log(`[ASICS] Results per page:`, results);
 
   return { products: uniqueProducts, pageResults: results };
