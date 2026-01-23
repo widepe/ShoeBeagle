@@ -222,20 +222,11 @@
     }
     .search-btn:hover { background: #1a3661; }
 
-    /* Tagline must ALWAYS remain under inputs */
-    .tagline {
+    /* Status message (replaces both tagline and status) */
+    .status-message {
       font-size: 0.95rem;
       color: #2d3c22;
       margin-top: 0.05rem;
-      text-align: center;
-      width: 100%;
-    }
-
-    /* Separate dynamic status line so tagline never gets overwritten */
-    .status-message {
-      font-size: 0.9rem;
-      color: #2d3c22;
-      margin-top: 0.15rem;
       text-align: center;
       width: 100%;
       min-height: 1.1rem;
@@ -444,8 +435,7 @@
       </div>
     </form>
 
-    <div class="tagline">Let's find your running shoes!</div>
-    <div class="status-message" id="statusMessage"></div>
+    <div class="status-message" id="statusMessage">Let's find your running shoes!</div>
 
     <div id="mainContent">
       <div class="daily-deals" id="dailyDeals">
@@ -799,6 +789,9 @@ async function loadDailyDeals() {
     });
 
     dailyDeals.style.display = "block";
+    
+    // Update status message when daily deals are shown
+    dailyDealCount();
   } catch (err) {
     console.error("Error loading daily deals:", err);
     dailyDeals.style.display = "none";
@@ -806,10 +799,8 @@ async function loadDailyDeals() {
 }
 
 
-    // Load total deals count and update tagline
+    // Load total deals count and update status message when showing daily deals
 async function dailyDealCount() {
-  const taglineEl = document.querySelector('.tagline');
-  
   try {
     const blobUrl = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json?cb=" + Date.now();
 
@@ -818,17 +809,16 @@ async function dailyDealCount() {
     
     const totalDeals = data.totalDeals || 0;
     
-    if (taglineEl && totalDeals > 0) {
-      taglineEl.textContent = `There are ${totalDeals.toLocaleString()} deals today, let's find yours!`;
+    if (statusMessageEl && totalDeals > 0) {
+      statusMessageEl.textContent = `There are ${totalDeals.toLocaleString()} deals today, let's find yours!`;
     }
   } catch (err) {
     console.error("Error loading total deals count:", err);
-    // Keep default tagline if fetch fails
+    // Keep default message if fetch fails
   }
 }
     // Initial daily deals load
     loadDailyDeals();
-    dailyDealCount();
     
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -871,7 +861,7 @@ async function dailyDealCount() {
       }
 
       statusMessageEl.textContent =
-        `Top ${results.length} deal${results.length === 1 ? '' : 's'} found for ${displayQuery}`;
+        `Top ${results.length} deal${results.length === 1 ? '' : 's'} found for ${displayQuery}.`;
       resultsEl.innerHTML = "";
 
       results.forEach(item => {
