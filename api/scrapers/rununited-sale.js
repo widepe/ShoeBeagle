@@ -1,6 +1,6 @@
 // api/scrapers/rununited-sale.js
 // Scrapes Run United sale page for running shoes
-// Uses Firecrawl for JavaScript-rendered content
+// Uses Firecrawl  for JavaScript-rendered content
 
 const FirecrawlApp = require('@mendable/firecrawl-js').default;
 const cheerio = require('cheerio');
