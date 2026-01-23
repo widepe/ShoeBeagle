@@ -7,7 +7,7 @@ const cheerio = require('cheerio');
 const { put } = require('@vercel/blob');
 
 /**
- * Extract products from Run United sale page HTML
+ * Extract products from Run United sale page  HTML 
  */
 function extractRunUnitedProducts(html, sourceUrl) {
   const $ = cheerio.load(html);
