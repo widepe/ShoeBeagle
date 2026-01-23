@@ -1,5 +1,5 @@
 // api/scrapers/rununited-sale-debug.js
-// Debug scraper to inspect Run United's HTML structure
+// Debug scraper to inspect  Run United's HTML structure
 
 const FirecrawlApp = require('@mendable/firecrawl-js').default;
 const cheerio = require('cheerio');
