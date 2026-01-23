@@ -1,258 +1,378 @@
-// api/scrape-asics.js
-// Vercel Serverless Function
-//
-// Purpose: Scrape ASICS sale/listing pages and return normalized deals.
-// Focus: robust image extraction (picture/source srcset, img srcset, lazy attrs)
+// api/scrapers/asics-sale.js
+// Scrapes all three ASICS sale pages using Firecrawl
+// FIXED: Gender detection works with query parameters using category codes
 
-const axios = require("axios");
-const cheerio = require("cheerio");
+const FirecrawlApp = require('@mendable/firecrawl-js').default;
+const cheerio = require('cheerio');
+const { put } = require('@vercel/blob');
 
 /**
- * Pick the "best" candidate from a srcset string.
- * Example srcset: "https://.../img1.jpg 200w, https://.../img2.jpg 800w"
- * We usually want the last URL (largest).
+ * Pick the best (usually largest) URL from a srcset string.
+ * Example: "url1 200w, url2 800w" -> returns url2
  */
 function pickBestFromSrcset(srcset) {
-  if (!srcset || typeof srcset !== "string") return null;
+  if (!srcset || typeof srcset !== 'string') return null;
 
   const candidates = srcset
-    .split(",")
-    .map((s) => s.trim())
-    .map((entry) => entry.split(/\s+/)[0]) // URL part
+    .split(',')
+    .map(s => s.trim())
+    .map(entry => entry.split(/\s+/)[0]) // URL part
     .filter(Boolean);
 
   if (!candidates.length) return null;
   return candidates[candidates.length - 1];
 }
 
+/**
+ * Convert ASICS-ish URLs to absolute https URLs.
+ */
 function absolutizeAsicsUrl(url) {
-  if (!url) return null;
-  if (typeof url !== "string") return null;
-  if (url.startsWith("data:")) return null;
+  if (!url || typeof url !== 'string') return null;
+  if (url.startsWith('data:')) return null;
 
-  // handle HTML entities
-  url = url.replace(/&amp;/g, "&");
+  // handle HTML entities if present
+  url = url.replace(/&amp;/g, '&').trim();
 
-  if (url.startsWith("//")) return `https:${url}`;
-  if (url.startsWith("http")) return url;
-  if (url.startsWith("/")) return `https://www.asics.com${url}`;
+  if (url.startsWith('http')) return url;
+  if (url.startsWith('//')) return `https:${url}`;
+  if (url.startsWith('/')) return `https://www.asics.com${url}`;
   return `https://www.asics.com/${url}`;
 }
 
 /**
- * Extracts a likely-correct product image URL from a product tile.
- * Checks:
- *  1) picture > source[srcset]/[data-srcset]
- *  2) img[srcset]/[data-srcset]/[data-lazy-srcset]
- *  3) img[src]/[data-src]/[data-lazy-src]/[data-original]
+ * Extract products from ASICS HTML
+ * FIXED: Uses category codes (aa10106000, aa20106000) for gender detection
  */
-function extractAsicsImageFromTile($product, $) {
-  // 1) picture/source srcset
-  const sourceSrcset =
-    $product.find("picture source[srcset]").first().attr("srcset") ||
-    $product.find("picture source[data-srcset]").first().attr("data-srcset");
-
-  let image = pickBestFromSrcset(sourceSrcset);
-
-  // 2) img srcset (and lazy variants)
-  if (!image) {
-    const $img = $product.find("img").first();
-    const imgSrcset =
-      $img.attr("srcset") ||
-      $img.attr("data-srcset") ||
-      $img.attr("data-lazy-srcset");
-
-    image = pickBestFromSrcset(imgSrcset);
-  }
-
-  // 3) fallback to img src / lazy-src
-  if (!image) {
-    const $img = $product.find("img").first();
-    image =
-      $img.attr("src") ||
-      $img.attr("data-src") ||
-      $img.attr("data-lazy-src") ||
-      $img.attr("data-original") ||
-      null;
-  }
-
-  image = absolutizeAsicsUrl(image);
-
-  // Skip common placeholders
-  if (image && /placeholder/i.test(image)) image = null;
-
-  // If ASICS uses variantthumbnail -> upgrade to zoom when present
-  if (image && image.includes("$variantthumbnail$")) {
-    image = image.replace("$variantthumbnail$", "$zoom$");
-  }
-
-  return image;
-}
-
-/**
- * Utility: best-effort parse price from text like "$89.95"
- */
-function parsePrice(text) {
-  if (!text) return null;
-  const cleaned = String(text).replace(/[,]/g, "").trim();
-  const m = cleaned.match(/(\$)\s*([0-9]+(?:\.[0-9]{1,2})?)/);
-  if (!m) return null;
-  const n = Number(m[2]);
-  return Number.isFinite(n) ? n : null;
-}
-
-/**
- * Fetch HTML with browser-ish headers (helps for some CDNs)
- */
-async function fetchHtml(url) {
-  const resp = await axios.get(url, {
-    timeout: 30000,
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36",
-      "Accept-Language": "en-US,en;q=0.9",
-      Accept: "text/html,application/xhtml+xml",
-    },
-  });
-  return resp.data;
-}
-
-/**
- * Main extraction logic. This is intentionally conservative: it tries common tile selectors.
- * If your ASICS page structure differs, adjust TILE_SELECTORS.
- */
-function extractAsicsProducts(html, { sourceUrl, storeName = "ASICS" } = {}) {
+function extractAsicsProducts(html, sourceUrl) {
   const $ = cheerio.load(html);
-
-  // These are *guesses* that work on many ecommerce PLPs.
-  // If your current file already has a known selector that finds the right tiles,
-  // replace TILE_SELECTORS with your known selector.
-  const TILE_SELECTORS = [
-    '[data-testid*="product-tile"]',
-    '[class*="product-tile"]',
-    '[class*="ProductTile"]',
-    'li[class*="product"]',
-    'div[class*="product"]',
-    'article',
-  ];
-
-  let $tiles = $();
-  for (const sel of TILE_SELECTORS) {
-    const found = $(sel);
-    if (found.length >= 8) {
-      $tiles = found;
-      break;
-    }
+  const products = [];
+  
+  // Determine gender from URL - normalize URL first to handle query params
+  const normalizedUrl = sourceUrl.toLowerCase();
+  let gender = 'Unisex';
+  
+  // Check for gender in URL path
+  // IMPORTANT: Check women's FIRST since aa20106000 contains aa10106000 as substring!
+  if (normalizedUrl.includes('aa20106000') || normalizedUrl.includes('womens-clearance')) {
+    gender = 'Women';
+  } else if (normalizedUrl.includes('aa10106000') || normalizedUrl.includes('mens-clearance')) {
+    gender = 'Men';
+  } else if (normalizedUrl.includes('leaving-asics') || normalizedUrl.includes('aa60400001')) {
+    gender = 'Unisex';
   }
-
-  // If nothing matched well, just take a broad fallback
-  if (!$tiles.length) {
-    $tiles = $("body").find("li, div, article");
-  }
-
-  const results = [];
-  const seen = new Set();
-
-  $tiles.each((_, el) => {
+  
+  console.log(`[ASICS] Processing URL: ${sourceUrl} -> Gender: ${gender}`);
+  
+  // CORRECT SELECTOR: productTile__root
+  const $products = $('.productTile__root');
+  
+  console.log(`[ASICS] Found ${$products.length} products for ${gender}`);
+  
+  $products.each((i, el) => {
     const $product = $(el);
-
-    // URL (try first link that looks like a PDP)
-    let href =
-      $product.find('a[href*="/"]').first().attr("href") ||
-      $product.find("a").first().attr("href") ||
-      null;
-
-    href = absolutizeAsicsUrl(href);
-
-    // Basic title (try common patterns)
-    const title =
-      $product.find("a[title]").first().attr("title") ||
-      $product.find('[data-testid*="product-name"]').first().text() ||
-      $product.find('[class*="product-name"]').first().text() ||
-      $product.find("h2, h3").first().text() ||
-      "";
-
-    const cleanTitle = String(title).replace(/\s+/g, " ").trim();
-
-    // Skip junk nodes
-    if (!cleanTitle || cleanTitle.length < 3) return;
-
-    // Image (this is the main fix)
-    const image = extractAsicsImageFromTile($product, $);
-
-    // Price: look for sale/current and original/strike-through
-    const priceText =
-      $product.find('[data-testid*="price"]').first().text() ||
-      $product.find('[class*="price"]').first().text() ||
-      "";
-
-    // Try to detect original vs current by scanning for two prices
-    const allPriceText = String(priceText)
-      .replace(/\s+/g, " ")
+    
+    // Get product link for title and URL
+    const $link = $product.find('a[href*="/p/"]').first();
+    const linkTitle = $link.attr('aria-label') || $link.text().trim();
+    
+    // Clean up title
+    let cleanTitle = linkTitle
+      .replace(/Next slide/gi, '')
+      .replace(/Previous slide/gi, '')
+      .replace(/Sale/gi, '')
+      .replace(/\s+/g, ' ')
       .trim();
-
-    // Extract all $xx.xx occurrences
-    const priceMatches = allPriceText.match(/\$[0-9]+(?:\.[0-9]{1,2})?/g) || [];
-    const numericPrices = priceMatches
-      .map((p) => parsePrice(p))
-      .filter((n) => n !== null);
-
+    
+    // Extract model name (before "Men's" or "Women's")
+    const modelMatch = cleanTitle.match(/^([A-Z][A-Z\-\s\d]+?)(?=Men's|Women's|Unisex|\$)/i);
+    if (modelMatch) {
+      cleanTitle = modelMatch[1].trim();
+    }
+    
+    if (!cleanTitle || cleanTitle.length < 3) return;
+    
+    // Extract prices
+    const productText = $product.text();
+    const priceMatches = productText.match(/\$(\d+\.\d{2})/g);
+    
     let price = null;
     let originalPrice = null;
+    
+    if (priceMatches && priceMatches.length >= 2) {
+      originalPrice = parseFloat(priceMatches[0].replace('$', ''));
+      price = parseFloat(priceMatches[1].replace('$', ''));
+    } else if (priceMatches && priceMatches.length === 1) {
+      price = parseFloat(priceMatches[0].replace('$', ''));
+    }
+    
+    // Ensure sale price is lower
+    if (price && originalPrice && price > originalPrice) {
+      [price, originalPrice] = [originalPrice, price];
+    }
+    
+    // Get URL
+    let url = $link.attr('href');
+    if (url && !url.startsWith('http')) {
+      url = `https://www.asics.com${url}`;
+    }
+    
+    // ----------------------------
+    // FIXED IMAGE EXTRACTION
+    // ----------------------------
+    // ASICS often uses <picture><source srcset> or img[srcset] rather than img[src].
+    // We try, in order:
+    //   1) picture source[srcset]/[data-srcset]
+    //   2) img[srcset]/[data-srcset]/[data-lazy-srcset]
+    //   3) img[src]/[data-src]/[data-lazy-src]/[data-original]
+    // Then absolutize and clean.
+    let image = null;
 
-    if (numericPrices.length === 1) {
-      price = numericPrices[0];
-    } else if (numericPrices.length >= 2) {
-      // Heuristic: lowest is current, highest is original
-      const sorted = [...numericPrices].sort((a, b) => a - b);
-      price = sorted[0];
-      originalPrice = sorted[sorted.length - 1];
-      if (originalPrice === price) originalPrice = null;
+    const sourceSrcset =
+      $product.find('picture source[srcset]').first().attr('srcset') ||
+      $product.find('picture source[data-srcset]').first().attr('data-srcset') ||
+      null;
+
+    image = pickBestFromSrcset(sourceSrcset);
+
+    if (!image) {
+      const $img = $product.find('img').first();
+      const imgSrcset =
+        $img.attr('srcset') ||
+        $img.attr('data-srcset') ||
+        $img.attr('data-lazy-srcset') ||
+        null;
+
+      image = pickBestFromSrcset(imgSrcset);
     }
 
-    // Very light de-dupe (by href+title)
-    const key = `${href || ""}::${cleanTitle}`;
-    if (seen.has(key)) return;
-    seen.add(key);
+    if (!image) {
+      const $img = $product.find('img').first();
+      image = (
+        $img.attr('src') ||
+        $img.attr('data-src') ||
+        $img.attr('data-lazy-src') ||
+        $img.attr('data-original') ||
+        null
+      );
+    }
 
-    results.push({
-      title: cleanTitle,
-      brand: "ASICS",
-      model: cleanTitle.replace(/^ASICS\s+/i, "").trim() || cleanTitle,
-      price,
-      originalPrice,
-      store: storeName,
-      url: href || sourceUrl || null,
-      image: image || null,
-      discount: null,
-      scrapedAt: new Date().toISOString(),
-    });
+    image = absolutizeAsicsUrl(image);
+
+    // Skip data URIs and placeholders
+    if (image && (image.startsWith('data:') || image.includes('placeholder'))) {
+      image = null;
+    }
+
+    // Upgrade thumbnail images to larger versions
+    if (image && image.includes('$variantthumbnail$')) {
+      image = image.replace('$variantthumbnail$', '$zoom$');
+    }
+    // ----------------------------
+    
+    // Calculate discount
+    const discount = originalPrice && price && originalPrice > price ?
+      Math.round(((originalPrice - price) / originalPrice) * 100) : null;
+    
+    // Model name
+    const model = cleanTitle.replace(/^ASICS\s+/i, '').trim();
+    
+    if (cleanTitle && (price || originalPrice) && url) {
+      products.push({
+        title: cleanTitle,
+        brand: 'ASICS',
+        model,
+        store: 'ASICS',
+        gender,
+        price,
+        originalPrice,
+        discount: discount ? `${discount}%` : null,
+        url,
+        image: image || null, // Always include image field, even if null
+        scrapedAt: new Date().toISOString()
+      });
+    }
   });
-
-  return results;
+  
+  return products;
 }
 
-// Vercel handler
-module.exports = async function handler(req, res) {
+/**
+ * Scrape ASICS page with pagination - single attempt with larger size
+ */
+async function scrapeAsicsUrlWithPagination(app, baseUrl, description) {
+  console.log(`[ASICS] Scraping ${description}...`);
+  
   try {
-    // You can override with ?url=... if you want to test different pages quickly
-    const url =
-      (req.query && req.query.url) ||
-      "https://www.asics.com/us/en-us/sale/c/as-sal"; // default example
-
-    const html = await fetchHtml(url);
-    const deals = extractAsicsProducts(html, { sourceUrl: url, storeName: "ASICS" });
-
-    res.status(200).json({
-      success: true,
-      count: deals.length,
-      url,
-      deals,
+    // Request 100 items directly (ASICS max seems to be around 96-100)
+    const url = baseUrl.includes('?') ? `${baseUrl}&sz=100` : `${baseUrl}?sz=100`;
+    
+    console.log(`[ASICS] Fetching: ${url}`);
+    
+    const scrapeResult = await app.scrapeUrl(url, {
+      formats: ['html'],
+      waitFor: 8000, // Wait 8 seconds for all products to load
+      timeout: 45000 // 45 second timeout
     });
-  } catch (err) {
-    res.status(500).json({
+    
+    const products = extractAsicsProducts(scrapeResult.html, baseUrl);
+    
+    console.log(`[ASICS] ${description}: Found ${products.length} products`);
+    
+    return { 
+      success: true, 
+      products, 
+      count: products.length,
+      url 
+    };
+    
+  } catch (error) {
+    console.error(`[ASICS] Error scraping ${description}:`, error.message);
+    return { 
+      success: false, 
+      products: [], 
+      count: 0,
+      error: error.message,
+      url: baseUrl 
+    };
+  }
+}
+
+/**
+ * Main scraper - scrapes all 3 ASICS pages SEQUENTIALLY (not parallel)
+ * Sequential is more reliable for avoiding rate limits
+ */
+async function scrapeAllAsicsSales() {
+  const app = new FirecrawlApp({ 
+    apiKey: process.env.FIRECRAWL_API_KEY 
+  });
+  
+  console.log('[ASICS] Starting scrape of all sale pages (sequential)...');
+  
+  const pages = [
+    {
+      url: 'https://www.asics.com/us/en-us/mens-clearance/c/aa10106000/running/shoes/',
+      description: "Men's Clearance"
+    },
+    {
+      url: 'https://www.asics.com/us/en-us/womens-clearance/c/aa20106000/running/shoes/',
+      description: "Women's Clearance"
+    },
+    {
+      url: 'https://www.asics.com/us/en-us/styles-leaving-asics-com/c/aa60400001/running/shoes/?prefn1=c_productGender&prefv1=Women%7CMen',
+      description: "Last Chance Styles"
+    }
+  ];
+  
+  const results = [];
+  const allProducts = [];
+  
+  // Scrape sequentially with delay between requests
+  for (let i = 0; i < pages.length; i++) {
+    const { url, description } = pages[i];
+    
+    console.log(`[ASICS] Starting page ${i + 1}/${pages.length}: ${description}`);
+    
+    const result = await scrapeAsicsUrlWithPagination(app, url, description);
+    results.push({
+      page: description,
+      success: result.success,
+      count: result.count,
+      error: result.error || null,
+      url: result.url
+    });
+    
+    if (result.success) {
+      allProducts.push(...result.products);
+    }
+    
+    // Add 2 second delay between pages to avoid rate limiting
+    if (i < pages.length - 1) {
+      console.log('[ASICS] Waiting 2 seconds before next page...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+  
+  // Deduplicate by URL
+  const uniqueProducts = [];
+  const seenUrls = new Set();
+  
+  for (const product of allProducts) {
+    if (!product.url) {
+      uniqueProducts.push(product);
+      continue;
+    }
+    
+    if (!seenUrls.has(product.url)) {
+      seenUrls.add(product.url);
+      uniqueProducts.push(product);
+    }
+  }
+  
+  console.log(`[ASICS] Total unique products: ${uniqueProducts.length}`);
+  console.log(`[ASICS] Results per page:`, results);
+  
+  return { products: uniqueProducts, pageResults: results };
+}
+
+/**
+ * Vercel handler
+ */
+module.exports = async (req, res) => {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+  
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && req.headers['x-cron-secret'] !== cronSecret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  const start = Date.now();
+  
+  try {
+    const { products: deals, pageResults } = await scrapeAllAsicsSales();
+    
+    const output = {
+      lastUpdated: new Date().toISOString(),
+      store: 'ASICS',
+      segments: [
+        "Men's Clearance",
+        "Women's Clearance", 
+        "Last Chance Styles"
+      ],
+      totalDeals: deals.length,
+      dealsByGender: {
+        Men: deals.filter(d => d.gender === 'Men').length,
+        Women: deals.filter(d => d.gender === 'Women').length,
+        Unisex: deals.filter(d => d.gender === 'Unisex').length
+      },
+      pageResults, // Include per-page diagnostics
+      deals: deals
+    };
+    
+    const blob = await put('asics-sale.json', JSON.stringify(output, null, 2), {
+      access: 'public',
+      addRandomSuffix: false
+    });
+    
+    const duration = Date.now() - start;
+    
+    return res.status(200).json({
+      success: true,
+      totalDeals: deals.length,
+      dealsByGender: output.dealsByGender,
+      pageResults, // Show which pages succeeded/failed
+      blobUrl: blob.url,
+      duration: `${duration}ms`,
+      timestamp: output.lastUpdated
+    });
+    
+  } catch (error) {
+    console.error('[ASICS] Fatal error:', error);
+    return res.status(500).json({
       success: false,
-      error: err?.message || String(err),
+      error: error.message,
+      duration: `${Date.now() - start}ms`
     });
   }
 };
