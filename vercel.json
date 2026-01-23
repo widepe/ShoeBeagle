@@ -8,6 +8,10 @@
       "path": "/api/scrapers/asics-sale",
       "schedule": "15 9 * * *"
     },
+{
+  "path": "/api/scrapers/rununited-sale",
+  "schedule": "25 9 * * *"  // 1:25 AM PST (between ASICS and Holabird)
+}    
     {
       "path": "/api/scrapers/holabird-mens-road",
       "schedule": "30 9 * * *"
