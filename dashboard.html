@@ -737,7 +737,7 @@
 
         const stats = calculateStats(deals);
         displayStats(stats);
-        displayHealthStatus(deals, stats, mergeData);
+        (deals, stats, mergeData);
 
         loading.style.display = 'none';
         content.style.display = 'block';
@@ -888,163 +888,211 @@
       `;
     }
 
-    function displayHealthStatus(deals, stats, mergeData) {
-      const healthPanel = document.getElementById('healthPanel');
-      const healthGrid = document.getElementById('healthGrid');
-      const healthSummary = document.getElementById('healthSummary');
 
-      if (!healthPanel || !healthGrid || !healthSummary) return;
 
-      const storeMetadata = mergeData?.storeMetadata || {};
-      const storeHealth = {};
-      let healthyCount = 0;
-      let warningCount = 0;
-      let criticalCount = 0;
+function displayHealthStatus(deals, stats, mergeData) {
+  const healthPanel = document.getElementById('healthPanel');
+  const healthGrid = document.getElementById('healthGrid');
+  const healthSummary = document.getElementById('healthSummary');
 
-      // Analyze each store
-      Object.entries(stats.stores).forEach(([storeName, storeData]) => {
-        const health = {
-          store: storeName,
-          dealCount: storeData.count,
-          issues: [],
-          status: 'healthy',
-          metadata: storeMetadata[storeName] || null
+  if (!healthPanel || !healthGrid || !healthSummary) return;
+
+  const storeMetadata = mergeData?.storeMetadata || {};
+  
+  // FIXED: Map store names (as they appear in deals) to scraper names (as they appear in metadata)
+  const storeToScraperName = {
+    'ASICS': 'ASICS Sale',
+    'Brooks Running': 'Brooks Sale',
+    'Holabird Sports': ['Holabird Mens Road', 'Holabird Womens Road', 'Holabird Trail + Unisex']
+    // All other stores (REI, Zappos, Running Warehouse, etc.) come from "Other (scrape-daily)"
+  };
+  
+  const storeHealth = {};
+  let healthyCount = 0;
+  let warningCount = 0;
+  let criticalCount = 0;
+
+  // Analyze each store
+  Object.entries(stats.stores).forEach(([storeName, storeData]) => {
+    const health = {
+      store: storeName,
+      dealCount: storeData.count,
+      issues: [],
+      status: 'healthy',
+      metadata: null
+    };
+
+    // FIXED: Find metadata for this store by mapping to scraper name
+    if (storeToScraperName[storeName]) {
+      const scraperNames = Array.isArray(storeToScraperName[storeName]) 
+        ? storeToScraperName[storeName] 
+        : [storeToScraperName[storeName]];
+      
+      // If multiple scrapers (like Holabird), combine their metadata
+      const scraperMetas = scraperNames
+        .map(name => storeMetadata[name])
+        .filter(Boolean);
+      
+      if (scraperMetas.length > 0) {
+        // Use the most recent timestamp
+        const timestamps = scraperMetas.map(m => m.timestamp).filter(Boolean);
+        const mostRecent = timestamps.length > 0 
+          ? timestamps.sort().reverse()[0] 
+          : null;
+        
+        health.metadata = {
+          blobUrl: scraperMetas[0].blobUrl,
+          timestamp: mostRecent,
+          duration: scraperMetas[0].duration,
+          count: storeData.count
         };
-
-        const storeDeals = deals.filter(d => (d.store || 'Unknown').trim() === storeName);
-
-        if (storeData.count === 0) {
-          health.issues.push({ type: 'critical', message: '🚨 ZERO RESULTS - Scraper may be broken' });
-          health.status = 'critical';
-        }
-
-        const unknownBrands = storeDeals.filter(d => 
-          (d.brand || '').trim() === 'Unknown' || !(d.brand || '').trim()
-        ).length;
-        const unknownPercent = storeData.count > 0 ? (unknownBrands / storeData.count) * 100 : 0;
-        
-        if (unknownPercent > 50) {
-          health.issues.push({ type: 'critical', message: `🚨 ${unknownPercent.toFixed(0)}% Unknown Brands` });
-          health.status = 'critical';
-        } else if (unknownPercent > 20) {
-          health.issues.push({ type: 'warning', message: `⚠️ ${unknownPercent.toFixed(0)}% Unknown Brands` });
-          if (health.status !== 'critical') health.status = 'warning';
-        }
-
-        const missingImages = storeDeals.filter(d => !d.image || d.image.includes('placehold.co')).length;
-        const missingImagesPercent = storeData.count > 0 ? (missingImages / storeData.count) * 100 : 0;
-        
-        if (missingImagesPercent > 30) {
-          health.issues.push({ type: 'warning', message: `⚠️ ${missingImagesPercent.toFixed(0)}% Missing Images` });
-          if (health.status !== 'critical') health.status = 'warning';
-        }
-
-        const missingUrls = storeDeals.filter(d => !d.url || d.url === '#').length;
-        const missingUrlsPercent = storeData.count > 0 ? (missingUrls / storeData.count) * 100 : 0;
-        
-        if (missingUrlsPercent > 10) {
-          health.issues.push({ type: 'warning', message: `⚠️ ${missingUrlsPercent.toFixed(0)}% Missing URLs` });
-          if (health.status !== 'critical') health.status = 'warning';
-        }
-
-        const missingPrices = storeDeals.filter(d => !d.price || Number(d.price) === 0).length;
-        if (missingPrices > 0) {
-          health.issues.push({ type: 'warning', message: `⚠️ ${missingPrices} Missing Prices` });
-          if (health.status !== 'critical') health.status = 'warning';
-        }
-
-        const missingModels = storeDeals.filter(d => !d.model || d.model.trim() === '').length;
-        const missingModelsPercent = storeData.count > 0 ? (missingModels / storeData.count) * 100 : 0;
-        
-        if (missingModelsPercent > 30) {
-          health.issues.push({ type: 'warning', message: `⚠️ ${missingModelsPercent.toFixed(0)}% Missing Models` });
-          if (health.status !== 'critical') health.status = 'warning';
-        }
-
-        if (storeData.count > 0 && storeData.count < 5) {
-          health.issues.push({ type: 'warning', message: `⚠️ Low Deal Count (${storeData.count})` });
-          if (health.status !== 'critical') health.status = 'warning';
-        }
-
-        storeHealth[storeName] = health;
-
-        if (health.status === 'healthy') healthyCount++;
-        else if (health.status === 'warning') warningCount++;
-        else if (health.status === 'critical') criticalCount++;
-      });
-
-      healthSummary.innerHTML = `
-        <div class="health-summary-item healthy">${healthyCount} Healthy</div>
-        <div class="health-summary-item warning">${warningCount} Warnings</div>
-        <div class="health-summary-item critical">${criticalCount} Critical</div>
-      `;
-
-      const sortedStores = Object.values(storeHealth).sort((a, b) => {
-        const statusOrder = { critical: 0, warning: 1, healthy: 2 };
-        return statusOrder[a.status] - statusOrder[b.status];
-      });
-
-      healthGrid.innerHTML = sortedStores.map(health => {
-        const meta = health.metadata;
-        const hasMetadata = meta && !meta.error;
-        
-        let timestampStr = '—';
-        if (hasMetadata && meta.timestamp) {
-          const date = new Date(meta.timestamp);
-          timestampStr = date.toLocaleString();
-        }
-        
-        return `
-          <div class="health-card ${health.status}">
-            <div class="health-header">
-              <div class="health-store-name">${health.store}</div>
-              <div class="health-status-badge ${health.status}">
-                ${health.status === 'healthy' ? '✓ Healthy' : health.status === 'warning' ? '⚠ Warning' : '✗ Critical'}
-              </div>
-            </div>
-            
-            <div class="health-metrics">
-              <div class="health-metric">
-                <div class="health-metric-label">Total Deals</div>
-                <div class="health-metric-value">${health.dealCount.toLocaleString()}</div>
-              </div>
-              ${hasMetadata && meta.duration ? `
-                <div class="health-metric">
-                  <div class="health-metric-label">Scrape Time</div>
-                  <div class="health-metric-value">${meta.duration}</div>
-                </div>
-              ` : ''}
-            </div>
-
-            ${hasMetadata ? `
-              <div style="margin-top: 10px; font-size: 0.85rem; color: #666;">
-                <div style="margin-bottom: 4px;">
-                  <strong>Last Scraped:</strong> ${timestampStr}
-                </div>
-                ${meta.blobUrl ? `
-                  <div style="word-break: break-all;">
-                    <strong>Blob:</strong> <a href="${meta.blobUrl}" target="_blank" style="color: #214478ff;">${meta.blobUrl.substring(0, 50)}...</a>
-                  </div>
-                ` : ''}
-              </div>
-            ` : ''}
-
-            ${health.issues.length > 0 ? `
-              <div class="health-issues">
-                ${health.issues.map(issue => `
-                  <div class="health-issue ${issue.type}">
-                    <span>${issue.message}</span>
-                  </div>
-                `).join('')}
-              </div>
-            ` : '<div style="margin-top: 10px; color: #28a745; font-weight: bold;">✓ All checks passed</div>'}
-          </div>
-        `;
-      }).join('');
-
-      healthPanel.style.display = 'block';
+      }
+    } else {
+      // All other stores come from "Other (scrape-daily)"
+      const otherMeta = storeMetadata['Other (scrape-daily)'];
+      if (otherMeta) {
+        health.metadata = {
+          blobUrl: otherMeta.blobUrl,
+          timestamp: otherMeta.timestamp,
+          duration: otherMeta.duration,
+          count: storeData.count
+        };
+      }
     }
 
+    const storeDeals = deals.filter(d => (d.store || 'Unknown').trim() === storeName);
+
+    if (storeData.count === 0) {
+      health.issues.push({ type: 'critical', message: '🚨 ZERO RESULTS - Scraper may be broken' });
+      health.status = 'critical';
+    }
+
+    const unknownBrands = storeDeals.filter(d => 
+      (d.brand || '').trim() === 'Unknown' || !(d.brand || '').trim()
+    ).length;
+    const unknownPercent = storeData.count > 0 ? (unknownBrands / storeData.count) * 100 : 0;
+    
+    if (unknownPercent > 50) {
+      health.issues.push({ type: 'critical', message: `🚨 ${unknownPercent.toFixed(0)}% Unknown Brands` });
+      health.status = 'critical';
+    } else if (unknownPercent > 20) {
+      health.issues.push({ type: 'warning', message: `⚠️ ${unknownPercent.toFixed(0)}% Unknown Brands` });
+      if (health.status !== 'critical') health.status = 'warning';
+    }
+
+    const missingImages = storeDeals.filter(d => !d.image || d.image.includes('placehold.co')).length;
+    const missingImagesPercent = storeData.count > 0 ? (missingImages / storeData.count) * 100 : 0;
+    
+    if (missingImagesPercent > 30) {
+      health.issues.push({ type: 'warning', message: `⚠️ ${missingImagesPercent.toFixed(0)}% Missing Images` });
+      if (health.status !== 'critical') health.status = 'warning';
+    }
+
+    const missingUrls = storeDeals.filter(d => !d.url || d.url === '#').length;
+    const missingUrlsPercent = storeData.count > 0 ? (missingUrls / storeData.count) * 100 : 0;
+    
+    if (missingUrlsPercent > 10) {
+      health.issues.push({ type: 'warning', message: `⚠️ ${missingUrlsPercent.toFixed(0)}% Missing URLs` });
+      if (health.status !== 'critical') health.status = 'warning';
+    }
+
+    const missingPrices = storeDeals.filter(d => !d.price || Number(d.price) === 0).length;
+    if (missingPrices > 0) {
+      health.issues.push({ type: 'warning', message: `⚠️ ${missingPrices} Missing Prices` });
+      if (health.status !== 'critical') health.status = 'warning';
+    }
+
+    const missingModels = storeDeals.filter(d => !d.model || d.model.trim() === '').length;
+    const missingModelsPercent = storeData.count > 0 ? (missingModels / storeData.count) * 100 : 0;
+    
+    if (missingModelsPercent > 30) {
+      health.issues.push({ type: 'warning', message: `⚠️ ${missingModelsPercent.toFixed(0)}% Missing Models` });
+      if (health.status !== 'critical') health.status = 'warning';
+    }
+
+    if (storeData.count > 0 && storeData.count < 5) {
+      health.issues.push({ type: 'warning', message: `⚠️ Low Deal Count (${storeData.count})` });
+      if (health.status !== 'critical') health.status = 'warning';
+    }
+
+    storeHealth[storeName] = health;
+
+    if (health.status === 'healthy') healthyCount++;
+    else if (health.status === 'warning') warningCount++;
+    else if (health.status === 'critical') criticalCount++;
+  });
+
+  healthSummary.innerHTML = `
+    <div class="health-summary-item healthy">${healthyCount} Healthy</div>
+    <div class="health-summary-item warning">${warningCount} Warnings</div>
+    <div class="health-summary-item critical">${criticalCount} Critical</div>
+  `;
+
+  const sortedStores = Object.values(storeHealth).sort((a, b) => {
+    const statusOrder = { critical: 0, warning: 1, healthy: 2 };
+    return statusOrder[a.status] - statusOrder[b.status];
+  });
+
+  healthGrid.innerHTML = sortedStores.map(health => {
+    const meta = health.metadata;
+    const hasMetadata = meta && !meta.error;
+    
+    let timestampStr = '—';
+    if (hasMetadata && meta.timestamp) {
+      const date = new Date(meta.timestamp);
+      timestampStr = date.toLocaleString();
+    }
+    
+    return `
+      <div class="health-card ${health.status}">
+        <div class="health-header">
+          <div class="health-store-name">${health.store}</div>
+          <div class="health-status-badge ${health.status}">
+            ${health.status === 'healthy' ? '✓ Healthy' : health.status === 'warning' ? '⚠ Warning' : '✗ Critical'}
+          </div>
+        </div>
+        
+        <div class="health-metrics">
+          <div class="health-metric">
+            <div class="health-metric-label">Total Deals</div>
+            <div class="health-metric-value">${health.dealCount.toLocaleString()}</div>
+          </div>
+          ${hasMetadata && meta.duration ? `
+            <div class="health-metric">
+              <div class="health-metric-label">Scrape Time</div>
+              <div class="health-metric-value">${meta.duration}</div>
+            </div>
+          ` : ''}
+        </div>
+
+        ${hasMetadata ? `
+          <div style="margin-top: 10px; font-size: 0.85rem; color: #666;">
+            <div style="margin-bottom: 4px;">
+              <strong>Last Scraped:</strong> ${timestampStr}
+            </div>
+            ${meta.blobUrl ? `
+              <div style="word-break: break-all;">
+                <strong>Blob:</strong> <a href="${meta.blobUrl}" target="_blank" style="color: #214478ff;">${meta.blobUrl.substring(0, 50)}...</a>
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
+
+        ${health.issues.length > 0 ? `
+          <div class="health-issues">
+            ${health.issues.map(issue => `
+              <div class="health-issue ${issue.type}">
+                <span>${issue.message}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : '<div style="margin-top: 10px; color: #28a745; font-weight: bold;">✓ All checks passed</div>'}
+      </div>
+    `;
+  }).join('');
+
+  healthPanel.style.display = 'block';
+}
     function displayUnknownBrandsByStore(unknownByStore) {
       const tbody = document.getElementById('unknownBrandsTableBody');
 
