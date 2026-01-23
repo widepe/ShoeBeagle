@@ -1,6 +1,7 @@
 // api/scrapers/DSG_Womens_Clearance.js
-// Scrapes DICK'S women's clearance running footwear pages using Firecrawl + Cheerio
-// Goal: extract product URL + title + prices + image URL as reliably as possible.
+// Dick's Sporting Goods — Women's Clearance Running
+// Uses Firecrawl to fetch HTML, then extracts products primarily from embedded JSON,
+// with a DOM fallback. Outputs to Vercel Blob as dsg-womens-clearance.json
 
 const FirecrawlApp = require("@mendable/firecrawl-js").default;
 const cheerio = require("cheerio");
@@ -16,7 +17,7 @@ function pickBestFromSrcset(srcset) {
   const candidates = srcset
     .split(",")
     .map((s) => s.trim())
-    .map((entry) => entry.split(/\s+/)[0])
+    .map((entry) => entry.split(/\s+/)[0]) // URL part
     .filter(Boolean);
 
   if (!candidates.length) return null;
@@ -24,15 +25,15 @@ function pickBestFromSrcset(srcset) {
 }
 
 /**
- * Absolutize DSG URLs (including protocol-relative).
+ * Convert DSG-ish URLs to absolute https URLs.
  */
 function absolutizeDsgUrl(url) {
   if (!url || typeof url !== "string") return null;
-
-  url = url.replace(/&amp;/g, "&").trim();
-  if (!url) return null;
-
   if (url.startsWith("data:")) return null;
+
+  // handle HTML entities if present
+  url = url.replace(/&amp;/g, "&").trim();
+
   if (url.startsWith("http")) return url;
   if (url.startsWith("//")) return `https:${url}`;
   if (url.startsWith("/")) return `https://www.dickssportinggoods.com${url}`;
@@ -40,241 +41,365 @@ function absolutizeDsgUrl(url) {
 }
 
 /**
- * Extract all prices from a block of text.
- * Returns float[] like [54.97, 74.97, 144.99]
+ * Recursively walk a JSON node and collect product-like objects.
+ * This is heuristic-based because DSG/Next.js state shapes can vary.
  */
-function extractPrices(text) {
-  if (!text) return [];
-  const matches = String(text).match(/\$(\d+(?:\.\d{2})?)/g);
-  if (!matches) return [];
-  return matches
-    .map((m) => parseFloat(m.replace("$", "")))
-    .filter((n) => Number.isFinite(n) && n > 0);
+function findProductLikeObjects(node, out) {
+  if (!node) return;
+
+  if (Array.isArray(node)) {
+    for (const v of node) findProductLikeObjects(v, out);
+    return;
+  }
+
+  if (typeof node !== "object") return;
+
+  const name =
+    node.name ||
+    node.productName ||
+    node.title ||
+    node.displayName ||
+    node.shortDescription ||
+    null;
+
+  const url =
+    node.url ||
+    node.seoUrl ||
+    node.pdpUrl ||
+    node.productUrl ||
+    node.productPageUrl ||
+    null;
+
+  const hasSomePrice =
+    node.price != null ||
+    node.salePrice != null ||
+    node.currentPrice != null ||
+    node.minPrice != null ||
+    node.maxPrice != null ||
+    node.listPrice != null ||
+    node.originalPrice != null ||
+    node.msrp != null ||
+    node.wasPrice != null;
+
+  if (typeof name === "string" && typeof url === "string" && hasSomePrice) {
+    out.push(node);
+  }
+
+  for (const k of Object.keys(node)) {
+    findProductLikeObjects(node[k], out);
+  }
 }
 
 /**
- * Decide price/originalPrice from a list of numbers.
- * - If 1 number: price = that
- * - If >=2: price = min, original = max (only if max > min)
+ * Very simple brand/model split.
+ * If you later want to improve it, do it centrally here.
  */
-function decidePricePair(nums) {
-  const values = (nums || []).filter((n) => Number.isFinite(n));
-  if (!values.length) return { price: null, originalPrice: null };
+function normalizeBrandModel(title) {
+  const t = String(title || "").replace(/\s+/g, " ").trim();
+  if (!t) return { brand: "", model: "" };
+  const parts = t.split(" ");
+  const brand = parts[0] || "";
+  const model = parts.slice(1).join(" ").trim();
+  return { brand, model };
+}
 
-  if (values.length === 1) {
-    return { price: values[0], originalPrice: null };
+function computeDiscount(originalPrice, price) {
+  if (
+    Number.isFinite(originalPrice) &&
+    Number.isFinite(price) &&
+    originalPrice > 0 &&
+    price < originalPrice
+  ) {
+    return `${Math.round(((originalPrice - price) / originalPrice) * 100)}%`;
   }
-
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-
-  if (max > min) return { price: min, originalPrice: max };
-  return { price: min, originalPrice: null };
+  return null;
 }
 
 /**
  * Extract products from DSG HTML.
- * Heuristic approach:
- *  - Find all anchors that look like product pages: a[href*="/p/"]
- *  - For each anchor, use a nearby container (closest common parent) as the "card"
- *  - Pull title, prices from card text, and image from picture/source/srcset or img/src/srcset
+ * Strategy:
+ *  1) Detect bot/interstitial HTML and bail early (returns empty list).
+ *  2) Try to parse embedded JSON from scripts and find product-like objects.
+ *  3) Fallback: broad DOM scrape of PDP-ish anchors and nearby price/img.
  */
-function extractDsgProducts(html, sourceUrl) {
-  const $ = cheerio.load(html);
+function extractDsgProducts(html, sourceUrl, gender = "Women") {
   const products = [];
+  const lower = String(html || "").toLowerCase();
 
-  // Collect product links (dedupe by absolute URL)
-  const seen = new Set();
+  const looksBlocked =
+    lower.includes("verify you are human") ||
+    lower.includes("access denied") ||
+    lower.includes("captcha") ||
+    lower.includes("akamai") ||
+    lower.includes("bot") ||
+    lower.includes("incident id") ||
+    lower.includes("request blocked") ||
+    lower.includes("your request has been blocked");
 
-  // DSG product pages commonly contain "/p/" in the path.
-  const $links = $('a[href*="/p/"]');
+  if (looksBlocked) {
+    console.log("[DSG] Looks like bot/interstitial page, not product HTML:", sourceUrl);
+    return products;
+  }
 
-  console.log(`[DSP] Found ${$links.length} candidate product links on ${sourceUrl}`);
+  const $ = cheerio.load(html);
 
-  $links.each((_, a) => {
-    const $a = $(a);
-    const href = $a.attr("href");
-    const url = absolutizeDsgUrl(href);
-    if (!url) return;
+  // -----------------------------------------
+  // 1) Embedded JSON extraction (preferred)
+  // -----------------------------------------
+  try {
+    const jsonCandidates = [];
 
-    if (seen.has(url)) return;
-    seen.add(url);
+    $("script").each((_, el) => {
+      const type = ($(el).attr("type") || "").toLowerCase();
+      const id = ($(el).attr("id") || "").toLowerCase();
+      const txt = $(el).html();
 
-    // Try to get a clean title:
-    // 1) aria-label
-    // 2) title attribute
-    // 3) text content
-    let title =
-      ($a.attr("aria-label") || $a.attr("title") || $a.text() || "").trim();
+      if (!txt || txt.length < 200) return;
 
-    // Sometimes the link text is empty and the title sits nearby; expand to card.
-    // Grab a nearby card-ish container. We try a few common wrappers, then fallback.
-    let $card =
-      $a.closest('[data-testid*="product"]') ||
-      $a.closest("li") ||
-      $a.closest("div");
+      // likely state containers
+      if (
+        type.includes("application/json") ||
+        type.includes("application/ld+json") ||
+        id.includes("next_data") ||
+        txt.includes("__NEXT_DATA__") ||
+        txt.includes("window.__INITIAL_STATE__") ||
+        txt.includes("initialState") ||
+        txt.includes("apolloState")
+      ) {
+        jsonCandidates.push(txt.trim());
+      }
+    });
 
-    if (!$card || !$card.length) $card = $a.parent();
+    const productLike = [];
+    for (const raw of jsonCandidates) {
+      let jsonText = raw;
 
-    const cardText = ($card.text() || "").replace(/\s+/g, " ").trim();
+      // If it's JS assignment, attempt to slice to JSON object bounds
+      const firstBrace = jsonText.indexOf("{");
+      const lastBrace = jsonText.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        jsonText = jsonText.slice(firstBrace, lastBrace + 1);
+      }
 
-    if (!title || title.length < 3) {
-      // Try to infer title from card text (often starts with brand + model)
-      // Take the first ~80 chars before "add to cart" / "Compare" if present.
-      let t = cardText;
-      t = t.split(/add to cart/i)[0];
-      t = t.split(/compare/i)[0];
-      t = t.trim();
-      if (t.length > 0) title = t.slice(0, 120).trim();
-    }
-
-    if (!title || title.length < 3) return;
-
-    // Prices (handles "See Price In Cart $149.99" and ranges)
-    const priceNums = extractPrices(cardText);
-    const { price, originalPrice } = decidePricePair(priceNums);
-
-    // Image extraction:
-    //  - Prefer <picture><source srcset> (or data-srcset)
-    //  - Then <img srcset> (or data-*)
-    //  - Then <img src> (or data-*)
-    let image = null;
-
-    const sourceSrcset =
-      $card.find("picture source[srcset]").first().attr("srcset") ||
-      $card.find("picture source[data-srcset]").first().attr("data-srcset") ||
-      null;
-
-    image = pickBestFromSrcset(sourceSrcset);
-
-    if (!image) {
-      const $img = $card.find("img").first();
-      const imgSrcset =
-        $img.attr("srcset") ||
-        $img.attr("data-srcset") ||
-        $img.attr("data-lazy-srcset") ||
-        $img.attr("data-srcset-full") ||
-        null;
-      image = pickBestFromSrcset(imgSrcset);
-    }
-
-    if (!image) {
-      const $img = $card.find("img").first();
-      image =
-        $img.attr("src") ||
-        $img.attr("data-src") ||
-        $img.attr("data-lazy-src") ||
-        $img.attr("data-original") ||
-        null;
-    }
-
-    image = absolutizeDsgUrl(image);
-
-    // Skip obvious placeholders / data URIs
-    if (image && (image.startsWith("data:") || /placeholder/i.test(image))) {
-      image = null;
-    }
-
-    // Compute discount if possible
-    const discountPct =
-      Number.isFinite(price) &&
-      Number.isFinite(originalPrice) &&
-      originalPrice > price
-        ? Math.round(((originalPrice - price) / originalPrice) * 100)
-        : null;
-
-    // Basic brand/model attempt (optional, harmless)
-    // Example: "Brooks Women's Ghost 17 Running Shoes"
-    // brand = first token up to space (but titles like "New Balance & CALIA" exist)
-    let brand = null;
-    let model = null;
-
-    const cleanedTitle = title.replace(/\s+/g, " ").trim();
-    if (cleanedTitle) {
-      // Try to capture brand up to "Women's" or "Men's" or "Unisex"
-      const m = cleanedTitle.match(/^(.+?)\s+(Women'?s|Men'?s|Unisex)\s+/i);
-      if (m) {
-        brand = m[1].trim();
-        model = cleanedTitle.replace(new RegExp(`^${m[1]}\\s+`, "i"), "").trim();
-      } else {
-        // fallback: first word as brand, remainder as model
-        const parts = cleanedTitle.split(" ");
-        brand = parts[0] || null;
-        model = parts.slice(1).join(" ").trim() || null;
+      try {
+        const parsed = JSON.parse(jsonText);
+        findProductLikeObjects(parsed, productLike);
+      } catch {
+        // ignore parse failures
       }
     }
 
-    products.push({
-      title: cleanedTitle,
-      brand: brand || null,
-      model: model || null,
-      store: "DICK'S Sporting Goods",
-      gender: "Women",
-      price: Number.isFinite(price) ? price : null,
-      originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
-      discount: discountPct != null ? `${discountPct}%` : null,
-      url,
-      image: image || null,
-      scrapedAt: new Date().toISOString(),
-    });
-  });
+    // Build deals from product-like objects
+    const seen = new Set();
+    for (const p of productLike) {
+      const name =
+        p.name || p.productName || p.title || p.displayName || p.shortDescription || "";
+      const rawUrl =
+        p.url || p.seoUrl || p.pdpUrl || p.productUrl || p.productPageUrl || "";
 
-  console.log(`[DSP] Extracted ${products.length} unique products from ${sourceUrl}`);
-  return products;
+      if (!name || !rawUrl) continue;
+
+      const key = `${String(name).trim()}::${String(rawUrl).trim()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const absUrl = absolutizeDsgUrl(rawUrl);
+
+      // prices (try common fields)
+      const saleCandidate = p.salePrice ?? p.currentPrice ?? p.price ?? p.minPrice ?? null;
+      const origCandidate = p.originalPrice ?? p.listPrice ?? p.msrp ?? p.wasPrice ?? null;
+
+      const saleNum = Number(saleCandidate);
+      const origNum = Number(origCandidate);
+
+      let price = Number.isFinite(saleNum) ? saleNum : null;
+      let originalPrice = Number.isFinite(origNum) ? origNum : null;
+
+      if (price && originalPrice && price > originalPrice) {
+        [price, originalPrice] = [originalPrice, price];
+      }
+
+      // image fields (varies)
+      let image =
+        p.imageUrl ||
+        p.image ||
+        p.primaryImageUrl ||
+        p.thumbnailUrl ||
+        p.heroImageUrl ||
+        null;
+
+      image = absolutizeDsgUrl(image);
+
+      const { brand, model } = normalizeBrandModel(name);
+
+      products.push({
+        title: String(name).replace(/\s+/g, " ").trim(),
+        brand: brand || null,
+        model: model || null,
+        store: "Dick's Sporting Goods",
+        gender,
+        price,
+        originalPrice,
+        discount: computeDiscount(originalPrice, price),
+        url: absUrl,
+        image,
+        scrapedAt: new Date().toISOString(),
+      });
+    }
+
+    if (products.length) {
+      console.log(`[DSG] Extracted ${products.length} products from embedded JSON.`);
+      // de-dupe by url
+      const uniq = [];
+      const seenUrl = new Set();
+      for (const p of products) {
+        if (!p.url) continue;
+        if (seenUrl.has(p.url)) continue;
+        seenUrl.add(p.url);
+        uniq.push(p);
+      }
+      return uniq;
+    }
+  } catch (e) {
+    console.error("[DSG] Embedded JSON parse error:", e.message);
+  }
+
+  // -----------------------------------------
+  // 2) DOM fallback extraction
+  // -----------------------------------------
+  try {
+    // Try to find PDP-like anchors
+    const $links = $('a[href*="/p/"], a[href*="/product/"], a[href*="/products/"]');
+    console.log(`[DSG] DOM fallback link candidates: ${$links.length}`);
+
+    $links.each((_, a) => {
+      const $a = $(a);
+      const href = $a.attr("href");
+      if (!href) return;
+
+      const absUrl = absolutizeDsgUrl(href);
+
+      // find a nearby container that likely holds title/price/img
+      const $card = $a.closest("li, article, [data-testid], div");
+
+      const cardText = $card.text().replace(/\s+/g, " ").trim();
+
+      // title guess
+      const title =
+        ($a.attr("aria-label") || $a.attr("title") || "").trim() ||
+        ($card.find("[aria-label]").first().attr("aria-label") || "").trim() ||
+        ($card.find("h2,h3,h4").first().text() || "").replace(/\s+/g, " ").trim() ||
+        "";
+
+      if (!title || title.length < 6) return;
+
+      // price guess: take last $ as sale, first $ as original (common but not guaranteed)
+      const matches = cardText.match(/\$(\d+(?:\.\d{2})?)/g);
+      let price = null;
+      let originalPrice = null;
+
+      if (matches && matches.length >= 1) {
+        price = Number(matches[matches.length - 1].replace("$", ""));
+      }
+      if (matches && matches.length >= 2) {
+        originalPrice = Number(matches[0].replace("$", ""));
+      }
+
+      if (price && originalPrice && price > originalPrice) {
+        [price, originalPrice] = [originalPrice, price];
+      }
+
+      // image
+      const $img = $card.find("img").first();
+      let image =
+        $img.attr("src") ||
+        pickBestFromSrcset($img.attr("srcset")) ||
+        $img.attr("data-src") ||
+        pickBestFromSrcset($img.attr("data-srcset")) ||
+        null;
+
+      image = absolutizeDsgUrl(image);
+
+      const { brand, model } = normalizeBrandModel(title);
+
+      products.push({
+        title: String(title).replace(/\s+/g, " ").trim(),
+        brand: brand || null,
+        model: model || null,
+        store: "Dick's Sporting Goods",
+        gender,
+        price: Number.isFinite(price) ? price : null,
+        originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
+        discount: computeDiscount(
+          Number.isFinite(originalPrice) ? originalPrice : null,
+          Number.isFinite(price) ? price : null
+        ),
+        url: absUrl,
+        image,
+        scrapedAt: new Date().toISOString(),
+      });
+    });
+
+    // de-dupe by url
+    const uniq = [];
+    const seenUrl = new Set();
+    for (const p of products) {
+      if (!p.url) continue;
+      if (seenUrl.has(p.url)) continue;
+      seenUrl.add(p.url);
+      uniq.push(p);
+    }
+
+    console.log(`[DSG] DOM fallback extracted ${uniq.length} products.`);
+    return uniq;
+  } catch (e) {
+    console.error("[DSG] DOM fallback error:", e.message);
+    return [];
+  }
 }
 
 /**
- * Scrape a single DSG URL using Firecrawl
+ * Scrape a single DSG URL via Firecrawl
  */
-async function scrapeDsgUrl(app, url, description) {
-  console.log(`[DSP] Scraping: ${description}`);
-  console.log(`[DSP] Fetching: ${url}`);
-
+async function scrapeDsgUrl(app, url, description, gender = "Women") {
+  console.log(`[DSG] Scraping ${description}...`);
   try {
     const scrapeResult = await app.scrapeUrl(url, {
       formats: ["html"],
-      waitFor: 9000,
+      waitFor: 8000,
       timeout: 60000,
     });
 
-    const html = scrapeResult && scrapeResult.html ? scrapeResult.html : "";
-    if (!html) {
-      return {
-        success: false,
-        products: [],
-        count: 0,
-        error: "No HTML returned by Firecrawl",
-        url,
-      };
-    }
+    // Minimal diagnostic: first chars of HTML (useful to detect interstitials)
+    const head = String(scrapeResult.html || "").slice(0, 220).replace(/\s+/g, " ");
+    console.log(`[DSG] HTML head (${description}):`, head);
 
-    const products = extractDsgProducts(html, url);
+    const products = extractDsgProducts(scrapeResult.html, url, gender);
 
-    return {
-      success: true,
-      products,
-      count: products.length,
-      url,
-    };
-  } catch (err) {
-    console.error(`[DSP] Error scraping ${description}:`, err && err.message ? err.message : err);
+    console.log(`[DSG] ${description}: Found ${products.length} products`);
+    return { success: true, products, count: products.length, url };
+  } catch (error) {
+    console.error(`[DSG] Error scraping ${description}:`, error.message);
     return {
       success: false,
       products: [],
       count: 0,
-      error: err && err.message ? err.message : String(err),
+      error: error.message,
       url,
     };
   }
 }
 
 /**
- * Main: scrape your provided pageSize URLs sequentially
+ * Main scraper - women clearance running
+ * You can add mens later; start with these pageSize variants.
  */
-async function scrapeAllDspClearance() {
+async function scrapeAllDsgWomensClearance() {
   const app = new FirecrawlApp({
     apiKey: process.env.FIRECRAWL_API_KEY,
   });
+
+  console.log("[DSG] Starting scrape: Women's Clearance Running...");
 
   const pages = [
     {
@@ -295,50 +420,51 @@ async function scrapeAllDspClearance() {
     },
   ];
 
-  const pageResults = [];
+  const results = [];
   const allProducts = [];
 
   for (let i = 0; i < pages.length; i++) {
     const { url, description } = pages[i];
 
-    const r = await scrapeDsgUrl(app, url, description);
-    pageResults.push({
+    console.log(`[DSG] Page ${i + 1}/${pages.length}: ${description}`);
+    const result = await scrapeDsgUrl(app, url, description, "Women");
+
+    results.push({
       page: description,
-      success: r.success,
-      count: r.count,
-      error: r.error || null,
-      url: r.url,
+      success: result.success,
+      count: result.count,
+      error: result.error || null,
+      url: result.url,
     });
 
-    if (r.success && Array.isArray(r.products)) {
-      allProducts.push(...r.products);
+    if (result.success) {
+      allProducts.push(...result.products);
     }
 
     if (i < pages.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      console.log("[DSG] Waiting 2 seconds before next page...");
+      await new Promise((r) => setTimeout(r, 2000));
     }
   }
 
   // Deduplicate by URL
+  const uniqueProducts = [];
   const seenUrls = new Set();
-  const unique = [];
-  for (const p of allProducts) {
-    const key = p && p.url ? p.url : null;
-    if (!key) {
-      unique.push(p);
-      continue;
-    }
-    if (seenUrls.has(key)) continue;
-    seenUrls.add(key);
-    unique.push(p);
+
+  for (const product of allProducts) {
+    if (!product.url) continue;
+    if (seenUrls.has(product.url)) continue;
+    seenUrls.add(product.url);
+    uniqueProducts.push(product);
   }
 
-  console.log(`[DSP] Total unique products across pages: ${unique.length}`);
-  return { products: unique, pageResults };
+  console.log(`[DSG] Total unique products: ${uniqueProducts.length}`);
+  return { products: uniqueProducts, pageResults: results };
 }
 
 /**
  * Vercel handler
+ * GET only; optional CRON secret.
  */
 module.exports = async (req, res) => {
   if (req.method !== "GET") {
@@ -353,18 +479,18 @@ module.exports = async (req, res) => {
   const start = Date.now();
 
   try {
-    const { products: deals, pageResults } = await scrapeAllDspClearance();
+    const { products: deals, pageResults } = await scrapeAllDsgWomensClearance();
 
     const output = {
       lastUpdated: new Date().toISOString(),
-      store: "DICK'S Sporting Goods",
-      segment: "Clearance Women's Running Footwear",
+      store: "Dick's Sporting Goods",
+      segment: "Women's Clearance Running",
       totalDeals: deals.length,
       pageResults,
       deals,
     };
 
-    const blob = await put("dsp-clearance.json", JSON.stringify(output, null, 2), {
+    const blob = await put("dsg-womens-clearance.json", JSON.stringify(output, null, 2), {
       access: "public",
       addRandomSuffix: false,
     });
@@ -379,11 +505,11 @@ module.exports = async (req, res) => {
       duration: `${duration}ms`,
       timestamp: output.lastUpdated,
     });
-  } catch (err) {
-    console.error("[DSP] Fatal error:", err);
+  } catch (error) {
+    console.error("[DSG] Fatal error:", error);
     return res.status(500).json({
       success: false,
-      error: err && err.message ? err.message : String(err),
+      error: error.message,
       duration: `${Date.now() - start}ms`,
     });
   }
