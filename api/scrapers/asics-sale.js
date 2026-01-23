@@ -7,6 +7,39 @@ const cheerio = require('cheerio');
 const { put } = require('@vercel/blob');
 
 /**
+ * Pick the best (usually largest) URL from a srcset string.
+ * Example: "url1 200w, url2 800w" -> returns url2
+ */
+function pickBestFromSrcset(srcset) {
+  if (!srcset || typeof srcset !== 'string') return null;
+
+  const candidates = srcset
+    .split(',')
+    .map(s => s.trim())
+    .map(entry => entry.split(/\s+/)[0]) // URL part
+    .filter(Boolean);
+
+  if (!candidates.length) return null;
+  return candidates[candidates.length - 1];
+}
+
+/**
+ * Convert ASICS-ish URLs to absolute https URLs.
+ */
+function absolutizeAsicsUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  if (url.startsWith('data:')) return null;
+
+  // handle HTML entities if present
+  url = url.replace(/&amp;/g, '&').trim();
+
+  if (url.startsWith('http')) return url;
+  if (url.startsWith('//')) return `https:${url}`;
+  if (url.startsWith('/')) return `https://www.asics.com${url}`;
+  return `https://www.asics.com/${url}`;
+}
+
+/**
  * Extract products from ASICS HTML
  * FIXED: Uses category codes (aa10106000, aa20106000) for gender detection
  */
@@ -83,37 +116,58 @@ function extractAsicsProducts(html, sourceUrl) {
       url = `https://www.asics.com${url}`;
     }
     
-    // Get image - check multiple attributes for lazy loading
-    const $img = $product.find('img').first();
-    let image = (
-      $img.attr('src') || 
-      $img.attr('data-src') || 
-      $img.attr('data-lazy-src') ||
-      $img.attr('data-original') ||
-      null
-    );
-    
-    // Make image URL absolute
-    if (image && !image.startsWith('http')) {
-      if (image.startsWith('//')) {
-        image = `https:${image}`;
-      } else if (image.startsWith('/')) {
-        image = `https://www.asics.com${image}`;
-      } else {
-        image = `https://www.asics.com/${image}`;
-      }
+    // ----------------------------
+    // FIXED IMAGE EXTRACTION
+    // ----------------------------
+    // ASICS often uses <picture><source srcset> or img[srcset] rather than img[src].
+    // We try, in order:
+    //   1) picture source[srcset]/[data-srcset]
+    //   2) img[srcset]/[data-srcset]/[data-lazy-srcset]
+    //   3) img[src]/[data-src]/[data-lazy-src]/[data-original]
+    // Then absolutize and clean.
+    let image = null;
+
+    const sourceSrcset =
+      $product.find('picture source[srcset]').first().attr('srcset') ||
+      $product.find('picture source[data-srcset]').first().attr('data-srcset') ||
+      null;
+
+    image = pickBestFromSrcset(sourceSrcset);
+
+    if (!image) {
+      const $img = $product.find('img').first();
+      const imgSrcset =
+        $img.attr('srcset') ||
+        $img.attr('data-srcset') ||
+        $img.attr('data-lazy-srcset') ||
+        null;
+
+      image = pickBestFromSrcset(imgSrcset);
     }
-    
+
+    if (!image) {
+      const $img = $product.find('img').first();
+      image = (
+        $img.attr('src') ||
+        $img.attr('data-src') ||
+        $img.attr('data-lazy-src') ||
+        $img.attr('data-original') ||
+        null
+      );
+    }
+
+    image = absolutizeAsicsUrl(image);
+
     // Skip data URIs and placeholders
     if (image && (image.startsWith('data:') || image.includes('placeholder'))) {
       image = null;
     }
-    
-    // FIXED: Upgrade thumbnail images to larger versions
+
+    // Upgrade thumbnail images to larger versions
     if (image && image.includes('$variantthumbnail$')) {
-      // Replace thumbnail with larger image size
       image = image.replace('$variantthumbnail$', '$zoom$');
     }
+    // ----------------------------
     
     // Calculate discount
     const discount = originalPrice && price && originalPrice > price ?
