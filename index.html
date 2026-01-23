@@ -33,6 +33,16 @@
       color: #ffffff;
     }
 
+    /* Mobile portrait: shrink badge to match smaller image */
+    @media (max-width: 480px) {
+      .discount-badge {
+        top: 0.2rem;
+        left: 0.2rem;
+        padding: 0.1rem 0.3rem;
+        font-size: 0.55rem;
+      }
+    }
+
     /* Original price with line-through */
     .card-original-price {
       margin-left: 0.35rem;
