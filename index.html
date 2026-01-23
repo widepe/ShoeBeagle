@@ -287,6 +287,7 @@
 
     .card-image-wrapper {
       width: 100%;
+      overflow: hidden;
     }
 
     .card img {
@@ -334,7 +335,7 @@
       color: #214478ff;
     }
 
-    /* Mobile: horizontal layout with image on left */
+    /* Mobile portrait: horizontal layout with image on left */
     @media (max-width: 480px) {
       .card-link {
         flex-direction: row;
@@ -344,11 +345,14 @@
 
       .card-image-wrapper {
         flex-shrink: 0;
-        width: 120px;
+        width: 100px;
+        height: 80px;
+        overflow: hidden;
       }
 
       .card img {
-        height: 120px;
+        height: 80px;
+        object-fit: cover;
       }
 
       .card-content {
@@ -359,6 +363,13 @@
       .card-title {
         -webkit-line-clamp: 2;
         min-height: auto;
+      }
+    }
+
+    /* Mobile landscape: exactly 3 columns */
+    @media (min-width: 481px) and (max-width: 900px) and (orientation: landscape) {
+      .shoe-grid {
+        grid-template-columns: repeat(3, 1fr);
       }
     }
 
