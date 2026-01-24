@@ -25,6 +25,60 @@ function setCache(key, data) {
   cache.set(key, { data, timestamp: Date.now() });
 }
 
+// Rate limiting - 10 requests per minute per IP
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX = 10; // 10 requests per minute
+
+function getRateLimitKey(req) {
+  // Get IP from various headers (supports proxies/load balancers)
+  return (
+    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+    req.headers["x-real-ip"] ||
+    req.connection?.remoteAddress ||
+    req.socket?.remoteAddress ||
+    "unknown"
+  );
+}
+
+function isRateLimited(ip) {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+
+  if (!record) {
+    // First request from this IP
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return false;
+  }
+
+  // Check if window has expired
+  if (now > record.resetAt) {
+    // Reset the window
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return false;
+  }
+
+  // Within the window - check count
+  if (record.count >= RATE_LIMIT_MAX) {
+    // Rate limited!
+    return true;
+  }
+
+  // Increment count
+  record.count++;
+  return false;
+}
+
+// Clean up old rate limit entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of rateLimitMap.entries()) {
+    if (now > record.resetAt) {
+      rateLimitMap.delete(ip);
+    }
+  }
+}, 5 * 60 * 1000);
+
 module.exports = async (req, res) => {
   const requestId =
     (req.headers && (req.headers["x-vercel-id"] || req.headers["x-request-id"])) ||
@@ -32,6 +86,18 @@ module.exports = async (req, res) => {
   const startedAt = Date.now();
 
   try {
+    // Check rate limit first
+    const clientIp = getRateLimitKey(req);
+    if (isRateLimited(clientIp)) {
+      console.log("[/api/search] Rate limited:", { ip: clientIp, requestId });
+      // Return 429 Too Many Requests but with a generic message
+      // Real users won't see this; only bots will
+      return res.status(429).json({
+        error: "Too many requests",
+        requestId,
+      });
+    }
+
     // OLD style: separate brand / model
     const rawBrand = req.query && req.query.brand ? req.query.brand : "";
     const rawModel = req.query && req.query.model ? req.query.model : "";
@@ -45,6 +111,7 @@ module.exports = async (req, res) => {
 
     console.log("[/api/search] Request:", {
       requestId,
+      ip: clientIp,
       rawBrand,
       rawModel,
       rawQuery,
@@ -163,6 +230,7 @@ module.exports = async (req, res) => {
 
     console.log("[/api/search] Complete:", {
       requestId,
+      ip: clientIp,
       ms: Date.now() - startedAt,
       count: results.length,
       dataAge: dealsData.lastUpdated
