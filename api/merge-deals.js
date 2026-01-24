@@ -1,14 +1,16 @@
 // /api/merge-deals.js
 // Merges: (1) your daily deals scraper output + (2) the 3 Holabird scraper outputs + (3) Brooks sale scraper + (4) ASICS sale scraper
 // Writes the final canonical blob: deals.json
+// ALSO writes a small precomputed blob: stats.json (Phase 1 quick win)
+// - stats.json is overwritten each run (addRandomSuffix: false)
 //
 // Env vars (recommended):
 //   OTHER_DEALS_BLOB_URL
 //   HOLABIRD_MENS_ROAD_BLOB_URL
 //   HOLABIRD_WOMENS_ROAD_BLOB_URL
 //   HOLABIRD_TRAIL_UNISEX_BLOB_URL
-//   BROOKS_SALE_BLOB_URL              ← Brooks Running integration
-//   ASICS_SALE_BLOB_URL               ← NEW: ASICS integration (3 pages)
+//   BROOKS_SALE_BLOB_URL
+//   ASICS_SALE_BLOB_URL
 //
 // Optional fallback (if you do NOT set blob URLs):
 //   Calls scraper endpoints directly:
@@ -16,8 +18,8 @@
 //     /api/scrapers/holabird-mens-road
 //     /api/scrapers/holabird-womens-road
 //     /api/scrapers/holabird-trail-unisex
-//     /api/scrapers/brooks-sale         ← Brooks Running integration
-//     /api/scrapers/asics-sale          ← NEW: ASICS integration (3 pages)
+//     /api/scrapers/brooks-sale
+//     /api/scrapers/asics-sale
 
 const axios = require("axios");
 const { put } = require("@vercel/blob");
@@ -59,6 +61,13 @@ function computeDiscountPercent(d) {
   return ((o - p) / o) * 100;
 }
 
+function computeDollarSavings(d) {
+  const p = toNumber(d?.price);
+  const o = toNumber(d?.originalPrice);
+  if (!p || !o || o <= 0 || p >= o) return 0;
+  return o - p;
+}
+
 /** ------------ Theme-change-resistant sanitization ------------ **/
 
 function normalizeWhitespace(s) {
@@ -68,9 +77,7 @@ function normalizeWhitespace(s) {
 function stripHtmlToText(maybeHtml) {
   const s = String(maybeHtml || "");
   if (!s) return "";
-  // fast path: no tags
   if (!/[<>]/.test(s)) return normalizeWhitespace(s);
-  // safest possible without cheerio here: remove tags
   return normalizeWhitespace(s.replace(/<[^>]*>/g, " "));
 }
 
@@ -78,8 +85,8 @@ function looksLikeCssOrJunk(s) {
   const t = normalizeWhitespace(s);
   if (!t) return true;
   if (t.length < 3) return true;
-  if (/^#[-_a-z0-9]+/i.test(t)) return true; // "#review-stars-..."
-  if (t.includes("{") && t.includes("}") && t.includes(":")) return true; // "a{margin:0}"
+  if (/^#[-_a-z0-9]+/i.test(t)) return true;
+  if (t.includes("{") && t.includes("}") && t.includes(":")) return true;
   if (t.startsWith("@media") || t.startsWith(":root")) return true;
   return false;
 }
@@ -87,7 +94,6 @@ function looksLikeCssOrJunk(s) {
 function cleanTitleText(raw) {
   let t = stripHtmlToText(raw);
 
-  // remove common promo lead-ins
   t = t.replace(/^(extra\s*\d+\s*%\s*off)\s+/i, "");
   t = t.replace(/^(sale|clearance|closeout)\s+/i, "");
 
@@ -110,11 +116,9 @@ function absolutizeUrl(u, base) {
 function storeBaseUrl(store) {
   const s = String(store || "").toLowerCase();
 
-  // IMPORTANT: these are just for absolutizing relative URLs/images,
-  // not for scraping.
   if (s.includes("holabird")) return "https://www.holabirdsports.com";
   if (s.includes("brooks")) return "https://www.brooksrunning.com";
-  if (s.includes("asics")) return "https://www.asics.com"; // ← NEW: Added ASICS support
+  if (s.includes("asics")) return "https://www.asics.com";
   if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
   if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
   if (s.includes("luke")) return "https://lukeslocker.com";
@@ -143,10 +147,7 @@ function sanitizeDeal(deal) {
     image = absolutizeUrl(deal.image.trim(), base);
   }
 
-  // If title is empty but brand/model exist, fallback
   const finalTitle = title || normalizeWhitespace(`${brand} ${model}`).trim();
-
-  // If that still looks junky, zero it out
   const safeTitle = looksLikeCssOrJunk(finalTitle) ? "" : finalTitle;
 
   return {
@@ -199,7 +200,8 @@ function isValidRunningShoe(deal) {
     "headband", "wristband",
     "sunglasses", "eyewear",
     "sleeve", "sleeves",
-    "throw",
+    "throw", "throws",
+    "yaktrax",
     "out of stock",
     "kids", "kid",
     "youth",
@@ -217,7 +219,6 @@ function isValidRunningShoe(deal) {
 function normalizeDeal(d) {
   if (!d) return null;
 
-  // sanitize strings (theme-change resistant)
   const sanitized = sanitizeDeal(d);
   if (!sanitized) return null;
 
@@ -226,10 +227,8 @@ function normalizeDeal(d) {
 
   return {
     ...sanitized,
-    // normalize numeric fields
     price,
     originalPrice,
-    // normalize blanks
     title: typeof sanitized.title === "string" ? sanitized.title.trim() : "",
     brand: typeof sanitized.brand === "string" ? sanitized.brand.trim() : "Unknown",
     model: typeof sanitized.model === "string" ? sanitized.model.trim() : "",
@@ -286,7 +285,7 @@ async function loadDealsFromBlobOrEndpoint({ name, blobUrl, endpointUrl }) {
     timestamp: null,
     duration: null
   };
-  
+
   if (blobUrl) {
     const payload = await fetchJson(blobUrl);
     const deals = extractDealsFromPayload(payload);
@@ -302,7 +301,6 @@ async function loadDealsFromBlobOrEndpoint({ name, blobUrl, endpointUrl }) {
 
     let deals = extractDealsFromPayload(payload);
 
-    // If endpoint returns only { blobUrl }, try that blob
     if ((!deals || deals.length === 0) && payload && typeof payload.blobUrl === "string") {
       const payload2 = await fetchJson(payload.blobUrl);
       deals = extractDealsFromPayload(payload2);
@@ -312,15 +310,339 @@ async function loadDealsFromBlobOrEndpoint({ name, blobUrl, endpointUrl }) {
       metadata.blobUrl = payload.blobUrl || null;
       metadata.timestamp = payload.timestamp || payload.lastUpdated || null;
     }
-    
+
     metadata.source = "endpoint";
     metadata.deals = deals;
     metadata.duration = payload.duration || null;
-    
+
     return metadata;
   }
 
   return { name, source: "none", deals: [] };
+}
+
+/** ------------ Stats (Phase 1 quick win) ------------ **/
+
+function bucketLabel(price) {
+  if (!Number.isFinite(price)) return null;
+  if (price < 50) return "$0-50";
+  if (price < 75) return "$50-75";
+  if (price < 100) return "$75-100";
+  if (price < 125) return "$100-125";
+  if (price < 150) return "$125-150";
+  return "$150+";
+}
+
+function dealSummary(deal) {
+  if (!deal) return null;
+  const price = toNumber(deal.price);
+  const originalPrice = toNumber(deal.originalPrice);
+  const percentOff = computeDiscountPercent(deal);
+  const dollarSavings = computeDollarSavings(deal);
+
+  return {
+    title: deal.title || "",
+    brand: deal.brand || "Unknown",
+    model: deal.model || "",
+    store: deal.store || "Unknown",
+    url: deal.url || "",
+    image: deal.image || null,
+    price,
+    originalPrice,
+    percentOff,
+    dollarSavings,
+  };
+}
+
+/**
+ * computeStats(deals, storeMetadata)
+ *
+ * What it does (and why it helps):
+ * - Precomputes the “dashboard math” on the server (once per merge run)
+ *   so your dashboard.html can load fast by fetching a small stats.json.
+ *
+ * Produces:
+ * - Global totals: totalDeals, totalStores, totalBrands
+ * - Average discount across discounted deals
+ * - Top deal cards: highest % off, biggest $ savings, lowest price, best value
+ * - Store rollups: deal counts, avg discount, avg $ savings, unknown brand %
+ * - Brand rollups: top brands by count + price range
+ * - Price histogram buckets
+ * - Basic store health checks (unknown brands, missing images/urls/models/prices)
+ * - Also includes scraper-level metadata (blob urls, timestamps, durations) from merge sources
+ */
+function computeStats(deals, storeMetadata) {
+  const nowIso = new Date().toISOString();
+
+  // Global
+  const stores = Object.create(null);
+  const brands = Object.create(null);
+  const uniqueStoreSet = new Set();
+  const uniqueBrandSet = new Set();
+
+  // Discount aggregation
+  let discountCount = 0;
+  let discountSum = 0;
+
+  // Candidates for top deals
+  let topPercent = null; // {deal, percentOff}
+  let topDollar = null;  // {deal, dollarSavings}
+  let lowestPrice = null;// {deal, price}
+  let bestValue = null;  // {deal, valueScore}
+
+  // Price buckets
+  const priceBuckets = {
+    "$0-50": 0,
+    "$50-75": 0,
+    "$75-100": 0,
+    "$100-125": 0,
+    "$125-150": 0,
+    "$150+": 0,
+  };
+
+  // One pass over deals
+  for (const d of safeArray(deals)) {
+    const store = (d.store || "Unknown").trim() || "Unknown";
+    const brandRaw = (d.brand || "").trim();
+    const brand = brandRaw ? brandRaw : "Unknown";
+
+    const price = toNumber(d.price);
+    const original = toNumber(d.originalPrice);
+
+    uniqueStoreSet.add(store);
+    uniqueBrandSet.add(brand);
+
+    if (!stores[store]) {
+      stores[store] = {
+        store,
+        count: 0,
+        discountSum: 0,
+        discountCount: 0,
+        savingsSum: 0,
+        unknownBrandCount: 0,
+        missingImageCount: 0,
+        missingUrlCount: 0,
+        missingModelCount: 0,
+        missingPriceCount: 0,
+      };
+    }
+
+    const s = stores[store];
+    s.count += 1;
+
+    // Basic health signals
+    const brandIsUnknown = brand === "Unknown" || !brandRaw;
+    if (brandIsUnknown) s.unknownBrandCount += 1;
+
+    const img = typeof d.image === "string" ? d.image : "";
+    if (!img || img.includes("placehold.co")) s.missingImageCount += 1;
+
+    const url = typeof d.url === "string" ? d.url : "";
+    if (!url || url === "#") s.missingUrlCount += 1;
+
+    const model = typeof d.model === "string" ? d.model.trim() : "";
+    if (!model) s.missingModelCount += 1;
+
+    if (!Number.isFinite(price) || price <= 0) s.missingPriceCount += 1;
+
+    // Store rollups (discount/savings)
+    const percentOff = computeDiscountPercent(d);
+    const dollarSavings = computeDollarSavings(d);
+
+    if (percentOff > 0) {
+      s.discountSum += percentOff;
+      s.discountCount += 1;
+      s.savingsSum += dollarSavings;
+
+      discountSum += percentOff;
+      discountCount += 1;
+
+      // Top percent off
+      if (!topPercent || percentOff > topPercent.percentOff) {
+        topPercent = { deal: d, percentOff };
+      }
+      // Top dollar savings
+      if (!topDollar || dollarSavings > topDollar.dollarSavings) {
+        topDollar = { deal: d, dollarSavings };
+      }
+      // Lowest price among discounted deals
+      if (Number.isFinite(price)) {
+        if (!lowestPrice || price < lowestPrice.price) {
+          lowestPrice = { deal: d, price };
+        }
+      }
+      // Best value: percentOff + (dollarSavings * 0.5)
+      const valueScore = percentOff + (dollarSavings * 0.5);
+      if (!bestValue || valueScore > bestValue.valueScore) {
+        bestValue = { deal: d, valueScore };
+      }
+    }
+
+    // Price buckets (only valid prices)
+    if (Number.isFinite(price) && price > 0) {
+      const label = bucketLabel(price);
+      if (label) priceBuckets[label] += 1;
+    }
+
+    // Brand rollups
+    if (!brands[brand]) {
+      brands[brand] = {
+        brand,
+        count: 0,
+        discountSum: 0,
+        discountCount: 0,
+        minPrice: Number.POSITIVE_INFINITY,
+        maxPrice: 0,
+      };
+    }
+    const b = brands[brand];
+    b.count += 1;
+    if (percentOff > 0) {
+      b.discountSum += percentOff;
+      b.discountCount += 1;
+    }
+    if (Number.isFinite(price) && price > 0) {
+      b.minPrice = Math.min(b.minPrice, price);
+      b.maxPrice = Math.max(b.maxPrice, price);
+    }
+  }
+
+  // Finalize brand price ranges
+  for (const b of Object.values(brands)) {
+    if (!Number.isFinite(b.minPrice)) b.minPrice = 0;
+  }
+
+  // Store table array
+  const storesTable = Object.values(stores)
+    .map((s) => {
+      const avgDiscount = s.discountCount ? s.discountSum / s.discountCount : 0;
+      const avgSavings = s.discountCount ? s.savingsSum / s.discountCount : 0;
+      const unknownPct = s.count ? (s.unknownBrandCount / s.count) * 100 : 0;
+
+      // Health classification (store-level)
+      let status = "healthy";
+      const issues = [];
+
+      if (s.count === 0) {
+        status = "critical";
+        issues.push("ZERO RESULTS");
+      }
+
+      if (unknownPct > 50) {
+        status = "critical";
+        issues.push(`${unknownPct.toFixed(0)}% Unknown Brands`);
+      } else if (unknownPct > 20) {
+        if (status !== "critical") status = "warning";
+        issues.push(`${unknownPct.toFixed(0)}% Unknown Brands`);
+      }
+
+      const missingImagesPct = s.count ? (s.missingImageCount / s.count) * 100 : 0;
+      if (missingImagesPct > 30) {
+        if (status !== "critical") status = "warning";
+        issues.push(`${missingImagesPct.toFixed(0)}% Missing Images`);
+      }
+
+      const missingUrlsPct = s.count ? (s.missingUrlCount / s.count) * 100 : 0;
+      if (missingUrlsPct > 10) {
+        if (status !== "critical") status = "warning";
+        issues.push(`${missingUrlsPct.toFixed(0)}% Missing URLs`);
+      }
+
+      const missingModelsPct = s.count ? (s.missingModelCount / s.count) * 100 : 0;
+      if (missingModelsPct > 30) {
+        if (status !== "critical") status = "warning";
+        issues.push(`${missingModelsPct.toFixed(0)}% Missing Models`);
+      }
+
+      if (s.count > 0 && s.count < 5) {
+        if (status !== "critical") status = "warning";
+        issues.push(`Low Deal Count (${s.count})`);
+      }
+
+      return {
+        store: s.store,
+        count: s.count,
+        avgDiscount,
+        avgSavings,
+        unknownBrandCount: s.unknownBrandCount,
+        unknownBrandPct: unknownPct,
+        missingImageCount: s.missingImageCount,
+        missingUrlCount: s.missingUrlCount,
+        missingModelCount: s.missingModelCount,
+        missingPriceCount: s.missingPriceCount,
+        health: { status, issues },
+      };
+    })
+    .sort((a, b) => b.count - a.count);
+
+  // Brand top list (exclude Unknown by default)
+  const brandsTop = Object.values(brands)
+    .filter((b) => b.brand && b.brand !== "Unknown")
+    .map((b) => ({
+      brand: b.brand,
+      count: b.count,
+      avgDiscount: b.discountCount ? b.discountSum / b.discountCount : 0,
+      minPrice: b.minPrice,
+      maxPrice: b.maxPrice,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 25);
+
+  // Unknown-by-store table format (what your dashboard already shows)
+  const unknownByStore = storesTable.reduce((acc, s) => {
+    acc[s.store] = { unknownCount: s.unknownBrandCount, total: s.count, pct: s.unknownBrandPct };
+    return acc;
+  }, {});
+
+  // Health summary counts
+  let healthyCount = 0, warningCount = 0, criticalCount = 0;
+  for (const s of storesTable) {
+    if (s.health.status === "healthy") healthyCount++;
+    else if (s.health.status === "warning") warningCount++;
+    else criticalCount++;
+  }
+
+  const avgDiscount = discountCount ? discountSum / discountCount : 0;
+
+  return {
+    version: 1,
+    generatedAt: nowIso,
+
+    // Global metrics
+    totalDeals: safeArray(deals).length,
+    totalStores: uniqueStoreSet.size,
+    totalBrands: uniqueBrandSet.size,
+    avgDiscount,
+
+    // Top deal “cards” (ready for dashboard rendering)
+    topDeals: {
+      topPercent: topPercent ? dealSummary(topPercent.deal) : null,
+      topDollar: topDollar ? dealSummary(topDollar.deal) : null,
+      lowestPrice: lowestPrice ? dealSummary(lowestPrice.deal) : null,
+      bestValue: bestValue ? dealSummary(bestValue.deal) : null,
+    },
+
+    // Tables / charts
+    storesTable,
+    brandsTop,
+    unknownByStore,
+    priceBuckets,
+
+    // Store-level health (derived from the merged deals)
+    health: {
+      summary: { healthy: healthyCount, warning: warningCount, critical: criticalCount },
+      stores: storesTable.map((s) => ({
+        store: s.store,
+        status: s.health.status,
+        issues: s.health.issues,
+        count: s.count,
+        unknownBrandPct: s.unknownBrandPct,
+      })),
+    },
+
+    // Scraper-level metadata (comes from your merge sources; useful for “last scraped” timestamps)
+    scraperMetadata: storeMetadata || {},
+  };
 }
 
 /** ------------ Handler ------------ **/
@@ -346,7 +668,7 @@ module.exports = async (req, res) => {
   const HOLABIRD_WOMENS_ROAD_BLOB_URL = process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "";
   const HOLABIRD_TRAIL_UNISEX_BLOB_URL = process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "";
   const BROOKS_SALE_BLOB_URL = process.env.BROOKS_SALE_BLOB_URL || "";
-  const ASICS_SALE_BLOB_URL = process.env.ASICS_SALE_BLOB_URL || ""; // ← NEW: ASICS (3 pages)
+  const ASICS_SALE_BLOB_URL = process.env.ASICS_SALE_BLOB_URL || "";
 
   // ============================================================================
   // ENDPOINT FALLBACKS (only used if blob URLs are missing)
@@ -356,15 +678,12 @@ module.exports = async (req, res) => {
   const HOLABIRD_WOMENS_ROAD_ENDPOINT = `${baseUrl}/api/scrapers/holabird-womens-road`;
   const HOLABIRD_TRAIL_UNISEX_ENDPOINT = `${baseUrl}/api/scrapers/holabird-trail-unisex`;
   const BROOKS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/brooks-sale`;
-  const ASICS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/asics-sale`; // ← NEW: ASICS (3 pages)
+  const ASICS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/asics-sale`;
 
   try {
     console.log("[MERGE] Starting merge:", new Date().toISOString());
     console.log("[MERGE] Base URL:", baseUrl);
 
-    // ============================================================================
-    // SOURCES ARRAY - Add all deal sources here
-    // ============================================================================
     const sources = [
       {
         name: "Other (scrape-daily)",
@@ -386,17 +705,11 @@ module.exports = async (req, res) => {
         blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL || null,
         endpointUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL ? null : HOLABIRD_TRAIL_UNISEX_ENDPOINT,
       },
-      // ============================================================================
-      // Brooks Running Sale - Uses Firecrawl to scrape JavaScript-rendered site
-      // ============================================================================
       {
         name: "Brooks Sale",
         blobUrl: BROOKS_SALE_BLOB_URL || null,
         endpointUrl: BROOKS_SALE_BLOB_URL ? null : BROOKS_SALE_ENDPOINT,
       },
-      // ============================================================================
-      // NEW: ASICS Sale - Uses Firecrawl to scrape 3 pages (mens, womens, last chance)
-      // ============================================================================
       {
         name: "ASICS Sale",
         blobUrl: ASICS_SALE_BLOB_URL || null,
@@ -417,20 +730,21 @@ module.exports = async (req, res) => {
 
       if (settled[i].status === "fulfilled") {
         const { source, deals, blobUrl, timestamp, duration } = settled[i].value;
+
         perSource[name] = { ok: true, via: source, count: safeArray(deals).length };
-        
-        // Store metadata for dashboard display
+
         storeMetadata[name] = {
           blobUrl: blobUrl || null,
           timestamp: timestamp || null,
           duration: duration || null,
-          count: safeArray(deals).length
+          count: safeArray(deals).length,
         };
-        
+
         allDealsRaw.push(...safeArray(deals));
       } else {
-        perSource[name] = { ok: false, error: settled[i].reason?.message || String(settled[i].reason) };
-        storeMetadata[name] = { error: settled[i].reason?.message || String(settled[i].reason) };
+        const msg = settled[i].reason?.message || String(settled[i].reason);
+        perSource[name] = { ok: false, error: msg };
+        storeMetadata[name] = { error: msg };
       }
     }
 
@@ -447,17 +761,17 @@ module.exports = async (req, res) => {
     const unique = dedupeDeals(filtered);
 
     // 4) Shuffle then sort by discount %
-    // (shuffle helps preserve variety among equal-discount items)
     unique.sort(() => Math.random() - 0.5);
     unique.sort((a, b) => computeDiscountPercent(b) - computeDiscountPercent(a));
 
-    // 5) Stats
+    // 5) dealsByStore (kept in deals.json for backward compatibility)
     const dealsByStore = {};
     for (const d of unique) {
       const s = d.store || "Unknown";
       dealsByStore[s] = (dealsByStore[s] || 0) + 1;
     }
 
+    // 6) Build canonical deals output
     const output = {
       lastUpdated: new Date().toISOString(),
       totalDeals: unique.length,
@@ -466,24 +780,37 @@ module.exports = async (req, res) => {
       deals: unique,
     };
 
-    // 6) Write final canonical blob used by the app
-    const blob = await put("deals.json", JSON.stringify(output, null, 2), {
-      access: "public",
-      addRandomSuffix: false,
-    });
+    // 7) Compute small dashboard stats and write stats.json (Phase 1)
+    const stats = computeStats(unique, storeMetadata);
+    // Mirror the same timestamp so dashboard can show a single "last updated"
+    stats.lastUpdated = output.lastUpdated;
 
-    const duration = Date.now() - start;
-    console.log("[MERGE] Saved final deals.json blob:", blob.url);
-    console.log(`[MERGE] Complete in ${duration}ms; totalDeals=${unique.length}`);
+    // 8) Write blobs (overwrite each run)
+    const [dealsBlob, statsBlob] = await Promise.all([
+      put("deals.json", JSON.stringify(output, null, 2), {
+        access: "public",
+        addRandomSuffix: false,
+      }),
+      put("stats.json", JSON.stringify(stats, null, 2), {
+        access: "public",
+        addRandomSuffix: false,
+      }),
+    ]);
+
+    const durationMs = Date.now() - start;
+    console.log("[MERGE] Saved deals.json:", dealsBlob.url);
+    console.log("[MERGE] Saved stats.json:", statsBlob.url);
+    console.log(`[MERGE] Complete in ${durationMs}ms; totalDeals=${unique.length}`);
 
     return res.status(200).json({
       success: true,
       totalDeals: unique.length,
       dealsByStore,
       scraperResults: perSource,
-      storeMetadata,  // NEW: Individual store blob URLs, timestamps, durations
-      blobUrl: blob.url,
-      duration: `${duration}ms`,
+      storeMetadata, // scraper-level metadata
+      blobUrl: dealsBlob.url,
+      statsBlobUrl: statsBlob.url,
+      duration: `${durationMs}ms`,
       timestamp: output.lastUpdated,
     });
   } catch (err) {
