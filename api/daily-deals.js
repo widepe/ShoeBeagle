@@ -77,13 +77,22 @@ function hasGoodImage(deal) {
 }
 
 function isDiscounted(deal) {
+  const salePrice = parseMoney(deal.salePrice);
   const price = parseMoney(deal.price);
-  const original = parseMoney(deal.originalPrice);
-  if (deal.discount && typeof deal.discount === "string") return true;
-  if (Number.isFinite(price) && Number.isFinite(original) && original > price) {
+  if (Number.isFinite(salePrice) && Number.isFinite(price) && price > salePrice) {
     return true;
   }
   return false;
+}
+
+// Calculate discount percentage from prices
+function calculateDiscountPercent(salePrice, price) {
+  const sale = parseMoney(salePrice);
+  const orig = parseMoney(price);
+  if (Number.isFinite(sale) && Number.isFinite(orig) && orig > 0 && orig > sale) {
+    return Math.round(((orig - sale) / orig) * 100);
+  }
+  return null;
 }
 
 module.exports = async (req, res) => {
@@ -154,7 +163,7 @@ module.exports = async (req, res) => {
     // ========================================================================
 
     const qualityDeals = allDeals.filter(
-      (d) => hasGoodImage(d) && isDiscounted(d) && d.originalPrice && d.price
+      (d) => hasGoodImage(d) && isDiscounted(d) && d.price && d.salePrice
     );
 
     // If we don't have enough quality deals, use all deals with images
@@ -168,25 +177,23 @@ module.exports = async (req, res) => {
     if (workingPool.length < 12) {
       const shuffled = getRandomSample(workingPool, workingPool.length);
       const selected = shuffled.map((deal) => {
+        const salePrice = parseMoney(deal.salePrice);
         const price = parseMoney(deal.price);
-        const original = parseMoney(deal.originalPrice);
-        let discountLabel = deal.discount || null;
-        if (!discountLabel && Number.isFinite(price) && Number.isFinite(original) && original > 0) {
-          const pct = Math.round(100 * (1 - price / original));
-          if (pct > 0) {
-            discountLabel = `${pct}% OFF`;
-          }
-        }
+        const discountPercent = calculateDiscountPercent(salePrice, price);
+        
         return {
           title: deal.title || "Running Shoe Deal",
           brand: deal.brand || "",
           model: deal.model || "",
+          salePrice: Number.isFinite(salePrice) ? salePrice : 0,
+          price: Number.isFinite(price) ? price : null,
+          discountPercent: discountPercent,
           store: deal.store || "Store",
-          price: Number.isFinite(price) ? price : 0,
-          originalPrice: Number.isFinite(original) ? original : null,
-          discount: discountLabel,
-          image: deal.image || "",
           url: deal.url || "#",
+          image: deal.image || "",
+          gender: deal.gender || "unknown",
+          shoeType: deal.shoeType || "unknown",
+          color: deal.color || null,
         };
       });
 
@@ -197,42 +204,42 @@ module.exports = async (req, res) => {
       });
     }
 
-  // 1) TOP 20 BY PERCENTAGE OFF → Pick random 4
-const top20ByPercent = [...workingPool]
-  .sort((a, b) => {
-    const pctA = a.originalPrice && a.price 
-      ? ((a.originalPrice - a.price) / a.originalPrice) * 100 
-      : 0;
-    const pctB = b.originalPrice && b.price 
-      ? ((b.originalPrice - b.price) / b.originalPrice) * 100 
-      : 0;
-    return pctB - pctA;
-  })
-  .slice(0, Math.min(20, workingPool.length));
+    // 1) TOP 20 BY PERCENTAGE OFF → Pick random 4
+    const top20ByPercent = [...workingPool]
+      .sort((a, b) => {
+        const pctA = a.price && a.salePrice 
+          ? ((a.price - a.salePrice) / a.price) * 100 
+          : 0;
+        const pctB = b.price && b.salePrice 
+          ? ((b.price - b.salePrice) / b.price) * 100 
+          : 0;
+        return pctB - pctA;
+      })
+      .slice(0, Math.min(20, workingPool.length));
 
-const byPercent = getRandomSample(top20ByPercent, Math.min(4, top20ByPercent.length));
+    const byPercent = getRandomSample(top20ByPercent, Math.min(4, top20ByPercent.length));
 
-// Track picked URLs instead of objects
-const pickedUrls = new Set(byPercent.map(d => d.url));
+    // Track picked URLs instead of objects
+    const pickedUrls = new Set(byPercent.map(d => d.url));
 
-// 2) TOP 20 BY DOLLAR SAVINGS → Pick random 4 (excluding already picked)
-const top20ByDollar = [...workingPool]
-  .filter(d => !pickedUrls.has(d.url))  // Filter by URL
-  .sort((a, b) => {
-    const savingsA = (a.originalPrice || 0) - (a.price || 0);
-    const savingsB = (b.originalPrice || 0) - (b.price || 0);
-    return savingsB - savingsA;
-  })
-  .slice(0, 20);
+    // 2) TOP 20 BY DOLLAR SAVINGS → Pick random 4 (excluding already picked)
+    const top20ByDollar = [...workingPool]
+      .filter(d => !pickedUrls.has(d.url))  // Filter by URL
+      .sort((a, b) => {
+        const savingsA = (a.price || 0) - (a.salePrice || 0);
+        const savingsB = (b.price || 0) - (b.salePrice || 0);
+        return savingsB - savingsA;
+      })
+      .slice(0, 20);
 
-const byDollar = getRandomSample(top20ByDollar, Math.min(4, top20ByDollar.length));
+    const byDollar = getRandomSample(top20ByDollar, Math.min(4, top20ByDollar.length));
 
-// Add new picks to URL set
-byDollar.forEach(d => pickedUrls.add(d.url));
+    // Add new picks to URL set
+    byDollar.forEach(d => pickedUrls.add(d.url));
 
-// 3) 4 RANDOM from remaining (excluding already picked)
-const remaining = workingPool.filter(d => !pickedUrls.has(d.url));  // Filter by URL
-const randomPicks = getRandomSample(remaining, Math.min(4, remaining.length));
+    // 3) 4 RANDOM from remaining (excluding already picked)
+    const remaining = workingPool.filter(d => !pickedUrls.has(d.url));  // Filter by URL
+    const randomPicks = getRandomSample(remaining, Math.min(4, remaining.length));
 
     // Combine all deals (might be less than 12 if pool is small)
     const selectedRaw = [...byPercent, ...byDollar, ...randomPicks];
@@ -253,29 +260,23 @@ const randomPicks = getRandomSample(remaining, Math.min(4, remaining.length));
     }
     
     const selected = shuffled.map((deal) => {
+      const salePrice = parseMoney(deal.salePrice);
       const price = parseMoney(deal.price);
-      const original = parseMoney(deal.originalPrice);
-
-      let discountLabel = deal.discount || null;
-
-      // Compute % OFF if we have numeric markdown and no label
-      if (!discountLabel && Number.isFinite(price) && Number.isFinite(original) && original > 0) {
-        const pct = Math.round(100 * (1 - price / original));
-        if (pct > 0) {
-          discountLabel = `${pct}% OFF`;
-        }
-      }
+      const discountPercent = calculateDiscountPercent(salePrice, price);
 
       return {
         title: deal.title || "Running Shoe Deal",
         brand: deal.brand || "",
         model: deal.model || "",
+        salePrice: Number.isFinite(salePrice) ? salePrice : 0,
+        price: Number.isFinite(price) ? price : null,
+        discountPercent: discountPercent,
         store: deal.store || "Store",
-        price: Number.isFinite(price) ? price : 0,
-        originalPrice: Number.isFinite(original) ? original : null,
-        discount: discountLabel,
-        image: deal.image || "",
         url: deal.url || "#",
+        image: deal.image || "",
+        gender: deal.gender || "unknown",
+        shoeType: deal.shoeType || "unknown",
+        color: deal.color || null,
       };
     });
 
