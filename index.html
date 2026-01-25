@@ -5,28 +5,23 @@
   <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
   <link rel="icon" type="image/png" href="/images/favicon.png">
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" 
-        content="default-src 'self'; 
-                 script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com; 
-                 img-src * data: https:; 
-                 style-src 'self' 'unsafe-inline'; 
-                 connect-src 'self' https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com; 
-                 font-src 'self'; 
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com;
+                 img-src * data: https:;
+                 style-src 'self' 'unsafe-inline';
+                 connect-src 'self' https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com;
+                 font-src 'self';
                  frame-src 'none';">
   <title>Shoe Beagle--The Running Shoe Deal Finder</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
     /* Make cards able to host an overlay */
-    .card {
-      position: relative;
-    }
+    .card { position: relative; }
 
     /* Wrap the image so we can pin the badge to it */
-    .card-image-wrapper {
-      position: relative;
-      width: 100%;
-    }
+    .card-image-wrapper { position: relative; width: 100%; }
 
     /* Discount badge in corner of image */
     .discount-badge {
@@ -124,7 +119,7 @@
     }
 
     .brand-logo:hover { opacity: 0.9; }
-    
+
     input[type="text"],
     input[type="search"] {
       width: 100%;
@@ -180,9 +175,7 @@
       line-height: 1;
     }
 
-    .input-clear:hover {
-      background: #666;
-    }
+    .input-clear:hover { background: #666; }
 
     .input-wrapper:has(input:not(:placeholder-shown)) .input-clear {
       display: flex;
@@ -203,13 +196,9 @@
       position: relative;
     }
 
-    .menu-btn:hover {
-      background: #1a3661;
-    }
+    .menu-btn:hover { background: #1a3661; }
 
-    .menu-icon {
-      font-size: 1.2rem;
-    }
+    .menu-icon { font-size: 1.2rem; }
 
     /* Dropdown menu */
     .menu-dropdown {
@@ -225,9 +214,7 @@
       z-index: 100;
     }
 
-    .menu-dropdown.show {
-      display: block;
-    }
+    .menu-dropdown.show { display: block; }
 
     .menu-dropdown a {
       display: block;
@@ -238,9 +225,7 @@
       transition: background 0.2s ease;
     }
 
-    .menu-dropdown a:hover {
-      background: #e8f0ff;
-    }
+    .menu-dropdown a:hover { background: #e8f0ff; }
 
     .menu-wrapper {
       position: relative;
@@ -313,6 +298,58 @@
       text-align: center;
       width: 100%;
       min-height: 1.1rem;
+    }
+
+    /* Filter bubbles */
+    .filters{
+      width:100%;
+      max-width:650px;
+      display:flex;
+      flex-direction:column;
+      gap:0.5rem;
+      margin-top: 0.1rem;
+    }
+
+    .filter-row{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:0.5rem;
+      flex-wrap:wrap;
+    }
+
+    .filter-label{
+      font-size:0.9rem;
+      color:#2d3c22;
+      font-weight:600;
+    }
+
+    .chip-group{
+      display:flex;
+      gap:0.4rem;
+      flex-wrap:wrap;
+      justify-content:center;
+    }
+
+    .chip{
+      border:1px solid #214478ff;
+      background:#ffffff;
+      color:#214478ff;
+      padding:0.25rem 0.6rem;
+      border-radius:999px;
+      font-size:0.85rem;
+      font-weight:700;
+      cursor:pointer;
+      transition: background 0.2s ease, color 0.2s ease, transform 0.05s ease;
+    }
+
+    .chip:hover{ background:#e8f0ff; }
+
+    .chip:active{ transform: translateY(1px); }
+
+    .chip.active{
+      background:#214478ff;
+      color:#ffffff;
     }
 
     /* Daily Deals Section */
@@ -452,9 +489,7 @@
 
     /* Mobile landscape: exactly 3 columns */
     @media (min-width: 481px) and (max-width: 900px) and (orientation: landscape) {
-      .shoe-grid {
-        grid-template-columns: repeat(3, 1fr);
-      }
+      .shoe-grid { grid-template-columns: repeat(3, 1fr); }
     }
 
     .disclaimer {
@@ -484,19 +519,13 @@
       margin: 0 0.25rem;
     }
 
-    .footer a:hover {
-      text-decoration: underline;
-    }
+    .footer a:hover { text-decoration: underline; }
   </style>
 </head>
 
 <body>
   <div style="display:none;">Impact-Site-Verification: 484b0fd5-0544-4654-b916-4e921a2e5077</div>
-<!--
-  <div class="top-nav">
-    <a href="/pages/myalerts.html">My Alerts</a>
-  </div>
--->
+
   <div class="app">
     <div class="brand">
       <img src="/images/logo.svg" class="brand-logo" alt="Shoe Beagle Logo" id="logoLink">
@@ -531,6 +560,28 @@
 
     <div class="status-message" id="statusMessage">Let's find your running shoes!</div>
 
+    <!-- Filters (only shown after a search returns results) -->
+    <div class="filters" id="filters" style="display:none;">
+      <div class="filter-row">
+        <div class="filter-label">Gender:</div>
+        <div class="chip-group" id="genderChips">
+          <button type="button" class="chip active" data-gender="">All</button>
+          <button type="button" class="chip" data-gender="mens">Mens</button>
+          <button type="button" class="chip" data-gender="womens">Womens</button>
+        </div>
+      </div>
+
+      <div class="filter-row">
+        <div class="filter-label">Shoe type:</div>
+        <div class="chip-group" id="typeChips">
+          <button type="button" class="chip active" data-type="">All</button>
+          <button type="button" class="chip" data-type="road">Road</button>
+          <button type="button" class="chip" data-type="trail">Trail</button>
+          <button type="button" class="chip" data-type="track">Track</button>
+        </div>
+      </div>
+    </div>
+
     <div id="mainContent">
       <div class="daily-deals" id="dailyDeals">
         <div class="daily-deals-header">Marty's Daily Deals</div>
@@ -557,11 +608,9 @@
     const form = document.getElementById("search-form");
     // Prevent Enter from submitting the form — only Fetch button should submit
     form.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-      }
+      if (e.key === "Enter") e.preventDefault();
     });
-    
+
     const statusMessageEl = document.getElementById("statusMessage");
     const resultsEl = document.getElementById("results");
     const dailyDeals = document.getElementById("dailyDeals");
@@ -576,16 +625,20 @@
     const menuBtn = document.getElementById("menuBtn");
     const menuDropdown = document.getElementById("menuDropdown");
 
+    const filtersEl = document.getElementById("filters");
+    const genderChips = document.getElementById("genderChips");
+    const typeChips = document.getElementById("typeChips");
+
     let currentSearch = { brand: "", model: "" };
 
-    // Set footer year
-    if (footerYear) {
-      footerYear.textContent = new Date().getFullYear();
-    }
+    let lastSearchResults = [];
+    let selectedGender = "";   // "", "mens", "womens"
+    let selectedShoeType = ""; // "", "road", "trail", "track"
 
-    logoLink.addEventListener("click", () => {
-      location.reload();
-    });
+    // Set footer year
+    if (footerYear) footerYear.textContent = new Date().getFullYear();
+
+    logoLink.addEventListener("click", () => location.reload());
 
     // Menu dropdown toggle
     menuBtn.addEventListener("click", (e) => {
@@ -594,17 +647,11 @@
     });
 
     // Show dropdown on hover
-    menuBtn.addEventListener("mouseenter", () => {
-      menuDropdown.classList.add("show");
-    });
-
-    // Keep dropdown open when hovering over it
-    menuDropdown.addEventListener("mouseenter", () => {
-      menuDropdown.classList.add("show");
-    });
+    menuBtn.addEventListener("mouseenter", () => menuDropdown.classList.add("show"));
+    menuDropdown.addEventListener("mouseenter", () => menuDropdown.classList.add("show"));
 
     // Hide dropdown when leaving both button and dropdown
-    menuBtn.addEventListener("mouseleave", (e) => {
+    menuBtn.addEventListener("mouseleave", () => {
       setTimeout(() => {
         if (!menuDropdown.matches(':hover') && !menuBtn.matches(':hover')) {
           menuDropdown.classList.remove("show");
@@ -636,29 +683,29 @@
           input.value = '';
           input.focus();
           updateFetchReady();
-          // Hide suggestions when clearing
-          if (index === 0) {
-            brandSuggestions.style.display = 'none';
-          } else {
-            modelSuggestions.style.display = 'none';
-          }
+          if (index === 0) brandSuggestions.style.display = 'none';
+          else modelSuggestions.style.display = 'none';
         }
       });
     });
 
-    function normalizeStr(s) { 
-      return String(s || "").trim().toLowerCase(); 
+    function normalizeStr(s) {
+      return String(s || "").trim().toLowerCase();
+    }
+
+    function normalizeEnum(s) {
+      return String(s || "").trim().toLowerCase();
     }
 
     // Sanitize user input to prevent injection attacks
     function sanitizeInput(str) {
       return String(str || "")
-        .replace(/[<>'"]/g, '')        // Remove dangerous HTML characters
-        .replace(/script/gi, '')        // Remove "script" (case insensitive)
-        .replace(/javascript:/gi, '')   // Remove javascript: protocol
-        .replace(/on\w+=/gi, '')        // Remove event handlers like onclick=
+        .replace(/[<>'"]/g, '')
+        .replace(/script/gi, '')
+        .replace(/javascript:/gi, '')
+        .replace(/on\w+=/gi, '')
         .trim()
-        .slice(0, 100);                 // Max 100 characters
+        .slice(0, 100);
     }
 
     // Whitelist of trusted retailer domains
@@ -690,64 +737,59 @@
       'joesnewbalanceoutlet.com',
       'fleetfeet.com',
       'jackrabbit.com',
-      'shopify.com',        // Many running brands use Shopify
-      'bigcommerce.com',    // Some brands use BigCommerce
+      'shopify.com',
+      'bigcommerce.com',
     ];
 
     // Validate URL is from a trusted retailer
     function isValidRetailerUrl(url) {
       if (!url || url === '#') return false;
-      
       try {
         const urlObj = new URL(url);
         const hostname = urlObj.hostname.toLowerCase();
-        
-        // Remove 'www.' prefix for comparison
         const cleanHostname = hostname.replace(/^www\./, '');
-        
-        // Check if hostname matches or ends with any allowed domain
-        return allowedRetailerDomains.some(domain => {
-          return cleanHostname === domain || cleanHostname.endsWith('.' + domain);
-        });
+        return allowedRetailerDomains.some(domain =>
+          cleanHostname === domain || cleanHostname.endsWith('.' + domain)
+        );
       } catch (error) {
-        // Invalid URL format
         console.warn('Invalid URL format:', url);
         return false;
       }
     }
 
-    // Shared discount helper used by cards
+    // Discount helper (NEW schema compatible)
     function getDiscountInfo(item) {
-      const price = Number(item.price);
-      const original = item.originalPrice != null ? Number(item.originalPrice) : NaN;
+      // New schema: salePrice = current, price = original
+      // Backward compatible: old schema price/originalPrice
+      const current = Number(item.salePrice ?? item.price);
+      const original = Number(item.price ?? item.originalPrice);
 
-      // Best case: we have both prices
       if (
-        Number.isFinite(price) &&
+        Number.isFinite(current) &&
         Number.isFinite(original) &&
         original > 0 &&
-        price < original
+        current < original
       ) {
-        const pct = Math.round(((original - price) / original) * 100);
+        const pct = Math.round(((original - current) / original) * 100);
         return {
           hasDiscount: true,
-          current: price.toFixed(2),
+          current: current.toFixed(2),
           original: original.toFixed(2),
           percent: pct
         };
       }
 
-      // Fallback: parse string discount like "-23%"
-      if (Number.isFinite(price) && typeof item.discount === "string" && item.discount.includes("%")) {
+      // Optional fallback: parse string discount like "-23%"
+      if (Number.isFinite(current) && typeof item.discount === "string" && item.discount.includes("%")) {
         const m = item.discount.match(/(-?\d+(?:\.\d+)?)%/);
         if (m) {
           const pct = Math.abs(Number(m[1]));
           if (Number.isFinite(pct) && pct > 0 && pct < 100) {
-            const origGuess = price / (1 - pct / 100);
-            if (Number.isFinite(origGuess) && origGuess > price) {
+            const origGuess = current / (1 - pct / 100);
+            if (Number.isFinite(origGuess) && origGuess > current) {
               return {
                 hasDiscount: true,
-                current: price.toFixed(2),
+                current: current.toFixed(2),
                 original: origGuess.toFixed(2),
                 percent: Math.round(pct)
               };
@@ -803,8 +845,8 @@
       return brands.find(b => normalizeStr(b) === normalized) || "";
     }
 
-    function resolveBrand() { 
-      return resolveBrandKey(brandInput.value.trim()); 
+    function resolveBrand() {
+      return resolveBrandKey(brandInput.value.trim());
     }
 
     function filterStartsWith(list, text) {
@@ -815,9 +857,9 @@
 
     function showSuggestions(container, items, onClickItem) {
       container.innerHTML = "";
-      if (!items.length) { 
-        container.style.display = "none"; 
-        return; 
+      if (!items.length) {
+        container.style.display = "none";
+        return;
       }
       items.forEach(value => {
         const div = document.createElement("div");
@@ -844,14 +886,13 @@
 
     brandInput.addEventListener("input", () => {
       const typed = brandInput.value.trim();
-      
-      // Only show suggestions after 2 characters
+
       if (typed.length < 2) {
         brandSuggestions.style.display = "none";
         updateFetchReady();
         return;
       }
-      
+
       const matches = filterStartsWith(brands, typed);
 
       showSuggestions(brandSuggestions, matches, (value) => {
@@ -864,48 +905,102 @@
       updateFetchReady();
     });
 
-    brandInput.addEventListener("blur", () => setTimeout(() => { 
-      brandSuggestions.style.display = "none"; 
+    brandInput.addEventListener("blur", () => setTimeout(() => {
+      brandSuggestions.style.display = "none";
     }, 120));
 
     modelInput.addEventListener("input", () => {
       const brandKey = resolveBrand();
       const text = modelInput.value.trim();
-      
-      // Only show suggestions after 2 characters
+
       if (text.length < 2) {
         modelSuggestions.style.display = "none";
         updateFetchReady();
         return;
       }
-      
+
       if (!brandKey || !brandModels[brandKey]) {
         modelSuggestions.style.display = "none";
         updateFetchReady();
         return;
       }
+
       const models = brandModels[brandKey];
       const matches = filterStartsWith(models, text);
+
       showSuggestions(modelSuggestions, matches, (value) => {
         modelInput.value = value;
         modelSuggestions.style.display = "none";
         setTimeout(() => fetchBtn.focus(), 0);
         updateFetchReady();
       });
+
       updateFetchReady();
     });
 
-    brandInput.addEventListener("click", () => {
-      brandInput.select();
-    });
+    brandInput.addEventListener("click", () => brandInput.select());
+    modelInput.addEventListener("click", () => modelInput.select());
 
-    modelInput.addEventListener("click", () => {
-      modelInput.select();
-    });
-
-    modelInput.addEventListener("blur", () => setTimeout(() => { 
-      modelSuggestions.style.display = "none"; 
+    modelInput.addEventListener("blur", () => setTimeout(() => {
+      modelSuggestions.style.display = "none";
     }, 120));
+
+    function setActiveChip(groupEl, activeBtn) {
+      if (!groupEl) return;
+      groupEl.querySelectorAll(".chip").forEach(btn => btn.classList.remove("active"));
+      if (activeBtn) activeBtn.classList.add("active");
+    }
+
+    function applyFilters(items) {
+      const g = normalizeEnum(selectedGender);
+      const t = normalizeEnum(selectedShoeType);
+
+      return (items || []).filter(item => {
+        const itemGender = normalizeEnum(item.gender);
+        const itemType = normalizeEnum(item.shoeType);
+
+        const genderOk = !g || itemGender === g;
+        const typeOk = !t || itemType === t;
+
+        return genderOk && typeOk;
+      });
+    }
+
+    function renderFilteredResults() {
+      const filtered = applyFilters(lastSearchResults);
+
+      resultsEl.innerHTML = "";
+      filtered.forEach(item => resultsEl.appendChild(createDealCard(item)));
+
+      const displayQuery = [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ");
+
+      if (!filtered.length) {
+        statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
+        return;
+      }
+
+      statusMessageEl.textContent = `Showing ${filtered.length} deal${filtered.length === 1 ? "" : "s"} for ${displayQuery}.`;
+    }
+
+    if (genderChips) {
+      genderChips.addEventListener("click", (e) => {
+        const btn = e.target.closest(".chip");
+        if (!btn) return;
+        selectedGender = normalizeEnum(btn.dataset.gender);
+        setActiveChip(genderChips, btn);
+        renderFilteredResults();
+      });
+    }
+
+    if (typeChips) {
+      typeChips.addEventListener("click", (e) => {
+        const btn = e.target.closest(".chip");
+        if (!btn) return;
+        selectedShoeType = normalizeEnum(btn.dataset.type);
+        setActiveChip(typeChips, btn);
+        renderFilteredResults();
+      });
+    }
 
     // Helper: create unified deal card (used for search + daily deals)
     function createDealCard(item) {
@@ -916,13 +1011,13 @@
 
       const link = document.createElement("a");
       link.className = "card-link";
-      
+
       // Validate URL before using it - only allow trusted retailers
       const safeUrl = isValidRetailerUrl(item.url) ? item.url : '#';
       if (safeUrl === '#' && item.url) {
         console.warn('Blocked untrusted retailer URL:', item.url);
       }
-      
+
       link.href = safeUrl;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
@@ -931,17 +1026,10 @@
       const imgWrapper = document.createElement("div");
       imgWrapper.className = "card-image-wrapper";
 
-      if (item.image) {
-        const img = document.createElement("img");
-        img.src = item.image;
-        img.alt = item.title || "Running shoe deal";
-        imgWrapper.appendChild(img);
-      } else {
-        const img = document.createElement("img");
-        img.src = "https://placehold.co/600x400?text=Running+Shoe";
-        img.alt = "Running shoe";
-        imgWrapper.appendChild(img);
-      }
+      const img = document.createElement("img");
+      img.src = item.image ? item.image : "https://placehold.co/600x400?text=Running+Shoe";
+      img.alt = item.title || "Running shoe deal";
+      imgWrapper.appendChild(img);
 
       if (discount.hasDiscount) {
         const badge = document.createElement("div");
@@ -956,7 +1044,7 @@
       const contentDiv = document.createElement("div");
       contentDiv.className = "card-content";
 
-      // --- brand + model (instead of title) ---
+      // --- brand + model ---
       const titleDiv = document.createElement("div");
       titleDiv.className = "card-title";
 
@@ -984,11 +1072,12 @@
       const priceSpan = document.createElement("span");
       priceSpan.className = "price";
 
-      const currentPrice = Number(item.price);
+      const currentPrice = Number(item.salePrice ?? item.price);
       if (Number.isFinite(currentPrice)) {
         priceSpan.textContent = `$${currentPrice.toFixed(2)}`;
       } else {
-        priceSpan.textContent = item.price ? String(item.price) : "—";
+        const fallback = item.salePrice ?? item.price;
+        priceSpan.textContent = fallback != null ? String(fallback) : "—";
       }
       priceRow.appendChild(priceSpan);
 
@@ -1007,60 +1096,48 @@
     }
 
     // Load daily deals from API and render as cards
-    // Load daily deals from the FINAL merged blob (deals.json) and render as cards
-async function loadDailyDeals() {
-  try {
-    const res = await fetch("/api/daily-deals?cb=" + Date.now());
-const data = await res.json();
+    async function loadDailyDeals() {
+      try {
+        const res = await fetch("/api/daily-deals?cb=" + Date.now());
+        const data = await res.json();
+        const deals = Array.isArray(data.deals) ? data.deals : [];
 
-// daily-deals API should return { deals: [...] }
-const deals = Array.isArray(data.deals) ? data.deals : [];
+        dailyDealsGrid.innerHTML = "";
 
-    dailyDealsGrid.innerHTML = "";
+        if (!deals.length) {
+          dailyDeals.style.display = "none";
+          return;
+        }
 
-    if (!deals.length) {
-      dailyDeals.style.display = "none";
-      return;
+        deals.forEach(item => dailyDealsGrid.appendChild(createDealCard(item)));
+
+        dailyDeals.style.display = "block";
+        dailyDealCount();
+      } catch (err) {
+        console.error("Error loading daily deals:", err);
+        dailyDeals.style.display = "none";
+      }
     }
-
-
-   deals.forEach(item => {
-  dailyDealsGrid.appendChild(createDealCard(item));
-});
-
-
-    dailyDeals.style.display = "block";
-    
-    // Update status message when daily deals are shown
-    dailyDealCount();
-  } catch (err) {
-    console.error("Error loading daily deals:", err);
-    dailyDeals.style.display = "none";
-  }
-}
-
 
     // Load total deals count and update status message when showing daily deals
-async function dailyDealCount() {
-  try {
-    const blobUrl = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json?cb=" + Date.now();
+    async function dailyDealCount() {
+      try {
+        const blobUrl = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json?cb=" + Date.now();
+        const res = await fetch(blobUrl);
+        const data = await res.json();
+        const totalDeals = data.totalDeals || 0;
 
-    const res = await fetch(blobUrl);
-    const data = await res.json();
-    
-    const totalDeals = data.totalDeals || 0;
-    
-    if (statusMessageEl && totalDeals > 0) {
-      statusMessageEl.textContent = `There are ${totalDeals.toLocaleString()} deals today, let's find yours!`;
+        if (statusMessageEl && totalDeals > 0) {
+          statusMessageEl.textContent = `There are ${totalDeals.toLocaleString()} deals today, let's find yours!`;
+        }
+      } catch (err) {
+        console.error("Error loading total deals count:", err);
+      }
     }
-  } catch (err) {
-    console.error("Error loading total deals count:", err);
-    // Keep default message if fetch fails
-  }
-}
+
     // Initial daily deals load
     loadDailyDeals();
-    
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
@@ -1076,12 +1153,12 @@ async function dailyDealCount() {
 
       currentSearch = { brand: brandTyped, model: modelTyped };
 
-      // Used for display + query; avoids extra spaces if one is blank
       const displayQuery = [brandTyped, modelTyped].filter(Boolean).join(" ");
 
       statusMessageEl.textContent = "Searching deals…";
       resultsEl.innerHTML = "";
       dailyDeals.style.display = "none";
+      if (filtersEl) filtersEl.style.display = "none";
 
       let data;
 
@@ -1095,21 +1172,23 @@ async function dailyDealCount() {
       }
 
       const results = (data && data.results) ? data.results : [];
-      
+      lastSearchResults = results;
+
+      // Reset filters each new search
+      selectedGender = "";
+      selectedShoeType = "";
+      if (genderChips) setActiveChip(genderChips, genderChips.querySelector('.chip[data-gender=""]'));
+      if (typeChips) setActiveChip(typeChips, typeChips.querySelector('.chip[data-type=""]'));
+
       if (!results.length) {
         statusMessageEl.textContent = `No results found for ${displayQuery}.`;
+        if (filtersEl) filtersEl.style.display = "none";
         dailyDeals.style.display = "block";
         return;
       }
 
-      statusMessageEl.textContent =
-        `Top ${results.length} deal${results.length === 1 ? '' : 's'} found for ${displayQuery}.`;
-      resultsEl.innerHTML = "";
-
-      results.forEach(item => {
-        const card = createDealCard(item);
-        resultsEl.appendChild(card);
-      });
+      if (filtersEl) filtersEl.style.display = "flex";
+      renderFilteredResults();
     });
   </script>
 </body>
