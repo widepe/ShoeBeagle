@@ -35,21 +35,41 @@ function detectShoeType(product) {
 function detectGender(product) {
   const tags = (product.tags || []).map(tag => tag.toLowerCase());
   const title = (product.title || '').toLowerCase();
+  const vendor = (product.vendor || '').toLowerCase();
   
-  const hasMens = tags.some(tag => 
-    tag.includes("men's") || tag.includes('mens') || tag === 'men'
-  ) || title.includes("men's") || title.includes(' mens ');
+  // Combine all text for pattern matching
+  const allText = [...tags, title, vendor].join(' ');
   
-  const hasWomens = tags.some(tag => 
-    tag.includes("women's") || tag.includes('womens') || tag === 'women'
-  ) || title.includes("women's") || title.includes(' womens ');
+  // Check for men's indicators
+  const hasMens = 
+    /\bmen'?s\b/i.test(allText) ||
+    /\bmale\b/i.test(allText) ||
+    tags.includes('men') ||
+    tags.includes('mens');
+  
+  // Check for women's indicators (more patterns)
+  const hasWomens = 
+    /\bwomen'?s\b/i.test(allText) ||
+    /\bwomans\b/i.test(allText) ||
+    /\bfemale\b/i.test(allText) ||
+    /\bladies\b/i.test(allText) ||
+    /\bgirls\b/i.test(allText) ||
+    tags.includes('women') ||
+    tags.includes('womens') ||
+    tags.includes('woman') ||
+    tags.includes('ladies');
 
-  // If both or neither, it's unisex
-  if ((hasMens && hasWomens) || (!hasMens && !hasWomens)) {
+  // If both explicitly mentioned, it's unisex
+  if (hasMens && hasWomens) {
     return 'unisex';
   }
 
-  return hasMens ? 'mens' : 'womens';
+  // If only one is mentioned, use that
+  if (hasMens) return 'mens';
+  if (hasWomens) return 'womens';
+
+  // Default to unisex if unclear
+  return 'unisex';
 }
 
 /**
