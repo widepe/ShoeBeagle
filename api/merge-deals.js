@@ -676,7 +676,8 @@ module.exports = async (req, res) => {
   const HOLABIRD_TRAIL_UNISEX_BLOB_URL = process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "";
   const BROOKS_SALE_BLOB_URL = process.env.BROOKS_SALE_BLOB_URL || "";
   const ASICS_SALE_BLOB_URL = process.env.ASICS_SALE_BLOB_URL || "";
-
+  const SHOEBACCA_CLEARANCE_BLOB_URL = process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "";
+  
   // ============================================================================
   // ENDPOINT FALLBACKS (only used if blob URLs are missing)
   // ============================================================================
@@ -686,7 +687,8 @@ module.exports = async (req, res) => {
   const HOLABIRD_TRAIL_UNISEX_ENDPOINT = `${baseUrl}/api/scrapers/holabird-trail-unisex`;
   const BROOKS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/brooks-sale`;
   const ASICS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/asics-sale`;
-
+  const SHOEBACCA_CLEARANCE_ENDPOINT = `${baseUrl}/api/scrapers/shoebacca-clearance`;
+  
   try {
     console.log("[MERGE] Starting merge:", new Date().toISOString());
     console.log("[MERGE] Base URL:", baseUrl);
@@ -722,6 +724,13 @@ module.exports = async (req, res) => {
         blobUrl: ASICS_SALE_BLOB_URL || null,
         endpointUrl: ASICS_SALE_BLOB_URL ? null : ASICS_SALE_ENDPOINT,
       },
+      {
+        name: "Shoebacca Clearance",
+        blobUrl: SHOEBACCA_CLEARANCE_BLOB_URL || null,
+        endpointUrl: SHOEBACCA_CLEARANCE_BLOB_URL ? null : SHOEBACCA_CLEARANCE_ENDPOINT,
+      },
+
+      
     ];
 
     const settled = await Promise.allSettled(
