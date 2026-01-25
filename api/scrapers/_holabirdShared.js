@@ -204,6 +204,42 @@ function extractBrandAndModel(title) {
   return { brand: "Unknown", model: title };
 }
 
+// Detect gender from URL or title
+function detectGender(url, title) {
+  const urlLower = (url || "").toLowerCase();
+  const titleLower = (title || "").toLowerCase();
+  const combined = urlLower + " " + titleLower;
+
+  // Check URL patterns first (most reliable for Holabird)
+  if (/gender_mens|\/mens[\/-]|men-/.test(urlLower)) return "mens";
+  if (/gender_womens|\/womens[\/-]|women-/.test(urlLower)) return "womens";
+  
+  // Check title patterns
+  if (/\b(men'?s?|male)\b/i.test(combined)) return "mens";
+  if (/\b(women'?s?|female|ladies)\b/i.test(combined)) return "womens";
+  if (/\bunisex\b/i.test(combined)) return "unisex";
+
+  return "unknown";
+}
+
+// Detect shoe type from title or URL
+function detectShoeType(url, title) {
+  const combined = ((url || "") + " " + (title || "")).toLowerCase();
+
+  // Trail indicators
+  if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross)\b/i.test(combined)) {
+    return "trail";
+  }
+
+  // Track/spike indicators
+  if (/\b(track|spike|dragonfly|zoom.*victory|spikes?)\b/i.test(combined)) {
+    return "track";
+  }
+
+  // Road is default for running shoes (Holabird primarily sells road running shoes)
+  return "road";
+}
+
 function randomDelay(min = 250, max = 700) {
   const wait = Math.floor(Math.random() * (max - min + 1)) + min;
   return new Promise((r) => setTimeout(r, wait));
@@ -290,12 +326,13 @@ async function scrapeHolabirdCollection({
         title,
         brand,
         model,
+        salePrice: prices.salePrice,              // CHANGED from 'price'
+        price: prices.originalPrice,              // CHANGED from 'originalPrice'
         store: "Holabird Sports",
-        price: prices.salePrice,
-        originalPrice: prices.originalPrice,
         url: productUrl,
         image: findBestImageUrl($, $link, $container),
-        scrapedAt: new Date().toISOString(),
+        gender: detectGender(productUrl, title),  // NEW
+        shoeType: detectShoeType(productUrl, title), // NEW
       });
 
       seen.add(productUrl);
