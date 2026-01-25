@@ -216,12 +216,13 @@ module.exports = async (req, res) => {
         title: deal.title,
         brand: deal.brand,
         model: deal.model,
-        price: Number(deal.price),
-        originalPrice: deal.originalPrice ? Number(deal.originalPrice) : null,
-        discount: deal.discount || null,
+        salePrice: Number(deal.salePrice),                           // CHANGED from 'price'
+        price: deal.price ? Number(deal.price) : null,               // CHANGED from 'originalPrice'
         store: deal.store,
         url: deal.url,
         image: deal.image || "https://placehold.co/600x400?text=Running+Shoe",
+        gender: deal.gender || "unknown",                            // NEW
+        shoeType: deal.shoeType || "unknown",                        // NEW
       }))
       // Deals already sorted in blob; just take top N
       .slice(0, 24);
