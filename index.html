@@ -1026,7 +1026,7 @@ async function loadDailyDeals() {
     }
 
     // Optional: show only first N cards on homepage
-    const daily = deals.slice(0, 24);
+    const daily = deals.slice(0, 12);
 
     daily.forEach(item => {
       dailyDealsGrid.appendChild(createDealCard(item));
