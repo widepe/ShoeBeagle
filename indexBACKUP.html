@@ -5,6 +5,14 @@
   <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
   <link rel="icon" type="image/png" href="/images/favicon.png">
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" 
+        content="default-src 'self'; 
+                 script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com; 
+                 img-src * data: https:; 
+                 style-src 'self' 'unsafe-inline'; 
+                 connect-src 'self' https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com; 
+                 font-src 'self'; 
+                 frame-src 'none';">
   <title>Shoe Beagle--The Running Shoe Deal Finder</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -149,8 +157,96 @@
       flex: 1 1 200px;
     }
 
-
     input::placeholder { color: #999; opacity: 1; }
+
+    /* Clear button inside input */
+    .input-clear {
+      position: absolute;
+      right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #999;
+      color: white;
+      border: none;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .input-clear:hover {
+      background: #666;
+    }
+
+    .input-wrapper:has(input:not(:placeholder-shown)) .input-clear {
+      display: flex;
+    }
+
+    /* Menu button */
+    .menu-btn {
+      height: 42px;
+      width: 42px;
+      border-radius: 0.5rem;
+      border: 1px solid #214478ff;
+      background: #214478ff;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .menu-btn:hover {
+      background: #1a3661;
+    }
+
+    .menu-icon {
+      font-size: 1.2rem;
+    }
+
+    /* Dropdown menu */
+    .menu-dropdown {
+      position: absolute;
+      top: calc(100% + 0.25rem);
+      right: 0;
+      background: #ffffff;
+      border: 1px solid #214478ff;
+      border-radius: 0.5rem;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+      min-width: 150px;
+      display: none;
+      z-index: 100;
+    }
+
+    .menu-dropdown.show {
+      display: block;
+    }
+
+    .menu-dropdown a {
+      display: block;
+      padding: 0.65rem 1rem;
+      color: #214478ff;
+      text-decoration: none;
+      font-size: 0.95rem;
+      transition: background 0.2s ease;
+    }
+
+    .menu-dropdown a:hover {
+      background: #e8f0ff;
+    }
+
+    .menu-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
 
     .suggestions {
       position: absolute;
@@ -199,12 +295,13 @@
       border-radius: 0.5rem;
       border: 1px solid #214478ff;
       background: #214478ff;
-      padding: 0 0.75rem;
+      padding: 0 1rem;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       white-space: nowrap;
       outline: none;
+      min-width: 80px;
     }
     .search-btn:hover { background: #1a3661; }
 
@@ -408,16 +505,27 @@
     <form id="search-form" method="POST">
       <div class="input-wrapper">
         <input id="brand" type="text" placeholder="Enter Shoe Brand" autocomplete="off"/>
+        <button type="button" class="input-clear" aria-label="Clear brand">&times;</button>
         <div id="brandSuggestions" class="suggestions"></div>
       </div>
 
       <div class="input-wrapper">
         <input id="model" type="text" placeholder="Enter Shoe Model" autocomplete="off"/>
+        <button type="button" class="input-clear" aria-label="Clear model">&times;</button>
         <div id="modelSuggestions" class="suggestions"></div>
       </div>
 
       <div class="button-wrapper">
-        <button id="fetchBtn" type="submit" class="search-btn"><span class="magnify-icon">🔍</span> Fetch!</button>
+        <button id="fetchBtn" type="submit" class="search-btn">Fetch!</button>
+      </div>
+
+      <div class="menu-wrapper">
+        <button id="menuBtn" type="button" class="menu-btn" aria-label="Menu">
+          <span class="menu-icon">☰</span>
+        </button>
+        <div id="menuDropdown" class="menu-dropdown">
+          <a href="/pages/myalerts.html">My Alerts</a>
+        </div>
       </div>
     </form>
 
@@ -465,6 +573,8 @@
     const modelSuggestions = document.getElementById("modelSuggestions");
     const logoLink = document.getElementById("logoLink");
     const footerYear = document.getElementById("footerYear");
+    const menuBtn = document.getElementById("menuBtn");
+    const menuDropdown = document.getElementById("menuDropdown");
 
     let currentSearch = { brand: "", model: "" };
 
@@ -477,8 +587,133 @@
       location.reload();
     });
 
+    // Menu dropdown toggle
+    menuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      menuDropdown.classList.toggle("show");
+    });
+
+    // Show dropdown on hover
+    menuBtn.addEventListener("mouseenter", () => {
+      menuDropdown.classList.add("show");
+    });
+
+    // Keep dropdown open when hovering over it
+    menuDropdown.addEventListener("mouseenter", () => {
+      menuDropdown.classList.add("show");
+    });
+
+    // Hide dropdown when leaving both button and dropdown
+    menuBtn.addEventListener("mouseleave", (e) => {
+      setTimeout(() => {
+        if (!menuDropdown.matches(':hover') && !menuBtn.matches(':hover')) {
+          menuDropdown.classList.remove("show");
+        }
+      }, 100);
+    });
+
+    menuDropdown.addEventListener("mouseleave", () => {
+      setTimeout(() => {
+        if (!menuDropdown.matches(':hover') && !menuBtn.matches(':hover')) {
+          menuDropdown.classList.remove("show");
+        }
+      }, 100);
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener("click", (e) => {
+      if (!menuBtn.contains(e.target) && !menuDropdown.contains(e.target)) {
+        menuDropdown.classList.remove("show");
+      }
+    });
+
+    // Clear button functionality for inputs
+    document.querySelectorAll('.input-clear').forEach((clearBtn, index) => {
+      clearBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const input = clearBtn.previousElementSibling;
+        if (input && input.tagName === 'INPUT') {
+          input.value = '';
+          input.focus();
+          updateFetchReady();
+          // Hide suggestions when clearing
+          if (index === 0) {
+            brandSuggestions.style.display = 'none';
+          } else {
+            modelSuggestions.style.display = 'none';
+          }
+        }
+      });
+    });
+
     function normalizeStr(s) { 
       return String(s || "").trim().toLowerCase(); 
+    }
+
+    // Sanitize user input to prevent injection attacks
+    function sanitizeInput(str) {
+      return String(str || "")
+        .replace(/[<>'"]/g, '')        // Remove dangerous HTML characters
+        .replace(/script/gi, '')        // Remove "script" (case insensitive)
+        .replace(/javascript:/gi, '')   // Remove javascript: protocol
+        .replace(/on\w+=/gi, '')        // Remove event handlers like onclick=
+        .trim()
+        .slice(0, 100);                 // Max 100 characters
+    }
+
+    // Whitelist of trusted retailer domains
+    const allowedRetailerDomains = [
+      'nike.com',
+      'amazon.com',
+      'zappos.com',
+      'runningwarehouse.com',
+      'dickssportinggoods.com',
+      'roadrunnersports.com',
+      'adidas.com',
+      'brooksrunning.com',
+      'hokaoneone.com',
+      'on-running.com',
+      'saucony.com',
+      'asics.com',
+      'newbalance.com',
+      'rei.com',
+      'backcountry.com',
+      'eastbay.com',
+      'footlocker.com',
+      'finishline.com',
+      'academy.com',
+      'runrepeat.com',
+      'altrarunning.com',
+      'mizunousa.com',
+      'topo-athletic.com',
+      'karhu.com',
+      'joesnewbalanceoutlet.com',
+      'fleetfeet.com',
+      'jackrabbit.com',
+      'shopify.com',        // Many running brands use Shopify
+      'bigcommerce.com',    // Some brands use BigCommerce
+    ];
+
+    // Validate URL is from a trusted retailer
+    function isValidRetailerUrl(url) {
+      if (!url || url === '#') return false;
+      
+      try {
+        const urlObj = new URL(url);
+        const hostname = urlObj.hostname.toLowerCase();
+        
+        // Remove 'www.' prefix for comparison
+        const cleanHostname = hostname.replace(/^www\./, '');
+        
+        // Check if hostname matches or ends with any allowed domain
+        return allowedRetailerDomains.some(domain => {
+          return cleanHostname === domain || cleanHostname.endsWith('.' + domain);
+        });
+      } catch (error) {
+        // Invalid URL format
+        console.warn('Invalid URL format:', url);
+        return false;
+      }
     }
 
     // Shared discount helper used by cards
@@ -609,6 +844,14 @@
 
     brandInput.addEventListener("input", () => {
       const typed = brandInput.value.trim();
+      
+      // Only show suggestions after 2 characters
+      if (typed.length < 2) {
+        brandSuggestions.style.display = "none";
+        updateFetchReady();
+        return;
+      }
+      
       const matches = filterStartsWith(brands, typed);
 
       showSuggestions(brandSuggestions, matches, (value) => {
@@ -628,6 +871,14 @@
     modelInput.addEventListener("input", () => {
       const brandKey = resolveBrand();
       const text = modelInput.value.trim();
+      
+      // Only show suggestions after 2 characters
+      if (text.length < 2) {
+        modelSuggestions.style.display = "none";
+        updateFetchReady();
+        return;
+      }
+      
       if (!brandKey || !brandModels[brandKey]) {
         modelSuggestions.style.display = "none";
         updateFetchReady();
@@ -665,7 +916,14 @@
 
       const link = document.createElement("a");
       link.className = "card-link";
-      link.href = item.url || "#";
+      
+      // Validate URL before using it - only allow trusted retailers
+      const safeUrl = isValidRetailerUrl(item.url) ? item.url : '#';
+      if (safeUrl === '#' && item.url) {
+        console.warn('Blocked untrusted retailer URL:', item.url);
+      }
+      
+      link.href = safeUrl;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
 
@@ -752,13 +1010,11 @@
     // Load daily deals from the FINAL merged blob (deals.json) and render as cards
 async function loadDailyDeals() {
   try {
-    const blobUrl = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json?cb=" + Date.now();
+    const res = await fetch("/api/daily-deals?cb=" + Date.now());
+const data = await res.json();
 
-    const res = await fetch(blobUrl);
-    const data = await res.json();
-
-    // deals.json shape: { totalDeals, deals: [...] }
-    const deals = (data && Array.isArray(data.deals)) ? data.deals : [];
+// daily-deals API should return { deals: [...] }
+const deals = Array.isArray(data.deals) ? data.deals : [];
 
     dailyDealsGrid.innerHTML = "";
 
@@ -767,12 +1023,11 @@ async function loadDailyDeals() {
       return;
     }
 
-    // Optional: show only first N cards on homepage
-    const daily = deals.slice(0, 24);
 
-    daily.forEach(item => {
-      dailyDealsGrid.appendChild(createDealCard(item));
-    });
+   deals.forEach(item => {
+  dailyDealsGrid.appendChild(createDealCard(item));
+});
+
 
     dailyDeals.style.display = "block";
     
@@ -809,8 +1064,9 @@ async function dailyDealCount() {
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      const brandTyped = brandInput.value.trim();
-      const modelTyped = modelInput.value.trim();
+      // Sanitize inputs before using them
+      const brandTyped = sanitizeInput(brandInput.value);
+      const modelTyped = sanitizeInput(modelInput.value);
 
       // Require at least one of brand/model
       if (!brandTyped && !modelTyped) {
