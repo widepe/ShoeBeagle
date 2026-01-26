@@ -300,57 +300,30 @@
       min-height: 1.1rem;
     }
 
-    /* Filter bubbles */
-    .filters{
-      width:100%;
-      max-width:650px;
-      display:flex;
-      flex-direction:column;
-      gap:0.5rem;
-      margin-top: 0.1rem;
-    }
+  /* Filter bubbles - horizontal layout */
+.filters{
+  width:100%;
+  max-width:650px;
+  display:flex;
+  flex-direction:row;           /* CHANGED from column */
+  align-items:center;
+  justify-content:center;
+  gap:1rem;                      /* CHANGED from 0.5rem */
+  margin-top: 0.1rem;
+  flex-wrap:wrap;
+}
 
-    .filter-row{
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:0.5rem;
-      flex-wrap:wrap;
-    }
-
-    .filter-label{
-      font-size:0.9rem;
-      color:#2d3c22;
-      font-weight:600;
-    }
-
-    .chip-group{
-      display:flex;
-      gap:0.4rem;
-      flex-wrap:wrap;
-      justify-content:center;
-    }
-
-    .chip{
-      border:1px solid #214478ff;
-      background:#ffffff;
-      color:#214478ff;
-      padding:0.25rem 0.6rem;
-      border-radius:999px;
-      font-size:0.85rem;
-      font-weight:700;
-      cursor:pointer;
-      transition: background 0.2s ease, color 0.2s ease, transform 0.05s ease;
-    }
-
-    .chip:hover{ background:#e8f0ff; }
-
-    .chip:active{ transform: translateY(1px); }
-
-    .chip.active{
-      background:#214478ff;
-      color:#ffffff;
-    }
+.chip{
+  border:1px solid #214478ff;
+  background:#ffffff;
+  color:#214478ff;
+  padding:0.2rem 0.5rem;         /* CHANGED: shorter */
+  border-radius:999px;
+  font-size:0.8rem;              /* CHANGED: smaller */
+  font-weight:600;               /* CHANGED: less bold */
+  cursor:pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.05s ease;
+}
 
     /* Daily Deals Section */
     .daily-deals {
@@ -1187,6 +1160,25 @@
         return;
       }
 
+// Show/hide gender filter row
+const genderRow = document.querySelector('#genderChips').closest('.filter-row');
+if (genderRow) {
+  genderRow.style.display = 'flex'; // Always show gender filter
+}
+
+// Show/hide shoe type filter row
+const typeRow = document.querySelector('#typeChips').closest('.filter-row');
+if (typeRow) {
+  if (hasBrand && !hasModel) {
+    // Brand-only search: show shoe type filter
+    typeRow.style.display = 'flex';
+  } else {
+    // Brand + Model OR Model-only: hide shoe type filter
+    typeRow.style.display = 'none';
+  }
+}
+
+      
       if (filtersEl) filtersEl.style.display = "flex";
       renderFilteredResults();
     });
