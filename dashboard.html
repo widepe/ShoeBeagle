@@ -60,9 +60,8 @@
 
     .deals-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 240px));
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
       gap: 16px;
-      justify-content: center;
     }
 
     .deal-card {
@@ -74,44 +73,75 @@
       color: inherit;
       display: flex;
       flex-direction: column;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .deal-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 6px 20px rgba(33, 68, 120, 0.3);
     }
 
     .deal-card img {
       width: 100%;
-      height: 150px;
+      height: 200px;
       object-fit: contain;
       background: white;
-      border-bottom: 1px solid rgba(0,0,0,0.08);
+      border-bottom: 2px solid #214478ff;
+      padding: 10px;
     }
 
     .deal-card-body {
-      padding: 10px 12px;
+      padding: 12px 14px;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
     }
 
     .deal-title {
       font-weight: 700;
-      font-size: 0.95rem;
-      margin-bottom: 6px;
-      line-height: 1.2;
+      font-size: 1rem;
+      margin-bottom: 8px;
+      line-height: 1.3;
+      color: #214478ff;
+      min-height: 2.6em;
     }
 
     .deal-meta {
       font-size: 0.85rem;
       color: #49543a;
       margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .deal-price-row {
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1px solid rgba(33, 68, 120, 0.2);
     }
 
     .deal-price {
       font-weight: 800;
       color: #214478ff;
+      font-size: 1.3rem;
     }
 
     .deal-orig {
       margin-left: 8px;
-      color: #777;
+      color: #999;
       text-decoration: line-through;
       font-weight: 600;
-      font-size: 0.9rem;
+      font-size: 1rem;
+    }
+
+    .deal-discount {
+      display: inline-block;
+      background: #dc3545;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      margin-top: 6px;
     }
 
     /* Logo at top with 6px buffer */
@@ -231,6 +261,29 @@
       font-weight: 600;
       position: sticky;
       top: 0;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s;
+    }
+
+    th:hover {
+      background: #1a3661;
+    }
+
+    th.sortable::after {
+      content: " ⇅";
+      opacity: 0.5;
+      font-size: 0.9em;
+    }
+
+    th.sorted-asc::after {
+      content: " ▲";
+      opacity: 1;
+    }
+
+    th.sorted-desc::after {
+      content: " ▼";
+      opacity: 1;
     }
 
     tr:hover { background: rgba(33, 68, 120, 0.05); }
@@ -527,6 +580,23 @@
     .scraped-url a:hover {
       text-decoration: underline;
     }
+
+    /* Data quality issue highlighting */
+    .issue-count {
+      font-weight: bold;
+    }
+
+    .issue-count.critical {
+      color: #dc3545;
+    }
+
+    .issue-count.warning {
+      color: #ff9800;
+    }
+
+    .issue-count.good {
+      color: #28a745;
+    }
   </style>
 </head>
 
@@ -628,7 +698,7 @@
         <div class="filter-row">
           <label for="storeSelect">Store:</label>
           <select id="storeSelect">
-            <option value="__all__">All Stores</option>
+            <option value="__none__">Select store or Close</option>
           </select>
           <div id="storeCount" style="color:#666;font-size:0.95rem;"></div>
         </div>
@@ -636,20 +706,24 @@
         <div class="deals-grid" id="storeDealsGrid"></div>
       </div>
 
-      <!-- Unknown Brands by Store -->
+      <!-- Data Quality by Store -->
       <div class="stores-table">
-        <h2>Unknown Brands by Store</h2>
-        <div class="note">Counts deals where <code>brand === "Unknown"</code> (includes missing/blank brands).</div>
+        <h2>📊 Data Quality by Store</h2>
+        <div class="note">Comprehensive data quality metrics for each store's scraped deals.</div>
         <table>
           <thead>
             <tr>
-              <th>Store Name</th>
-              <th>Unknown Brand Deals</th>
-              <th>Total Deals</th>
-              <th>% Unknown</th>
+              <th class="sortable" onclick="sortDataQuality('store')">Store Name</th>
+              <th class="sortable" onclick="sortDataQuality('totalDeals')">Total Deals</th>
+              <th class="sortable" onclick="sortDataQuality('unknownBrands')">Unknown Brands</th>
+              <th class="sortable" onclick="sortDataQuality('unknownModels')">Unknown Models</th>
+              <th class="sortable" onclick="sortDataQuality('noPrice')">No Price</th>
+              <th class="sortable" onclick="sortDataQuality('noSalePrice')">No Sale Price</th>
+              <th class="sortable" onclick="sortDataQuality('badImage')">Bad/Missing Image</th>
+              <th class="sortable" onclick="sortDataQuality('badUrl')">Bad/Missing URL</th>
             </tr>
           </thead>
-          <tbody id="unknownBrandsTableBody"></tbody>
+          <tbody id="dataQualityTableBody"></tbody>
         </table>
       </div>
 
@@ -659,10 +733,10 @@
         <table>
           <thead>
             <tr>
-              <th>Store Name</th>
-              <th>Total Deals</th>
-              <th>Avg Discount %</th>
-              <th>Avg $ Savings</th>
+              <th class="sortable" onclick="sortStoreTable('name')">Store Name</th>
+              <th class="sortable" onclick="sortStoreTable('count')">Total Deals</th>
+              <th class="sortable" onclick="sortStoreTable('avgDiscount')">Avg Discount %</th>
+              <th class="sortable" onclick="sortStoreTable('avgSavings')">Avg $ Savings</th>
               <th>Best Deal</th>
             </tr>
           </thead>
@@ -713,9 +787,14 @@
       'Saucony': 'https://www.saucony.com/en/sale/',
       'Shoebacca': 'https://www.shoebacca.com/collections/clearance-athletic',
       'Sports Basement': 'https://shop.sportsbasement.com/collections/mens-running-shoes',
-      'The Clymb': 'https://www.theclymb.com'
+      'The Clymb': 'https://www.theclymb.com',
       'Zappos': 'https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso',
     };
+
+    let ALL_DEALS = [];
+    let STORE_DATA = null;
+    let CURRENT_STORE_SORT = { column: 'count', direction: 'desc' };
+    let CURRENT_DATA_QUALITY_SORT = { column: 'totalDeals', direction: 'desc' };
 
     async function loadStats() {
       const loading = document.getElementById('loading');
@@ -732,7 +811,6 @@
       try {
         const cacheBuster = Date.now();
         
-        // Fetch both the deals blob AND the merge endpoint metadata
         const [dealsResponse, mergeResponse] = await Promise.all([
           fetch(`https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json?t=${cacheBuster}`, {
             cache: "no-store"
@@ -754,7 +832,6 @@
         buildStoreDropdown(deals);
         renderDealsForSelectedStore();
         
-        // Debug summary - NOW INCLUDES BLOB URLS
         const unknownBrands = deals.filter(d => (d.brand || '').trim() === 'Unknown' || !(d.brand || '').trim()).length;
         const uniqueBrands = [...new Set(deals.map(d => (d.brand || 'Unknown').trim()))]
           .filter(b => b && b !== 'Unknown')
@@ -768,7 +845,6 @@
           <strong>Shoe brands found (${uniqueBrands.length}):</strong> ${uniqueBrands.join(', ')}<br><br>
         `;
 
-        // Add blob URLs to debug section
         if (mergeData && mergeData.storeMetadata) {
           debugHTML += `<strong>Scraper Blob URLs:</strong><br>`;
           Object.entries(mergeData.storeMetadata).forEach(([scraperName, meta]) => {
@@ -784,7 +860,9 @@
         debugInfo.style.display = 'block';
 
         const stats = calculateStats(deals);
+        STORE_DATA = stats.stores;
         displayStats(stats);
+        displayDataQuality(deals);
         displayHealthStatus(deals, stats, mergeData);
 
         loading.style.display = 'none';
@@ -809,7 +887,6 @@
       };
 
       deals.forEach(deal => {
-        // UPDATED: Use new field names
         const salePrice = Number(deal.salePrice) || 0;
         const price = Number(deal.price) || 0;
 
@@ -820,7 +897,6 @@
         const dollarSavings = price > salePrice ? price - salePrice : 0;
         const percentOff = price > salePrice ? ((price - salePrice) / price) * 100 : 0;
 
-        // Store stats
         if (!stats.stores[store]) {
           stats.stores[store] = {
             count: 0,
@@ -834,14 +910,12 @@
         stats.stores[store].totalSavings += dollarSavings;
         stats.stores[store].deals.push(deal);
 
-        // Unknown brand by store tracking
         if (!stats.unknownByStore[store]) {
           stats.unknownByStore[store] = { unknownCount: 0, total: 0 };
         }
         stats.unknownByStore[store].total++;
         if (brand === 'Unknown') stats.unknownByStore[store].unknownCount++;
 
-        // Brand stats
         if (!stats.brands[brand]) {
           stats.brands[brand] = {
             count: 0,
@@ -917,14 +991,12 @@
         );
       }
 
-      displayUnknownBrandsByStore(stats.unknownByStore);
       displayStoreTable(stats.stores);
       displayBrandTable(stats.brands);
       displayPriceDistribution(stats.prices);
     }
 
     function formatTopDeal(deal, highlight) {
-      // UPDATED: Use new field names
       const salePrice = Number(deal.salePrice) || 0;
       const price = Number(deal.price) || 0;
       return `
@@ -938,6 +1010,216 @@
       `;
     }
 
+    function displayDataQuality(deals) {
+      const tbody = document.getElementById('dataQualityTableBody');
+      if (!tbody) return;
+
+      const storeQuality = {};
+
+      deals.forEach(deal => {
+        const store = (deal.store || 'Unknown').trim() || 'Unknown';
+        
+        if (!storeQuality[store]) {
+          storeQuality[store] = {
+            totalDeals: 0,
+            unknownBrands: 0,
+            unknownModels: 0,
+            noPrice: 0,
+            noSalePrice: 0,
+            badImage: 0,
+            badUrl: 0
+          };
+        }
+
+        storeQuality[store].totalDeals++;
+
+        // Check for unknown/missing brand
+        const brand = (deal.brand || '').trim();
+        if (!brand || brand === 'Unknown') {
+          storeQuality[store].unknownBrands++;
+        }
+
+        // Check for unknown/missing model
+        const model = (deal.model || '').trim();
+        if (!model) {
+          storeQuality[store].unknownModels++;
+        }
+
+        // Check for missing price
+        const price = Number(deal.price);
+        if (!price || price === 0) {
+          storeQuality[store].noPrice++;
+        }
+
+        // Check for missing sale price
+        const salePrice = Number(deal.salePrice);
+        if (!salePrice || salePrice === 0) {
+          storeQuality[store].noSalePrice++;
+        }
+
+        // Check for bad/missing image
+        if (!deal.image || deal.image.includes('placehold.co') || deal.image.trim() === '') {
+          storeQuality[store].badImage++;
+        }
+
+        // Check for bad/missing URL
+        if (!deal.url || deal.url === '#' || deal.url.trim() === '') {
+          storeQuality[store].badUrl++;
+        }
+      });
+
+      renderDataQualityTable(storeQuality);
+    }
+
+    function renderDataQualityTable(storeQuality) {
+      const tbody = document.getElementById('dataQualityTableBody');
+      if (!tbody) return;
+
+      const entries = Object.entries(storeQuality).map(([store, data]) => ({
+        store,
+        ...data
+      }));
+
+      sortDataQualityArray(entries, CURRENT_DATA_QUALITY_SORT.column, CURRENT_DATA_QUALITY_SORT.direction);
+
+      // Update header classes
+      document.querySelectorAll('#dataQualityTableBody').forEach(table => {
+        const headerRow = table.closest('table').querySelector('thead tr');
+        if (headerRow) {
+          headerRow.querySelectorAll('th').forEach(th => {
+            th.classList.remove('sorted-asc', 'sorted-desc');
+          });
+        }
+      });
+
+      tbody.innerHTML = entries.map(row => {
+        const getIssueClass = (count, total) => {
+          const percent = (count / total) * 100;
+          if (count === 0) return 'good';
+          if (percent > 20) return 'critical';
+          if (percent > 5) return 'warning';
+          return '';
+        };
+
+        return `
+          <tr>
+            <td><strong>${row.store}</strong></td>
+            <td>${row.totalDeals.toLocaleString()}</td>
+            <td><span class="issue-count ${getIssueClass(row.unknownBrands, row.totalDeals)}">${row.unknownBrands}</span></td>
+            <td><span class="issue-count ${getIssueClass(row.unknownModels, row.totalDeals)}">${row.unknownModels}</span></td>
+            <td><span class="issue-count ${getIssueClass(row.noPrice, row.totalDeals)}">${row.noPrice}</span></td>
+            <td><span class="issue-count ${getIssueClass(row.noSalePrice, row.totalDeals)}">${row.noSalePrice}</span></td>
+            <td><span class="issue-count ${getIssueClass(row.badImage, row.totalDeals)}">${row.badImage}</span></td>
+            <td><span class="issue-count ${getIssueClass(row.badUrl, row.totalDeals)}">${row.badUrl}</span></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function sortDataQuality(column) {
+      if (CURRENT_DATA_QUALITY_SORT.column === column) {
+        CURRENT_DATA_QUALITY_SORT.direction = CURRENT_DATA_QUALITY_SORT.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        CURRENT_DATA_QUALITY_SORT.column = column;
+        CURRENT_DATA_QUALITY_SORT.direction = 'desc';
+      }
+      displayDataQuality(ALL_DEALS);
+    }
+
+    function sortDataQualityArray(arr, column, direction) {
+      arr.sort((a, b) => {
+        let aVal, bVal;
+
+        switch(column) {
+          case 'store':
+            aVal = a.store.toLowerCase();
+            bVal = b.store.toLowerCase();
+            return direction === 'asc' 
+              ? aVal.localeCompare(bVal)
+              : bVal.localeCompare(aVal);
+          default:
+            aVal = a[column] || 0;
+            bVal = b[column] || 0;
+            return direction === 'asc' ? aVal - bVal : bVal - aVal;
+        }
+      });
+    }
+
+    function sortStoreTable(column) {
+      if (CURRENT_STORE_SORT.column === column) {
+        CURRENT_STORE_SORT.direction = CURRENT_STORE_SORT.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        CURRENT_STORE_SORT.column = column;
+        CURRENT_STORE_SORT.direction = column === 'name' ? 'asc' : 'desc';
+      }
+      displayStoreTable(STORE_DATA);
+    }
+
+    function displayStoreTable(stores) {
+      const tbody = document.getElementById('storesTableBody');
+      if (!tbody) return;
+
+      let sorted = Object.entries(stores).map(([name, data]) => {
+        const avgDiscount = data.count > 0 ? (data.totalDiscount / data.count) : 0;
+        const avgSavings = data.count > 0 ? (data.totalSavings / data.count) : 0;
+
+        const bestDeal = data.deals
+          .map(d => {
+            const price = Number(d.price) || 0;
+            const salePrice = Number(d.salePrice) || 0;
+            const pct = (price > salePrice && price > 0) ? ((price - salePrice) / price) * 100 : 0;
+            return { deal: d, pct };
+          })
+          .sort((a, b) => b.pct - a.pct)[0];
+
+        return { name, data, avgDiscount, avgSavings, bestDeal };
+      });
+
+      // Sort based on current settings
+      sorted.sort((a, b) => {
+        let comparison = 0;
+        switch(CURRENT_STORE_SORT.column) {
+          case 'name':
+            comparison = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+            break;
+          case 'count':
+            comparison = a.data.count - b.data.count;
+            break;
+          case 'avgDiscount':
+            comparison = a.avgDiscount - b.avgDiscount;
+            break;
+          case 'avgSavings':
+            comparison = a.avgSavings - b.avgSavings;
+            break;
+        }
+        return CURRENT_STORE_SORT.direction === 'asc' ? comparison : -comparison;
+      });
+
+      // Update header classes
+      document.querySelectorAll('.stores-table th').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+      });
+      const headers = document.querySelectorAll('.stores-table th');
+      const columnMap = { name: 0, count: 1, avgDiscount: 2, avgSavings: 3 };
+      if (columnMap[CURRENT_STORE_SORT.column] !== undefined) {
+        headers[columnMap[CURRENT_STORE_SORT.column]].classList.add(
+          CURRENT_STORE_SORT.direction === 'asc' ? 'sorted-asc' : 'sorted-desc'
+        );
+      }
+
+      const html = sorted.map(({ name, data, avgDiscount, avgSavings, bestDeal }) => `
+        <tr>
+          <td><strong>${name}</strong></td>
+          <td>${data.count}</td>
+          <td>${avgDiscount.toFixed(1)}%</td>
+          <td>$${avgSavings.toFixed(2)}</td>
+          <td>${bestDeal ? `${bestDeal.deal.brand || 'Unknown'} ${(bestDeal.deal.model || '')} (${bestDeal.pct.toFixed(0)}% off)` : '-'}</td>
+        </tr>
+      `).join('');
+
+      tbody.innerHTML = html;
+    }
+
     function displayHealthStatus(deals, stats, mergeData) {
       const healthPanel = document.getElementById('healthPanel');
       const healthGrid = document.getElementById('healthGrid');
@@ -947,7 +1229,6 @@
 
       const storeMetadata = mergeData?.storeMetadata || {};
       
-      // FIXED: Map store names to scraper names
       const storeToScraperName = {
         'ASICS': 'ASICS Sale',
         'Brooks Running': 'Brooks Sale',
@@ -959,7 +1240,6 @@
       let warningCount = 0;
       let criticalCount = 0;
 
-      // Analyze each store
       Object.entries(stats.stores).forEach(([storeName, storeData]) => {
         const health = {
           store: storeName,
@@ -970,7 +1250,6 @@
           scrapedUrl: SCRAPER_URLS[storeName] || null
         };
 
-        // FIXED: Find metadata by mapping store name to scraper name
         if (storeToScraperName[storeName]) {
           const scraperNames = Array.isArray(storeToScraperName[storeName]) 
             ? storeToScraperName[storeName] 
@@ -986,7 +1265,6 @@
               ? timestamps.sort().reverse()[0] 
               : null;
             
-            // Combine durations if multiple scrapers
             const durations = scraperMetas.map(m => m.duration).filter(Boolean);
             const combinedDuration = durations.length > 0 ? durations.join(', ') : null;
             
@@ -997,7 +1275,6 @@
             };
           }
         } else {
-          // All other stores use "Other (scrape-daily)"
           const otherMeta = storeMetadata['Other (scrape-daily)'];
           if (otherMeta) {
             health.metadata = {
@@ -1044,7 +1321,6 @@
           if (health.status !== 'critical') health.status = 'warning';
         }
 
-        // UPDATED: Use salePrice instead of price
         const missingPrices = storeDeals.filter(d => !d.salePrice || Number(d.salePrice) === 0).length;
         if (missingPrices > 0) {
           health.issues.push({ type: 'warning', message: `⚠️ ${missingPrices} Missing Prices` });
@@ -1142,69 +1418,6 @@
       healthPanel.style.display = 'block';
     }
 
-    function displayUnknownBrandsByStore(unknownByStore) {
-      const tbody = document.getElementById('unknownBrandsTableBody');
-
-      const rows = Object.entries(unknownByStore)
-        .map(([store, obj]) => {
-          const pct = obj.total > 0 ? (obj.unknownCount / obj.total) * 100 : 0;
-          return { store, unknown: obj.unknownCount, total: obj.total, pct };
-        })
-        .filter(r => r.unknown > 0)
-        .sort((a, b) => b.unknown - a.unknown);
-
-      if (rows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4">No Unknown brands found 🎉</td></tr>`;
-        return;
-      }
-
-      tbody.innerHTML = rows.map(r => `
-        <tr>
-          <td><strong>${r.store}</strong></td>
-          <td>${r.unknown.toLocaleString()}</td>
-          <td>${r.total.toLocaleString()}</td>
-          <td>${r.pct.toFixed(1)}%</td>
-        </tr>
-      `).join('');
-    }
-
-    function displayStoreTable(stores) {
-      const sorted = Object.entries(stores).sort((a, b) => b[1].count - a[1].count);
-
-      if (sorted.length === 0) {
-        document.getElementById('storesTableBody').innerHTML =
-          '<tr><td colspan="5">No store data available</td></tr>';
-        return;
-      }
-
-      const html = sorted.map(([name, data]) => {
-        const avgDiscount = data.count > 0 ? (data.totalDiscount / data.count).toFixed(1) : '0';
-        const avgSavings = data.count > 0 ? (data.totalSavings / data.count).toFixed(2) : '0';
-
-        const bestDeal = data.deals
-          .map(d => {
-            // UPDATED: Use new field names
-            const price = Number(d.price) || 0;
-            const salePrice = Number(d.salePrice) || 0;
-            const pct = (price > salePrice && price > 0) ? ((price - salePrice) / price) * 100 : 0;
-            return { deal: d, pct };
-          })
-          .sort((a, b) => b.pct - a.pct)[0];
-
-        return `
-          <tr>
-            <td><strong>${name}</strong></td>
-            <td>${data.count}</td>
-            <td>${avgDiscount}%</td>
-            <td>$${avgSavings}</td>
-            <td>${bestDeal ? `${bestDeal.deal.brand || 'Unknown'} ${(bestDeal.deal.model || '')} (${bestDeal.pct.toFixed(0)}% off)` : '-'}</td>
-          </tr>
-        `;
-      }).join('');
-
-      document.getElementById('storesTableBody').innerHTML = html;
-    }
-
     function displayBrandTable(brands) {
       const sorted = Object.entries(brands)
         .sort((a, b) => b[1].count - a[1].count)
@@ -1266,8 +1479,6 @@
       document.getElementById('priceChart').innerHTML = html;
     }
 
-    let ALL_DEALS = [];
-
     function formatMoney(n) {
       const x = Number(n);
       return Number.isFinite(x) ? `$${x.toFixed(2)}` : "—";
@@ -1315,13 +1526,12 @@
         }
       }
 
-      const SHOW_MAX = 200;
+      const SHOW_MAX = 500;
       const toShow = filtered.slice(0, SHOW_MAX);
 
       grid.innerHTML = "";
 
       if (chosen === "__none__") {
-        // Don't show any message when "Select store or Close" is chosen
         return;
       }
 
@@ -1358,10 +1568,12 @@
         meta.textContent = d.store || "";
         body.appendChild(meta);
 
-        // UPDATED: Use new field names
         const priceRow = document.createElement("div");
-        priceRow.className = "deal-price";
-        priceRow.textContent = formatMoney(d.salePrice);
+        priceRow.className = "deal-price-row";
+
+        const priceSpan = document.createElement("div");
+        priceSpan.className = "deal-price";
+        priceSpan.textContent = formatMoney(d.salePrice);
 
         const price = Number(d.price);
         const salePrice = Number(d.salePrice);
@@ -1369,7 +1581,16 @@
           const origSpan = document.createElement("span");
           origSpan.className = "deal-orig";
           origSpan.textContent = formatMoney(price);
-          priceRow.appendChild(origSpan);
+          priceSpan.appendChild(origSpan);
+
+          const discountPercent = ((price - salePrice) / price) * 100;
+          const discountBadge = document.createElement("div");
+          discountBadge.className = "deal-discount";
+          discountBadge.textContent = `-${discountPercent.toFixed(0)}%`;
+          priceRow.appendChild(priceSpan);
+          priceRow.appendChild(discountBadge);
+        } else {
+          priceRow.appendChild(priceSpan);
         }
 
         body.appendChild(priceRow);
