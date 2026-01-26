@@ -88,14 +88,21 @@
       transition: all 0.3s ease;
       background: #f4ede3ff;
       width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    #devicePreview > * {
+      width: 100%;
     }
 
     #devicePreview.mobile {
       max-width: 375px;
       width: 375px;
       min-height: 667px;
-      background: white;
-      box-shadow: 0 0 20px rgba(0,0,0,0.2);
+      background: transparent;
+      border: 2px solid #333;
+      box-sizing: border-box;
     }
 
     #devicePreview.mobile.landscape {
@@ -108,8 +115,9 @@
       max-width: 768px;
       width: 768px;
       min-height: 1024px;
-      background: white;
-      box-shadow: 0 0 20px rgba(0,0,0,0.2);
+      background: transparent;
+      border: 2px solid #333;
+      box-sizing: border-box;
     }
 
     #devicePreview.tablet.landscape {
@@ -122,7 +130,7 @@
       max-width: 100%;
       width: 100%;
       background: #f4ede3ff;
-      box-shadow: none;
+      border: none;
     }
 
     /* Override for testing mode */
@@ -132,23 +140,31 @@
     
     /* Make sure grids respect container width */
     #devicePreview.mobile .app {
-      max-width: 375px !important;
+      max-width: 100% !important;
+      width: 100%;
       padding: 10px;
+      box-sizing: border-box;
     }
 
     #devicePreview.mobile.landscape .app {
-      max-width: 667px !important;
+      max-width: 100% !important;
+      width: 100%;
       padding: 10px;
+      box-sizing: border-box;
     }
     
     #devicePreview.tablet .app {
-      max-width: 768px !important;
+      max-width: 100% !important;
+      width: 100%;
       padding: 15px;
+      box-sizing: border-box;
     }
 
     #devicePreview.tablet.landscape .app {
-      max-width: 1024px !important;
+      max-width: 100% !important;
+      width: 100%;
       padding: 15px;
+      box-sizing: border-box;
     }
     /* ======================================================================== */
 
@@ -195,8 +211,16 @@
       color: #2d2d2d;
       display: flex;
       justify-content: center;
+      align-items: flex-start;
       padding: 6px 1rem;
       min-height: 100vh;
+    }
+
+    /* Wrapper to keep content centered */
+    #devicePreview {
+      width: 100%;
+      display: flex;
+      justify-content: center;
     }
 
     .app {
@@ -579,6 +603,7 @@
     #devicePreview.mobile .shoe-grid {
       grid-template-columns: 1fr !important;
       max-width: 100%;
+      gap: 1rem;
     }
     
     #devicePreview.mobile .shoe-grid .card {
@@ -586,24 +611,39 @@
     }
 
     #devicePreview.mobile.landscape .shoe-grid {
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+      grid-template-columns: repeat(2, 1fr) !important;
       max-width: 100%;
+      gap: 1rem;
     }
 
     #devicePreview.mobile.landscape .shoe-grid .card {
-      max-width: 240px;
+      max-width: 100%;
     }
 
     #devicePreview.tablet .shoe-grid {
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+      grid-template-columns: repeat(2, 1fr) !important;
+      gap: 1rem;
+    }
+
+    #devicePreview.tablet .shoe-grid .card {
+      max-width: 100%;
     }
 
     #devicePreview.tablet.landscape .shoe-grid {
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+      grid-template-columns: repeat(3, 1fr) !important;
+      gap: 1rem;
+    }
+
+    #devicePreview.tablet.landscape .shoe-grid .card {
+      max-width: 100%;
     }
 
     #devicePreview.desktop .shoe-grid {
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+    }
+
+    #devicePreview.desktop .shoe-grid .card {
+      max-width: 240px;
     }
 
     @media (max-width: 480px) {
