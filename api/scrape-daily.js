@@ -169,7 +169,7 @@ function detectGender(url, title) {
   // Check URL patterns first (most reliable)
   if (/\/mens?[\/-]|\/men\/|men-/.test(urlLower)) return "mens";
   if (/\/womens?[\/-]|\/women\/|women-/.test(urlLower)) return "womens";
-  
+
   // Check title/text patterns
   if (/\b(men'?s?|male)\b/i.test(combined)) return "mens";
   if (/\b(women'?s?|female|ladies)\b/i.test(combined)) return "womens";
@@ -183,7 +183,11 @@ function detectShoeType(title, model) {
   const combined = ((title || "") + " " + (model || "")).toLowerCase();
 
   // Trail indicators
-  if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross|ultra|summit)\b/i.test(combined)) {
+  if (
+    /\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross|ultra|summit)\b/i.test(
+      combined
+    )
+  ) {
     return "trail";
   }
 
@@ -192,13 +196,16 @@ function detectShoeType(title, model) {
     return "track";
   }
 
-  // Road is default for running shoes (most common)
-  // Models like: Kayano, Clifton, Ghost, Pegasus, etc.
-  if (/\b(road|kayano|clifton|ghost|pegasus|nimbus|cumulus|gel|glycerin|kinvara|ride|triumph|novablast)\b/i.test(combined)) {
+  // Road indicators
+  if (
+    /\b(road|kayano|clifton|ghost|pegasus|nimbus|cumulus|gel|glycerin|kinvara|ride|triumph|novablast)\b/i.test(
+      combined
+    )
+  ) {
     return "road";
   }
 
-  // Default to road for running shoes (conservative assumption)
+  // Default
   return "road";
 }
 
@@ -357,6 +364,38 @@ function randomDelay(min = 3000, max = 5000) {
 
 /** -------------------- Apify fetchers -------------------- **/
 
+function toFiniteNumber(x) {
+  if (x == null) return null;
+  const n = typeof x === "string" ? parseFloat(String(x).replace(/[^0-9.]/g, "")) : x;
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Normalizes Apify price fields across versions.
+ *
+ * Supports:
+ * - NEW schema: { salePrice, price } where price = MSRP/list
+ * - OLD schema: { price, originalPrice } where price = current/sale and originalPrice = MSRP
+ *
+ * Returns:
+ *   { salePrice: number|null, price: number|null }
+ */
+function normalizeApifyPrices(item) {
+  const newSale = toFiniteNumber(item?.salePrice);
+  const newOrig = toFiniteNumber(item?.price);
+
+  // If actor is already on new schema, use it
+  if (newSale != null || newOrig != null) {
+    return { salePrice: newSale, price: newOrig };
+  }
+
+  // Otherwise fall back to old schema
+  const oldSale = toFiniteNumber(item?.price);
+  const oldOrig = toFiniteNumber(item?.originalPrice);
+
+  return { salePrice: oldSale, price: oldOrig };
+}
+
 async function fetchActorDatasetItems(actorId, storeName) {
   if (!actorId) throw new Error(`Actor ID missing for ${storeName}`);
 
@@ -367,7 +406,10 @@ async function fetchActorDatasetItems(actorId, storeName) {
   const limit = 500;
 
   while (true) {
-    const { items, total } = await apifyClient.dataset(run.defaultDatasetId).listItems({ offset, limit });
+    const { items, total } = await apifyClient.dataset(run.defaultDatasetId).listItems({
+      offset,
+      limit,
+    });
     allItems.push(...items);
     offset += items.length;
     if (offset >= total || items.length === 0) break;
@@ -385,42 +427,71 @@ async function fetchRoadRunnerDeals() {
   if (!process.env.APIFY_ROADRUNNER_ACTOR_ID) {
     throw new Error("APIFY_ROADRUNNER_ACTOR_ID is not set");
   }
-  const items = await fetchActorDatasetItems(process.env.APIFY_ROADRUNNER_ACTOR_ID, "Road Runner Sports");
-  
-  // FIXED: Transform from OLD Apify schema (price/originalPrice) to NEW schema (salePrice/price)
-  return items.map((item) => ({
-    title: item.title || "Running Shoe",
-    brand: item.brand || "Unknown",
-    model: item.model || "",
-    salePrice: item.price ?? null,           // Apify outputs "price" (current/sale price)
-    price: item.originalPrice ?? null,       // Apify outputs "originalPrice" (MSRP)
-    store: item.store || "Road Runner Sports",
-    url: item.url || "#",
-    image: item.image ?? null,
-    gender: item.gender || detectGender(item.url, item.title),
-    shoeType: item.shoeType || detectShoeType(item.title, item.model),
-  }));
+
+  const items = await fetchActorDatasetItems(
+    process.env.APIFY_ROADRUNNER_ACTOR_ID,
+    "Road Runner Sports"
+  );
+
+  const deals = items.map((item) => {
+    const { salePrice, price } = normalizeApifyPrices(item);
+
+    return {
+      title: item.title || "Running Shoe",
+      brand: item.brand || "Unknown",
+      model: item.model || "",
+      salePrice,
+      price,
+      store: item.store || "Road Runner Sports",
+      url: item.url || "#",
+      image: item.image ?? null,
+      gender: item.gender || detectGender(item.url, item.title),
+      shoeType: item.shoeType || detectShoeType(item.title, item.model),
+    };
+  });
+
+  console.log(
+    "[APIFY] Road Runner MSRP present:",
+    deals.filter((d) => d.price != null).length,
+    "/",
+    deals.length
+  );
+
+  return deals;
 }
 
 async function fetchZapposDeals() {
   if (!process.env.APIFY_ZAPPOS_ACTOR_ID) {
     throw new Error("APIFY_ZAPPOS_ACTOR_ID is not set");
   }
+
   const items = await fetchActorDatasetItems(process.env.APIFY_ZAPPOS_ACTOR_ID, "Zappos");
-  
-  // FIXED: Transform from OLD Apify schema (price/originalPrice) to NEW schema (salePrice/price)
-  return items.map((item) => ({
-    title: item.title || "Running Shoe",
-    brand: item.brand || "Unknown",
-    model: item.model || "",
-    salePrice: item.price ?? null,           // Apify outputs "price" (current/sale price)
-    price: item.originalPrice ?? null,       // Apify outputs "originalPrice" (MSRP)
-    store: item.store || "Zappos",
-    url: item.url || "#",
-    image: item.image ?? null,
-    gender: item.gender || detectGender(item.url, item.title),
-    shoeType: item.shoeType || detectShoeType(item.title, item.model),
-  }));
+
+  const deals = items.map((item) => {
+    const { salePrice, price } = normalizeApifyPrices(item);
+
+    return {
+      title: item.title || "Running Shoe",
+      brand: item.brand || "Unknown",
+      model: item.model || "",
+      salePrice,
+      price,
+      store: item.store || "Zappos",
+      url: item.url || "#",
+      image: item.image ?? null,
+      gender: item.gender || detectGender(item.url, item.title),
+      shoeType: item.shoeType || detectShoeType(item.title, item.model),
+    };
+  });
+
+  console.log(
+    "[APIFY] Zappos MSRP present:",
+    deals.filter((d) => d.price != null).length,
+    "/",
+    deals.length
+  );
+
+  return deals;
 }
 
 async function fetchReiDeals() {
@@ -432,18 +503,19 @@ async function fetchReiDeals() {
 
   const items = await fetchActorDatasetItems(process.env.APIFY_REI_ACTOR_ID, "REI Outlet");
 
-  // FIXED: Transform from OLD Apify schema (price/originalPrice) to NEW schema (salePrice/price)
-  return items.map((item) => {
+  const deals = items.map((item) => {
     const brand = item.brand || "Unknown";
     const model = item.model || "";
     const title = item.title || `${brand} ${model}`.trim() || "REI Outlet Shoe";
+
+    const { salePrice, price } = normalizeApifyPrices(item);
 
     return {
       title,
       brand,
       model,
-      salePrice: item.price ?? null,           // Apify outputs "price" (current/sale price)
-      price: item.originalPrice ?? null,       // Apify outputs "originalPrice" (MSRP)
+      salePrice,
+      price,
       store: item.store || "REI Outlet",
       url: item.url || "#",
       image: item.image ?? null,
@@ -451,6 +523,15 @@ async function fetchReiDeals() {
       shoeType: item.shoeType || detectShoeType(title, model),
     };
   });
+
+  console.log(
+    "[APIFY] REI MSRP present:",
+    deals.filter((d) => d.price != null).length,
+    "/",
+    deals.length
+  );
+
+  return deals;
 }
 
 /** -------------------- Site scrapers (non-Holabird) -------------------- **/
@@ -774,24 +855,24 @@ module.exports = async (req, res) => {
       const scraperStart = Date.now();
       const rwDeals = await scrapeRunningWarehouse();
       const scrapeDuration = Date.now() - scraperStart;
-      
+
       allDeals.push(...rwDeals);
-      scraperResults["Running Warehouse"] = { 
-        success: true, 
+      scraperResults["Running Warehouse"] = {
+        success: true,
         totalDeals: rwDeals.length,
         scraper: "cheerio",
         scrapeDuration: scrapeDuration,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
       console.log(`[SCRAPER] Running Warehouse: ${rwDeals.length} deals in ${scrapeDuration}ms`);
     } catch (error) {
-      scraperResults["Running Warehouse"] = { 
-        success: false, 
+      scraperResults["Running Warehouse"] = {
+        success: false,
         error: error.message,
         totalDeals: 0,
         scraper: "cheerio",
         scrapeDuration: 0,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
       console.error("[SCRAPER] Running Warehouse failed:", error.message);
     }
@@ -802,24 +883,24 @@ module.exports = async (req, res) => {
       const scraperStart = Date.now();
       const fleetFeetDeals = await scrapeFleetFeet();
       const scrapeDuration = Date.now() - scraperStart;
-      
+
       allDeals.push(...fleetFeetDeals);
-      scraperResults["Fleet Feet"] = { 
-        success: true, 
+      scraperResults["Fleet Feet"] = {
+        success: true,
         totalDeals: fleetFeetDeals.length,
         scraper: "cheerio",
         scrapeDuration: scrapeDuration,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
       console.log(`[SCRAPER] Fleet Feet: ${fleetFeetDeals.length} deals in ${scrapeDuration}ms`);
     } catch (error) {
-      scraperResults["Fleet Feet"] = { 
-        success: false, 
+      scraperResults["Fleet Feet"] = {
+        success: false,
         error: error.message,
         totalDeals: 0,
         scraper: "cheerio",
         scrapeDuration: 0,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
       console.error("[SCRAPER] Fleet Feet failed:", error.message);
     }
@@ -830,24 +911,24 @@ module.exports = async (req, res) => {
       const scraperStart = Date.now();
       const lukesDeals = await scrapeLukesLocker();
       const scrapeDuration = Date.now() - scraperStart;
-      
+
       allDeals.push(...lukesDeals);
-      scraperResults["Luke's Locker"] = { 
-        success: true, 
+      scraperResults["Luke's Locker"] = {
+        success: true,
         totalDeals: lukesDeals.length,
         scraper: "cheerio",
         scrapeDuration: scrapeDuration,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
       console.log(`[SCRAPER] Luke's Locker: ${lukesDeals.length} deals in ${scrapeDuration}ms`);
     } catch (error) {
-      scraperResults["Luke's Locker"] = { 
-        success: false, 
+      scraperResults["Luke's Locker"] = {
+        success: false,
         error: error.message,
         totalDeals: 0,
         scraper: "cheerio",
         scrapeDuration: 0,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
       console.error("[SCRAPER] Luke's Locker failed:", error.message);
     }
@@ -858,24 +939,24 @@ module.exports = async (req, res) => {
       const scraperStart = Date.now();
       const marathonDeals = await scrapeMarathonSports();
       const scrapeDuration = Date.now() - scraperStart;
-      
+
       allDeals.push(...marathonDeals);
-      scraperResults["Marathon Sports"] = { 
-        success: true, 
+      scraperResults["Marathon Sports"] = {
+        success: true,
         totalDeals: marathonDeals.length,
         scraper: "cheerio",
         scrapeDuration: scrapeDuration,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
       console.log(`[SCRAPER] Marathon Sports: ${marathonDeals.length} deals in ${scrapeDuration}ms`);
     } catch (error) {
-      scraperResults["Marathon Sports"] = { 
-        success: false, 
+      scraperResults["Marathon Sports"] = {
+        success: false,
         error: error.message,
         totalDeals: 0,
         scraper: "cheerio",
         scrapeDuration: 0,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
       console.error("[SCRAPER] Marathon Sports failed:", error.message);
     }
@@ -886,24 +967,24 @@ module.exports = async (req, res) => {
       const scraperStart = Date.now();
       const rrDeals = await fetchRoadRunnerDeals();
       const scrapeDuration = Date.now() - scraperStart;
-      
+
       allDeals.push(...rrDeals);
-      scraperResults["Road Runner Sports"] = { 
-        success: true, 
+      scraperResults["Road Runner Sports"] = {
+        success: true,
         totalDeals: rrDeals.length,
         scraper: "apify",
         scrapeDuration: scrapeDuration,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
       console.log(`[SCRAPER] Road Runner Sports: ${rrDeals.length} deals in ${scrapeDuration}ms`);
     } catch (error) {
-      scraperResults["Road Runner Sports"] = { 
-        success: false, 
+      scraperResults["Road Runner Sports"] = {
+        success: false,
         error: error.message,
         totalDeals: 0,
         scraper: "apify",
         scrapeDuration: 0,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
       console.error("[SCRAPER] Road Runner Sports failed:", error.message);
     }
@@ -914,24 +995,24 @@ module.exports = async (req, res) => {
       const scraperStart = Date.now();
       const reiDeals = await fetchReiDeals();
       const scrapeDuration = Date.now() - scraperStart;
-      
+
       allDeals.push(...reiDeals);
-      scraperResults["REI Outlet"] = { 
-        success: true, 
+      scraperResults["REI Outlet"] = {
+        success: true,
         totalDeals: reiDeals.length,
         scraper: "apify",
         scrapeDuration: scrapeDuration,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
       console.log(`[SCRAPER] REI Outlet: ${reiDeals.length} deals in ${scrapeDuration}ms`);
     } catch (error) {
-      scraperResults["REI Outlet"] = { 
-        success: false, 
+      scraperResults["REI Outlet"] = {
+        success: false,
         error: error.message,
         totalDeals: 0,
         scraper: "apify",
         scrapeDuration: 0,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
       console.error("[SCRAPER] REI Outlet failed:", error.message);
     }
@@ -942,24 +1023,24 @@ module.exports = async (req, res) => {
       const scraperStart = Date.now();
       const zapposDeals = await fetchZapposDeals();
       const scrapeDuration = Date.now() - scraperStart;
-      
+
       allDeals.push(...zapposDeals);
-      scraperResults["Zappos"] = { 
-        success: true, 
+      scraperResults["Zappos"] = {
+        success: true,
         totalDeals: zapposDeals.length,
         scraper: "apify",
         scrapeDuration: scrapeDuration,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
       console.log(`[SCRAPER] Zappos: ${zapposDeals.length} deals in ${scrapeDuration}ms`);
     } catch (error) {
-      scraperResults["Zappos"] = { 
-        success: false, 
+      scraperResults["Zappos"] = {
+        success: false,
         error: error.message,
         totalDeals: 0,
         scraper: "apify",
         scrapeDuration: 0,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
       console.error("[SCRAPER] Zappos failed:", error.message);
     }
