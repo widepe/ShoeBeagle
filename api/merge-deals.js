@@ -1,8 +1,11 @@
 // /api/merge-deals.js
-// Merges: (1) your daily deals scraper output + (2) the 3 Holabird scraper outputs + (3) Brooks sale scraper + (4) ASICS sale scraper
-// Writes the final canonical blob: deals.json
-// ALSO writes a small precomputed blob: stats.json (Phase 1 quick win)
-// - stats.json is overwritten each run (addRandomSuffix: false)
+//
+// Merges: (1) scrape-daily output + (2) Holabird outputs + (3) Brooks sale + (4) ASICS sale (+ others you add)
+// Writes the canonical blob: deals.json (overwritten each run; addRandomSuffix: false)
+//
+// After deals are merged:
+// 1) stats are computed and stored in stats.json (small, fast dashboard payload)
+// 2) daily deals are calculated and stored for the day in twelve_daily_deals.json (12 picks)
 //
 // Env vars (recommended):
 //   OTHER_DEALS_BLOB_URL
@@ -11,6 +14,7 @@
 //   HOLABIRD_TRAIL_UNISEX_BLOB_URL
 //   BROOKS_SALE_BLOB_URL
 //   ASICS_SALE_BLOB_URL
+//   SHOEBACCA_CLEARANCE_BLOB_URL
 //
 // Optional fallback (if you do NOT set blob URLs):
 //   Calls scraper endpoints directly:
@@ -20,6 +24,7 @@
 //     /api/scrapers/holabird-trail-unisex
 //     /api/scrapers/brooks-sale
 //     /api/scrapers/asics-sale
+//     /api/scrapers/shoebacca-clearance
 
 const axios = require("axios");
 const { put } = require("@vercel/blob");
@@ -54,7 +59,7 @@ function toNumber(x) {
   return Number.isFinite(n) ? n : null;
 }
 
-// UPDATED: Use salePrice and price (not price and originalPrice)
+// UPDATED: Use salePrice and price
 function computeDiscountPercent(d) {
   const sale = toNumber(d?.salePrice);
   const orig = toNumber(d?.price);
@@ -128,6 +133,7 @@ function storeBaseUrl(store) {
   if (s.includes("rei")) return "https://www.rei.com";
   if (s.includes("zappos")) return "https://www.zappos.com";
   if (s.includes("road runner")) return "https://www.roadrunnersports.com";
+  if (s.includes("shoebacca")) return "https://www.shoebacca.com";
 
   return "https://example.com";
 }
@@ -286,7 +292,7 @@ async function loadDealsFromBlobOrEndpoint({ name, blobUrl, endpointUrl }) {
     deals: [],
     blobUrl: null,
     timestamp: null,
-    duration: null
+    duration: null,
   };
 
   if (blobUrl) {
@@ -326,7 +332,6 @@ async function loadDealsFromBlobOrEndpoint({ name, blobUrl, endpointUrl }) {
 
 /** ------------ Stats (Phase 1 quick win) ------------ **/
 
-// UPDATED: Use salePrice (not price)
 function bucketLabel(salePrice) {
   if (!Number.isFinite(salePrice)) return null;
   if (salePrice < 50) return "$0-50";
@@ -337,7 +342,6 @@ function bucketLabel(salePrice) {
   return "$150+";
 }
 
-// UPDATED: Use salePrice and price
 function dealSummary(deal) {
   if (!deal) return null;
   const salePrice = toNumber(deal.salePrice);
@@ -361,43 +365,22 @@ function dealSummary(deal) {
   };
 }
 
-/**
- * computeStats(deals, storeMetadata)
- *
- * What it does (and why it helps):
- * - Precomputes the "dashboard math" on the server (once per merge run)
- *   so your dashboard.html can load fast by fetching a small stats.json.
- *
- * Produces:
- * - Global totals: totalDeals, totalStores, totalBrands
- * - Average discount across discounted deals
- * - Top deal cards: highest % off, biggest $ savings, lowest price, best value
- * - Store rollups: deal counts, avg discount, avg $ savings, unknown brand %
- * - Brand rollups: top brands by count + price range
- * - Price histogram buckets
- * - Basic store health checks (unknown brands, missing images/urls/models/prices)
- * - Also includes scraper-level metadata (blob urls, timestamps, durations) from merge sources
- */
 function computeStats(deals, storeMetadata) {
   const nowIso = new Date().toISOString();
 
-  // Global
   const stores = Object.create(null);
   const brands = Object.create(null);
   const uniqueStoreSet = new Set();
   const uniqueBrandSet = new Set();
 
-  // Discount aggregation
   let discountCount = 0;
   let discountSum = 0;
 
-  // Candidates for top deals
-  let topPercent = null; // {deal, percentOff}
-  let topDollar = null;  // {deal, dollarSavings}
-  let lowestPrice = null;// {deal, salePrice}
-  let bestValue = null;  // {deal, valueScore}
+  let topPercent = null;
+  let topDollar = null;
+  let lowestPrice = null;
+  let bestValue = null;
 
-  // Price buckets
   const priceBuckets = {
     "$0-50": 0,
     "$50-75": 0,
@@ -407,14 +390,12 @@ function computeStats(deals, storeMetadata) {
     "$150+": 0,
   };
 
-  // One pass over deals
   for (const d of safeArray(deals)) {
     const store = (d.store || "Unknown").trim() || "Unknown";
     const brandRaw = (d.brand || "").trim();
     const brand = brandRaw ? brandRaw : "Unknown";
 
     const salePrice = toNumber(d.salePrice);
-    const price = toNumber(d.price);
 
     uniqueStoreSet.add(store);
     uniqueBrandSet.add(brand);
@@ -437,7 +418,6 @@ function computeStats(deals, storeMetadata) {
     const s = stores[store];
     s.count += 1;
 
-    // Basic health signals
     const brandIsUnknown = brand === "Unknown" || !brandRaw;
     if (brandIsUnknown) s.unknownBrandCount += 1;
 
@@ -452,7 +432,6 @@ function computeStats(deals, storeMetadata) {
 
     if (!Number.isFinite(salePrice) || salePrice <= 0) s.missingPriceCount += 1;
 
-    // Store rollups (discount/savings)
     const percentOff = computeDiscountPercent(d);
     const dollarSavings = computeDollarSavings(d);
 
@@ -464,34 +443,22 @@ function computeStats(deals, storeMetadata) {
       discountSum += percentOff;
       discountCount += 1;
 
-      // Top percent off
-      if (!topPercent || percentOff > topPercent.percentOff) {
-        topPercent = { deal: d, percentOff };
-      }
-      // Top dollar savings
-      if (!topDollar || dollarSavings > topDollar.dollarSavings) {
-        topDollar = { deal: d, dollarSavings };
-      }
-      // Lowest salePrice among discounted deals
+      if (!topPercent || percentOff > topPercent.percentOff) topPercent = { deal: d, percentOff };
+      if (!topDollar || dollarSavings > topDollar.dollarSavings) topDollar = { deal: d, dollarSavings };
+
       if (Number.isFinite(salePrice)) {
-        if (!lowestPrice || salePrice < lowestPrice.salePrice) {
-          lowestPrice = { deal: d, salePrice };
-        }
+        if (!lowestPrice || salePrice < lowestPrice.salePrice) lowestPrice = { deal: d, salePrice };
       }
-      // Best value: percentOff + (dollarSavings * 0.5)
+
       const valueScore = percentOff + (dollarSavings * 0.5);
-      if (!bestValue || valueScore > bestValue.valueScore) {
-        bestValue = { deal: d, valueScore };
-      }
+      if (!bestValue || valueScore > bestValue.valueScore) bestValue = { deal: d, valueScore };
     }
 
-    // Price buckets (only valid salePrices)
     if (Number.isFinite(salePrice) && salePrice > 0) {
       const label = bucketLabel(salePrice);
       if (label) priceBuckets[label] += 1;
     }
 
-    // Brand rollups
     if (!brands[brand]) {
       brands[brand] = {
         brand,
@@ -514,19 +481,16 @@ function computeStats(deals, storeMetadata) {
     }
   }
 
-  // Finalize brand price ranges
   for (const b of Object.values(brands)) {
     if (!Number.isFinite(b.minPrice)) b.minPrice = 0;
   }
 
-  // Store table array
   const storesTable = Object.values(stores)
     .map((s) => {
       const avgDiscount = s.discountCount ? s.discountSum / s.discountCount : 0;
       const avgSavings = s.discountCount ? s.savingsSum / s.discountCount : 0;
       const unknownPct = s.count ? (s.unknownBrandCount / s.count) * 100 : 0;
 
-      // Health classification (store-level)
       let status = "healthy";
       const issues = [];
 
@@ -582,7 +546,6 @@ function computeStats(deals, storeMetadata) {
     })
     .sort((a, b) => b.count - a.count);
 
-  // Brand top list (exclude Unknown by default)
   const brandsTop = Object.values(brands)
     .filter((b) => b.brand && b.brand !== "Unknown")
     .map((b) => ({
@@ -595,13 +558,11 @@ function computeStats(deals, storeMetadata) {
     .sort((a, b) => b.count - a.count)
     .slice(0, 25);
 
-  // Unknown-by-store table format (what your dashboard already shows)
   const unknownByStore = storesTable.reduce((acc, s) => {
     acc[s.store] = { unknownCount: s.unknownBrandCount, total: s.count, pct: s.unknownBrandPct };
     return acc;
   }, {});
 
-  // Health summary counts
   let healthyCount = 0, warningCount = 0, criticalCount = 0;
   for (const s of storesTable) {
     if (s.health.status === "healthy") healthyCount++;
@@ -615,13 +576,11 @@ function computeStats(deals, storeMetadata) {
     version: 1,
     generatedAt: nowIso,
 
-    // Global metrics
     totalDeals: safeArray(deals).length,
     totalStores: uniqueStoreSet.size,
     totalBrands: uniqueBrandSet.size,
     avgDiscount,
 
-    // Top deal "cards" (ready for dashboard rendering)
     topDeals: {
       topPercent: topPercent ? dealSummary(topPercent.deal) : null,
       topDollar: topDollar ? dealSummary(topDollar.deal) : null,
@@ -629,13 +588,11 @@ function computeStats(deals, storeMetadata) {
       bestValue: bestValue ? dealSummary(bestValue.deal) : null,
     },
 
-    // Tables / charts
     storesTable,
     brandsTop,
     unknownByStore,
     priceBuckets,
 
-    // Store-level health (derived from the merged deals)
     health: {
       summary: { healthy: healthyCount, warning: warningCount, critical: criticalCount },
       stores: storesTable.map((s) => ({
@@ -647,9 +604,160 @@ function computeStats(deals, storeMetadata) {
       })),
     },
 
-    // Scraper-level metadata (comes from your merge sources; useful for "last scraped" timestamps)
     scraperMetadata: storeMetadata || {},
   };
+}
+
+/** ------------ Daily Deals (computed at merge time) ------------ **/
+
+function seededRandom(seed) {
+  const x = Math.sin(seed++) * 10000;
+  return x - Math.floor(x);
+}
+
+function getDateSeedStringUTC() {
+  return new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
+}
+
+function seedFromString(str) {
+  let seed = 0;
+  for (let i = 0; i < str.length; i++) seed += str.charCodeAt(i);
+  return seed;
+}
+
+function getRandomSample(array, count, seedBaseStr) {
+  if (!array || array.length === 0) return [];
+  const dateStr = seedBaseStr || getDateSeedStringUTC();
+  const seedBase = seedFromString(dateStr);
+
+  const copy = [...array];
+  const picked = [];
+  const n = Math.min(count, copy.length);
+
+  for (let i = 0; i < n; i++) {
+    const rng = seededRandom(seedBase + i);
+    const idx = Math.floor(rng * copy.length);
+    picked.push(copy[idx]);
+    copy.splice(idx, 1);
+  }
+  return picked;
+}
+
+function parseMoney(value) {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    const num = parseFloat(cleaned);
+    return Number.isFinite(num) ? num : 0;
+  }
+  return 0;
+}
+
+function hasGoodImage(deal) {
+  return (
+    deal &&
+    deal.image &&
+    typeof deal.image === "string" &&
+    deal.image.trim() &&
+    !deal.image.includes("no-image") &&
+    !deal.image.includes("placeholder") &&
+    !deal.image.includes("placehold.co")
+  );
+}
+
+function isDiscountedDeal(deal) {
+  const salePrice = parseMoney(deal.salePrice);
+  const price = parseMoney(deal.price);
+  return Number.isFinite(salePrice) && Number.isFinite(price) && price > salePrice;
+}
+
+function discountPercent(deal) {
+  const sale = parseMoney(deal.salePrice);
+  const orig = parseMoney(deal.price);
+  if (!orig || orig <= 0 || sale >= orig) return 0;
+  return ((orig - sale) / orig) * 100;
+}
+
+function dollarSavings(deal) {
+  const sale = parseMoney(deal.salePrice);
+  const orig = parseMoney(deal.price);
+  if (!orig || orig <= 0 || sale >= orig) return 0;
+  return orig - sale;
+}
+
+function shuffleWithDateSeed(items, seedStr) {
+  const dateStr = seedStr || getDateSeedStringUTC();
+  let shuffleSeed = 999;
+  for (let i = 0; i < dateStr.length; i++) {
+    shuffleSeed += dateStr.charCodeAt(i) * 7;
+  }
+
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const rng = seededRandom(shuffleSeed + i);
+    const j = Math.floor(rng * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function toDailyDealShape(deal) {
+  const salePrice = parseMoney(deal.salePrice);
+  const price = parseMoney(deal.price);
+
+  return {
+    title: deal.title || "Running Shoe Deal",
+    brand: deal.brand || "",
+    model: deal.model || "",
+    salePrice: Number.isFinite(salePrice) ? salePrice : 0,
+    price: Number.isFinite(price) ? price : null,
+    store: deal.store || "Store",
+    url: deal.url || "#",
+    image: deal.image || "",
+    gender: deal.gender || "unknown",
+    shoeType: deal.shoeType || "unknown",
+  };
+}
+
+function computeTwelveDailyDeals(allDeals, seedStr) {
+  const dateStr = seedStr || getDateSeedStringUTC();
+
+  const qualityDeals = (allDeals || []).filter(
+    (d) => hasGoodImage(d) && isDiscountedDeal(d) && d.price && d.salePrice
+  );
+
+  const workingPool =
+    qualityDeals.length >= 12 ? qualityDeals : (allDeals || []).filter(hasGoodImage);
+
+  if (!workingPool.length) return [];
+
+  if (workingPool.length < 12) {
+    const picked = getRandomSample(workingPool, workingPool.length, dateStr);
+    return shuffleWithDateSeed(picked, dateStr).map(toDailyDealShape);
+  }
+
+  const top20ByPercent = [...workingPool]
+    .sort((a, b) => discountPercent(b) - discountPercent(a))
+    .slice(0, Math.min(20, workingPool.length));
+
+  const byPercent = getRandomSample(top20ByPercent, Math.min(4, top20ByPercent.length), dateStr);
+  const pickedUrls = new Set(byPercent.map((d) => d.url).filter(Boolean));
+
+  const top20ByDollar = [...workingPool]
+    .filter((d) => !pickedUrls.has(d.url))
+    .sort((a, b) => dollarSavings(b) - dollarSavings(a))
+    .slice(0, 20);
+
+  const byDollar = getRandomSample(top20ByDollar, Math.min(4, top20ByDollar.length), dateStr);
+  byDollar.forEach((d) => pickedUrls.add(d.url));
+
+  const remaining = workingPool.filter((d) => !pickedUrls.has(d.url));
+  const randomPicks = getRandomSample(remaining, Math.min(4, remaining.length), dateStr);
+
+  const selectedRaw = [...byPercent, ...byDollar, ...randomPicks];
+  const shuffled = shuffleWithDateSeed(selectedRaw, dateStr);
+
+  return shuffled.map(toDailyDealShape);
 }
 
 /** ------------ Handler ------------ **/
@@ -677,7 +785,7 @@ module.exports = async (req, res) => {
   const BROOKS_SALE_BLOB_URL = process.env.BROOKS_SALE_BLOB_URL || "";
   const ASICS_SALE_BLOB_URL = process.env.ASICS_SALE_BLOB_URL || "";
   const SHOEBACCA_CLEARANCE_BLOB_URL = process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "";
-  
+
   // ============================================================================
   // ENDPOINT FALLBACKS (only used if blob URLs are missing)
   // ============================================================================
@@ -688,7 +796,7 @@ module.exports = async (req, res) => {
   const BROOKS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/brooks-sale`;
   const ASICS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/asics-sale`;
   const SHOEBACCA_CLEARANCE_ENDPOINT = `${baseUrl}/api/scrapers/shoebacca-clearance`;
-  
+
   try {
     console.log("[MERGE] Starting merge:", new Date().toISOString());
     console.log("[MERGE] Base URL:", baseUrl);
@@ -729,13 +837,9 @@ module.exports = async (req, res) => {
         blobUrl: SHOEBACCA_CLEARANCE_BLOB_URL || null,
         endpointUrl: SHOEBACCA_CLEARANCE_BLOB_URL ? null : SHOEBACCA_CLEARANCE_ENDPOINT,
       },
-
-      
     ];
 
-    const settled = await Promise.allSettled(
-      sources.map((s) => loadDealsFromBlobOrEndpoint(s))
-    );
+    const settled = await Promise.allSettled(sources.map((s) => loadDealsFromBlobOrEndpoint(s)));
 
     const perSource = {};
     const storeMetadata = {};
@@ -767,20 +871,20 @@ module.exports = async (req, res) => {
     console.log("[MERGE] Source counts:", perSource);
     console.log("[MERGE] Total raw deals:", allDealsRaw.length);
 
-    // 1) Normalize + sanitize (theme-change resistant)
+    // 1) Normalize + sanitize
     const normalized = allDealsRaw.map(normalizeDeal).filter(Boolean);
 
     // 2) Filter (running shoes only, strict discount requirements)
     const filtered = normalized.filter(isValidRunningShoe);
 
-    // 3) Dedupe across ALL sources (including Brooks + ASICS)
+    // 3) Dedupe across ALL sources
     const unique = dedupeDeals(filtered);
 
     // 4) Shuffle then sort by discount %
     unique.sort(() => Math.random() - 0.5);
     unique.sort((a, b) => computeDiscountPercent(b) - computeDiscountPercent(a));
 
-    // 5) dealsByStore (kept in deals.json for backward compatibility)
+    // 5) dealsByStore
     const dealsByStore = {};
     for (const d of unique) {
       const s = d.store || "Unknown";
@@ -796,13 +900,22 @@ module.exports = async (req, res) => {
       deals: unique,
     };
 
-    // 7) Compute small dashboard stats and write stats.json (Phase 1)
+    // 7) Compute stats and write stats.json (small dashboard payload)
     const stats = computeStats(unique, storeMetadata);
-    // Mirror the same timestamp so dashboard can show a single "last updated"
     stats.lastUpdated = output.lastUpdated;
 
-    // 8) Write blobs (overwrite each run)
-    const [dealsBlob, statsBlob] = await Promise.all([
+    // 8) Compute daily deals (12 picks) and write blobs (overwrite each run)
+    const dailySeedUTC = getDateSeedStringUTC();
+    const twelveDailyDeals = computeTwelveDailyDeals(unique, dailySeedUTC);
+
+    const dailyDealsPayload = {
+      lastUpdated: output.lastUpdated,
+      daySeedUTC: dailySeedUTC,
+      total: twelveDailyDeals.length,
+      deals: twelveDailyDeals,
+    };
+
+    const [dealsBlob, statsBlob, dailyDealsBlob] = await Promise.all([
       put("deals.json", JSON.stringify(output, null, 2), {
         access: "public",
         addRandomSuffix: false,
@@ -811,21 +924,29 @@ module.exports = async (req, res) => {
         access: "public",
         addRandomSuffix: false,
       }),
+      put("twelve_daily_deals.json", JSON.stringify(dailyDealsPayload, null, 2), {
+        access: "public",
+        addRandomSuffix: false,
+      }),
     ]);
 
     const durationMs = Date.now() - start;
     console.log("[MERGE] Saved deals.json:", dealsBlob.url);
     console.log("[MERGE] Saved stats.json:", statsBlob.url);
-    console.log(`[MERGE] Complete in ${durationMs}ms; totalDeals=${unique.length}`);
+    console.log("[MERGE] Saved twelve_daily_deals.json:", dailyDealsBlob.url);
+    console.log(
+      `[MERGE] Complete in ${durationMs}ms; totalDeals=${unique.length}; dailyDeals=${twelveDailyDeals.length}`
+    );
 
     return res.status(200).json({
       success: true,
       totalDeals: unique.length,
       dealsByStore,
       scraperResults: perSource,
-      storeMetadata, // scraper-level metadata
+      storeMetadata,
       blobUrl: dealsBlob.url,
       statsBlobUrl: statsBlob.url,
+      dailyDealsBlobUrl: dailyDealsBlob.url,
       duration: `${durationMs}ms`,
       timestamp: output.lastUpdated,
     });
