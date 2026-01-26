@@ -172,7 +172,13 @@
     .card { position: relative; }
 
     /* Wrap the image so we can pin the badge to it */
-    .card-image-wrapper { position: relative; width: 100%; }
+    .card-image-wrapper { 
+      position: relative; 
+      width: 40%;       /* image column */
+      max-width: 45%;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
 
     /* Discount badge in corner of image */
     .discount-badge {
@@ -660,7 +666,8 @@
       }
       
       body:not(.testing-mode) .shoe-grid .card {
-        max-width: 100%;
+        width: 100%;
+        aspect-ratio: auto; /* let content define height */
       }
     }
 
@@ -678,25 +685,19 @@
 
     .card-link {
       display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
+      flex-direction: row; /* image left, text right */
+      gap: 0.6rem;
       text-decoration: none;
       color: inherit;
       height: 100%;
       flex: 1;
-    }
-
-    .card-image-wrapper {
-      width: 100%;
-      overflow: hidden;
-      position: relative;
-      flex-shrink: 0;
+      align-items: flex-start;
     }
 
     .card img {
       width: 100%;
       height: auto;
-      aspect-ratio: 1 / 1;  /* Square image area */
+      aspect-ratio: 4 / 3;  /* 4 wide, 3 tall */
       border-radius: 0.6rem;
       object-fit: contain;
       background: white;
@@ -710,16 +711,12 @@
       gap: 0.3rem;
       flex: 1;
       min-height: 0;  /* Allow shrinking */
+      min-width: 0;
     }
 
     .card-title {
       font-size: 0.92rem;
       font-weight: 600;
-      display: -webkit-box;
-      -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      text-overflow: ellipsis;
       line-height: 1.2;
       flex-shrink: 0;
     }
@@ -752,23 +749,23 @@
       
       body:not(.testing-mode) .shoe-grid .card {
         width: 100%;
-        aspect-ratio: 3 / 4;  /* Maintain proportion on mobile */
+        aspect-ratio: auto;
       }
 
       .card-link {
-        flex-direction: column;  /* Keep vertical on mobile */
-        gap: 0.4rem;
+        flex-direction: row;  /* keep side-by-side on mobile single column */
+        gap: 0.6rem;
       }
 
       .card-image-wrapper {
-        width: 100%;
-        height: auto;
+        width: 40%;
+        max-width: 45%;
       }
 
       .card img {
         width: 100%;
         height: auto;
-        aspect-ratio: 1 / 1;
+        aspect-ratio: 4 / 3;
         object-fit: contain;
       }
 
@@ -787,11 +784,6 @@
       .card-content {
         justify-content: flex-start;
         min-width: 0;
-      }
-
-      .card-title {
-        -webkit-line-clamp: 2;
-        line-height: 1.2;
       }
     }
 
@@ -1380,7 +1372,7 @@
         imgWrapper.appendChild(badge);
       }
 
-      /* -------- NEW: gender + shoeType tags on bottom of image -------- */
+      /* -------- gender + shoeType tags on bottom of image -------- */
       const g = normalizeEnum(item.gender);
       const t = normalizeEnum(item.shoeType);
 
@@ -1422,10 +1414,19 @@
       const brand = (item.brand || "").trim();
       const model = (item.model || "").trim();
 
-      titleDiv.textContent =
-        (brand || model)
-          ? [brand, model].filter(Boolean).join(" ")
-          : (item.title || "Deal");
+      if (brand || model) {
+        const brandLine = document.createElement("div");
+        brandLine.textContent = brand.toUpperCase();
+        titleDiv.appendChild(brandLine);
+
+        if (model) {
+          const modelLine = document.createElement("div");
+          modelLine.textContent = model;
+          titleDiv.appendChild(modelLine);
+        }
+      } else {
+        titleDiv.textContent = item.title || "Deal";
+      }
 
       contentDiv.appendChild(titleDiv);
 
