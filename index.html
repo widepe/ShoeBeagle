@@ -978,7 +978,7 @@
         const itemGender = normalizeEnum(item.gender);
         const itemType = normalizeEnum(item.shoeType);
 
-        const genderOk = !g || itemGender === g;
+        const genderOk = !g || itemGender === g || itemGender === "unisex";
         const typeOk = !t || itemType === t;
 
         return genderOk && typeOk;
