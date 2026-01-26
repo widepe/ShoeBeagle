@@ -127,7 +127,7 @@
       padding: 0 0.75rem;
       border-radius: 0.5rem;
       border: 1px solid #214478ff;
-      background: #fafdf4;
+      background: #fafdf4; /* INPUT BACKGROUND */
       font-size: 1rem;
       box-sizing: border-box;
       transition: border-color 0.2s ease, background-color 0.2s ease;
@@ -300,30 +300,74 @@
       min-height: 1.1rem;
     }
 
-  /* Filter bubbles - horizontal layout */
-.filters{
-  width:100%;
-  max-width:650px;
-  display:flex;
-  flex-direction:row;           /* CHANGED from column */
-  align-items:center;
-  justify-content:center;
-  gap:1rem;                      /* CHANGED from 0.5rem */
-  margin-top: 0.1rem;
-  flex-wrap:wrap;
-}
+    /* -------------------------------
+       FILTERS / CHIPS (FIXED)
+       - Adds missing layout classes
+       - Adds .chip.active styling
+       - Sets chip background to match inputs (#fafdf4)
+    -------------------------------- */
 
-.chip{
-  border:1px solid #214478ff;
-  background:#ffffff;
-  color:#214478ff;
-  padding:0.2rem 0.5rem;         /* CHANGED: shorter */
-  border-radius:999px;
-  font-size:0.8rem;              /* CHANGED: smaller */
-  font-weight:600;               /* CHANGED: less bold */
-  cursor:pointer;
-  transition: background 0.2s ease, color 0.2s ease, transform 0.05s ease;
-}
+    /* Filter bubbles - horizontal layout */
+    .filters{
+      width:100%;
+      max-width:650px;
+      display:flex;
+      flex-direction:row;
+      align-items:center;
+      justify-content:center;
+      gap:1rem;
+      margin-top: 0.1rem;
+      flex-wrap:wrap;
+    }
+
+    .filter-row{
+      display:flex;
+      align-items:center;
+      gap:0.5rem;
+      flex-wrap:wrap;
+    }
+
+    .filter-label{
+      font-size:0.9rem;
+      font-weight:700;
+      color:#214478ff;
+      white-space:nowrap;
+    }
+
+    .chip-group{
+      display:flex;
+      align-items:center;
+      gap:0.4rem;
+      flex-wrap:wrap;
+    }
+
+    .chip{
+      border:1px solid #214478ff;
+      background:#fafdf4;          /* MATCH INPUT BACKGROUND */
+      color:#214478ff;
+      padding:0.2rem 0.5rem;
+      border-radius:999px;
+      font-size:0.8rem;
+      font-weight:600;
+      cursor:pointer;
+      transition: background 0.2s ease, color 0.2s ease, transform 0.05s ease, box-shadow 0.2s ease;
+      line-height: 1.2;
+    }
+
+    .chip:hover{
+      background:#e8f0ff;
+    }
+
+    /* THIS is what makes "All" darkened and selected state visible */
+    .chip.active{
+      background:#214478ff;
+      color:#ffffff;
+      box-shadow: 0 2px 6px rgba(33, 68, 120, 0.25);
+    }
+
+    .chip:active{
+      transform: scale(0.98);
+    }
 
     /* Daily Deals Section */
     .daily-deals {
@@ -683,37 +727,37 @@
 
     // Whitelist of trusted retailer domains
     const allowedRetailerDomains = [
-  'academy.com',
-  'adidas.com',
-  'altrarunning.com',
-  'amazon.com',
-  'asics.com',
-  'backcountry.com',
-  'bigcommerce.com',
-  'brooksrunning.com',
-  'dickssportinggoods.com',
-  'eastbay.com',
-  'finishline.com',
-  'fleetfeet.com',
-  'hokaoneone.com',
-  'holabird.com',
-  'jackrabbit.com',
-  'joesnewbalanceoutlet.com',
-  'karhu.com',
-  'lukeslocker.com',
-  'marathonsports.com',
-  'mizunousa.com',
-  'newbalance.com',
-  'nike.com',
-  'on-running.com',
-  'rei.com',
-  'roadrunnersports.com',
-  'runrepeat.com',
-  'saucony.com',
-  'shoebacca.com',
-  'shopify.com',
-  'topo-athletic.com',
-  'zappos.com',
+      'academy.com',
+      'adidas.com',
+      'altrarunning.com',
+      'amazon.com',
+      'asics.com',
+      'backcountry.com',
+      'bigcommerce.com',
+      'brooksrunning.com',
+      'dickssportinggoods.com',
+      'eastbay.com',
+      'finishline.com',
+      'fleetfeet.com',
+      'hokaoneone.com',
+      'holabird.com',
+      'jackrabbit.com',
+      'joesnewbalanceoutlet.com',
+      'karhu.com',
+      'lukeslocker.com',
+      'marathonsports.com',
+      'mizunousa.com',
+      'newbalance.com',
+      'nike.com',
+      'on-running.com',
+      'rei.com',
+      'roadrunnersports.com',
+      'runrepeat.com',
+      'saucony.com',
+      'shoebacca.com',
+      'shopify.com',
+      'topo-athletic.com',
+      'zappos.com',
     ];
 
     // Validate URL is from a trusted retailer
@@ -1162,26 +1206,24 @@
         return;
       }
 
-// Show/hide gender filter row (always show)
-const genderRow = genderChips ? genderChips.closest(".filter-row") : null;
-if (genderRow) genderRow.style.display = "flex";
+      // Show/hide gender filter row (always show)
+      const genderRow = genderChips ? genderChips.closest(".filter-row") : null;
+      if (genderRow) genderRow.style.display = "flex";
 
-// Show/hide shoe type filter row (ONLY on brand-only searches)
-const typeRow = typeChips ? typeChips.closest(".filter-row") : null;
+      // Show/hide shoe type filter row (ONLY on brand-only searches)
+      const typeRow = typeChips ? typeChips.closest(".filter-row") : null;
 
-const hasBrand = !!brandTyped.trim();
-const hasModel = !!modelTyped.trim();
+      const hasBrand = !!brandTyped.trim();
+      const hasModel = !!modelTyped.trim();
 
-if (typeRow) {
-  if (hasBrand && !hasModel) {
-    typeRow.style.display = "flex";   // brand-only search
-  } else {
-    typeRow.style.display = "none";   // brand+model OR model-only
-  }
-}
+      if (typeRow) {
+        if (hasBrand && !hasModel) {
+          typeRow.style.display = "flex";   // brand-only search
+        } else {
+          typeRow.style.display = "none";   // brand+model OR model-only
+        }
+      }
 
-
-      
       if (filtersEl) filtersEl.style.display = "flex";
       renderFilteredResults();
     });
