@@ -41,9 +41,7 @@
       transition: opacity 0.2s ease;
     }
 
-    .brand-logo:hover {
-      opacity: 0.9;
-    }
+    .brand-logo:hover { opacity: 0.9; }
 
     /* Create Alert Section */
     .create-alert-section {
@@ -65,9 +63,7 @@
       margin: 0 0 1rem;
     }
 
-    .form-group {
-      margin-bottom: 1rem;
-    }
+    .form-group { margin-bottom: 1rem; }
 
     .form-label {
       display: block;
@@ -77,10 +73,7 @@
       margin-bottom: 0.4rem;
     }
 
-    .input-wrapper {
-      position: relative;
-      width: 100%;
-    }
+    .input-wrapper { position: relative; width: 100%; }
 
     input[type="text"],
     input[type="email"],
@@ -123,13 +116,9 @@
       z-index: 20;
     }
 
-    .input-clear:hover {
-      background: #666;
-    }
+    .input-clear:hover { background: #666; }
 
-    .input-wrapper:has(input:not(:placeholder-shown)) .input-clear {
-      display: flex;
-    }
+    .input-wrapper:has(input:not(:placeholder-shown)) .input-clear { display: flex; }
 
     .suggestions {
       position: absolute;
@@ -156,9 +145,7 @@
     }
 
     .suggestion-item:hover,
-    .suggestion-item.active {
-      background: #e8f0ff;
-    }
+    .suggestion-item.active { background: #e8f0ff; }
 
     .gender-selector {
       display: flex;
@@ -202,10 +189,7 @@
       font-weight: 500;
     }
 
-    .price-input-wrapper input {
-      padding-left: 2rem;
-      text-align: right;
-    }
+    .price-input-wrapper input { padding-left: 2rem; text-align: right; }
 
     .submit-btn {
       width: 100%;
@@ -221,9 +205,7 @@
       margin-top: 0.5rem;
     }
 
-    .submit-btn:hover {
-      background: #1a3661;
-    }
+    .submit-btn:hover { background: #1a3661; }
 
     .submit-btn:disabled {
       background: #ccc;
@@ -257,7 +239,7 @@
       color: #8a1f2c;
     }
 
-    /* Alerts dashboard (existing styles) */
+    /* Alerts dashboard */
     .alerts-dashboard {
       width: 100%;
       max-width: 850px;
@@ -284,10 +266,7 @@
       font-style: italic;
     }
 
-    .alerts-table-wrapper {
-      width: 100%;
-      overflow-x: auto;
-    }
+    .alerts-table-wrapper { width: 100%; overflow-x: auto; }
 
     .alerts-table {
       width: 100%;
@@ -295,12 +274,12 @@
       table-layout: fixed;
     }
 
-    .alerts-table colgroup col:nth-child(1) { width: 10%; }  /* Date Set */
-    .alerts-table colgroup col:nth-child(2) { width: 35%; }  /* Shoe */
-    .alerts-table colgroup col:nth-child(3) { width: 12%; }  /* Email */
-    .alerts-table colgroup col:nth-child(4) { width: 7%; }   /* Days Left */
-    .alerts-table colgroup col:nth-child(5) { width: 10%; }  /* Target */
-    .alerts-table colgroup col:nth-child(6) { width: 19%; }  /* Status */
+    .alerts-table colgroup col:nth-child(1) { width: 10%; }
+    .alerts-table colgroup col:nth-child(2) { width: 35%; }
+    .alerts-table colgroup col:nth-child(3) { width: 12%; }
+    .alerts-table colgroup col:nth-child(4) { width: 7%; }
+    .alerts-table colgroup col:nth-child(5) { width: 10%; }
+    .alerts-table colgroup col:nth-child(6) { width: 19%; }
 
     .alerts-table thead th {
       text-align: left;
@@ -318,21 +297,10 @@
       transition: background-color 0.2s ease;
     }
 
-    .alerts-table tbody tr:hover {
-      background: rgba(33, 68, 120, 0.08);
-    }
-
-    .alerts-table tbody tr.selected {
-      background: rgba(33, 68, 120, 0.15);
-    }
-
-    .alerts-table tbody tr.inactive {
-      background: #e8e8e8;
-    }
-
-    .alerts-table tbody tr.inactive:hover {
-      background: #d8d8d8;
-    }
+    .alerts-table tbody tr:hover { background: rgba(33, 68, 120, 0.08); }
+    .alerts-table tbody tr.selected { background: rgba(33, 68, 120, 0.15); }
+    .alerts-table tbody tr.inactive { background: #e8e8e8; }
+    .alerts-table tbody tr.inactive:hover { background: #d8d8d8; }
 
     .alerts-table tbody td {
       padding: 0.5rem 0.65rem;
@@ -354,9 +322,7 @@
       text-overflow: ellipsis;
     }
 
-    .alerts-table td.target-cell {
-      text-align: right;
-    }
+    .alerts-table td.target-cell { text-align: right; }
 
     .alerts-muted {
       text-align: center;
@@ -420,9 +386,7 @@
       transition: background 0.2s ease;
     }
 
-    .alert-actions button:hover {
-      background: #1a3661;
-    }
+    .alert-actions button:hover { background: #1a3661; }
 
     .alert-actions button.secondary {
       background: white;
@@ -430,27 +394,21 @@
       border: 1px solid #214478ff;
     }
 
-    .alert-actions button.secondary:hover {
-      background: rgba(33, 68, 120, 0.1);
-    }
+    .alert-actions button.secondary:hover { background: rgba(33, 68, 120, 0.1); }
 
     .alert-actions button.danger {
       background: #dc3545;
       border-color: #c82333;
     }
 
-    .alert-actions button.danger:hover {
-      background: #c82333;
-    }
+    .alert-actions button.danger:hover { background: #c82333; }
 
     .alert-actions button.success {
       background: #28a745;
       border-color: #218838;
     }
 
-    .alert-actions button.success:hover {
-      background: #218838;
-    }
+    .alert-actions button.success:hover { background: #218838; }
 
     .alert-actions .confirmation {
       display: flex;
@@ -464,81 +422,7 @@
       font-weight: 600;
     }
 
-    .alert-actions .edit-price-label {
-      font-size: 0.88rem;
-      color: #2d2d2d;
-      font-weight: 600;
-    }
-
-    .price-change-wrapper {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-    }
-
-    .price-change-input {
-      position: relative;
-      display: inline-block;
-    }
-
-    .price-change-input::before {
-      content: '$';
-      position: absolute;
-      left: 0.5rem;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 0.9rem;
-      color: #444;
-      pointer-events: none;
-      font-weight: 500;
-    }
-
-    .price-change-input input {
-      width: 80px;
-      height: 32px;
-      padding: 0 0.3rem 0 1.5rem;
-      border-radius: 0.5rem;
-      border: 1px solid #214478ff;
-      background: #fafdf4;
-      font-size: 0.9rem;
-      text-align: right;
-    }
-
-    .clear-inactive-wrapper {
-      width: 100%;
-      display: flex;
-      justify-content: center;
-      margin-top: 1rem;
-    }
-
-    .clear-inactive-actions {
-      padding: 0.75rem 1rem;
-      background: rgba(220, 53, 69, 0.08);
-      border: 1px solid #dc3545;
-      border-radius: 0.5rem;
-      display: flex;
-      gap: 0.75rem;
-      align-items: center;
-    }
-
-    .clear-inactive-btn {
-      padding: 0.5rem 1rem;
-      border-radius: 0.5rem;
-      background: #dc3545;
-      border: 1px solid #c82333;
-      color: white;
-      font-size: 0.88rem;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    .clear-inactive-btn:hover {
-      background: #c82333;
-    }
-
-    .hidden {
-      display: none !important;
-    }
+    .hidden { display: none !important; }
 
     .home-btn {
       display: block;
@@ -557,9 +441,7 @@
       width: max-content;
     }
 
-    .home-btn:hover {
-      background: #1a3661;
-    }
+    .home-btn:hover { background: #1a3661; }
 
     .footer {
       margin-top: 1.5rem;
@@ -577,51 +459,37 @@
       cursor: pointer;
     }
 
-    .footer a:hover {
-      text-decoration: underline;
-    }
+    .footer a:hover { text-decoration: underline; }
 
     @media (max-width: 768px) {
       .alerts-table colgroup col:nth-child(3) { width: 15%; }
-      .alerts-table tbody td:nth-child(3) {
-        font-size: 0.8rem;
-      }
+      .alerts-table tbody td:nth-child(3) { font-size: 0.8rem; }
     }
   </style>
 </head>
+
 <body>
   <div class="page-container">
-    <!-- Logo at top -->
+    <!-- Logo -->
     <a href="/">
       <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="brand-logo">
     </a>
 
-    <!-- Create Alert Section -->
+    <!-- Create Alert -->
     <div class="create-alert-section">
       <div class="section-title">Create New Alert</div>
-      
+
       <form id="createAlertForm">
         <div class="form-group">
           <label class="form-label" for="alertEmail">Email Address *</label>
-          <input 
-            type="email" 
-            id="alertEmail" 
-            placeholder="your@email.com" 
-            required
-          />
-          <div class="form-hint">We'll notify you when your shoe hits your target price</div>
+          <input type="email" id="alertEmail" placeholder="your@email.com" required />
+          <div class="form-hint">We’ll email you to confirm the alert, and again when we find matches.</div>
         </div>
 
         <div class="form-group">
           <label class="form-label" for="alertBrand">Shoe Brand *</label>
           <div class="input-wrapper">
-            <input 
-              type="text" 
-              id="alertBrand" 
-              placeholder="e.g., Nike, Hoka, Brooks" 
-              autocomplete="off"
-              required
-            />
+            <input type="text" id="alertBrand" placeholder="e.g., Nike, Hoka, Brooks" autocomplete="off" required />
             <button type="button" class="input-clear" aria-label="Clear brand">&times;</button>
             <div id="alertBrandSuggestions" class="suggestions"></div>
           </div>
@@ -630,13 +498,7 @@
         <div class="form-group">
           <label class="form-label" for="alertModel">Shoe Model *</label>
           <div class="input-wrapper">
-            <input 
-              type="text" 
-              id="alertModel" 
-              placeholder="e.g., Pegasus, Clifton, Ghost" 
-              autocomplete="off"
-              required
-            />
+            <input type="text" id="alertModel" placeholder="e.g., Pegasus, Clifton, Ghost" autocomplete="off" required />
             <button type="button" class="input-clear" aria-label="Clear model">&times;</button>
             <div id="alertModelSuggestions" class="suggestions"></div>
           </div>
@@ -658,21 +520,15 @@
               <label for="genderWomens">Womens</label>
             </div>
           </div>
+          <div class="form-hint">Note: your current backend matching checks brand/model/price. Gender is stored here for UI context.</div>
         </div>
 
         <div class="form-group">
           <label class="form-label" for="alertPrice">Target Price *</label>
           <div class="price-input-wrapper">
-            <input 
-              type="number" 
-              id="alertPrice" 
-              placeholder="0.00" 
-              step="0.01" 
-              min="0.01"
-              required
-            />
+            <input type="number" id="alertPrice" placeholder="0.00" step="1" min="1" required />
           </div>
-          <div class="form-hint">Alert expires after 30 days</div>
+          <div class="form-hint">Alert expires after 30 days.</div>
         </div>
 
         <button type="submit" class="submit-btn" id="createAlertBtn">Create Alert</button>
@@ -689,12 +545,12 @@
       <div class="alerts-table-wrapper">
         <table class="alerts-table" aria-label="My Alerts Table" id="alertsTable">
           <colgroup>
-            <col style="width: 10%;">  <!-- Date Set -->
-            <col style="width: 35%;">  <!-- Shoe -->
-            <col style="width: 12%;">  <!-- Email -->
-            <col style="width: 7%;">   <!-- Days Left -->
-            <col style="width: 10%;">  <!-- Target -->
-            <col style="width: 19%;">  <!-- Status -->
+            <col style="width: 10%;">
+            <col style="width: 35%;">
+            <col style="width: 12%;">
+            <col style="width: 7%;">
+            <col style="width: 10%;">
+            <col style="width: 19%;">
           </colgroup>
           <thead>
             <tr>
@@ -711,26 +567,28 @@
       </div>
 
       <div id="alertsEmpty" class="alerts-muted hidden">No alerts have been set.</div>
-
-      <div class="clear-inactive-wrapper hidden" id="clearInactiveWrapper"></div>
     </div>
 
-    <!-- Close button -->
     <a href="/" class="home-btn">Close</a>
 
-    <!-- Footer -->
     <div class="footer">
       © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
     </div>
   </div>
 
   <script>
-    // ========== CONSTANTS & GLOBALS ==========
-    const ALERTS_KEY = "shoeBeagleAlerts";
-    let alertsMemoryFallback = [];
-    let selectedAlertRow = null;
+    // =======================
+    // BACKEND ENDPOINTS
+    // =======================
+    const API = {
+      create: "/api/alerts/create",
+      list: "/api/alerts/list",
+      cancel: "/api/alerts/cancel",
+    };
 
-    // Brand-model dictionary (same as index)
+    // =======================
+    // BRAND/MODEL SUGGESTIONS (same as your current file)
+    // =======================
     const brandModels = {
       "361°": ["Spire","Fury","Strata","Flame"],
       "Adidas": ["Adizero Adios","Adizero Boston","Adizero Takumi Sen","Supernova","Ultraboost Light"],
@@ -769,7 +627,6 @@
     };
 
     const brands = Object.keys(brandModels).sort((a,b) => a.localeCompare(b));
-
     const allModels = (() => {
       const flat = [];
       for (const b of Object.keys(brandModels)) {
@@ -779,7 +636,9 @@
       return Array.from(new Set(flat)).sort((a, b) => a.localeCompare(b));
     })();
 
-    // DOM Elements
+    // =======================
+    // DOM
+    // =======================
     const createAlertForm = document.getElementById("createAlertForm");
     const alertEmail = document.getElementById("alertEmail");
     const alertBrand = document.getElementById("alertBrand");
@@ -791,21 +650,24 @@
     const alertBrandSuggestions = document.getElementById("alertBrandSuggestions");
     const alertModelSuggestions = document.getElementById("alertModelSuggestions");
 
-    const alertsDashboard = document.getElementById("alertsDashboard");
     const alertsTbody = document.getElementById("alertsTbody");
     const alertsEmpty = document.getElementById("alertsEmpty");
     const alertsTable = document.getElementById("alertsTable");
-    const clearInactiveWrapper = document.getElementById("clearInactiveWrapper");
     const footerYear = document.getElementById("footerYear");
 
-    if (footerYear) {
-      footerYear.textContent = new Date().getFullYear();
-    }
+    if (footerYear) footerYear.textContent = new Date().getFullYear();
 
-    // ========== UTILITY FUNCTIONS ==========
-    function nowMs() {
-      return Date.now();
-    }
+    // =======================
+    // STATE
+    // =======================
+    let selectedAlertRow = null;
+    let currentAlerts = []; // loaded from backend
+    let currentEmail = "";  // email used to load list
+
+    // =======================
+    // UTILS
+    // =======================
+    function nowMs() { return Date.now(); }
 
     function daysBetween(msA, msB) {
       const diff = Math.abs(msA - msB);
@@ -835,66 +697,24 @@
         .slice(0, 100);
     }
 
-    function canUseLocalStorage() {
-      try {
-        const k = "__sb_test__";
-        localStorage.setItem(k, "1");
-        localStorage.removeItem(k);
-        return true;
-      } catch (e) {
-        return false;
-      }
+    function maskEmail(email) {
+      if (!email || !email.includes("@")) return email || "";
+      const [user, domain] = email.split("@");
+      if (!user) return `***@${domain}`;
+      if (user.length <= 2) return `${user[0]}***@${domain}`;
+      return `${user.substring(0, 2)}***@${domain}`;
     }
 
-    // ========== STORAGE FUNCTIONS ==========
-    function loadAlerts() {
-      if (canUseLocalStorage()) {
-        try {
-          const raw = localStorage.getItem(ALERTS_KEY);
-          const parsed = raw ? JSON.parse(raw) : [];
-          return Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-          return [];
-        }
-      }
-      return alertsMemoryFallback;
-    }
-
-    function saveAlerts(list) {
-      if (canUseLocalStorage()) {
-        try {
-          localStorage.setItem(ALERTS_KEY, JSON.stringify(list));
-        } catch (e) {}
-      } else {
-        alertsMemoryFallback = list;
-      }
-    }
-
-    function upsertAlert(newAlert) {
-      const list = loadAlerts();
-      const idx = list.findIndex(a => a.id === newAlert.id);
-      if (idx >= 0) list[idx] = newAlert;
-      else list.push(newAlert);
-      saveAlerts(list);
-    }
-
-    function deleteAlert(alertId) {
-      const list = loadAlerts();
-      const filtered = list.filter(a => a.id !== alertId);
-      saveAlerts(filtered);
-    }
-
-    // ========== ALERT STATUS ==========
     function computeAlertStatus(alert) {
       if (alert.cancelledAt) return "Cancelled";
-      const ageDays = daysBetween(alert.setAt, nowMs());
+      const ageDays = Math.floor((nowMs() - Number(alert.setAt || 0)) / (1000 * 60 * 60 * 24));
       if (ageDays >= 30) return "Expired";
       return "Active";
     }
 
     function computeDaysLeft(alert) {
       if (alert.cancelledAt) return 0;
-      const ageDays = daysBetween(alert.setAt, nowMs());
+      const ageDays = Math.floor((nowMs() - Number(alert.setAt || 0)) / (1000 * 60 * 60 * 24));
       const left = 30 - ageDays;
       return left > 0 ? left : 0;
     }
@@ -906,7 +726,61 @@
       return "pill";
     }
 
-    // ========== SUGGESTIONS ENGINE ==========
+    function showStatus(message, isSuccess) {
+      statusMessage.textContent = message;
+      statusMessage.className = `status-message ${isSuccess ? "success" : "error"}`;
+      statusMessage.style.display = "block";
+      setTimeout(() => { statusMessage.style.display = "none"; }, 6500);
+    }
+
+    function setBusy(isBusy) {
+      createAlertBtn.disabled = isBusy;
+      createAlertBtn.textContent = isBusy ? "Creating..." : "Create Alert";
+    }
+
+    // =======================
+    // API CALLS (integrated with your backend)
+    // =======================
+    async function apiListAlerts(email) {
+      const url = `${API.list}?email=${encodeURIComponent(email)}`;
+      const res = await fetch(url, { method: "GET" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to load alerts.");
+      }
+      return Array.isArray(data.alerts) ? data.alerts : [];
+    }
+
+    async function apiCreateAlert(payload) {
+      const res = await fetch(API.create, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // backend sends { error: "...", currentCount? }
+        throw new Error(data.error || "Failed to create alert.");
+      }
+      return data; // { success, alert, message }
+    }
+
+    async function apiCancelAlert(alertId, email) {
+      const res = await fetch(API.cancel, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alertId, email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to cancel alert.");
+      }
+      return data; // { success, message }
+    }
+
+    // =======================
+    // SUGGESTIONS ENGINE (same logic as before)
+    // =======================
     function squashStr(s) {
       return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     }
@@ -921,7 +795,6 @@
       const qSquash = squashStr(q);
 
       let score = 0;
-
       if (cl.startsWith(q)) score += 120;
       if (cl.includes(q)) score += 80;
       if (qSquash.length >= 3 && cSquash.includes(qSquash)) score += 110;
@@ -943,7 +816,6 @@
     function filterSuggestions(list, typed, limit = 10) {
       const q = String(typed || "").trim();
       if (!q) return [];
-
       const qLower = q.toLowerCase();
 
       const starts = list.filter(v => String(v).toLowerCase().startsWith(qLower));
@@ -975,7 +847,6 @@
       return resolveBrandKey(alertBrand.value.trim());
     }
 
-    // ========== SUGGESTIONS UI ==========
     const suggestionState = {
       openFor: null,
       items: [],
@@ -991,7 +862,6 @@
         alertModelSuggestions.style.display = "none";
         alertModelSuggestions.innerHTML = "";
       }
-
       if (!which) {
         suggestionState.openFor = null;
         suggestionState.items = [];
@@ -1025,12 +895,10 @@
         div.className = "suggestion-item";
         div.textContent = value;
         div.dataset.index = String(idx);
-
         div.addEventListener("mousedown", (e) => {
           e.preventDefault();
           onPick(value);
         });
-
         container.appendChild(div);
       });
 
@@ -1089,17 +957,11 @@
       }
     }
 
-    // ========== BRAND SUGGESTIONS ==========
+    // Brand suggestions
     alertBrand.addEventListener("input", () => {
       const typed = alertBrand.value.trim();
-
-      if (typed.length < 1) {
-        closeSuggestions("brand");
-        return;
-      }
-
+      if (typed.length < 1) { closeSuggestions("brand"); return; }
       const matches = filterSuggestions(brands, typed, 12);
-
       renderSuggestions(alertBrandSuggestions, matches, "brand", (value) => {
         alertBrand.value = value;
         closeSuggestions("brand");
@@ -1117,14 +979,10 @@
 
     alertBrand.addEventListener("blur", () => setTimeout(() => closeSuggestions("brand"), 140));
 
-    // ========== MODEL SUGGESTIONS ==========
+    // Model suggestions
     alertModel.addEventListener("input", () => {
       const text = alertModel.value.trim();
-
-      if (text.length < 1) {
-        closeSuggestions("model");
-        return;
-      }
+      if (text.length < 1) { closeSuggestions("model"); return; }
 
       const brandKey = resolveBrand();
       const pool = (brandKey && Array.isArray(brandModels[brandKey]))
@@ -1132,7 +990,6 @@
         : allModels;
 
       const matches = filterSuggestions(pool, text, 12);
-
       renderSuggestions(alertModelSuggestions, matches, "model", (value) => {
         alertModel.value = value;
         closeSuggestions("model");
@@ -1151,15 +1008,15 @@
     alertModel.addEventListener("blur", () => setTimeout(() => closeSuggestions("model"), 140));
 
     // Clear buttons
-    document.querySelectorAll('.input-clear').forEach((clearBtn) => {
-      clearBtn.addEventListener('click', (e) => {
+    document.querySelectorAll(".input-clear").forEach((clearBtn) => {
+      clearBtn.addEventListener("click", (e) => {
         e.preventDefault();
         const input = clearBtn.previousElementSibling;
-        if (input && input.tagName === 'INPUT') {
-          input.value = '';
+        if (input && input.tagName === "INPUT") {
+          input.value = "";
           input.focus();
-          if (input.id === 'alertBrand') closeSuggestions("brand");
-          if (input.id === 'alertModel') closeSuggestions("model");
+          if (input.id === "alertBrand") closeSuggestions("brand");
+          if (input.id === "alertModel") closeSuggestions("model");
         }
       });
     });
@@ -1168,80 +1025,9 @@
     alertBrand.addEventListener("click", () => alertBrand.select());
     alertModel.addEventListener("click", () => alertModel.select());
 
-    // ========== CREATE ALERT FORM ==========
-    function showStatus(message, isSuccess) {
-      statusMessage.textContent = message;
-      statusMessage.className = `status-message ${isSuccess ? 'success' : 'error'}`;
-      statusMessage.style.display = 'block';
-
-      setTimeout(() => {
-        statusMessage.style.display = 'none';
-      }, 5000);
-    }
-
-    createAlertForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-
-      const email = sanitizeInput(alertEmail.value);
-      const brand = sanitizeInput(alertBrand.value);
-      const model = sanitizeInput(alertModel.value);
-      const price = parseFloat(alertPrice.value);
-      const gender = document.querySelector('input[name="gender"]:checked').value;
-
-      // Validation
-      if (!email || !email.includes('@')) {
-        showStatus("Please enter a valid email address.", false);
-        return;
-      }
-
-      if (!brand) {
-        showStatus("Please enter a shoe brand.", false);
-        return;
-      }
-
-      if (!model) {
-        showStatus("Please enter a shoe model.", false);
-        return;
-      }
-
-      if (!price || price <= 0) {
-        showStatus("Please enter a valid target price.", false);
-        return;
-      }
-
-      // Create new alert
-      const newAlert = {
-        id: `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        email: email,
-        brand: brand,
-        model: model,
-        targetPrice: price.toFixed(2),
-        gender: gender,
-        setAt: nowMs(),
-        cancelledAt: null,
-      };
-
-      upsertAlert(newAlert);
-      showStatus("Alert created successfully! You'll receive an email when a match is found.", true);
-
-      // Reset form
-      createAlertForm.reset();
-      
-      // Re-render alerts table
-      renderAlertsDashboard();
-    });
-
-    // ========== ALERTS DASHBOARD ==========
-    function clearAllInactive() {
-      const list = loadAlerts();
-      const active = list.filter(a => {
-        const status = computeAlertStatus(a);
-        return status === "Active";
-      });
-      saveAlerts(active);
-      renderAlertsDashboard();
-    }
-
+    // =======================
+    // DASHBOARD RENDER
+    // =======================
     function showConfirmation(actionsDiv, message, onYes) {
       actionsDiv.innerHTML = "";
 
@@ -1274,84 +1060,26 @@
       actionsDiv.appendChild(confirmDiv);
     }
 
-    function showClearInactiveConfirmation() {
-      clearInactiveWrapper.innerHTML = "";
-
-      const actionsDiv = document.createElement("div");
-      actionsDiv.className = "clear-inactive-actions";
-
-      const confirmText = document.createElement("span");
-      confirmText.className = "confirmation-text";
-      confirmText.textContent = "Clear all inactive alerts?";
-
-      const yesBtn = document.createElement("button");
-      yesBtn.textContent = "Yes";
-      yesBtn.className = "success";
-      yesBtn.addEventListener("click", () => {
-        clearAllInactive();
-      });
-
-      const noBtn = document.createElement("button");
-      noBtn.textContent = "No";
-      noBtn.className = "secondary";
-      noBtn.addEventListener("click", () => {
-        renderAlertsDashboard();
-      });
-
-      actionsDiv.appendChild(confirmText);
-      actionsDiv.appendChild(yesBtn);
-      actionsDiv.appendChild(noBtn);
-      clearInactiveWrapper.appendChild(actionsDiv);
-    }
-
-    function maskEmail(email) {
-      if (!email || !email.includes('@')) return email;
-      const parts = email.split('@');
-      const username = parts[0];
-      const domain = parts[1];
-      
-      if (username.length <= 2) return `${username[0]}***@${domain}`;
-      return `${username.substring(0, 2)}***@${domain}`;
-    }
-
     function renderAlertsDashboard() {
-      const list = loadAlerts();
+      const list = Array.isArray(currentAlerts) ? currentAlerts.slice() : [];
       alertsTbody.innerHTML = "";
       selectedAlertRow = null;
-      clearInactiveWrapper.innerHTML = "";
 
       if (!list.length) {
         alertsEmpty.classList.remove("hidden");
         alertsTable.classList.add("hidden");
-        clearInactiveWrapper.classList.add("hidden");
         return;
       }
 
       alertsEmpty.classList.add("hidden");
       alertsTable.classList.remove("hidden");
 
-      const hasInactive = list.some(a => {
-        const status = computeAlertStatus(a);
-        return status === "Expired" || status === "Cancelled";
-      });
-
-      if (hasInactive) {
-        clearInactiveWrapper.classList.remove("hidden");
-        const clearBtn = document.createElement("button");
-        clearBtn.className = "clear-inactive-btn";
-        clearBtn.textContent = "Clear Inactive Alerts";
-        clearBtn.addEventListener("click", showClearInactiveConfirmation);
-        clearInactiveWrapper.appendChild(clearBtn);
-      } else {
-        clearInactiveWrapper.classList.add("hidden");
-      }
-
       const order = { "Active": 0, "Expired": 1, "Cancelled": 2 };
-      const sorted = [...list].sort((a, b) => {
+      const sorted = list.sort((a, b) => {
         const sa = computeAlertStatus(a);
         const sb = computeAlertStatus(b);
         if (order[sa] !== order[sb]) return order[sa] - order[sb];
-        return (b.setAt || 0) - (a.setAt || 0);
+        return (Number(b.setAt || 0) - Number(a.setAt || 0));
       });
 
       sorted.forEach(a => {
@@ -1360,25 +1088,24 @@
 
         const tr = document.createElement("tr");
         tr.dataset.alertId = a.id;
-
-        if (status !== "Active") {
-          tr.classList.add("inactive");
-        }
+        if (status !== "Active") tr.classList.add("inactive");
 
         const tdDate = document.createElement("td");
-        tdDate.textContent = formatDateShort(a.setAt);
+        tdDate.textContent = formatDateShort(Number(a.setAt || 0));
         tr.appendChild(tdDate);
 
         const tdShoe = document.createElement("td");
-        const shoeText = `${a.brand} ${a.model}`.trim();
+        const shoeText = `${a.brand || ""} ${a.model || ""}`.trim();
+        // (Optional) display gender if stored (your create.js doesn’t store gender today)
         const genderText = a.gender === "mens" ? " (M)" : a.gender === "womens" ? " (W)" : "";
-        tdShoe.textContent = (shoeText + genderText).length > 40 ? (shoeText + genderText).substring(0, 40) + "..." : (shoeText + genderText);
-        tdShoe.title = shoeText + genderText;
+        const label = (shoeText + genderText).trim();
+        tdShoe.textContent = label.length > 40 ? label.substring(0, 40) + "..." : label;
+        tdShoe.title = label;
         tr.appendChild(tdShoe);
 
         const tdEmail = document.createElement("td");
         tdEmail.textContent = maskEmail(a.email);
-        tdEmail.title = a.email;
+        tdEmail.title = a.email || "";
         tr.appendChild(tdEmail);
 
         const tdDays = document.createElement("td");
@@ -1387,7 +1114,7 @@
 
         const tdTarget = document.createElement("td");
         tdTarget.className = "target-cell";
-        tdTarget.textContent = `$${Number(a.targetPrice).toFixed(0)}`;
+        tdTarget.textContent = `$${Math.round(Number(a.targetPrice || 0))}`;
         tr.appendChild(tdTarget);
 
         const tdStatus = document.createElement("td");
@@ -1401,9 +1128,7 @@
           e.stopPropagation();
 
           const existingActionRow = document.querySelector(".alert-actions-row");
-          if (existingActionRow) {
-            existingActionRow.remove();
-          }
+          if (existingActionRow) existingActionRow.remove();
 
           const allRows = alertsTbody.querySelectorAll("tr");
           allRows.forEach(r => r.classList.remove("selected"));
@@ -1425,85 +1150,37 @@
           actionsDiv.className = "alert-actions";
 
           if (status === "Active") {
-            const priceWrapper = document.createElement("div");
-            priceWrapper.className = "price-change-wrapper";
-
-            const editLabel = document.createElement("span");
-            editLabel.className = "edit-price-label";
-            editLabel.textContent = "Edit Price:";
-            priceWrapper.appendChild(editLabel);
-
-            const priceInputWrapper = document.createElement("span");
-            priceInputWrapper.className = "price-change-input";
-
-            const priceInput = document.createElement("input");
-            priceInput.type = "number";
-            priceInput.step = "1";
-            priceInput.min = "1";
-            priceInput.value = Number(a.targetPrice).toFixed(0);
-
-            priceInputWrapper.appendChild(priceInput);
-            priceWrapper.appendChild(priceInputWrapper);
-
-            const saveBtn = document.createElement("button");
-            saveBtn.textContent = "Save";
-            saveBtn.addEventListener("click", (e) => {
-              e.stopPropagation();
-              const val = Number(priceInput.value);
-              if (!isFinite(val) || val <= 0) {
-                alert("Please enter a valid target price greater than 0.");
-                return;
-              }
-              showConfirmation(actionsDiv, "Save new price?", () => {
-                a.targetPrice = Number(val).toFixed(2);
-                a.setAt = nowMs();
-                upsertAlert(a);
-                renderAlertsDashboard();
-              });
-            });
-
-            priceWrapper.appendChild(saveBtn);
-            actionsDiv.appendChild(priceWrapper);
-
-            const add10Btn = document.createElement("button");
-            add10Btn.textContent = "Add 10 Days";
-            add10Btn.className = "secondary";
-            add10Btn.addEventListener("click", (e) => {
-              e.stopPropagation();
-              showConfirmation(actionsDiv, "Add 10 days to alert?", () => {
-                const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
-                a.setAt = a.setAt - TEN_DAYS_MS;
-                upsertAlert(a);
-                renderAlertsDashboard();
-              });
-            });
-            actionsDiv.appendChild(add10Btn);
-
             const cancelBtn = document.createElement("button");
             cancelBtn.textContent = "Cancel Alert";
             cancelBtn.className = "danger";
-            cancelBtn.addEventListener("click", (e) => {
-              e.stopPropagation();
-              showConfirmation(actionsDiv, "Cancel this alert?", () => {
-                a.cancelledAt = nowMs();
-                upsertAlert(a);
-                renderAlertsDashboard();
+            cancelBtn.addEventListener("click", (ev) => {
+              ev.stopPropagation();
+              showConfirmation(actionsDiv, "Cancel this alert?", async () => {
+                try {
+                  if (!currentEmail) throw new Error("Missing email context.");
+                  await apiCancelAlert(a.id, currentEmail);
+                  showStatus("Alert cancelled.", true);
+                  await refreshAlerts(); // reload from backend
+                } catch (err) {
+                  showStatus(err.message || "Failed to cancel alert.", false);
+                }
               });
             });
             actionsDiv.appendChild(cancelBtn);
-
           } else {
-            const deleteBtn = document.createElement("button");
-            deleteBtn.textContent = "Delete";
-            deleteBtn.className = "danger";
-            deleteBtn.addEventListener("click", (e) => {
-              e.stopPropagation();
-              showConfirmation(actionsDiv, "Delete this alert?", () => {
-                deleteAlert(a.id);
-                renderAlertsDashboard();
-              });
+            const info = document.createElement("span");
+            info.className = "confirmation-text";
+            info.textContent = "Inactive alerts can’t be deleted by API (only cancelled).";
+            actionsDiv.appendChild(info);
+
+            const refreshBtn = document.createElement("button");
+            refreshBtn.textContent = "Refresh";
+            refreshBtn.className = "secondary";
+            refreshBtn.addEventListener("click", async (ev) => {
+              ev.stopPropagation();
+              await refreshAlerts();
             });
-            actionsDiv.appendChild(deleteBtn);
+            actionsDiv.appendChild(refreshBtn);
           }
 
           actionCell.appendChild(actionsDiv);
@@ -1515,27 +1192,137 @@
       });
     }
 
-    // Click outside to clear selection
+    // Click outside to clear selection + close suggestions
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".alerts-table") && !e.target.closest(".alert-actions")) {
         const existingActionRow = document.querySelector(".alert-actions-row");
-        if (existingActionRow) {
-          existingActionRow.remove();
-        }
+        if (existingActionRow) existingActionRow.remove();
         const allRows = alertsTbody.querySelectorAll("tr");
         allRows.forEach(r => r.classList.remove("selected"));
         selectedAlertRow = null;
       }
-      
-      // Close suggestions if clicking outside
+
       const insideBrand = alertBrandSuggestions.contains(e.target) || alertBrand.contains(e.target);
       const insideModel = alertModelSuggestions.contains(e.target) || alertModel.contains(e.target);
       if (!insideBrand) closeSuggestions("brand");
       if (!insideModel) closeSuggestions("model");
     });
 
-    // Initial render
-    renderAlertsDashboard();
+    // =======================
+    // LOAD/REFRESH ALERTS
+    // =======================
+    async function refreshAlerts() {
+      if (!currentEmail) {
+        currentAlerts = [];
+        renderAlertsDashboard();
+        return;
+      }
+      try {
+        const alerts = await apiListAlerts(currentEmail);
+        currentAlerts = alerts;
+        renderAlertsDashboard();
+      } catch (err) {
+        currentAlerts = [];
+        renderAlertsDashboard();
+        showStatus(err.message || "Failed to load alerts.", false);
+      }
+    }
+
+    function getEmailFromQueryString() {
+      const params = new URLSearchParams(window.location.search);
+      const email = params.get("email");
+      return email ? email.trim().toLowerCase() : "";
+    }
+
+    function setEmailContext(email) {
+      currentEmail = (email || "").trim().toLowerCase();
+      if (currentEmail) {
+        alertEmail.value = currentEmail;
+      }
+    }
+
+    // =======================
+    // CREATE ALERT (uses /api/alerts/create)
+    // =======================
+    createAlertForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const email = sanitizeInput(alertEmail.value).toLowerCase();
+      const brand = sanitizeInput(alertBrand.value);
+      const model = sanitizeInput(alertModel.value);
+      const targetPrice = parseInt(String(alertPrice.value || ""), 10);
+
+      if (!email || !email.includes("@")) {
+        showStatus("Please enter a valid email address.", false);
+        return;
+      }
+      if (!brand) {
+        showStatus("Please enter a shoe brand.", false);
+        return;
+      }
+      if (!model) {
+        showStatus("Please enter a shoe model.", false);
+        return;
+      }
+      if (!targetPrice || targetPrice <= 0) {
+        showStatus("Please enter a valid target price (whole dollars).", false);
+        return;
+      }
+
+      setBusy(true);
+
+      try {
+        // Note: your backend create.js expects { email, brand, model, targetPrice }
+        // It does NOT currently store gender. We leave the gender radio for UI preference.
+        const result = await apiCreateAlert({ email, brand, model, targetPrice });
+
+        // Keep email in URL so "Manage My Alerts" links work consistently
+        if (email && getEmailFromQueryString() !== email) {
+          const u = new URL(window.location.href);
+          u.searchParams.set("email", email);
+          window.history.replaceState({}, "", u.toString());
+        }
+
+        setEmailContext(email);
+
+        showStatus(result.message || "Alert created! Check your email for confirmation.", true);
+
+        // Reset only brand/model/price; keep email
+        alertBrand.value = "";
+        alertModel.value = "";
+        alertPrice.value = "";
+        closeSuggestions();
+
+        await refreshAlerts();
+      } catch (err) {
+        showStatus(err.message || "Failed to create alert.", false);
+      } finally {
+        setBusy(false);
+      }
+    });
+
+    // =======================
+    // INIT
+    // =======================
+    (function init() {
+      const emailFromQS = getEmailFromQueryString();
+      if (emailFromQS) setEmailContext(emailFromQS);
+
+      // If user edits email, we treat that as the context for list + cancel.
+      alertEmail.addEventListener("change", async () => {
+        const next = sanitizeInput(alertEmail.value).toLowerCase();
+        setEmailContext(next);
+
+        const u = new URL(window.location.href);
+        if (currentEmail) u.searchParams.set("email", currentEmail);
+        else u.searchParams.delete("email");
+        window.history.replaceState({}, "", u.toString());
+
+        await refreshAlerts();
+      });
+
+      refreshAlerts();
+    })();
   </script>
 </body>
 </html>
