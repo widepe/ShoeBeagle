@@ -1,1219 +1,1035 @@
-// /api/merge-deals.js
-//
-// Merges: (1) scrape-daily output + (2) Holabird outputs + (3) Brooks sale + (4) ASICS sale (+ others you add)
-//
-// Writes canonical blob(s) (overwritten each run; addRandomSuffix: false):
-//   1) deals.json                -> sanitized + normalized + filtered + deduped + sorted (SAFE for the app)
-//   2) unaltered-deals.json      -> merged raw deals BEFORE any sanitize/filter/dedupe/sort (DEBUG only)
-//
-// After deals are merged:
-//   1) stats are computed and stored in stats.json (small, fast dashboard payload)
-//   2) daily deals are calculated and stored for the day in twelve_daily_deals.json (12 picks)
-//   3) scraper performance history is updated and stored in scraper-data.json (rolling 30 days)
-//
-// IMPORTANT NOTE ABOUT scraper-data.json HISTORY
-// - To append to a rolling 30-day history, merge-deals must be able to READ the existing scraper-data.json.
-// - Vercel Blob "put" overwrites deterministically (same pathname), but merge-deals still needs the blob URL to fetch it.
-// - Recommended: set SCRAPER_DATA_BLOB_URL once (paste the blob URL returned by merge-deals after the first run).
-// - If SCRAPER_DATA_BLOB_URL is NOT set, merge-deals will still write scraper-data.json, but history will start fresh
-//   each time because it can’t read the previous version without the URL.
-//
-// Env vars (recommended):
-//   OTHER_DEALS_BLOB_URL
-//   HOLABIRD_MENS_ROAD_BLOB_URL
-//   HOLABIRD_WOMENS_ROAD_BLOB_URL
-//   HOLABIRD_TRAIL_UNISEX_BLOB_URL
-//   BROOKS_SALE_BLOB_URL
-//   ASICS_SALE_BLOB_URL
-//   SHOEBACCA_CLEARANCE_BLOB_URL
-//   SCRAPER_DATA_BLOB_URL   <-- (recommended) allows rolling 30-day history to persist
-//
-// Optional fallback (if you do NOT set blob URLs):
-//   Calls scraper endpoints directly:
-//     /api/scrape-daily
-//     /api/scrapers/holabird-mens-road
-//     /api/scrapers/holabird-womens-road
-//     /api/scrapers/holabird-trail-unisex
-//     /api/scrapers/brooks-sale
-//     /api/scrapers/asics-sale
-//     /api/scrapers/shoebacca-clearance
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
+  <link rel="icon" type="image/png" href="/images/favicon.png"> 
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-const axios = require("axios");
-const { put } = require("@vercel/blob");
+  <title>ShoeBeagle - Deal Statistics Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-/** ------------ Utilities ------------ **/
-
-function getBaseUrl(req) {
-  const proto = req.headers["x-forwarded-proto"] || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
-  return `${proto}://${host}`;
-}
-
-function safeArray(x) {
-  return Array.isArray(x) ? x : [];
-}
-
-function extractDealsFromPayload(payload) {
-  if (!payload) return [];
-  if (Array.isArray(payload)) return payload;
-
-  if (Array.isArray(payload.deals)) return payload.deals;
-  if (Array.isArray(payload.items)) return payload.items;
-
-  if (payload.output && Array.isArray(payload.output.deals)) return payload.output.deals;
-  if (payload.data && Array.isArray(payload.data.deals)) return payload.data.deals;
-
-  return [];
-}
-
-function toNumber(x) {
-  const n = typeof x === "string" ? parseFloat(x) : x;
-  return Number.isFinite(n) ? n : null;
-}
-
-function parseDurationMs(dur) {
-  if (dur == null) return null;
-  if (typeof dur === "number" && Number.isFinite(dur)) return dur;
-
-  const s = String(dur).trim();
-  if (!s) return null;
-
-  // "360ms"
-  let m = s.match(/^(\d+(?:\.\d+)?)\s*ms$/i);
-  if (m) return Math.round(parseFloat(m[1]));
-
-  // "6.4s"
-  m = s.match(/^(\d+(?:\.\d+)?)\s*s$/i);
-  if (m) return Math.round(parseFloat(m[1]) * 1000);
-
-  // "00:00:06.123"
-  m = s.match(/^(\d+):(\d+):(\d+(?:\.\d+)?)$/);
-  if (m) {
-    const hh = parseInt(m[1], 10);
-    const mm = parseInt(m[2], 10);
-    const ss = parseFloat(m[3]);
-    if (Number.isFinite(hh) && Number.isFinite(mm) && Number.isFinite(ss)) {
-      return Math.round(hh * 3600000 + mm * 60000 + ss * 1000);
-    }
-  }
-
-  const n = parseFloat(s);
-  return Number.isFinite(n) ? Math.round(n) : null;
-}
-
-// UPDATED: Use salePrice and price
-function computeDiscountPercent(d) {
-  const sale = toNumber(d?.salePrice);
-  const orig = toNumber(d?.price);
-  if (!sale || !orig || orig <= 0 || sale >= orig) return 0;
-  return ((orig - sale) / orig) * 100;
-}
-
-// UPDATED: Use salePrice and price
-function computeDollarSavings(d) {
-  const sale = toNumber(d?.salePrice);
-  const orig = toNumber(d?.price);
-  if (!sale || !orig || orig <= 0 || sale >= orig) return 0;
-  return orig - sale;
-}
-
-/** ------------ Theme-change-resistant sanitization ------------ **/
-
-function normalizeWhitespace(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
-}
-
-function stripHtmlToText(maybeHtml) {
-  const s = String(maybeHtml || "");
-  if (!s) return "";
-  if (!/[<>]/.test(s)) return normalizeWhitespace(s);
-  return normalizeWhitespace(s.replace(/<[^>]*>/g, " "));
-}
-
-function looksLikeCssOrJunk(s) {
-  const t = normalizeWhitespace(s);
-  if (!t) return true;
-  if (t.length < 3) return true;
-  if (/^#[-_a-z0-9]+/i.test(t)) return true;
-  if (t.includes("{") && t.includes("}") && t.includes(":")) return true;
-  if (t.startsWith("@media") || t.startsWith(":root")) return true;
-  return false;
-}
-
-function cleanTitleText(raw) {
-  let t = stripHtmlToText(raw);
-
-  t = t.replace(/^(extra\s*\d+\s*%\s*off)\s+/i, "");
-  t = t.replace(/^(sale|clearance|closeout)\s+/i, "");
-
-  t = normalizeWhitespace(t);
-  if (looksLikeCssOrJunk(t)) return "";
-  return t;
-}
-
-function absolutizeUrl(u, base) {
-  let url = String(u || "").trim();
-  if (!url) return "";
-
-  if (/^https?:\/\//i.test(url)) return url;
-  if (url.startsWith("//")) return "https:" + url;
-  if (url.startsWith("/")) return base.replace(/\/+$/, "") + url;
-
-  return base.replace(/\/+$/, "") + "/" + url.replace(/^\/+/, "");
-}
-
-function storeBaseUrl(store) {
-  const s = String(store || "").toLowerCase();
-
-  if (s.includes("holabird")) return "https://www.holabirdsports.com";
-  if (s.includes("brooks")) return "https://www.brooksrunning.com";
-  if (s.includes("asics")) return "https://www.asics.com";
-  if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
-  if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
-  if (s.includes("luke")) return "https://lukeslocker.com";
-  if (s.includes("marathon sports")) return "https://www.marathonsports.com";
-  if (s.includes("rei")) return "https://www.rei.com";
-  if (s.includes("zappos")) return "https://www.zappos.com";
-  if (s.includes("road runner")) return "https://www.roadrunnersports.com";
-  if (s.includes("shoebacca")) return "https://www.shoebacca.com";
-
-  return "https://example.com";
-}
-
-function sanitizeDeal(deal) {
-  if (!deal) return null;
-
-  const base = storeBaseUrl(deal.store);
-
-  const title = cleanTitleText(deal.title);
-  const brand = cleanTitleText(deal.brand) || stripHtmlToText(deal.brand) || "Unknown";
-  const model = cleanTitleText(deal.model);
-
-  let url = String(deal.url || "").trim();
-  if (url) url = absolutizeUrl(url, base);
-
-  let image = null;
-  if (typeof deal.image === "string" && deal.image.trim()) {
-    image = absolutizeUrl(deal.image.trim(), base);
-  }
-
-  const finalTitle = title || normalizeWhitespace(`${brand} ${model}`).trim();
-  const safeTitle = looksLikeCssOrJunk(finalTitle) ? "" : finalTitle;
-
-  return {
-    ...deal,
-    title: safeTitle,
-    brand,
-    model,
-    url,
-    image,
-  };
-}
-
-/**
- * Centralized filter (same logic as your current scrape-daily).
- * UPDATED: Now uses salePrice and price (not price and originalPrice)
- */
-function isValidRunningShoe(deal) {
-  if (!deal || !deal.url || !deal.title) return false;
-
-  const salePrice = toNumber(deal.salePrice);
-  const price = toNumber(deal.price);
-
-  if (!salePrice || !price) return false;
-  if (salePrice >= price) return false;
-  if (salePrice < 10 || salePrice > 1000) return false;
-
-  const discount = ((price - salePrice) / price) * 100;
-  if (discount < 5 || discount > 90) return false;
-
-  const title = String(deal.title || "").toLowerCase();
-
-  const excludePatterns = [
-    "sock", "socks",
-    "apparel", "shirt", "shorts", "tights", "pants",
-    "hat", "cap", "beanie",
-    "insole", "insoles",
-    "laces", "lace",
-    "accessories", "accessory",
-    "hydration", "bottle", "flask",
-    "watch", "watches",
-    "gear", "equipment",
-    "bag", "bags", "pack", "backpack",
-    "vest", "vests",
-    "jacket", "jackets",
-    "bra", "bras",
-    "underwear", "brief",
-    "glove", "gloves", "mitt",
-    "compression sleeve",
-    "arm warmer", "leg warmer",
-    "headband", "wristband",
-    "sunglasses", "eyewear",
-    "sleeve", "sleeves",
-    "throw", "throws",
-    "yaktrax",
-    "out of stock",
-    "kids", "kid",
-    "youth",
-    "junior", "juniors",
-  ];
-
-  for (const pattern of excludePatterns) {
-    const regex = new RegExp(`\\b${pattern}\\b`, "i");
-    if (regex.test(title)) return false;
-  }
-
-  return true;
-}
-
-// UPDATED: Now uses salePrice and price, and includes gender/shoeType
-function normalizeDeal(d) {
-  if (!d) return null;
-
-  const sanitized = sanitizeDeal(d);
-  if (!sanitized) return null;
-
-  const salePrice = toNumber(sanitized.salePrice);
-  const price = toNumber(sanitized.price);
-
-  return {
-    title: typeof sanitized.title === "string" ? sanitized.title.trim() : "",
-    brand: typeof sanitized.brand === "string" ? sanitized.brand.trim() : "Unknown",
-    model: typeof sanitized.model === "string" ? sanitized.model.trim() : "",
-    salePrice,
-    price,
-    store: typeof sanitized.store === "string" ? sanitized.store.trim() : "Unknown",
-    url: typeof sanitized.url === "string" ? sanitized.url.trim() : "",
-    image: typeof sanitized.image === "string" ? sanitized.image.trim() : null,
-    gender: typeof sanitized.gender === "string" ? sanitized.gender.trim() : "unknown",
-    shoeType: typeof sanitized.shoeType === "string" ? sanitized.shoeType.trim() : "unknown",
-  };
-}
-
-function dedupeDeals(deals) {
-  const unique = [];
-  const seen = new Set();
-
-  for (const d of deals) {
-    if (!d) continue;
-
-    const urlKey = (d.url || "").trim();
-    const storeKey = (d.store || "Unknown").trim();
-
-    if (!urlKey) {
-      unique.push(d);
-      continue;
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f4ede3;
+      padding: 20px;
+      color: #2d2d2d;
     }
 
-    const key = `${storeKey}|${urlKey}`;
-    if (seen.has(key)) continue;
+    .container { max-width: 1400px; margin: 0 auto; }
 
-    seen.add(key);
-    unique.push(d);
-  }
-
-  return unique;
-}
-
-async function fetchJson(url) {
-  const resp = await axios.get(url, {
-    timeout: 30000,
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-      Accept: "application/json,text/plain,*/*",
-    },
-  });
-  return resp.data;
-}
-
-async function loadDealsFromBlobOrEndpoint({ name, blobUrl, endpointUrl }) {
-  const metadata = {
-    name,
-    source: null,
-    deals: [],
-    blobUrl: null,
-    timestamp: null,
-    duration: null,
-    payloadMeta: null, // keep top-level metadata for scraper-data.json, if present
-  };
-
-  if (blobUrl) {
-    const payload = await fetchJson(blobUrl);
-    const deals = extractDealsFromPayload(payload);
-    metadata.source = "blob";
-    metadata.deals = deals;
-    metadata.blobUrl = blobUrl;
-    metadata.timestamp = payload.lastUpdated || payload.timestamp || null;
-    metadata.duration = payload.duration || null;
-    metadata.payloadMeta = payload;
-    return metadata;
-  }
-
-  if (endpointUrl) {
-    const payload = await fetchJson(endpointUrl);
-
-    let deals = extractDealsFromPayload(payload);
-
-    if ((!deals || deals.length === 0) && payload && typeof payload.blobUrl === "string") {
-      const payload2 = await fetchJson(payload.blobUrl);
-      deals = extractDealsFromPayload(payload2);
-      metadata.blobUrl = payload.blobUrl;
-      metadata.timestamp = payload2.lastUpdated || payload2.timestamp || payload.timestamp || null;
-      metadata.duration = payload.duration || payload2.duration || null;
-      metadata.payloadMeta = payload2; // prefer blob payload if we had to follow it
-    } else {
-      metadata.blobUrl = payload.blobUrl || null;
-      metadata.timestamp = payload.timestamp || payload.lastUpdated || null;
-      metadata.duration = payload.duration || null;
-      metadata.payloadMeta = payload;
+    /* Store filter + results */
+    .filter-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
+      margin: 10px 0 18px;
+      flex-wrap: wrap;
     }
 
-    metadata.source = "endpoint";
-    metadata.deals = deals;
-
-    return metadata;
-  }
-
-  return { name, source: "none", deals: [], payloadMeta: null };
-}
-
-/** ------------ Stats ------------ **/
-
-function bucketLabel(salePrice) {
-  if (!Number.isFinite(salePrice)) return null;
-  if (salePrice < 50) return "$0-50";
-  if (salePrice < 75) return "$50-75";
-  if (salePrice < 100) return "$75-100";
-  if (salePrice < 125) return "$100-125";
-  if (salePrice < 150) return "$125-150";
-  return "$150+";
-}
-
-function dealSummary(deal) {
-  if (!deal) return null;
-  const salePrice = toNumber(deal.salePrice);
-  const price = toNumber(deal.price);
-  const percentOff = computeDiscountPercent(deal);
-  const dollarSavings = computeDollarSavings(deal);
-
-  return {
-    title: deal.title || "",
-    brand: deal.brand || "Unknown",
-    model: deal.model || "",
-    store: deal.store || "Unknown",
-    url: deal.url || "",
-    image: deal.image || null,
-    salePrice,
-    price,
-    percentOff,
-    dollarSavings,
-    gender: deal.gender || "unknown",
-    shoeType: deal.shoeType || "unknown",
-  };
-}
-
-function computeStats(deals, storeMetadata) {
-  const nowIso = new Date().toISOString();
-
-  const stores = Object.create(null);
-  const brands = Object.create(null);
-  const uniqueStoreSet = new Set();
-  const uniqueBrandSet = new Set();
-
-  let discountCount = 0;
-  let discountSum = 0;
-
-  let topPercent = null;
-  let topDollar = null;
-  let lowestPrice = null;
-  let bestValue = null;
-
-  const priceBuckets = {
-    "$0-50": 0,
-    "$50-75": 0,
-    "$75-100": 0,
-    "$100-125": 0,
-    "$125-150": 0,
-    "$150+": 0,
-  };
-
-  for (const d of safeArray(deals)) {
-    const store = (d.store || "Unknown").trim() || "Unknown";
-    const brandRaw = (d.brand || "").trim();
-    const brand = brandRaw ? brandRaw : "Unknown";
-
-    const salePrice = toNumber(d.salePrice);
-
-    uniqueStoreSet.add(store);
-    uniqueBrandSet.add(brand);
-
-    if (!stores[store]) {
-      stores[store] = {
-        store,
-        count: 0,
-        discountSum: 0,
-        discountCount: 0,
-        savingsSum: 0,
-        unknownBrandCount: 0,
-        missingImageCount: 0,
-        missingUrlCount: 0,
-        missingModelCount: 0,
-        missingPriceCount: 0,
-      };
+    .filter-row label {
+      font-weight: 600;
+      color: #214478ff;
     }
 
-    const s = stores[store];
-    s.count += 1;
-
-    const brandIsUnknown = brand === "Unknown" || !brandRaw;
-    if (brandIsUnknown) s.unknownBrandCount += 1;
-
-    const img = typeof d.image === "string" ? d.image : "";
-    if (!img || img.includes("placehold.co")) s.missingImageCount += 1;
-
-    const url = typeof d.url === "string" ? d.url : "";
-    if (!url || url === "#") s.missingUrlCount += 1;
-
-    const model = typeof d.model === "string" ? d.model.trim() : "";
-    if (!model) s.missingModelCount += 1;
-
-    if (!Number.isFinite(salePrice) || salePrice <= 0) s.missingPriceCount += 1;
-
-    const percentOff = computeDiscountPercent(d);
-    const dollarSavings = computeDollarSavings(d);
-
-    if (percentOff > 0) {
-      s.discountSum += percentOff;
-      s.discountCount += 1;
-      s.savingsSum += dollarSavings;
-
-      discountSum += percentOff;
-      discountCount += 1;
-
-      if (!topPercent || percentOff > topPercent.percentOff) topPercent = { deal: d, percentOff };
-      if (!topDollar || dollarSavings > topDollar.dollarSavings) topDollar = { deal: d, dollarSavings };
-
-      if (Number.isFinite(salePrice)) {
-        if (!lowestPrice || salePrice < lowestPrice.salePrice) lowestPrice = { deal: d, salePrice };
-      }
-
-      const valueScore = percentOff + (dollarSavings * 0.5);
-      if (!bestValue || valueScore > bestValue.valueScore) bestValue = { deal: d, valueScore };
+    .filter-row select {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 2px solid #214478ff;
+      background: #ffffff;
+      font-size: 1rem;
+      min-width: 260px;
     }
 
-    if (Number.isFinite(salePrice) && salePrice > 0) {
-      const label = bucketLabel(salePrice);
-      if (label) priceBuckets[label] += 1;
+    .deals-panel {
+      background: white;
+      border: 2px solid #214478ff;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 30px;
     }
 
-    if (!brands[brand]) {
-      brands[brand] = {
-        brand,
-        count: 0,
-        discountSum: 0,
-        discountCount: 0,
-        minPrice: Number.POSITIVE_INFINITY,
-        maxPrice: 0,
-      };
-    }
-    const b = brands[brand];
-    b.count += 1;
-    if (percentOff > 0) {
-      b.discountSum += percentOff;
-      b.discountCount += 1;
-    }
-    if (Number.isFinite(salePrice) && salePrice > 0) {
-      b.minPrice = Math.min(b.minPrice, salePrice);
-      b.maxPrice = Math.max(b.maxPrice, salePrice);
-    }
-  }
-
-  for (const b of Object.values(brands)) {
-    if (!Number.isFinite(b.minPrice)) b.minPrice = 0;
-  }
-
-  const storesTable = Object.values(stores)
-    .map((s) => {
-      const avgDiscount = s.discountCount ? s.discountSum / s.discountCount : 0;
-      const avgSavings = s.discountCount ? s.savingsSum / s.discountCount : 0;
-      const unknownPct = s.count ? (s.unknownBrandCount / s.count) * 100 : 0;
-
-      let status = "healthy";
-      const issues = [];
-
-      if (s.count === 0) {
-        status = "critical";
-        issues.push("ZERO RESULTS");
-      }
-
-      if (unknownPct > 50) {
-        status = "critical";
-        issues.push(`${unknownPct.toFixed(0)}% Unknown Brands`);
-      } else if (unknownPct > 20) {
-        if (status !== "critical") status = "warning";
-        issues.push(`${unknownPct.toFixed(0)}% Unknown Brands`);
-      }
-
-      const missingImagesPct = s.count ? (s.missingImageCount / s.count) * 100 : 0;
-      if (missingImagesPct > 30) {
-        if (status !== "critical") status = "warning";
-        issues.push(`${missingImagesPct.toFixed(0)}% Missing Images`);
-      }
-
-      const missingUrlsPct = s.count ? (s.missingUrlCount / s.count) * 100 : 0;
-      if (missingUrlsPct > 10) {
-        if (status !== "critical") status = "warning";
-        issues.push(`${missingUrlsPct.toFixed(0)}% Missing URLs`);
-      }
-
-      const missingModelsPct = s.count ? (s.missingModelCount / s.count) * 100 : 0;
-      if (missingModelsPct > 30) {
-        if (status !== "critical") status = "warning";
-        issues.push(`${missingModelsPct.toFixed(0)}% Missing Models`);
-      }
-
-      if (s.count > 0 && s.count < 5) {
-        if (status !== "critical") status = "warning";
-        issues.push(`Low Deal Count (${s.count})`);
-      }
-
-      return {
-        store: s.store,
-        count: s.count,
-        avgDiscount,
-        avgSavings,
-        unknownBrandCount: s.unknownBrandCount,
-        unknownBrandPct: unknownPct,
-        missingImageCount: s.missingImageCount,
-        missingUrlCount: s.missingUrlCount,
-        missingModelCount: s.missingModelCount,
-        missingPriceCount: s.missingPriceCount,
-        health: { status, issues },
-      };
-    })
-    .sort((a, b) => b.count - a.count);
-
-  const brandsTop = Object.values(brands)
-    .filter((b) => b.brand && b.brand !== "Unknown")
-    .map((b) => ({
-      brand: b.brand,
-      count: b.count,
-      avgDiscount: b.discountCount ? b.discountSum / b.discountCount : 0,
-      minPrice: b.minPrice,
-      maxPrice: b.maxPrice,
-    }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 25);
-
-  const unknownByStore = storesTable.reduce((acc, s) => {
-    acc[s.store] = { unknownCount: s.unknownBrandCount, total: s.count, pct: s.unknownBrandPct };
-    return acc;
-  }, {});
-
-  let healthyCount = 0, warningCount = 0, criticalCount = 0;
-  for (const s of storesTable) {
-    if (s.health.status === "healthy") healthyCount++;
-    else if (s.health.status === "warning") warningCount++;
-    else criticalCount++;
-  }
-
-  const avgDiscount = discountCount ? discountSum / discountCount : 0;
-
-  return {
-    version: 1,
-    generatedAt: nowIso,
-
-    totalDeals: safeArray(deals).length,
-    totalStores: uniqueStoreSet.size,
-    totalBrands: uniqueBrandSet.size,
-    avgDiscount,
-
-    topDeals: {
-      topPercent: topPercent ? dealSummary(topPercent.deal) : null,
-      topDollar: topDollar ? dealSummary(topDollar.deal) : null,
-      lowestPrice: lowestPrice ? dealSummary(lowestPrice.deal) : null,
-      bestValue: bestValue ? dealSummary(bestValue.deal) : null,
-    },
-
-    storesTable,
-    brandsTop,
-    unknownByStore,
-    priceBuckets,
-
-    health: {
-      summary: { healthy: healthyCount, warning: warningCount, critical: criticalCount },
-      stores: storesTable.map((s) => ({
-        store: s.store,
-        status: s.health.status,
-        issues: s.health.issues,
-        count: s.count,
-        unknownBrandPct: s.unknownBrandPct,
-      })),
-    },
-
-    scraperMetadata: storeMetadata || {},
-  };
-}
-
-/** ------------ Daily Deals (computed at merge time) ------------ **/
-
-function seededRandom(seed) {
-  const x = Math.sin(seed++) * 10000;
-  return x - Math.floor(x);
-}
-
-function getDateSeedStringUTC() {
-  return new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
-}
-
-function seedFromString(str) {
-  let seed = 0;
-  for (let i = 0; i < str.length; i++) seed += str.charCodeAt(i);
-  return seed;
-}
-
-function getRandomSample(array, count, seedBaseStr) {
-  if (!array || array.length === 0) return [];
-  const dateStr = seedBaseStr || getDateSeedStringUTC();
-  const seedBase = seedFromString(dateStr);
-
-  const copy = [...array];
-  const picked = [];
-  const n = Math.min(count, copy.length);
-
-  for (let i = 0; i < n; i++) {
-    const rng = seededRandom(seedBase + i);
-    const idx = Math.floor(rng * copy.length);
-    picked.push(copy[idx]);
-    copy.splice(idx, 1);
-  }
-  return picked;
-}
-
-function parseMoney(value) {
-  if (typeof value === "number") return value;
-  if (typeof value === "string") {
-    const cleaned = value.replace(/[^0-9.]/g, "");
-    const num = parseFloat(cleaned);
-    return Number.isFinite(num) ? num : 0;
-  }
-  return 0;
-}
-
-function hasGoodImage(deal) {
-  return (
-    deal &&
-    deal.image &&
-    typeof deal.image === "string" &&
-    deal.image.trim() &&
-    !deal.image.includes("no-image") &&
-    !deal.image.includes("placeholder") &&
-    !deal.image.includes("placehold.co")
-  );
-}
-
-function isDiscountedDeal(deal) {
-  const salePrice = parseMoney(deal.salePrice);
-  const price = parseMoney(deal.price);
-  return Number.isFinite(salePrice) && Number.isFinite(price) && price > salePrice;
-}
-
-function discountPercent(deal) {
-  const sale = parseMoney(deal.salePrice);
-  const orig = parseMoney(deal.price);
-  if (!orig || orig <= 0 || sale >= orig) return 0;
-  return ((orig - sale) / orig) * 100;
-}
-
-function dollarSavings(deal) {
-  const sale = parseMoney(deal.salePrice);
-  const orig = parseMoney(deal.price);
-  if (!orig || orig <= 0 || sale >= orig) return 0;
-  return orig - sale;
-}
-
-function shuffleWithDateSeed(items, seedStr) {
-  const dateStr = seedStr || getDateSeedStringUTC();
-  let shuffleSeed = 999;
-  for (let i = 0; i < dateStr.length; i++) {
-    shuffleSeed += dateStr.charCodeAt(i) * 7;
-  }
-
-  const arr = [...items];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const rng = seededRandom(shuffleSeed + i);
-    const j = Math.floor(rng * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-function toDailyDealShape(deal) {
-  const salePrice = parseMoney(deal.salePrice);
-  const price = parseMoney(deal.price);
-
-  return {
-    title: deal.title || "Running Shoe Deal",
-    brand: deal.brand || "",
-    model: deal.model || "",
-    salePrice: Number.isFinite(salePrice) ? salePrice : 0,
-    price: Number.isFinite(price) ? price : null,
-    store: deal.store || "Store",
-    url: deal.url || "#",
-    image: deal.image || "",
-    gender: deal.gender || "unknown",
-    shoeType: deal.shoeType || "unknown",
-  };
-}
-
-function computeTwelveDailyDeals(allDeals, seedStr) {
-  const dateStr = seedStr || getDateSeedStringUTC();
-
-  const qualityDeals = (allDeals || []).filter(
-    (d) => hasGoodImage(d) && isDiscountedDeal(d) && d.price && d.salePrice
-  );
-
-  const workingPool =
-    qualityDeals.length >= 12 ? qualityDeals : (allDeals || []).filter(hasGoodImage);
-
-  if (!workingPool.length) return [];
-
-  if (workingPool.length < 12) {
-    const picked = getRandomSample(workingPool, workingPool.length, dateStr);
-    return shuffleWithDateSeed(picked, dateStr).map(toDailyDealShape);
-  }
-
-  const top20ByPercent = [...workingPool]
-    .sort((a, b) => discountPercent(b) - discountPercent(a))
-    .slice(0, Math.min(20, workingPool.length));
-
-  const byPercent = getRandomSample(top20ByPercent, Math.min(4, top20ByPercent.length), dateStr);
-  const pickedUrls = new Set(byPercent.map((d) => d.url).filter(Boolean));
-
-  const top20ByDollar = [...workingPool]
-    .filter((d) => !pickedUrls.has(d.url))
-    .sort((a, b) => dollarSavings(b) - dollarSavings(a))
-    .slice(0, 20);
-
-  const byDollar = getRandomSample(top20ByDollar, Math.min(4, top20ByDollar.length), dateStr);
-  byDollar.forEach((d) => pickedUrls.add(d.url));
-
-  const remaining = workingPool.filter((d) => !pickedUrls.has(d.url));
-  const randomPicks = getRandomSample(remaining, Math.min(4, remaining.length), dateStr);
-
-  const selectedRaw = [...byPercent, ...byDollar, ...randomPicks];
-  const shuffled = shuffleWithDateSeed(selectedRaw, dateStr);
-
-  return shuffled.map(toDailyDealShape);
-}
-
-/** ------------ scraper-data.json (rolling 30 days) ------------ **/
-
-function toIsoDayUTC(isoOrDate) {
-  const d = isoOrDate ? new Date(isoOrDate) : new Date();
-  if (Number.isNaN(d.getTime())) return getDateSeedStringUTC();
-  return d.toISOString().split("T")[0];
-}
-
-/**
- * Build scraper performance records for "today".
- * - For normal single-source scrapers, we record one entry.
- * - For scrape-daily, we try to explode into individual store scrapers using payload.scraperResults (if present),
- *   otherwise we fall back to dealsByStore as per-store counts, otherwise a single combined entry.
- */
-function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
-  const payload = meta?.payloadMeta || null;
-  const timestamp = meta?.timestamp || payload?.lastUpdated || payload?.timestamp || null;
-  const durationMs = parseDurationMs(meta?.duration || payload?.duration || null);
-  const via = meta?.source || null;
-  const blobUrl = meta?.blobUrl || null;
-
-  // If the source failed, record a failure entry.
-  if (!perSourceOk) {
-    return [
-      {
-        scraper: sourceName,
-        ok: false,
-        count: 0,
-        durationMs: durationMs,
-        timestamp: timestamp,
-        via,
-        blobUrl,
-        error: meta?.error || "Unknown error",
-      },
-    ];
-  }
-
-  // Special handling: break out scrape-daily into individual scrapers/stores if we can.
-  if (String(sourceName).toLowerCase().includes("scrape-daily")) {
-    const records = [];
-
-    // 1) If scrape-daily includes scraperResults { "Zappos": {count, duration, ...}, ... }
-    if (payload && payload.scraperResults && typeof payload.scraperResults === "object") {
-      for (const [name, r] of Object.entries(payload.scraperResults)) {
-        // r might be {success,count} or {ok,count} etc.
-        const ok = typeof r?.success === "boolean" ? r.success : (typeof r?.ok === "boolean" ? r.ok : true);
-        const count = Number.isFinite(r?.count) ? r.count : (Number.isFinite(r?.totalDeals) ? r.totalDeals : 0);
-        const dMs = parseDurationMs(r?.duration || null) ?? durationMs ?? null;
-        records.push({
-          scraper: name,
-          ok,
-          count: Number.isFinite(count) ? count : 0,
-          durationMs: dMs,
-          timestamp: payload.timestamp || payload.lastUpdated || timestamp || null,
-          via,
-          blobUrl,
-        });
-      }
-      if (records.length) return records;
+    .deals-panel h2 {
+      color: #214478ff;
+      margin-bottom: 10px;
+      font-size: 1.5rem;
     }
 
-    // 2) Else: if scrape-daily includes dealsByStore {storeName: count}
-    if (payload && payload.dealsByStore && typeof payload.dealsByStore === "object") {
-      for (const [store, count] of Object.entries(payload.dealsByStore)) {
-        records.push({
-          scraper: store,
-          ok: true,
-          count: Number.isFinite(count) ? count : 0,
-          durationMs: durationMs,
-          timestamp: payload.timestamp || payload.lastUpdated || timestamp || null,
-          via,
-          blobUrl,
-        });
-      }
-      if (records.length) return records;
+    .deals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
     }
 
-    // 3) Fallback: single combined scrape-daily entry
-    return [
-      {
-        scraper: sourceName,
-        ok: true,
-        count: safeArray(meta?.deals).length,
-        durationMs,
-        timestamp,
-        via,
-        blobUrl,
-      },
-    ];
-  }
-
-  // Normal case: one entry per source
-  return [
-    {
-      scraper: sourceName,
-      ok: true,
-      count: safeArray(meta?.deals).length,
-      durationMs,
-      timestamp,
-      via,
-      blobUrl,
-    },
-  ];
-}
-
-function mergeRollingScraperHistory(existing, todayDayUTC, todayRecords, maxDays = 30) {
-  const history = safeArray(existing?.days).map((d) => d).filter(Boolean);
-
-  // Remove any existing entry for today's date, then append fresh
-  const filtered = history.filter((d) => d?.dayUTC !== todayDayUTC);
-
-  filtered.push({
-    dayUTC: todayDayUTC,
-    generatedAt: new Date().toISOString(),
-    scrapers: safeArray(todayRecords),
-  });
-
-  // Keep last N by day order (sorted ascending by date)
-  filtered.sort((a, b) => String(a.dayUTC).localeCompare(String(b.dayUTC)));
-
-  // Trim to last N
-  const trimmed = filtered.slice(Math.max(0, filtered.length - maxDays));
-
-  return {
-    version: 1,
-    lastUpdated: new Date().toISOString(),
-    days: trimmed,
-  };
-}
-
-/** ------------ Handler ------------ **/
-
-module.exports = async (req, res) => {
-  if (req.method !== "GET") {
-    return res.status(405).json({ success: false, error: "Method not allowed" });
-  }
-
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
-    return res.status(401).json({ success: false, error: "Unauthorized" });
-  }
-
-  const start = Date.now();
-  const baseUrl = getBaseUrl(req);
-
-  // ============================================================================
-  // BLOB URLs (recommended - set these in Vercel environment variables)
-  // ============================================================================
-  const OTHER_DEALS_BLOB_URL = process.env.OTHER_DEALS_BLOB_URL || "";
-  const HOLABIRD_MENS_ROAD_BLOB_URL = process.env.HOLABIRD_MENS_ROAD_BLOB_URL || "";
-  const HOLABIRD_WOMENS_ROAD_BLOB_URL = process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "";
-  const HOLABIRD_TRAIL_UNISEX_BLOB_URL = process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "";
-  const BROOKS_SALE_BLOB_URL = process.env.BROOKS_SALE_BLOB_URL || "";
-  const ASICS_SALE_BLOB_URL = process.env.ASICS_SALE_BLOB_URL || "";
-  const SHOEBACCA_CLEARANCE_BLOB_URL = process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "";
-
-  // For rolling history read-back (recommended)
-  const SCRAPER_DATA_BLOB_URL = process.env.SCRAPER_DATA_BLOB_URL || "";
-
-  // ============================================================================
-  // ENDPOINT FALLBACKS (only used if blob URLs are missing)
-  // ============================================================================
-  const OTHER_DEALS_ENDPOINT = `${baseUrl}/api/scrape-daily`;
-  const HOLABIRD_MENS_ROAD_ENDPOINT = `${baseUrl}/api/scrapers/holabird-mens-road`;
-  const HOLABIRD_WOMENS_ROAD_ENDPOINT = `${baseUrl}/api/scrapers/holabird-womens-road`;
-  const HOLABIRD_TRAIL_UNISEX_ENDPOINT = `${baseUrl}/api/scrapers/holabird-trail-unisex`;
-  const BROOKS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/brooks-sale`;
-  const ASICS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/asics-sale`;
-  const SHOEBACCA_CLEARANCE_ENDPOINT = `${baseUrl}/api/scrapers/shoebacca-clearance`;
-
-  try {
-    console.log("[MERGE] Starting merge:", new Date().toISOString());
-    console.log("[MERGE] Base URL:", baseUrl);
-
-    const sources = [
-      {
-        name: "Other (scrape-daily)",
-        blobUrl: OTHER_DEALS_BLOB_URL || null,
-        endpointUrl: OTHER_DEALS_BLOB_URL ? null : OTHER_DEALS_ENDPOINT,
-      },
-      {
-        name: "Holabird Mens Road",
-        blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL || null,
-        endpointUrl: HOLABIRD_MENS_ROAD_BLOB_URL ? null : HOLABIRD_MENS_ROAD_ENDPOINT,
-      },
-      {
-        name: "Holabird Womens Road",
-        blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL || null,
-        endpointUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL ? null : HOLABIRD_WOMENS_ROAD_ENDPOINT,
-      },
-      {
-        name: "Holabird Trail + Unisex",
-        blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL || null,
-        endpointUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL ? null : HOLABIRD_TRAIL_UNISEX_ENDPOINT,
-      },
-      {
-        name: "Brooks Sale",
-        blobUrl: BROOKS_SALE_BLOB_URL || null,
-        endpointUrl: BROOKS_SALE_BLOB_URL ? null : BROOKS_SALE_ENDPOINT,
-      },
-      {
-        name: "ASICS Sale",
-        blobUrl: ASICS_SALE_BLOB_URL || null,
-        endpointUrl: ASICS_SALE_BLOB_URL ? null : ASICS_SALE_ENDPOINT,
-      },
-      {
-        name: "Shoebacca Clearance",
-        blobUrl: SHOEBACCA_CLEARANCE_BLOB_URL || null,
-        endpointUrl: SHOEBACCA_CLEARANCE_BLOB_URL ? null : SHOEBACCA_CLEARANCE_ENDPOINT,
-      },
-    ];
-
-    const settled = await Promise.allSettled(sources.map((s) => loadDealsFromBlobOrEndpoint(s)));
-
-    const perSource = {};
-    const storeMetadata = {};
-    const allDealsRaw = [];
-    const perSourceMeta = {}; // keep the full meta object per source for scraper-data
-
-    for (let i = 0; i < settled.length; i++) {
-      const name = sources[i].name;
-
-      if (settled[i].status === "fulfilled") {
-        const { source, deals, blobUrl, timestamp, duration, payloadMeta } = settled[i].value;
-
-        perSource[name] = { ok: true, via: source, count: safeArray(deals).length };
-
-        storeMetadata[name] = {
-          blobUrl: blobUrl || null,
-          timestamp: timestamp || null,
-          duration: duration || null,
-          count: safeArray(deals).length,
-        };
-
-        perSourceMeta[name] = {
-          name,
-          source,
-          deals,
-          blobUrl,
-          timestamp,
-          duration,
-          payloadMeta,
-        };
-
-        allDealsRaw.push(...safeArray(deals));
-      } else {
-        const msg = settled[i].reason?.message || String(settled[i].reason);
-        perSource[name] = { ok: false, error: msg };
-        storeMetadata[name] = { error: msg };
-        perSourceMeta[name] = { name, error: msg, source: "error", deals: [] };
-      }
+    .deal-card {
+      border: 2px solid #214478ff;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #d9e1ebff;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, box-shadow 0.2s;
     }
 
-    console.log("[MERGE] Source counts:", perSource);
-    console.log("[MERGE] Total raw deals:", allDealsRaw.length);
+    .deal-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 6px 20px rgba(33, 68, 120, 0.3);
+    }
 
-    // ============================================================================
-    // DEBUG BLOB (RAW, UNALTERED)
-    // Save BEFORE any manipulation/sanitization/filtering/deduping/sorting.
-    // ============================================================================
-    const unalteredPayload = {
-      lastUpdated: new Date().toISOString(),
-      totalDealsRaw: allDealsRaw.length,
-      scraperResults: perSource,
-      storeMetadata,
-      deals: allDealsRaw,
+    .deal-card img {
+      width: 100%;
+      height: 200px;
+      object-fit: contain;
+      background: white;
+      border-bottom: 2px solid #214478ff;
+      padding: 10px;
+    }
+
+    .deal-card-body {
+      padding: 12px 14px;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .deal-title {
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 8px;
+      line-height: 1.3;
+      color: #214478ff;
+      min-height: 2.6em;
+    }
+
+    .deal-meta {
+      font-size: 0.85rem;
+      color: #49543a;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .deal-price-row {
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1px solid rgba(33, 68, 120, 0.2);
+    }
+
+    .deal-price {
+      font-weight: 800;
+      color: #214478ff;
+      font-size: 1.3rem;
+    }
+
+    .deal-orig {
+      margin-left: 8px;
+      color: #999;
+      text-decoration: line-through;
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .deal-discount {
+      display: inline-block;
+      background: #dc3545;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      margin-top: 6px;
+    }
+
+    /* Logo at top with 6px buffer */
+    .brand-header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 6px;
+      margin-bottom: 8px;
+    }
+    .brand-logo {
+      width: 520px;
+      max-width: 100%;
+      height: auto;
+      object-fit: contain;
+    }
+
+    h1 {
+      color: #214478ff;
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 2.5rem;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 1rem;
+    }
+
+    .last-updated {
+      text-align: center;
+      color: #999;
+      font-size: 0.9rem;
+      margin-bottom: 30px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      background: white;
+      border: 2px solid #214478ff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .stat-card h2 {
+      color: #214478ff;
+      font-size: 1.1rem;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #214478ff;
+      padding-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: #214478ff;
+      margin: 10px 0;
+    }
+
+    .stat-label { color: #666; font-size: 0.9rem; }
+
+    .top-deal {
+      background: rgba(33, 68, 120, 0.05);
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 10px;
+      border-left: 4px solid #214478ff;
+    }
+
+    .top-deal-title {
+      font-weight: bold;
+      color: #214478ff;
+      margin-bottom: 5px;
+      font-size: 1.05rem;
+    }
+
+    .top-deal-store { color: #666; font-size: 0.85rem; margin-bottom: 8px; }
+    .top-deal-price { font-size: 1.2rem; color: #2d2d2d; margin: 5px 0; }
+    .top-deal-savings { color: #dc3545; font-weight: bold; font-size: 1.1rem; }
+
+    .stores-table, .brand-table, .chart-container {
+      background: white;
+      border: 2px solid #214478ff;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 30px;
+      overflow-x: auto;
+    }
+
+    .stores-table h2, .brand-table h2, .chart-container h2 {
+      color: #214478ff;
+      margin-bottom: 15px;
+      font-size: 1.5rem;
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+      vertical-align: top;
+    }
+
+    th {
+      background: #214478ff;
+      color: white;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s;
+    }
+
+    th:hover {
+      background: #1a3661;
+    }
+
+    th.sortable::after {
+      content: " ⇅";
+      opacity: 0.5;
+      font-size: 0.9em;
+    }
+
+    th.sorted-asc::after {
+      content: " ▲";
+      opacity: 1;
+    }
+
+    th.sorted-desc::after {
+      content: " ▼";
+      opacity: 1;
+    }
+
+    tr:hover { background: rgba(33, 68, 120, 0.05); }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      font-size: 1.2rem;
+      color: #666;
+    }
+
+    .error {
+      background: #dc3545;
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    .refresh-btn {
+      display: inline-flex;
+      margin: 0;
+      padding: 12px 30px;
+      background: #214478ff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+      text-align: center;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Primary action: Refresh */
+    .button-row .refresh-btn:first-child {
+      background: #2e7d32;
+    }
+
+    .button-row .refresh-btn:first-child:hover {
+      background: #256428;
+    }
+    
+    .button-row .refresh-btn{
+      min-width: 0;
+      padding: 8px 14px;
+      font-size: 0.92rem;
+      margin: 0;
+      border-radius: 8px;
+      line-height: 1.1;
+    }
+
+    .button-row .refresh-btn {
+      min-width: 140px;
+      text-align: center;
+    }
+
+    .refresh-btn:hover { background: #1a3661; }
+
+    .button-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+
+    .bar-chart { margin-top: 20px; }
+    .bar-row { margin-bottom: 12px; }
+
+    .bar-label {
+      font-size: 0.9rem;
+      color: #666;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .bar-bg {
+      background: #e0e0e0;
+      height: 30px;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar-fill {
+      background: linear-gradient(90deg, #214478ff, #3a6bb0);
+      height: 100%;
+      transition: width 0.5s ease;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 10px;
+      color: white;
+      font-weight: bold;
+      font-size: 0.85rem;
+    }
+
+    .debug-info {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 30px;
+      font-family: monospace;
+      font-size: 0.85rem;
+    }
+
+    .debug-info h3 {
+      color: #214478ff;
+      margin-bottom: 10px;
+      font-family: system-ui;
+    }
+
+    .note {
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 6px;
+    }
+
+    /* Health Status Styles */
+    .health-panel {
+      background: white;
+      border: 2px solid #214478ff;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+
+    .health-panel h2 {
+      color: #214478ff;
+      margin-bottom: 15px;
+      font-size: 1.5rem;
+    }
+
+    .health-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 15px;
+    }
+
+    .health-card {
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      padding: 15px;
+      background: #f9f9f9;
+    }
+
+    .health-card.healthy {
+      border-color: #28a745;
+      background: #f0f9f4;
+    }
+
+    .health-card.warning {
+      border-color: #ffc107;
+      background: #fffbf0;
+    }
+
+    .health-card.critical {
+      border-color: #dc3545;
+      background: #fff5f5;
+    }
+
+    .health-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .health-store-name {
+      font-weight: bold;
+      font-size: 1.1rem;
+      color: #214478ff;
+    }
+
+    .health-status-badge {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .health-status-badge.healthy {
+      background: #28a745;
+      color: white;
+    }
+
+    .health-status-badge.warning {
+      background: #ffc107;
+      color: #333;
+    }
+
+    .health-status-badge.critical {
+      background: #dc3545;
+      color: white;
+    }
+
+    .health-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .health-metric {
+      font-size: 0.9rem;
+    }
+
+    .health-metric-label {
+      color: #666;
+      font-size: 0.85rem;
+    }
+
+    .health-metric-value {
+      font-weight: bold;
+      color: #214478ff;
+    }
+
+    .health-issues {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #ddd;
+    }
+
+    .health-issue {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+      font-size: 0.9rem;
+    }
+
+    .health-issue-icon {
+      font-size: 1.1rem;
+    }
+
+    .health-issue.critical {
+      color: #dc3545;
+    }
+
+    .health-issue.warning {
+      color: #856404;
+    }
+
+    .health-summary {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .health-summary-item {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: bold;
+    }
+
+    .health-summary-item.healthy {
+      background: #28a745;
+      color: white;
+    }
+
+    .health-summary-item.warning {
+      background: #ffc107;
+      color: #333;
+    }
+
+    .health-summary-item.critical {
+      background: #dc3545;
+      color: white;
+    }
+
+    .scraped-url {
+      font-size: 0.8rem;
+      color: #666;
+      word-break: break-all;
+      margin-top: 4px;
+      font-family: monospace;
+    }
+
+    .scraped-url a {
+      color: #214478ff;
+      text-decoration: none;
+    }
+
+    .scraped-url a:hover {
+      text-decoration: underline;
+    }
+
+    /* Data quality issue highlighting */
+    .issue-count {
+      font-weight: bold;
+    }
+
+    .issue-count.critical {
+      color: #dc3545;
+    }
+
+    .issue-count.warning {
+      color: #ff9800;
+    }
+
+    .issue-count.good {
+      color: #28a745;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+
+    <div class="brand-header">
+      <img class="brand-logo" src="/images/logo.svg" alt="Shoe Beagle">
+    </div>
+
+    <h1>Dashboard</h1>
+
+    <div class="button-row">
+      <button class="refresh-btn" onclick="loadStats()">Refresh Data</button>
+      <button class="refresh-btn" onclick="openExternal('https://shoebeagle.com')">ShoeBeagle</button>
+      <button class="refresh-btn" onclick="openExternal('https://github.com')">GitHub</button>
+      <button class="refresh-btn" onclick="openExternal('https://vercel.com')">Vercel</button>
+      <button class="refresh-btn" onclick="openExternal('https://apify.com')">Apify</button>
+      <button class="refresh-btn" onclick="openExternal('https://www.firecrawl.dev')">Firecrawl</button>
+      <button class="refresh-btn" onclick="openExternal('https://sendgrid.com')">SendGrid</button>
+      <button class="refresh-btn" onclick="openExternal('https://namecheap.com')">Namecheap</button>
+    </div>
+
+    <div id="loading" class="loading">Loading deal statistics...</div>
+    <div id="error" class="error" style="display: none;"></div>
+
+    <!-- Debug Info -->
+    <div id="debugInfo" class="debug-info" style="display: none;">
+      <h3>Debug Information:</h3>
+      <div id="debugContent"></div>
+    </div>
+
+    <!-- Health Status Panel -->
+    <div id="healthPanel" class="health-panel" style="display: none;">
+      <h2>🏥 Scraper Health Status</h2>
+      <div class="health-summary" id="healthSummary"></div>
+      <div class="health-grid" id="healthGrid"></div>
+    </div>
+
+    <!-- 30-Day Scraper Performance -->
+    <div id="scraperHistoryPanel" class="health-panel" style="display: none;">
+      <h2>📈 30-Day Scraper Performance History</h2>
+      <div id="scraperHistoryChart"></div>
+    </div>
+
+    <div id="content" style="display: none;">
+
+      <!-- Key Metrics -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <h2>Total Deals</h2>
+          <div class="stat-value" id="totalDeals">-</div>
+          <div class="stat-label">Across all stores</div>
+        </div>
+
+        <div class="stat-card">
+          <h2>Active Stores</h2>
+          <div class="stat-value" id="totalStores">-</div>
+          <div class="stat-label">Providing deals</div>
+        </div>
+
+        <div class="stat-card">
+          <h2>Unique Brands</h2>
+          <div class="stat-value" id="totalBrands">-</div>
+          <div class="stat-label">Different brands available</div>
+        </div>
+
+        <div class="stat-card">
+          <h2>Average Discount</h2>
+          <div class="stat-value" id="avgDiscount">-</div>
+          <div class="stat-label">Across all discounted deals</div>
+        </div>
+      </div>
+
+      <!-- Top Deals -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <h2>Highest % Discount</h2>
+          <div id="topPercentDeal" class="top-deal">Loading...</div>
+        </div>
+
+        <div class="stat-card">
+          <h2>Biggest $ Savings</h2>
+          <div id="topDollarDeal" class="top-deal">Loading...</div>
+        </div>
+
+        <div class="stat-card">
+          <h2>Lowest Price</h2>
+          <div id="lowestPriceDeal" class="top-deal">Loading...</div>
+        </div>
+
+        <div class="stat-card">
+          <h2>Best Value</h2>
+          <div id="bestValueDeal" class="top-deal">Loading...</div>
+          <div class="stat-label" style="margin-top: 10px; font-style: italic;">
+            Based on discount % + $ savings
+          </div>
+        </div>
+      </div>
+
+      <!-- Deals Browser by Store -->
+      <div class="deals-panel">
+        <h2>🔎 Browse Deals by Store</h2>
+
+        <div class="filter-row">
+          <label for="storeSelect">Store:</label>
+          <select id="storeSelect">
+            <option value="__none__">Select store or Close</option>
+          </select>
+          <div id="storeCount" style="color:#666;font-size:0.95rem;"></div>
+        </div>
+
+        <div class="deals-grid" id="storeDealsGrid"></div>
+      </div>
+
+      <!-- Data Quality by Store -->
+      <div class="stores-table">
+        <h2>📊 Data Quality by Store</h2>
+        <div class="note">Comprehensive data quality metrics for each store's scraped deals.</div>
+        <table>
+          <thead>
+            <tr>
+              <th class="sortable" onclick="sortDataQuality('store')">Store Name</th>
+              <th class="sortable" onclick="sortDataQuality('totalDeals')">Total Deals</th>
+              <th class="sortable" onclick="sortDataQuality('unknownBrands')">Unknown Brands</th>
+              <th class="sortable" onclick="sortDataQuality('unknownModels')">Unknown Models</th>
+              <th class="sortable" onclick="sortDataQuality('noPrice')">No Price</th>
+              <th class="sortable" onclick="sortDataQuality('noSalePrice')">No Sale Price</th>
+              <th class="sortable" onclick="sortDataQuality('badImage')">Bad/Missing Image</th>
+              <th class="sortable" onclick="sortDataQuality('badUrl')">Bad/Missing URL</th>
+            </tr>
+          </thead>
+          <tbody id="dataQualityTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Store Table -->
+      <div class="stores-table">
+        <h2>Store Breakdown</h2>
+        <table>
+          <thead>
+            <tr>
+              <th class="sortable" onclick="sortStoreTable('name')">Store Name</th>
+              <th class="sortable" onclick="sortStoreTable('count')">Total Deals</th>
+              <th class="sortable" onclick="sortStoreTable('avgDiscount')">Avg Discount %</th>
+              <th class="sortable" onclick="sortStoreTable('avgSavings')">Avg $ Savings</th>
+              <th>Best Deal</th>
+            </tr>
+          </thead>
+          <tbody id="storesTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Brand Table -->
+      <div class="brand-table">
+        <h2>Top Brands (by deal count)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Brand</th>
+              <th>Total Deals</th>
+              <th>Avg Discount %</th>
+              <th>Price Range</th>
+            </tr>
+          </thead>
+          <tbody id="brandsTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Price Distribution -->
+      <div class="chart-container">
+        <h2>Price Distribution</h2>
+        <div class="bar-chart" id="priceChart"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Store scraper URL mapping
+    const SCRAPER_URLS = {
+      'ASICS': 'https://www.asics.com/us/en-us/sale/mens-running-shoes/c/aa10107020/',
+      'Brooks Running': 'https://www.brooksrunning.com/en_us/mens-sale-running-shoes/c/301/',
+      'Holabird Sports': 'https://www.holabirdsports.com',
+      'Fleet Feet': 'https://www.fleetfeet.com/collections/mens-running-shoes-on-sale',
+      'Hoka': 'https://www.hoka.com/en/us/sale/mens-shoes/',
+      'Janji': 'https://www.janji.com/collections/sale',
+      'New Balance': 'https://www.newbalance.com/sale/mens-sale/',
+      'On Running': 'https://www.on-running.com/en-us/shop/men/shoes/sale',
+      'REI Co-op': 'https://www.rei.com/s/running-shoes',
+      'Road Runner Sports': 'https://www.roadrunnersports.com/rrs/mens/shoes/sale/_/N-u5Z1z141i0',
+      'Running Warehouse': 'https://www.runningwarehouse.com/',
+      'Saucony': 'https://www.saucony.com/en/sale/',
+      'Shoebacca': 'https://www.shoebacca.com/collections/clearance-athletic',
+      'Sports Basement': 'https://shop.sportsbasement.com/collections/mens-running-shoes',
+      'The Clymb': 'https://www.theclymb.com',
+      'Zappos': 'https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso',
     };
 
-    // 1) Normalize + sanitize
-    const normalized = allDealsRaw.map(normalizeDeal).filter(Boolean);
+    let ALL_DEALS = [];
+    let STORE_DATA = null;
+    let CURRENT_STORE_SORT = { column: 'count', direction: 'desc' };
+    let CURRENT_DATA_QUALITY_SORT = { column: 'totalDeals', direction: 'desc' };
 
-    // 2) Filter (running shoes only, strict discount requirements)
-    const filtered = normalized.filter(isValidRunningShoe);
-
-    // 3) Dedupe across ALL sources
-    const unique = dedupeDeals(filtered);
-
-    // 4) Shuffle then sort by discount %
-    unique.sort(() => Math.random() - 0.5);
-    unique.sort((a, b) => computeDiscountPercent(b) - computeDiscountPercent(a));
-
-    // 5) dealsByStore
-    const dealsByStore = {};
-    for (const d of unique) {
-      const s = d.store || "Unknown";
-      dealsByStore[s] = (dealsByStore[s] || 0) + 1;
-    }
-
-    // 6) Build canonical deals output (SAFE for app)
-    const output = {
-      lastUpdated: new Date().toISOString(),
-      totalDeals: unique.length,
-      dealsByStore,
-      scraperResults: perSource,
-      deals: unique,
-    };
-
-    // 7) Compute stats and write stats.json (small dashboard payload)
-    const stats = computeStats(unique, storeMetadata);
-    stats.lastUpdated = output.lastUpdated;
-
-    // 8) Compute daily deals (12 picks)
-    const dailySeedUTC = getDateSeedStringUTC();
-    const twelveDailyDeals = computeTwelveDailyDeals(unique, dailySeedUTC);
-
-    const dailyDealsPayload = {
-      lastUpdated: output.lastUpdated,
-      daySeedUTC: dailySeedUTC,
-      total: twelveDailyDeals.length,
-      deals: twelveDailyDeals,
-    };
-
-    // ============================================================================
-    // 9) scraper-data.json (rolling 30 days)
-    // Build today's records (including individual scrape-daily scrapers if present)
-    // ============================================================================
-    const todayDayUTC = toIsoDayUTC(output.lastUpdated);
-
-    const todayRecords = [];
-    for (const src of sources) {
-      const name = src.name;
-      const ok = !!perSource[name]?.ok;
-      const meta = perSourceMeta[name] || null;
-      todayRecords.push(...buildTodayScraperRecords({ sourceName: name, meta, perSourceOk: ok }));
-    }
-
-    // Try to load existing history (only possible if SCRAPER_DATA_BLOB_URL is set)
-    let existingScraperData = null;
-    if (SCRAPER_DATA_BLOB_URL) {
+    async function loadScraperHistory() {
       try {
-        existingScraperData = await fetchJson(SCRAPER_DATA_BLOB_URL);
-      } catch (e) {
-        console.log("[MERGE] Could not read SCRAPER_DATA_BLOB_URL (starting fresh):", e.message);
-        existingScraperData = null;
+        const cacheBuster = Date.now();
+        const response = await fetch(`https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/scraper-data.json?t=${cacheBuster}`, {
+          cache: "no-store"
+        });
+        
+        if (!response.ok) {
+          console.log("No scraper history available yet");
+          return null;
+        }
+        
+        return await response.json();
+      } catch (err) {
+        console.error("Error loading scraper history:", err);
+        return null;
       }
     }
 
-    const scraperData = mergeRollingScraperHistory(existingScraperData, todayDayUTC, todayRecords, 30);
+    function displayScraperHistory(scraperData) {
+      const panel = document.getElementById('scraperHistoryPanel');
+      const chart = document.getElementById('scraperHistoryChart');
+      
+      if (!panel || !chart || !scraperData || !scraperData.days || scraperData.days.length === 0) {
+        return;
+      }
+      
+      // Get all unique scraper names
+      const allScrapers = new Set();
+      scraperData.days.forEach(day => {
+        day.scrapers.forEach(s => allScrapers.add(s.scraper));
+      });
+      
+      const scraperNames = Array.from(allScrapers).sort();
+      
+      // Build table HTML
+      let html = `
+        <div style="overflow-x: auto;">
+          <table style="font-size: 0.85rem;">
+            <thead>
+              <tr>
+                <th style="min-width: 180px;">Scraper</th>
+      `;
+      
+      // Add date headers
+      scraperData.days.forEach(day => {
+        const date = new Date(day.dayUTC);
+        const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
+        html += `<th style="min-width: 60px; font-size: 0.75rem;">${dateStr}</th>`;
+      });
+      
+      html += `
+              </tr>
+            </thead>
+            <tbody>
+      `;
+      
+      // Add rows for each scraper
+      scraperNames.forEach(scraperName => {
+        html += `<tr><td><strong>${scraperName}</strong></td>`;
+        
+        scraperData.days.forEach(day => {
+          const scraperEntry = day.scrapers.find(s => s.scraper === scraperName);
+          
+          if (!scraperEntry) {
+            html += `<td style="text-align: center; color: #999;">—</td>`;
+          } else if (!scraperEntry.ok) {
+            html += `<td style="text-align: center; background: #fff5f5; color: #dc3545; font-weight: bold;">✗</td>`;
+          } else {
+            const count = scraperEntry.count || 0;
+            const bgColor = count === 0 ? '#fff5f5' : count < 10 ? '#fffbf0' : '#f0f9f4';
+            const textColor = count === 0 ? '#dc3545' : count < 10 ? '#856404' : '#28a745';
+            html += `<td style="text-align: center; background: ${bgColor}; color: ${textColor}; font-weight: bold;">${count}</td>`;
+          }
+        });
+        
+        html += `</tr>`;
+      });
+      
+      html += `
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top: 15px; font-size: 0.85rem; color: #666;">
+          <strong>Legend:</strong> 
+          <span style="color: #28a745;">■</span> Good (10+ deals) | 
+          <span style="color: #856404;">■</span> Warning (&lt;10 deals) | 
+          <span style="color: #dc3545;">■</span> Failed/Zero | 
+          <span style="color: #999;">—</span> No data
+        </div>
+      `;
+      
+      chart.innerHTML = html;
+      panel.style.display = 'block';
+    }
 
-    // ============================================================================
-    // 10) Write blobs (overwrite each run)
-    // ============================================================================
-    const [dealsBlob, unalteredBlob, statsBlob, dailyDealsBlob, scraperDataBlob] = await Promise.all([
-      put("deals.json", JSON.stringify(output, null, 2), {
-        access: "public",
-        addRandomSuffix: false,
-      }),
-      put("unaltered-deals.json", JSON.stringify(unalteredPayload, null, 2), {
-        access: "public",
-        addRandomSuffix: false,
-      }),
-      put("stats.json", JSON.stringify(stats, null, 2), {
-        access: "public",
-        addRandomSuffix: false,
-      }),
-      put("twelve_daily_deals.json", JSON.stringify(dailyDealsPayload, null, 2), {
-        access: "public",
-        addRandomSuffix: false,
-      }),
-      put("scraper-data.json", JSON.stringify(scraperData, null, 2), {
-        access: "public",
-        addRandomSuffix: false,
-      }),
-    ]);
+    async function loadStats() {
+      const loading = document.getElementById('loading');
+      const error = document.getElementById('error');
+      const content = document.getElementById('content');
+      const debugInfo = document.getElementById('debugInfo');
+      const debugContent = document.getElementById('debugContent');
 
-    const durationMs = Date.now() - start;
+      loading.style.display = 'block';
+      error.style.display = 'none';
+      content.style.display = 'none';
+      debugInfo.style.display = 'none';
 
-    console.log("[MERGE] Saved deals.json:", dealsBlob.url);
-    console.log("[MERGE] Saved unaltered-deals.json:", unalteredBlob.url);
-    console.log("[MERGE] Saved stats.json:", statsBlob.url);
-    console.log("[MERGE] Saved twelve_daily_deals.json:", dailyDealsBlob.url);
-    console.log("[MERGE] Saved scraper-data.json:", scraperDataBlob.url);
+      try {
+        const cacheBuster = Date.now();
+        
+        const [dealsResponse, mergeResponse] = await Promise.all([
+          fetch(`https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json?t=${cacheBuster}`, {
+            cache: "no-store"
+          }),
+          fetch(`/api/merge-deals?t=${cacheBuster}`, {
+            cache: "no-store"
+          }).catch(() => null)
+        ]);
+        
+        const data = await dealsResponse.json();
+        const mergeData = mergeResponse ? await mergeResponse.json() : null;
 
-    console.log(
-      `[MERGE] Complete in ${durationMs}ms; totalRaw=${allDealsRaw.length}; totalDeals=${unique.length}; dailyDeals=${twelveDailyDeals.length}`
-    );
+        if (!data.deals || !Array.isArray(data.deals)) {
+          throw new Error('Invalid data format');
+        }
 
-    return res.status(200).json({
-      success: true,
-      totalDeals: unique.length,
-      totalRawDeals: allDealsRaw.length,
-      dealsByStore,
-      scraperResults: perSource,
-      storeMetadata,
+        const deals = data.deals;
+        ALL_DEALS = deals;
+        buildStoreDropdown(deals);
+        renderDealsForSelectedStore();
+        
+        const unknownBrands = deals.filter(d => (d.brand || '').trim() === 'Unknown' || !(d.brand || '').trim()).length;
+        const uniqueBrands = [...new Set(deals.map(d => (d.brand || 'Unknown').trim()))]
+          .filter(b => b && b !== 'Unknown')
+          .sort();
 
-      dealsBlobUrl: dealsBlob.url,
-      unalteredBlobUrl: unalteredBlob.url,
-      statsBlobUrl: statsBlob.url,
-      dailyDealsBlobUrl: dailyDealsBlob.url,
-      scraperDataBlobUrl: scraperDataBlob.url,
+        let debugHTML = `
+          <strong>Total deals in array:</strong> ${deals.length}<br>
+          <strong>Unknown brands:</strong> ${unknownBrands} (${deals.length ? ((unknownBrands / deals.length) * 100).toFixed(1) : '0.0'}%)<br>
+          <strong>Deals by store (from JSON):</strong> ${JSON.stringify(data.dealsByStore)}<br>
+          <strong>Unique stores found:</strong> ${[...new Set(deals.map(d => d.store))].join(', ')}<br>
+          <strong>Shoe brands found (${uniqueBrands.length}):</strong> ${uniqueBrands.join(', ')}<br><br>
+        `;
 
-      duration: `${durationMs}ms`,
-      timestamp: output.lastUpdated,
+        if (mergeData && mergeData.storeMetadata) {
+          debugHTML += `<strong>Scraper Blob URLs:</strong><br>`;
+          Object.entries(mergeData.storeMetadata).forEach(([scraperName, meta]) => {
+            if (meta.blobUrl) {
+              debugHTML += `<div style="margin-left: 10px; margin-top: 4px;">
+                <strong>${scraperName}:</strong> <a href="${meta.blobUrl}" target="_blank" style="color: #214478ff; word-break: break-all;">${meta.blobUrl}</a>
+              </div>`;
+            }
+          });
+          
+          // Add daily deals blob URL
+          debugHTML += `<div style="margin-left: 10px; margin-top: 4px;">
+            <strong>Daily Deals (12):</strong> <a href="https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/twelve_daily_deals.json" target="_blank" style="color: #214478ff; word-break: break-all;">https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/twelve_daily_deals.json</a>
+          </div>`;
+        }
 
-      // helpful reminder for you in the response payload:
-      note:
-        SCRAPER_DATA_BLOB_URL
-          ? "scraper-data history appended (SCRAPER_DATA_BLOB_URL was set)"
-          : "scraper-data written, but to persist rolling 30-day history you should set SCRAPER_DATA_BLOB_URL to scraperDataBlobUrl",
-    });
-  } catch (err) {
-    console.error("[MERGE] Fatal error:", err);
-    return res.status(500).json({
-      success: false,
-      error: err.message,
-      stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
-    });
-  }
-};
+        debugContent.innerHTML = debugHTML;
+        debugInfo.style.display = 'block';
+
+        const stats = calculateStats(deals);
+        STORE_DATA = stats.stores;
+        displayStats(stats);
+        displayDataQuality(deals);
+        displayHealthStatus(deals, stats, mergeData);
+        
+        const scraperHistory = await loadScraperHistory();
+        if (scraperHistory) {
+          displayScraperHistory(scraperHistory);
+        }
+
+        loading.style.display = 'none';
+        content.style.display = 'block';
+
+      } catch (err) {
+        loading.style.display = 'none';
+        error.style.display = 'block';
+        error.textContent = `Error loading data: ${err.message}`;
+        console.error('Error:', err);
+      }
+    }
+
+    function calculateStats(deals) {
+      const stats = {
+        totalDeals: deals.length,
+        stores: {},
+        brands: {},
+        discounts: [],
+        prices: [],
+        unknownByStore: {}
+      };
+
+      deals.forEach(deal => {
+        const salePrice = Number(deal.salePrice) || 0;
+        const price = Number(deal.price) || 0;
+
+        const store = (deal.store || 'Unknown').trim() || 'Unknown';
+        const brandRaw = (deal.brand || '').trim();
+        const brand = brandRaw ? brandRaw : 'Unknown';
+
+        const dollarSavings = price > salePrice ? price - salePrice : 0;
+        const percentOff = price > salePrice ? ((price - salePrice) / price) * 100 : 0;
+
+        if (!stats.stores[store]) {
+          stats.stores[store] = {
+            count: 0,
+            totalDiscount: 0,
+            totalSavings: 0,
+            deals: []
+          };
+        }
+        stats.stores[store].count++;
+        stats.stores[store].totalDiscount += percentOff;
+        stats.stores[store].totalSavings += dollarSavings;
+        stats.stores[store].deals.push(deal);
+
+        if (!stats.unknownByStore[store]) {
+          stats.unknownByStore[store] = { unknownCount: 0, total: 0 };
+        }
+        stats.unknownByStore[store].total++;
+        if (brand === 'Unknown') stats.unknownByStore[store].unknownCount++;
+
+        if (!stats.brands[brand]) {
+          stats.brands[brand] = {
+            count: 0,
+            totalDiscount: 0,
+            minPrice: salePrice || Infini
