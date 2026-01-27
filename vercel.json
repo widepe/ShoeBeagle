@@ -2,39 +2,73 @@
   "crons": [
     {
       "path": "/api/scrapers/brooks-sale",
-      "schedule": "0 9 * * *"
+      "schedule": "0 9 * * *",
+      "headers": {
+        "x-cron-secret": "@CRON_SECRET"
+      }
     },
     {
       "path": "/api/scrapers/asics-sale",
-      "schedule": "5 9 * * *"
+      "schedule": "5 9 * * *",
+      "headers": {
+        "x-cron-secret": "@CRON_SECRET"
+      }
     },
     {
       "path": "/api/scrapers/als-sale",
-      "schedule": "10 9 * * *"
+      "schedule": "10 9 * * *",
+      "headers": {
+        "x-cron-secret": "@CRON_SECRET"
+      }
     },
     {
       "path": "/api/scrapers/shoebacca-clearance",
-      "schedule": "15 9 * * *"
+      "schedule": "15 9 * * *",
+      "headers": {
+        "x-cron-secret": "@CRON_SECRET"
+      }
     },
     {
       "path": "/api/scrapers/holabird-mens-road",
-      "schedule": "20 9 * * *"
+      "schedule": "20 9 * * *",
+      "headers": {
+        "x-cron-secret": "@CRON_SECRET"
+      }
     },
     {
       "path": "/api/scrapers/holabird-womens-road",
-      "schedule": "25 9 * * *"
+      "schedule": "25 9 * * *",
+      "headers": {
+        "x-cron-secret": "@CRON_SECRET"
+      }
     },
     {
       "path": "/api/scrapers/holabird-trail-unisex",
-      "schedule": "30 9 * * *"
+      "schedule": "30 9 * * *",
+      "headers": {
+        "x-cron-secret": "@CRON_SECRET"
+      }
     },
     {
       "path": "/api/scrape-daily",
-      "schedule": "35 9 * * *"
+      "schedule": "35 9 * * *",
+      "headers": {
+        "x-cron-secret": "@CRON_SECRET"
+      }
     },
     {
       "path": "/api/merge-deals",
-      "schedule": "40 9 * * *"
+      "schedule": "40 9 * * *",
+      "headers": {
+        "x-cron-secret": "@CRON_SECRET"
+      }
+    },
+    {
+      "path": "/api/cron/check-alerts",
+      "schedule": "50 9 * * *",
+      "headers": {
+        "x-cron-secret": "@CRON_SECRET"
+      }
     }
   ]
 }
