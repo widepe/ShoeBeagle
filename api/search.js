@@ -1,13 +1,169 @@
+// /api/search.js
+// Improved search:
+// - Token-based, order-independent matching (Google-ish)
+// - Handles gt2000 / gt-2000 / gt 2000 / 2000
+// - Handles prefix tolerance: asic -> asics
+// - Scores + sorts results (best matches first)
+// - Keeps your: rate limiting, requestId, caching, blob loading, schema mapping
+
 const { list } = require("@vercel/blob");
 
-function normalize(s) {
+/* ----------------------------- Normalization ----------------------------- */
+
+function normalizeSpaces(s) {
   return String(s || "")
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "") // strip accents
+    .replace(/[^a-z0-9\s]+/g, " ")   // punctuation -> space
+    .replace(/\s+/g, " ")
     .trim();
 }
 
-// In-memory cache
+function squash(s) {
+  return normalizeSpaces(s).replace(/\s+/g, ""); // remove spaces too
+}
+
+function tokenize(s) {
+  const ns = normalizeSpaces(s);
+  return ns ? ns.split(" ").filter(Boolean) : [];
+}
+
+// Filter out pure-noise tokens. Keep numbers, keep >=2 char words.
+function isMeaningfulToken(t) {
+  if (!t) return false;
+  if (/^\d+$/.test(t)) return true;
+  return t.length >= 2;
+}
+
+// For "query=" mode: if user types one glued chunk (gt2000) we also try to infer tokens.
+function queryTokensFromRaw(rawQuery) {
+  const ns = normalizeSpaces(rawQuery);
+  const tokens = tokenize(ns).filter(isMeaningfulToken);
+
+  // If user typed something like "gt2000" (no spaces), add a split hint:
+  // - add number runs (2000)
+  // - add leading letters (gt)
+  const squashedQuery = squash(rawQuery);
+  if (tokens.length === 1 && squashedQuery.length >= 4 && /^[a-z0-9]+$/.test(squashedQuery)) {
+    const nums = squashedQuery.match(/\d+/g) || [];
+    const letters = squashedQuery.match(/[a-z]+/g) || [];
+    // Only add short letter chunks (gt) if present
+    const extras = [
+      ...letters.filter(x => x.length >= 2 && x.length <= 6),
+      ...nums.filter(x => x.length >= 2),
+    ];
+    return Array.from(new Set([...tokens, ...extras])).filter(isMeaningfulToken);
+  }
+
+  return tokens;
+}
+
+/* ------------------------------ Scoring --------------------------------- */
+
+// Build a searchable index for each deal once per request (cheap and clear).
+function buildIndex(deal) {
+  const brand = deal.brand || "";
+  const model = deal.model || "";
+  const title = deal.title || "";
+
+  const combined = `${brand} ${model} ${title}`;
+  const tokens = tokenize(combined);
+  const tokenSet = new Set(tokens);
+  const squashedCombined = squash(combined);
+
+  return { tokenSet, tokens, squashedCombined, brand, model, title };
+}
+
+// Score how well this deal matches the desired brand/model/query tokens.
+// Higher score = better rank.
+function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
+  let score = 0;
+
+  // Helpers
+  const hasExact = (t) => idx.tokenSet.has(t);
+  const hasPrefix = (t) => idx.tokens.some(dt => dt.startsWith(t));
+  const hasSquashed = (qSquashed) => idx.squashedCombined.includes(qSquashed);
+
+  // --- Brand field (if provided) should be relatively strong ---
+  if (brandTokens.length) {
+    let brandHits = 0;
+
+    for (const t of brandTokens) {
+      if (hasExact(t)) { score += 20; brandHits++; continue; }
+      if (hasPrefix(t)) { score += 12; brandHits++; continue; } // asic -> asics
+    }
+
+    // Require at least one brand hit if brand was provided (prevents weird matches)
+    if (brandHits === 0) return 0;
+
+    // Bonus if most brand tokens hit
+    score += Math.floor((brandHits / brandTokens.length) * 10);
+  }
+
+  // --- Model field (if provided) strong, allow numbers + squashed matching ---
+  if (modelTokens.length) {
+    let modelHits = 0;
+
+    const modelSquashed = squash(modelTokens.join(" "));
+    if (modelSquashed && modelSquashed.length >= 4 && hasSquashed(modelSquashed)) {
+      score += 25; // gt2000 matches GT-2000 regardless of separators
+      modelHits++;
+    }
+
+    for (const t of modelTokens) {
+      if (hasExact(t)) { score += /^\d+$/.test(t) ? 18 : 14; modelHits++; continue; }
+      if (hasPrefix(t)) { score += 9; modelHits++; continue; }
+      // numeric partial: "200" helps "2000" a bit, but only if token length >=2
+      if (/^\d+$/.test(t) && t.length >= 2 && idx.tokens.some(dt => /^\d+$/.test(dt) && dt.startsWith(t))) {
+        score += 7;
+        modelHits++;
+        continue;
+      }
+    }
+
+    // Require at least one model hit if model was provided
+    if (modelHits === 0) return 0;
+
+    score += Math.floor((modelHits / modelTokens.length) * 10);
+  }
+
+  // --- Free-text query tokens (if provided) moderate weight, order-independent ---
+  if (queryTokens.length) {
+    let hits = 0;
+
+    // Squashed full-query match can boost for glued user input like "gt2000"
+    const qSquashed = squash(queryTokens.join(" "));
+    if (qSquashed && qSquashed.length >= 4 && hasSquashed(qSquashed)) {
+      score += 18;
+      hits += 1;
+    }
+
+    for (const t of queryTokens) {
+      if (hasExact(t)) { score += /^\d+$/.test(t) ? 12 : 9; hits++; continue; }
+      if (hasPrefix(t)) { score += 6; hits++; continue; }
+    }
+
+    // For query-only searches, require a minimum hit rate
+    // (prevents a single tiny token from matching everything)
+    if (!brandTokens.length && !modelTokens.length) {
+      const required = queryTokens.length === 1 ? 1 : Math.ceil(queryTokens.length * 0.6);
+      if (hits < required) return 0;
+    }
+
+    // Bonus for coverage
+    score += Math.floor((hits / queryTokens.length) * 12);
+  }
+
+  // Tie-breaker: slight preference if model appears (more specific)
+  if (idx.model && idx.model.trim()) score += 2;
+
+  return score;
+}
+
+/* ------------------------------ Caching --------------------------------- */
+
+// In-memory cache (results only)
 const cache = new Map();
 const CACHE_TTL = 4 * 60 * 60 * 1000;
 
@@ -25,13 +181,14 @@ function setCache(key, data) {
   cache.set(key, { data, timestamp: Date.now() });
 }
 
-// Rate limiting - 10 requests per minute per IP
+/* ---------------------------- Rate Limiting ----------------------------- */
+
+// 10 requests per minute per IP
 const rateLimitMap = new Map();
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX = 10; // 10 requests per minute
+const RATE_LIMIT_WINDOW = 60 * 1000;
+const RATE_LIMIT_MAX = 10;
 
 function getRateLimitKey(req) {
-  // Get IP from various headers (supports proxies/load balancers)
   return (
     req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
     req.headers["x-real-ip"] ||
@@ -46,25 +203,17 @@ function isRateLimited(ip) {
   const record = rateLimitMap.get(ip);
 
   if (!record) {
-    // First request from this IP
     rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
     return false;
   }
 
-  // Check if window has expired
   if (now > record.resetAt) {
-    // Reset the window
     rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
     return false;
   }
 
-  // Within the window - check count
-  if (record.count >= RATE_LIMIT_MAX) {
-    // Rate limited!
-    return true;
-  }
+  if (record.count >= RATE_LIMIT_MAX) return true;
 
-  // Increment count
   record.count++;
   return false;
 }
@@ -73,11 +222,11 @@ function isRateLimited(ip) {
 setInterval(() => {
   const now = Date.now();
   for (const [ip, record] of rateLimitMap.entries()) {
-    if (now > record.resetAt) {
-      rateLimitMap.delete(ip);
-    }
+    if (now > record.resetAt) rateLimitMap.delete(ip);
   }
 }, 5 * 60 * 1000);
+
+/* ------------------------------- Handler -------------------------------- */
 
 module.exports = async (req, res) => {
   const requestId =
@@ -86,28 +235,25 @@ module.exports = async (req, res) => {
   const startedAt = Date.now();
 
   try {
-    // Check rate limit first
     const clientIp = getRateLimitKey(req);
     if (isRateLimited(clientIp)) {
       console.log("[/api/search] Rate limited:", { ip: clientIp, requestId });
-      // Return 429 Too Many Requests but with a generic message
-      // Real users won't see this; only bots will
-      return res.status(429).json({
-        error: "Too many requests",
-        requestId,
-      });
+      return res.status(429).json({ error: "Too many requests", requestId });
     }
 
     // OLD style: separate brand / model
     const rawBrand = req.query && req.query.brand ? req.query.brand : "";
     const rawModel = req.query && req.query.model ? req.query.model : "";
 
-    // NEW style: single query string (brand, model, or both)
+    // NEW style: single query string
     const rawQuery = req.query && req.query.query ? req.query.query : "";
 
-    const brand = normalize(rawBrand);
-    const model = normalize(rawModel);
-    const qNorm = normalize(rawQuery);
+    // Tokenize inputs (keep as close to user intent as possible)
+    const brandTokens = tokenize(rawBrand).filter(isMeaningfulToken);
+    const modelTokens = tokenize(rawModel).filter(isMeaningfulToken);
+
+    // For query=, we do slightly smarter token extraction (handles gt2000 better)
+    const queryTokens = queryTokensFromRaw(rawQuery).filter(isMeaningfulToken);
 
     console.log("[/api/search] Request:", {
       requestId,
@@ -115,13 +261,12 @@ module.exports = async (req, res) => {
       rawBrand,
       rawModel,
       rawQuery,
-      brand,
-      model,
-      qNorm,
+      brandTokens,
+      modelTokens,
+      queryTokens,
     });
 
-    // Require at least one of: brand, model, or query
-    if (!brand && !model && !qNorm) {
+    if (!brandTokens.length && !modelTokens.length && !queryTokens.length) {
       return res.status(400).json({
         error: "Missing parameters - provide brand, model, query, or a combination",
         examples: [
@@ -133,23 +278,18 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Cache key must include all 3 inputs so we don't cross-contaminate
-    const cacheKey = `search:${brand}:${model}:${qNorm}`;
+    const cacheKey = `search:v2:${brandTokens.join(".")}:${modelTokens.join(".")}:${queryTokens.join(".")}`;
     const cached = getCached(cacheKey);
     if (cached) {
       console.log("[/api/search] Cache hit");
       return res.status(200).json({ results: cached, requestId, cached: true });
     }
 
-    // Fetch from Vercel Blob Storage by name
+    // Load deals.json blob
     const { blobs } = await list({ prefix: "deals.json" });
-
     if (!blobs || blobs.length === 0) {
       console.error("[/api/search] Could not locate deals blob");
-      return res.status(500).json({
-        error: "Failed to load deals data",
-        requestId,
-      });
+      return res.status(500).json({ error: "Failed to load deals data", requestId });
     }
 
     const blob = blobs[0];
@@ -157,19 +297,13 @@ module.exports = async (req, res) => {
     let dealsData;
     try {
       const response = await fetch(blob.url);
-      if (!response.ok) {
-        throw new Error(`Blob fetch failed: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`Blob fetch failed: ${response.status}`);
       dealsData = await response.json();
     } catch (blobError) {
       console.error("[/api/search] Error fetching from blob:", blobError.message);
-      return res.status(500).json({
-        error: "Failed to load deals data",
-        requestId,
-      });
+      return res.status(500).json({ error: "Failed to load deals data", requestId });
     }
 
-    // Support both { deals: [...] } and bare array [...]
     const deals = (dealsData && Array.isArray(dealsData.deals))
       ? dealsData.deals
       : (Array.isArray(dealsData) ? dealsData : []);
@@ -179,53 +313,34 @@ module.exports = async (req, res) => {
       lastUpdated: dealsData.lastUpdated || "unknown",
     });
 
-    console.log("[/api/search] Parsed:", { brand, model, qNorm });
+    // Score + rank
+    const desired = { brandTokens, modelTokens, queryTokens };
 
-    const results = deals
-      .filter((deal) => {
-        const dealBrand = normalize(deal.brand);
-        const dealModel = normalize(deal.model);
-        const dealTitle = normalize(deal.title);
+    const scored = [];
+    for (const deal of deals) {
+      const idx = buildIndex(deal);
+      const s = scoreDeal(desired, idx);
+      if (s > 0) scored.push({ deal, score: s });
+    }
 
-        // Mode 1: explicit brand + model (old behavior)
-        if (brand || model) {
-          if (brand && model) {
-            const brandMatch = dealBrand.includes(brand);
-            const modelMatch = dealModel.includes(model) || dealTitle.includes(model);
-            return brandMatch && modelMatch;
-          }
+    scored.sort((a, b) => b.score - a.score);
 
-          if (brand && !model) {
-            return dealBrand.includes(brand);
-          }
-
-          if (!brand && model) {
-            return dealModel.includes(model) || dealTitle.includes(model);
-          }
-        }
-
-        // Mode 2: free-text query only (new behavior)
-        if (qNorm) {
-          const haystack = `${dealBrand} ${dealModel} ${dealTitle}`;
-          return haystack.includes(qNorm);
-        }
-
-        return false;
-      })
-      .map((deal) => ({
+    const results = scored
+      .slice(0, 24)
+      .map(({ deal, score }) => ({
         title: deal.title,
         brand: deal.brand,
         model: deal.model,
-        salePrice: Number(deal.salePrice),                           // CHANGED from 'price'
-        price: deal.price ? Number(deal.price) : null,               // CHANGED from 'originalPrice'
+        salePrice: Number(deal.salePrice),
+        price: deal.price != null ? Number(deal.price) : null,
         store: deal.store,
         url: deal.url,
         image: deal.image || "https://placehold.co/600x400?text=Running+Shoe",
-        gender: deal.gender || "unknown",                            // NEW
-        shoeType: deal.shoeType || "unknown",                        // NEW
-      }))
-      // Deals already sorted in blob; just take top N
-      .slice(0, 24);
+        gender: deal.gender || "unknown",
+        shoeType: deal.shoeType || "unknown",
+        // Useful for debugging; remove if you don’t want it exposed:
+        // _score: score,
+      }));
 
     setCache(cacheKey, results);
 
@@ -234,6 +349,7 @@ module.exports = async (req, res) => {
       ip: clientIp,
       ms: Date.now() - startedAt,
       count: results.length,
+      query: { brandTokens, modelTokens, queryTokens },
       dataAge: dealsData.lastUpdated
         ? `Updated ${new Date(dealsData.lastUpdated).toLocaleString()}`
         : "unknown",
