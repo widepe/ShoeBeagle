@@ -880,6 +880,23 @@ function filterSuggestions(list, typed, limit = 10) {
   const q = String(typed || "").trim();
   if (!q) return [];
 
+  const qLower = q.toLowerCase();
+
+  // Pass 1: startsWith only (most expected behavior)
+  const starts = list.filter(v => String(v).toLowerCase().startsWith(qLower));
+
+  // If we have any prefix matches, ONLY show those
+  if (starts.length) {
+    const ranked = starts
+      .map(v => ({ v, s: scoreSuggestion(v, q) }))
+      .sort((a, b) => b.s - a.s)
+      .slice(0, limit)
+      .map(x => x.v);
+
+    return Array.from(new Set(ranked));
+  }
+
+  // Pass 2 (fallback): contains/squash scoring if no prefix matches exist
   const scored = list
     .map(v => ({ v, s: scoreSuggestion(v, q) }))
     .filter(x => x.s > 0)
@@ -887,9 +904,9 @@ function filterSuggestions(list, typed, limit = 10) {
     .slice(0, limit)
     .map(x => x.v);
 
-  // de-dupe while preserving order
   return Array.from(new Set(scored));
 }
+
 
 // Build “all models” list once (for model-first suggestions)
 const allModels = (() => {
