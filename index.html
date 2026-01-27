@@ -1099,27 +1099,39 @@
 
     async function loadDailyDeals() {
   try {
+    // Match the blob URL pattern used in dailyDealCount()
     const blobUrl = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/twelve_daily_deals.json";
     const res = await fetch(blobUrl + "?cb=" + Date.now());
+    
+    if (!res.ok) {
+      console.error("Failed to fetch daily deals:", res.status, res.statusText);
+      dailyDeals.style.display = "none";
+      return;
+    }
+    
     const data = await res.json();
+    console.log("Daily deals data loaded:", data); // Debug log
+    
     const deals = Array.isArray(data.deals) ? data.deals : [];
 
-        dailyDealsGrid.innerHTML = "";
+    dailyDealsGrid.innerHTML = "";
 
-        if (!deals.length) {
-          dailyDeals.style.display = "none";
-          return;
-        }
-
-        deals.forEach(item => dailyDealsGrid.appendChild(createDealCard(item)));
-
-        dailyDeals.style.display = "block";
-        dailyDealCount();
-      } catch (err) {
-        console.error("Error loading daily deals:", err);
-        dailyDeals.style.display = "none";
-      }
+    if (!deals.length) {
+      console.log("No daily deals found");
+      dailyDeals.style.display = "none";
+      return;
     }
+
+    console.log("Rendering", deals.length, "daily deals"); // Debug log
+    deals.forEach(item => dailyDealsGrid.appendChild(createDealCard(item)));
+
+    dailyDeals.style.display = "block";
+    dailyDealCount();
+  } catch (err) {
+    console.error("Error loading daily deals:", err);
+    dailyDeals.style.display = "none";
+  }
+}
 
     async function dailyDealCount() {
       try {
