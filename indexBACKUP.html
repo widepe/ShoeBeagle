@@ -1112,11 +1112,12 @@
       return card;
     }
 
-    async function loadDailyDeals() {
-      try {
-        const res = await fetch("/api/daily-deals?cb=" + Date.now());
-        const data = await res.json();
-        const deals = Array.isArray(data.deals) ? data.deals : [];
+async function loadDailyDeals() {
+  try {
+    const blobUrl = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/twelve_daily_deals.json";
+    const res = await fetch(blobUrl + "?cb=" + Date.now());
+    const data = await res.json();
+    const deals = Array.isArray(data.deals) ? data.deals : [];
 
         dailyDealsGrid.innerHTML = "";
 
