@@ -366,25 +366,19 @@
       bottom: 0.35rem;
       display: flex;
       gap: 0.35rem;
-      justify-content: flex-start;
+      justify-content: space-between;
       align-items: center;
       z-index: 2;
       pointer-events: none;
     }
 
     .card-tag {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0.15rem 0.45rem;
-      border-radius: 999px;
       font-size: 0.68rem;
-      font-weight: 700;
-      border: 1px solid rgba(33, 68, 120, 0.65);
-      background: rgba(250, 253, 244, 0.92);
+      font-weight: 600;
       color: #214478ff;
       line-height: 1.1;
       white-space: nowrap;
+      text-shadow: 0 0 3px rgba(255,255,255,0.8), 0 0 5px rgba(255,255,255,0.6);
     }
 
     .daily-deals {
@@ -525,7 +519,6 @@
 
       .card-tag {
         font-size: 0.62rem;
-        padding: 0.12rem 0.35rem;
       }
 
       .card-content {
@@ -1055,10 +1048,15 @@
       const brand = (item.brand || "").trim();
       const model = (item.model || "").trim();
 
-      titleDiv.textContent =
-        (brand || model)
-          ? [brand, model].filter(Boolean).join(" ")
-          : (item.title || "Deal");
+      if (brand && model) {
+        titleDiv.innerHTML = `<strong style="text-transform: uppercase;">${brand}</strong><br>${model}`;
+      } else if (brand) {
+        titleDiv.innerHTML = `<strong style="text-transform: uppercase;">${brand}</strong>`;
+      } else if (model) {
+        titleDiv.textContent = model;
+      } else {
+        titleDiv.textContent = item.title || "Deal";
+      }
 
       contentDiv.appendChild(titleDiv);
 
