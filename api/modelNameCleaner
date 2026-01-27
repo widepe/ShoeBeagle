@@ -13,6 +13,9 @@ function cleanModelName(input) {
   // Remove "shoes" anywhere
   model = model.replace(/\bShoes?\b/gi, " ");
   
+  // Remove gender terms anywhere
+  model = model.replace(/\b(Men'?s?|Women'?s?|Unisex)\b/gi, " ");
+  
   //  Remove dollar amounts (prices) anywhere in the model
   model = model.replace(/\$\s*[\d,]+(?:\.\d{1,2})?/g, "");
   
@@ -42,5 +45,4 @@ function cleanModelName(input) {
   
   return model;
 }
-
 module.exports = { cleanModelName };
