@@ -1,15 +1,4 @@
 // api/scrapers/als-sale.js
-// Scrapes ALS Men's + Women's running shoes pages (all pages) using axios+cheerio
-// STRICT RULES:
-// - Only include products with exactly ONE original price and ONE sale price (no ranges)
-// - If either price is missing OR contains a range like "$81.99 - $131.99" => SKIP
-// - Original price = higher of the two, sale price = lower of the two
-//
-// Outputs 10-field schema per deal:
-// { title, brand, model, salePrice, price, store, url, image, gender, shoeType }
-//
-// Saves blob: als-sale.json (public, stable name)
-
 const axios = require("axios");
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
@@ -17,7 +6,6 @@ const { put } = require("@vercel/blob");
 const STORE = "ALS";
 const BASE = "https://www.als.com";
 
-// Your category URLs (page param added by scraper)
 const MEN_BASE_URL =
   "https://www.als.com/footwear/men-s-footwear/men-s-running-shoes?filter.category-1=footwear&filter.category-2=men-s-footwear&filter.category-3=men-s-running-shoes&sort=discount%3Adesc";
 const WOMEN_BASE_URL =
@@ -38,34 +26,27 @@ function absolutizeAlsUrl(url) {
   return `${BASE}/${url}`;
 }
 
-// Returns null if range or not parseable
 function parseSinglePrice(text) {
   if (!text) return null;
   const t = String(text).replace(/\s+/g, " ").trim();
-
-  // skip ranges like "$80.00 - $85.00"
-  if (t.includes("-")) return null;
-
+  if (t.includes("-")) return null; // range
   const m = t.replace(/,/g, "").match(/\$([\d]+(?:\.\d{2})?)/);
   if (!m) return null;
   const n = parseFloat(m[1]);
   return Number.isFinite(n) ? n : null;
 }
 
-// Collect ALL dollar amounts in a container's text.
-// If ANY range is present, treat as invalid.
+// Strict: accept ONLY exactly 2 distinct single prices (no ranges anywhere)
 function extractTwoPricesStrict($container) {
   const text = $container.text().replace(/\s+/g, " ").trim();
-  if (!text) return { price: null, salePrice: null };
+  if (!text) return { price: null, salePrice: null, reason: "no_text" };
 
-  // If the container text includes a range pattern, bail early.
-  // Examples seen on ALS listing: "$81.99 - $131.99" or "$80.00 - $85.00"
+  // Range present => invalid
   if (/\$\s*\d+(?:\.\d{2})?\s*-\s*\$\s*\d+(?:\.\d{2})?/.test(text)) {
-    return { price: null, salePrice: null };
+    return { price: null, salePrice: null, reason: "range" };
   }
 
   const matches = text.match(/\$\s*\d+(?:\.\d{2})?/g) || [];
-  // Normalize and unique while preserving order
   const seen = new Set();
   const nums = [];
   for (const raw of matches) {
@@ -77,89 +58,88 @@ function extractTwoPricesStrict($container) {
     nums.push(n);
   }
 
-  // We ONLY accept exactly 2 distinct single prices
-  if (nums.length !== 2) return { price: null, salePrice: null };
+  if (nums.length !== 2) {
+    return {
+      price: null,
+      salePrice: null,
+      reason: nums.length === 0 ? "no_prices" : nums.length === 1 ? "one_price" : "too_many_prices",
+    };
+  }
 
   const hi = Math.max(nums[0], nums[1]);
   const lo = Math.min(nums[0], nums[1]);
+  if (!(lo < hi)) return { price: null, salePrice: null, reason: "not_a_sale" };
 
-  // Must actually be a sale
-  if (!(lo < hi)) return { price: null, salePrice: null };
-
-  return { price: hi, salePrice: lo };
+  return { price: hi, salePrice: lo, reason: null };
 }
 
 function detectShoeTypeFromTitle(title) {
   const t = (title || "").toLowerCase();
   if (t.includes("trail")) return "trail";
-  if (t.includes("road")) return "road";
   if (t.includes("track") || t.includes("spike")) return "track";
-  // default for these categories
   return "road";
 }
 
 function cleanTitle(title) {
-  return (title || "")
-    .replace(/\s+/g, " ")
-    .replace(/\u00a0/g, " ")
-    .trim();
+  return (title || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function splitBrandModel(title) {
   const t = cleanTitle(title);
   if (!t) return { brand: null, model: null };
 
-  // brand = first token (works well for Nike, Brooks, adidas, etc.)
   const brand = t.split(" ")[0];
-
-  // model = remove brand + remove trailing gender chunk
-  // Titles commonly end with " - Men's" or " - Women's"
   let model = t.replace(new RegExp("^" + brand + "\\s+", "i"), "").trim();
   model = model.replace(/\s+-\s+(men's|women's)\s*$/i, "").trim();
-
   return { brand, model: model || null };
 }
 
 /**
- * Extract deals from one ALS listing page HTML.
- * Uses heuristic: product cards are anchors ending in "/p" (product pages).
- * We take the nearest likely container and then extract:
- * - title: link text
- * - url: href
- * - image: first img within container
- * - prices: strict 2-price extraction (no ranges)
+ * Returns:
+ * - deals: valid deals
+ * - tileCount: how many product links were found (for pagination stopping)
+ * - skipStats: reasons we skipped
  */
 function extractAlsDealsFromListing(html, gender) {
   const $ = cheerio.load(html);
-  const deals = [];
 
-  // Candidate product links look like: /some-product-slug-12345/p
-  // (Seen in clicks: https://www.als.com/.../p) :contentReference[oaicite:1]{index=1}
+  const skipStats = {
+    range: 0,
+    no_prices: 0,
+    one_price: 0,
+    too_many_prices: 0,
+    not_a_sale: 0,
+    missing_title_or_url: 0,
+    missing_brand_or_model: 0,
+  };
+
+  // Product pages end with "/p" (observed on ALS product links)
   const $links = $('a[href$="/p"]').filter((_, a) => {
     const href = $(a).attr("href") || "";
-    // exclude weird anchors without text
     const text = cleanTitle($(a).text());
     if (!text || text.length < 5) return false;
-    // exclude obvious nav/footer junk
     if (href.includes("help.als.com")) return false;
     return true;
   });
+
+  const tileCount = $links.length;
+  const deals = [];
 
   $links.each((_, a) => {
     const $a = $(a);
     const title = cleanTitle($a.text());
     const url = absolutizeAlsUrl($a.attr("href"));
 
-    if (!title || !url) return;
+    if (!title || !url) {
+      skipStats.missing_title_or_url++;
+      return;
+    }
 
-    // Find a "card-like" container around this link
-    // We try a few common container shapes
-    let $card =
-      $a.closest('div[class*="product"], li[class*="product"], article').first();
-
+    // Card container heuristic
+    let $card = $a.closest('div[class*="product"], li[class*="product"], article').first();
     if (!$card || !$card.length) $card = $a.parent();
 
-    // Image: first <img> inside the card
+    // Image
     let image =
       $card.find("img").first().attr("src") ||
       $card.find("img").first().attr("data-src") ||
@@ -168,12 +148,18 @@ function extractAlsDealsFromListing(html, gender) {
 
     image = absolutizeAlsUrl(image);
 
-    // Prices: STRICT extraction from card text (and skip if range or not exactly 2)
-    const { price, salePrice } = extractTwoPricesStrict($card);
-    if (!price || !salePrice) return;
+    // Prices (strict)
+    const { price, salePrice, reason } = extractTwoPricesStrict($card);
+    if (!price || !salePrice) {
+      if (reason && skipStats[reason] !== undefined) skipStats[reason]++;
+      return;
+    }
 
     const { brand, model } = splitBrandModel(title);
-    if (!brand || !model) return;
+    if (!brand || !model) {
+      skipStats.missing_brand_or_model++;
+      return;
+    }
 
     deals.push({
       title,
@@ -184,12 +170,12 @@ function extractAlsDealsFromListing(html, gender) {
       store: STORE,
       url,
       image: image || null,
-      gender, // "mens" or "womens"
+      gender,
       shoeType: detectShoeTypeFromTitle(title),
     });
   });
 
-  // Deduplicate by URL (listing pages can repeat links due to nested anchors)
+  // Dedup by URL
   const unique = [];
   const seen = new Set();
   for (const d of deals) {
@@ -199,7 +185,7 @@ function extractAlsDealsFromListing(html, gender) {
     unique.push(d);
   }
 
-  return unique;
+  return { deals: unique, tileCount, skipStats };
 }
 
 async function fetchHtml(url) {
@@ -215,9 +201,7 @@ async function fetchHtml(url) {
 }
 
 function withPageParam(baseUrl, page) {
-  // baseUrl already has query params; add &page=N (or ?page= if none)
-  if (baseUrl.includes("?")) return `${baseUrl}&page=${page}`;
-  return `${baseUrl}?page=${page}`;
+  return baseUrl.includes("?") ? `${baseUrl}&page=${page}` : `${baseUrl}?page=${page}`;
 }
 
 async function scrapeAlsCategoryAllPages(baseUrl, gender, description) {
@@ -225,8 +209,10 @@ async function scrapeAlsCategoryAllPages(baseUrl, gender, description) {
   const allDeals = [];
   const seenUrls = new Set();
 
-  // Hard safety cap
-  const MAX_PAGES = 40;
+  const MAX_PAGES = 60; // still safe cap
+
+  // Aggregate skip reasons across pages for debugging
+  const skipTotals = {};
 
   for (let page = 1; page <= MAX_PAGES; page++) {
     const pageUrl = withPageParam(baseUrl, page);
@@ -234,9 +220,13 @@ async function scrapeAlsCategoryAllPages(baseUrl, gender, description) {
 
     try {
       const html = await fetchHtml(pageUrl);
-      const deals = extractAlsDealsFromListing(html, gender);
+      const { deals, tileCount, skipStats } = extractAlsDealsFromListing(html, gender);
 
-      // Add only new URLs
+      // merge skip stats
+      for (const [k, v] of Object.entries(skipStats)) {
+        skipTotals[k] = (skipTotals[k] || 0) + v;
+      }
+
       let newCount = 0;
       for (const d of deals) {
         if (d.url && !seenUrls.has(d.url)) {
@@ -253,20 +243,15 @@ async function scrapeAlsCategoryAllPages(baseUrl, gender, description) {
         success: true,
         count: deals.length,
         newCount,
+        tileCount, // NEW: how many product links existed (even if we skipped most)
         error: null,
         url: pageUrl,
         durationMs: duration,
       });
 
-      // Stop conditions:
-      // - If this page had zero valid deals (given strict filters), it might still have items,
-      //   but in practice it usually means we're past the end.
-      // - Also stop if we got 0 NEW items (we're looping/repeating)
-      if (deals.length === 0 || newCount === 0) {
-        break;
-      }
+      // Stop when there are no tiles at all (true end), OR no new urls (loop/repeat)
+      if (tileCount === 0 || newCount === 0) break;
 
-      // Small delay to be polite / reduce chance of blocking
       await sleep(800);
     } catch (err) {
       pageResults.push({
@@ -274,42 +259,35 @@ async function scrapeAlsCategoryAllPages(baseUrl, gender, description) {
         success: false,
         count: 0,
         newCount: 0,
+        tileCount: 0,
         error: err.message || String(err),
         url: pageUrl,
       });
-      // On error, stop this category (don’t hammer)
       break;
     }
   }
 
-  return { deals: allDeals, pageResults };
+  return { deals: allDeals, pageResults, skipTotals };
 }
 
 async function scrapeAllAlsSales() {
   const results = [];
   const allDeals = [];
+  const skipByGender = { mens: {}, womens: {} };
 
-  // Men
-  const men = await scrapeAlsCategoryAllPages(
-    MEN_BASE_URL,
-    "mens",
-    "Men's Running Shoes"
-  );
+  const men = await scrapeAlsCategoryAllPages(MEN_BASE_URL, "mens", "Men's Running Shoes");
   results.push(...men.pageResults);
   allDeals.push(...men.deals);
+  skipByGender.mens = men.skipTotals;
 
-  // Women (small pause between categories)
   await sleep(1200);
 
-  const women = await scrapeAlsCategoryAllPages(
-    WOMEN_BASE_URL,
-    "womens",
-    "Women's Running Shoes"
-  );
+  const women = await scrapeAlsCategoryAllPages(WOMEN_BASE_URL, "womens", "Women's Running Shoes");
   results.push(...women.pageResults);
   allDeals.push(...women.deals);
+  skipByGender.womens = women.skipTotals;
 
-  // Final dedupe by URL across both categories
+  // Dedupe across categories
   const unique = [];
   const seen = new Set();
   for (const d of allDeals) {
@@ -319,16 +297,11 @@ async function scrapeAllAlsSales() {
     unique.push(d);
   }
 
-  return { deals: unique, pageResults: results };
+  return { deals: unique, pageResults: results, skipByGender };
 }
 
-/**
- * Vercel handler
- */
 module.exports = async (req, res) => {
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
@@ -338,7 +311,7 @@ module.exports = async (req, res) => {
   const start = Date.now();
 
   try {
-    const { deals, pageResults } = await scrapeAllAlsSales();
+    const { deals, pageResults, skipByGender } = await scrapeAllAlsSales();
 
     const output = {
       lastUpdated: new Date().toISOString(),
@@ -351,6 +324,8 @@ module.exports = async (req, res) => {
         unisex: deals.filter((d) => d.gender === "unisex").length,
       },
       pageResults,
+      // NEW: diagnostic so you can tell “why” strict filtering cut items
+      skipStats: skipByGender,
       deals,
     };
 
@@ -366,6 +341,8 @@ module.exports = async (req, res) => {
       totalDeals: output.totalDeals,
       dealsByGender: output.dealsByGender,
       pageResults,
+      // (optional) include skipStats in response too, or remove if you want it only in blob
+      skipStats: output.skipStats,
       blobUrl: blob.url,
       duration: `${duration}ms`,
       timestamp: output.lastUpdated,
