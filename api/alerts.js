@@ -250,7 +250,7 @@ async function handleCreate(req, res) {
     
     await sgMail.send({
       to: cleanEmail,
-      from: process.env.SENDGRID_FROM_EMAIL,
+      from: process.env.SENDGRID_ALERTS_EMAIL,
       subject: `✅ Alert Confirmed: ${cleanBrand} ${cleanModel}`,
       html: emailHtml
     });
