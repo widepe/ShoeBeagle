@@ -1,8 +1,6 @@
 // api/scrapers/asics-sale.js
+// FIXED VERSION - Updated for current ASICS HTML structure
 // Scrapes all three ASICS sale pages using Firecrawl
-// - Fixes dealsByGender by normalizing gender values consistently
-// - Improves price extraction to prefer DOM "was/list" vs "sale/now" nodes (no swapping)
-// - Leaves single-price items in output (merge-deals filters them out)
 
 const FirecrawlApp = require("@mendable/firecrawl-js").default;
 const cheerio = require("cheerio");
@@ -10,7 +8,6 @@ const { put } = require("@vercel/blob");
 
 /**
  * Pick the best (usually largest) URL from a srcset string.
- * Example: "url1 200w, url2 800w" -> returns url2
  */
 function pickBestFromSrcset(srcset) {
   if (!srcset || typeof srcset !== "string") return null;
@@ -56,7 +53,7 @@ function buildAsicsImageFromProductUrl(productUrl) {
 function detectShoeType(title, model) {
   const combined = ((title || "") + " " + (model || "")).toLowerCase();
 
-  if (/\b(trail|trabuco|fujitrabuco|fuji)\b/i.test(combined)) return "trail";
+  if (/\b(trail|trabuco|fujitrabuco|fuji|venture)\b/i.test(combined)) return "trail";
   if (/\b(track|spike|japan|metaspeed|magic speed)\b/i.test(combined)) return "track";
   return "road";
 }
@@ -86,83 +83,42 @@ function parseMoneyFromText(text) {
 }
 
 /**
- * Prefer DOM-based "was/list" vs "sale/now" price extraction.
- * We DO NOT swap values. If we can't confidently identify both, we fall back.
+ * Extract prices from product element or its surrounding context
  */
-function extractPricesFromTile($product) {
-  // ---- 1) Try obvious "was/list/strike" patterns for ORIGINAL price
-  const originalCandidates = [
-    // class contains strike / was / list
-    $product.find('[class*="strike"], [class*="Strike"], [class*="was"], [class*="Was"], [class*="list"], [class*="List"]').toArray(),
-    // common data-testid patterns (if present)
-    $product.find('[data-testid*="list"], [data-testid*="was"], [data-testid*="original"]').toArray(),
-  ].flat();
-
+function extractPrices($, $productLink) {
+  // Strategy: Look for prices in the link text, parent, and nearby siblings
   let price = null;
-  for (const el of originalCandidates) {
-    const t = cheerio.load(el).text();
-    const v = parseMoneyFromText(t);
-    if (v != null) {
-      price = v;
-      break;
-    }
-  }
-
-  // ---- 2) Try obvious "sale/now" patterns for SALE price
-  const saleCandidates = [
-    $product.find('[class*="sale"], [class*="Sale"], [class*="now"], [class*="Now"]').toArray(),
-    $product.find('[data-testid*="sale"], [data-testid*="now"]').toArray(),
-  ].flat();
-
   let salePrice = null;
-  for (const el of saleCandidates) {
-    const t = cheerio.load(el).text();
-    const v = parseMoneyFromText(t);
-    if (v != null) {
-      salePrice = v;
-      break;
+
+  // Get the full text content from the product link and its parent
+  const linkText = $productLink.text();
+  const parentText = $productLink.parent().text();
+  
+  // Find all price-like strings in the combined text
+  const priceMatches = (linkText + " " + parentText).match(/\$\d+\.\d{2}/g);
+  
+  if (priceMatches && priceMatches.length >= 2) {
+    // Typically format is: "$original_price $sale_price" or vice versa
+    const prices = priceMatches
+      .map(p => parseFloat(p.replace("$", "")))
+      .filter(n => Number.isFinite(n) && n > 0);
+    
+    if (prices.length >= 2) {
+      // Sort to ensure we identify original vs sale correctly
+      prices.sort((a, b) => b - a); // Descending
+      price = prices[0]; // Higher price is original
+      salePrice = prices[1]; // Lower price is sale
     }
+  } else if (priceMatches && priceMatches.length === 1) {
+    // Only one price found - treat as sale price
+    salePrice = parseFloat(priceMatches[0].replace("$", ""));
   }
 
-  // ---- 3) If we got both and they look like a valid markdown, return.
-  if (price != null && salePrice != null) {
-    // IMPORTANT: no swapping. Just validate.
-    if (salePrice < price) return { price, salePrice };
-
-    // If DOM gave us both but they don't satisfy sale<orig, treat as "not confident"
-    // and fall back to text-based extraction rather than swapping.
-    price = null;
-    salePrice = null;
-  }
-
-  // ---- 4) Fallback: regex from tile text (best-effort).
-  const productText = $product.text();
-  const matches = productText.match(/\$(\d+(?:\.\d{2})?)/g);
-
-  if (matches && matches.length >= 2) {
-    const nums = matches
-      .map((m) => parseFloat(m.replace("$", "")))
-      .filter((n) => Number.isFinite(n));
-
-    // We still avoid swapping: prefer first as original, second as sale (common layout).
-    const p = nums[0] ?? null;
-    const s = nums[1] ?? null;
-
-    if (p != null && s != null && s < p) return { price: p, salePrice: s };
-  }
-
-  // If only one price, we return it as salePrice (merge-deals will filter it out)
-  if (matches && matches.length === 1) {
-    const only = parseFloat(matches[0].replace("$", ""));
-    if (Number.isFinite(only)) return { price: null, salePrice: only };
-  }
-
-  return { price: null, salePrice: null };
+  return { price, salePrice };
 }
 
 /**
- * Extract products from ASICS HTML
- * UPDATED: Outputs new schema
+ * Extract products from ASICS HTML - UPDATED FOR NEW STRUCTURE
  */
 function extractAsicsProducts(html, sourceUrl) {
   const $ = cheerio.load(html);
@@ -171,7 +127,7 @@ function extractAsicsProducts(html, sourceUrl) {
   const normalizedUrl = String(sourceUrl || "").toLowerCase();
   let gender = "unisex";
 
-  // Women FIRST (avoid substring collisions)
+  // Determine gender from URL
   if (normalizedUrl.includes("aa20106000") || normalizedUrl.includes("womens-clearance")) {
     gender = "womens";
   } else if (normalizedUrl.includes("aa10106000") || normalizedUrl.includes("mens-clearance")) {
@@ -184,79 +140,107 @@ function extractAsicsProducts(html, sourceUrl) {
 
   console.log(`[ASICS] Processing URL: ${sourceUrl} -> Gender: ${gender}`);
 
-  const $products = $(".productTile__root");
-  console.log(`[ASICS] Found ${$products.length} products for ${gender}`);
+  // NEW APPROACH: Find all product links directly
+  // ASICS product URLs follow pattern: /p/ANA_XXXXX-XXX.html
+  const $productLinks = $('a[href*="/p/ANA_"]');
+  
+  console.log(`[ASICS] Found ${$productLinks.length} product links for ${gender}`);
 
-  $products.each((_, el) => {
-    const $product = $(el);
+  const seenUrls = new Set(); // Dedupe within page
 
-    const $link = $product.find('a[href*="/p/"]').first();
-    const linkTitle = $link.attr("aria-label") || $link.text().trim();
+  $productLinks.each((_, el) => {
+    const $link = $(el);
 
-    let cleanTitle = String(linkTitle || "")
+    // Get URL
+    let url = $link.attr("href");
+    if (!url) return;
+    
+    url = absolutizeAsicsUrl(url);
+    if (!url || seenUrls.has(url)) return;
+    seenUrls.add(url);
+
+    // Extract title from link text or aria-label
+    let title = $link.attr("aria-label") || $link.text().trim();
+    
+    // Clean up title
+    title = title
       .replace(/Next slide/gi, "")
       .replace(/Previous slide/gi, "")
       .replace(/\bSale\b/gi, "")
       .replace(/\s+/g, " ")
       .trim();
 
-    // Extract model-ish prefix if present
-    const modelMatch = cleanTitle.match(/^([A-Z][A-Z\-\s\d]+?)(?=Men's|Women's|Unisex|\$)/i);
-    if (modelMatch) cleanTitle = modelMatch[1].trim();
+    // Sometimes title contains price info, clean that out
+    title = title.replace(/\$\d+\.\d{2}/g, "").trim();
 
-    if (!cleanTitle || cleanTitle.length < 3) return;
+    // Extract model from title
+    const modelMatch = title.match(/^([A-Z][A-Z\-\s\d]+?)(?=\s*$|Men's|Women's|Unisex|Sportstyle|Running|Tennis|Trail)/i);
+    const model = modelMatch ? modelMatch[1].trim() : title.replace(/^ASICS\s+/i, "").trim();
 
-    // URL
-    let url = $link.attr("href");
-    if (url && !url.startsWith("http")) url = `https://www.asics.com${url}`;
-    if (!url) return;
+    if (!title || title.length < 3) return;
 
-    // Prices (no swapping; prefer DOM; fallback to text)
-    const { price, salePrice } = extractPricesFromTile($product);
+    // Extract prices
+    const { price, salePrice } = extractPrices($, $link);
 
-    // IMAGE extraction (your existing robust logic)
+    // Extract image
     let image = null;
 
-    const sourceSrcset =
-      $product.find("picture source[srcset]").first().attr("srcset") ||
-      $product.find("picture source[data-srcset]").first().attr("data-srcset") ||
-      null;
+    // Try to find image within the link element or nearby
+    const $img = $link.find("img").first();
+    
+    if ($img.length > 0) {
+      // Try srcset first
+      const srcset = $img.attr("srcset") || $img.attr("data-srcset") || $img.attr("data-lazy-srcset");
+      image = pickBestFromSrcset(srcset);
 
-    image = pickBestFromSrcset(sourceSrcset);
-
-    if (!image) {
-      const $img = $product.find("img").first();
-      const imgSrcset = $img.attr("srcset") || $img.attr("data-srcset") || $img.attr("data-lazy-srcset") || null;
-      image = pickBestFromSrcset(imgSrcset);
+      // Try src attributes
+      if (!image) {
+        image = $img.attr("src") || $img.attr("data-src") || $img.attr("data-lazy-src");
+      }
     }
 
+    // Try picture source elements
     if (!image) {
-      const $img = $product.find("img").first();
-      image = $img.attr("src") || $img.attr("data-src") || $img.attr("data-lazy-src") || $img.attr("data-original") || null;
+      const $picture = $link.find("picture");
+      if ($picture.length > 0) {
+        const sourceSrcset = $picture.find("source[srcset]").first().attr("srcset");
+        image = pickBestFromSrcset(sourceSrcset);
+      }
     }
 
+    // Check parent container for images
     if (!image) {
-      const noscriptHtml = $product.find("noscript").first().html();
-      if (noscriptHtml) {
-        const $$ = cheerio.load(noscriptHtml);
-        image = $$("img").first().attr("src") || $$("img").first().attr("data-src") || null;
+      const $parent = $link.parent();
+      const $parentImg = $parent.find("img").first();
+      if ($parentImg.length > 0) {
+        const srcset = $parentImg.attr("srcset") || $parentImg.attr("data-srcset");
+        image = pickBestFromSrcset(srcset);
+        if (!image) {
+          image = $parentImg.attr("src") || $parentImg.attr("data-src");
+        }
       }
     }
 
     image = absolutizeAsicsUrl(image);
 
-    if (image && (image.startsWith("data:") || image.toLowerCase().includes("placeholder"))) image = null;
-    if (image && image.includes("$variantthumbnail$")) image = image.replace("$variantthumbnail$", "$zoom$");
+    // Filter out placeholders
+    if (image && (image.startsWith("data:") || image.toLowerCase().includes("placeholder"))) {
+      image = null;
+    }
 
+    // Fix thumbnail URLs
+    if (image && image.includes("$variantthumbnail$")) {
+      image = image.replace("$variantthumbnail$", "$zoom$");
+    }
+
+    // Fallback: derive image from product URL
     if (!image && url) {
       const derived = buildAsicsImageFromProductUrl(url);
       if (derived) image = derived;
     }
 
-    const model = cleanTitle.replace(/^ASICS\s+/i, "").trim();
-
     products.push({
-      title: cleanTitle,
+      title,
       brand: "ASICS",
       model,
       salePrice: salePrice != null ? salePrice : null,
@@ -264,8 +248,8 @@ function extractAsicsProducts(html, sourceUrl) {
       store: "ASICS",
       url,
       image: image || null,
-      gender, // normalized
-      shoeType: detectShoeType(cleanTitle, model),
+      gender,
+      shoeType: detectShoeType(title, model),
     });
   });
 
@@ -288,7 +272,11 @@ async function scrapeAsicsUrlWithPagination(app, baseUrl, description) {
     const products = extractAsicsProducts(scrapeResult.html, baseUrl);
 
     const missingImages = products.filter((p) => !p.image).length;
-    console.log(`[ASICS] ${description}: Found ${products.length} products (${missingImages} missing images)`);
+    const missingPrices = products.filter((p) => !p.price || !p.salePrice).length;
+    
+    console.log(`[ASICS] ${description}: Found ${products.length} products`);
+    console.log(`[ASICS]   - Missing images: ${missingImages}`);
+    console.log(`[ASICS]   - Missing price data: ${missingPrices}`);
 
     return { success: true, products, count: products.length, url };
   } catch (error) {
@@ -358,7 +346,11 @@ async function scrapeAllAsicsSales() {
   }
 
   const missingImagesTotal = uniqueProducts.filter((p) => !p.image).length;
-  console.log(`[ASICS] Total unique products: ${uniqueProducts.length} (${missingImagesTotal} missing images)`);
+  const missingPricesTotal = uniqueProducts.filter((p) => !p.price || !p.salePrice).length;
+  
+  console.log(`[ASICS] Total unique products: ${uniqueProducts.length}`);
+  console.log(`[ASICS]   - Missing images: ${missingImagesTotal}`);
+  console.log(`[ASICS]   - Missing prices: ${missingPricesTotal}`);
   console.log(`[ASICS] Results per page:`, results);
 
   return { products: uniqueProducts, pageResults: results };
@@ -368,18 +360,18 @@ module.exports = async (req, res) => {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
   // TEMP: disabled during schema/testing phase
-// Re-enable before enabling Vercel Cron in prod
-//  const cronSecret = process.env.CRON_SECRET;
-//  if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
-//    return res.status(401).json({ error: "Unauthorized" });
-//  }
+  // Re-enable before enabling Vercel Cron in prod
+  //  const cronSecret = process.env.CRON_SECRET;
+  //  if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
+  //    return res.status(401).json({ error: "Unauthorized" });
+  //  }
 
   const start = Date.now();
 
   try {
     const { products: deals, pageResults } = await scrapeAllAsicsSales();
 
-    // Robust dealsByGender (counts normalized values, never "Men/Women" casing issues)
+    // Count by gender
     const dealsByGender = { mens: 0, womens: 0, unisex: 0 };
     for (const d of deals) {
       const g = normalizeGender(d.gender);
