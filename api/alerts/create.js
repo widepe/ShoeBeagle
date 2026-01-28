@@ -86,7 +86,7 @@ function generateConfirmationEmail(newAlert, allUserAlerts) {
         </p>
         <a href="https://shoebeagle.com/pages/myalerts.html?email=${encodeURIComponent(newAlert.email)}" 
            style="display: inline-block; padding: 12px 30px; background: #214478; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
-          Manage My Alerts
+          Manage Alerts
         </a>
       </div>
 
