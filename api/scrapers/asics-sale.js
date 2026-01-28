@@ -367,10 +367,12 @@ async function scrapeAllAsicsSales() {
 module.exports = async (req, res) => {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+  // TEMP: disabled during schema/testing phase
+// Re-enable before enabling Vercel Cron in prod
+//  const cronSecret = process.env.CRON_SECRET;
+//  if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
+//    return res.status(401).json({ error: "Unauthorized" });
+//  }
 
   const start = Date.now();
 
