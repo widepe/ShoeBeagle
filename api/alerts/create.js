@@ -12,10 +12,20 @@ function sanitizeInput(str) {
     .slice(0, 100);
 }
 
+function formatDateShort(ms) {
+  const d = new Date(ms);
+  const day = d.getDate();
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const mon = months[d.getMonth()];
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${day}-${mon}-${yy}`;
+}
+
 function generateConfirmationEmail(newAlert, allUserAlerts) {
   const daysLeft = 30;
   const alertsHtml = allUserAlerts.map(alert => `
     <tr>
+      <td style="padding: 8px; border-bottom: 1px solid #ddd;">${formatDateShort(alert.setAt)}</td>
       <td style="padding: 8px; border-bottom: 1px solid #ddd;">${alert.brand} ${alert.model}</td>
       <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">$${Math.round(alert.targetPrice)}</td>
       <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${alert.cancelledAt ? 'Cancelled' : `${Math.max(0, 30 - Math.floor((Date.now() - alert.setAt) / (1000 * 60 * 60 * 24)))} days`}</td>
@@ -49,8 +59,8 @@ function generateConfirmationEmail(newAlert, allUserAlerts) {
       </div>
 
       <p style="font-size: 15px; line-height: 1.6; color: #333; margin-bottom: 25px;">
-        We'll search daily for deals matching your criteria. When we find a match at or below $${Math.round(newAlert.targetPrice)}, 
-        you'll receive an email with direct links to the best deals!
+        We'll search daily for deals matching your criteria. When we find your shoes at or below $${Math.round(newAlert.targetPrice)}, 
+        you'll be notified immediately!
       </p>
 
       ${allUserAlerts.length > 1 ? `
@@ -58,6 +68,7 @@ function generateConfirmationEmail(newAlert, allUserAlerts) {
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
         <thead>
           <tr style="background: #f4ede3;">
+            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #214478;">Date Set</th>
             <th style="padding: 10px; text-align: left; border-bottom: 2px solid #214478;">Shoe</th>
             <th style="padding: 10px; text-align: right; border-bottom: 2px solid #214478;">Price</th>
             <th style="padding: 10px; text-align: center; border-bottom: 2px solid #214478;">Time Left</th>
@@ -82,7 +93,8 @@ function generateConfirmationEmail(newAlert, allUserAlerts) {
       <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
         <p style="margin: 5px 0;">Your alert will remain active for 30 days or until cancelled.</p>
         <p style="margin: 5px 0;">You can have up to 5 active alerts at a time.</p>
-        <p style="margin: 15px 0 5px;">Questions? Visit <a href="https://shoebeagle.com" style="color: #214478;">shoebeagle.com</a></p>
+        <p style="margin: 15px 0 5px;"><strong>Privacy:</strong> Your email is never sold or shared by Shoe Beagle.</p>
+        <p style="margin: 5px 0;">Questions? Visit <a href="https://shoebeagle.com" style="color: #214478;">shoebeagle.com</a></p>
       </div>
     </div>
   </div>
