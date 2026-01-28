@@ -231,12 +231,11 @@
     }
     .price-input-wrapper input {
       padding-left: 2rem;
-      padding-right: 2.25rem; /* room for X chip */
+      padding-right: 2.25rem;
       text-align: right;
     }
     .price-input-wrapper .input-clear { right: 0.5rem; }
 
-    /* FIX: show X chip for price wrapper too */
     .price-input-wrapper:has(input:not(:placeholder-shown)) .input-clear { display: flex; }
 
     .submit-btn {
@@ -254,13 +253,6 @@
     }
     .submit-btn:hover { background: #1a3661; }
     .submit-btn:disabled { background: #ccc; cursor: not-allowed; }
-
-    .form-hint {
-      font-size: 0.82rem;
-      color: #666;
-      font-style: italic;
-      margin-top: 0.3rem;
-    }
 
     .privacy-note {
       margin-top: 0.35rem;
@@ -338,11 +330,11 @@
       font-style: italic;
     }
 
-    /* FIX: allow tooltips to show vertically (no clipping) */
     .alerts-table-wrapper {
       width: 100%;
       overflow-x: auto;
       overflow-y: visible;
+      position: relative;
     }
 
     .alerts-table {
@@ -371,6 +363,7 @@
     .alerts-table tbody tr {
       cursor: pointer;
       transition: background-color 0.2s ease;
+      position: relative;
     }
     .alerts-table tbody tr:hover { background: rgba(33, 68, 120, 0.08); }
     .alerts-table tbody tr.selected { background: rgba(33, 68, 120, 0.15); }
@@ -387,6 +380,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
       line-height: 1.3;
+      position: relative;
     }
     .alerts-table tbody td:nth-child(2),
     .alerts-table tbody td:nth-child(3) {
@@ -496,26 +490,50 @@
     .alert-actions .confirmation { display: flex; gap: 0.5rem; align-items: center; }
     .alert-actions .confirmation-text { font-size: 0.88rem; color: #2d2d2d; font-weight: 600; }
 
-    /* Tooltip styles (FIX: show BELOW so it doesn't hide under the row above) */
+    /* Tooltip styles - FIXED to appear ABOVE the element with higher z-index */
     [data-tooltip] { position: relative; }
+    [data-tooltip]::before,
     [data-tooltip]::after {
-      content: attr(data-tooltip);
       position: absolute;
-      top: 100%;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      z-index: 10000;
+    }
+
+    [data-tooltip]::before {
+      content: attr(data-tooltip);
+      bottom: 100%;
       left: 50%;
-      transform: translateX(-50%) translateY(8px);
+      transform: translateX(-50%) translateY(-8px);
       background: #2d2d2d;
       color: white;
       padding: 0.4rem 0.6rem;
       border-radius: 0.3rem;
       font-size: 0.75rem;
       white-space: nowrap;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.15s ease;
-      z-index: 10000;
+      margin-bottom: 5px;
     }
-    [data-tooltip]:hover::after { opacity: 1; }
+
+    [data-tooltip]::after {
+      content: '';
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: #2d2d2d;
+      margin-bottom: 0px;
+    }
+
+    [data-tooltip]:hover::before,
+    [data-tooltip]:hover::after {
+      opacity: 1;
+    }
+
+    /* Ensure buttons in action rows have higher stacking */
+    .alert-actions button[data-tooltip] {
+      z-index: 100;
+    }
 
     .hidden { display: none !important; }
 
@@ -577,7 +595,7 @@
       <form id="createAlertForm">
         <div class="form-group">
           <label class="form-label" for="alertEmail">Email Address *</label>
-          <input type="email" id="alertEmail" placeholder="your@email.com" required />
+          <input type="email" id="alertEmail" placeholder="your@email.com" required autocomplete="email" />
           <div id="inlineConfirmation" class="inline-confirmation"></div>
           <div class="privacy-note">Your email will never be shared or sold by Shoe Beagle.</div>
         </div>
@@ -605,13 +623,13 @@
             <div class="gender-group">
               <label class="form-label">Gender Preference</label>
               <div class="gender-selector">
-                <div class="gender-chip active" data-gender="both" data-tooltip="Find men's or women's">
+                <div class="gender-chip active" data-gender="both">
                   <span class="check">✓</span><span>Both</span>
                 </div>
-                <div class="gender-chip" data-gender="mens" data-tooltip="Find men's only">
+                <div class="gender-chip" data-gender="mens">
                   <span class="check">✓</span><span>Mens</span>
                 </div>
-                <div class="gender-chip" data-gender="womens" data-tooltip="Find women's only">
+                <div class="gender-chip" data-gender="womens">
                   <span class="check">✓</span><span>Womens</span>
                 </div>
               </div>
@@ -620,13 +638,11 @@
             <div class="price-group">
               <label class="form-label" for="alertPrice">Target Price *</label>
               <div class="price-input-wrapper">
-                <input type="text" id="alertPrice" placeholder="0" inputmode="numeric" required />
+                <input type="text" id="alertPrice" placeholder="0" inputmode="numeric" required autocomplete="off" />
                 <button type="button" class="input-clear" aria-label="Clear price">&times;</button>
               </div>
             </div>
           </div>
-
-          <div class="form-hint">Alert expires after 30 days.</div>
         </div>
 
         <button type="submit" class="submit-btn" id="createAlertBtn">Set Alert</button>
@@ -670,7 +686,7 @@
       <div id="alertsEmpty" class="alerts-muted hidden">No alerts have been set.</div>
     </div>
 
-    <a href="/" class="home-btn" data-tooltip="Back to home page">Return</a>
+    <a href="/" class="home-btn">Return</a>
 
     <div class="footer">
       © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
@@ -681,7 +697,7 @@
     // =======================
     // BACKEND ENDPOINTS
     // =======================
-    const API = { alerts: "/api/alerts" }; // Single endpoint for all operations
+    const API = { alerts: "/api/alerts" };
 
     // =======================
     // BRAND/MODEL SUGGESTIONS
@@ -759,10 +775,11 @@
     let selectedAlertRow = null;
     let currentAlerts = [];
     let currentEmail = "";
-    let selectedGender = "both"; // "both" | "mens" | "womens"
+    let selectedGender = "both";
+    let isProcessing = false; // Prevent double-clicks
 
     // =======================
-    // PRICE INPUT - NUMBERS ONLY
+    // PRICE INPUT - NUMBERS ONLY (NO AUTOCOMPLETE)
     // =======================
     alertPrice.addEventListener('input', (e) => {
       e.target.value = e.target.value.replace(/[^0-9]/g, '');
@@ -774,7 +791,12 @@
       e.preventDefault();
       const pastedText = (e.clipboardData || window.clipboardData).getData('text');
       const numericOnly = pastedText.replace(/[^0-9]/g, '');
-      document.execCommand('insertText', false, numericOnly);
+      const selection = window.getSelection();
+      if (selection.rangeCount) {
+        selection.deleteFromDocument();
+        selection.getRangeAt(0).insertNode(document.createTextNode(numericOnly));
+        selection.collapseToEnd();
+      }
     });
 
     // =======================
@@ -871,72 +893,123 @@
     }
 
     // =======================
-    // API CALLS (FIX: prevent caching so cancel/update/remove reflect immediately)
+    // API CALLS WITH RETRY LOGIC
     // =======================
+    async function apiWithRetry(apiFn, maxRetries = 3, delayMs = 1000) {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          return await apiFn();
+        } catch (error) {
+          if (attempt === maxRetries) throw error;
+          console.warn(`API attempt ${attempt} failed, retrying...`, error);
+          await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
+        }
+      }
+    }
+
     async function apiListAlerts(email) {
-      const url = `${API.alerts}?email=${encodeURIComponent(email)}&_ts=${Date.now()}`;
-      const res = await fetch(url, { method: "GET", cache: "no-store" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to load alerts.");
-      return Array.isArray(data.alerts) ? data.alerts : [];
+      return apiWithRetry(async () => {
+        const url = `${API.alerts}?email=${encodeURIComponent(email)}&_ts=${Date.now()}`;
+        const res = await fetch(url, { 
+          method: "GET", 
+          cache: "no-store",
+          headers: { 
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}: Failed to load alerts`);
+        }
+        const data = await res.json();
+        return Array.isArray(data.alerts) ? data.alerts : [];
+      });
     }
 
     async function apiCreateAlert(payload) {
-      const res = await fetch(API.alerts, {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      return apiWithRetry(async () => {
+        const res = await fetch(API.alerts, {
+          method: "POST",
+          cache: "no-store",
+          headers: { 
+            "Content-Type": "application/json",
+            'Cache-Control': 'no-cache'
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}: Failed to create alert`);
+        }
+        return await res.json();
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to create alert.");
-      return data;
     }
 
     async function apiCancelAlert(alertId, email) {
-      const res = await fetch(API.alerts, {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "cancel", alertId, email }),
+      return apiWithRetry(async () => {
+        const res = await fetch(API.alerts, {
+          method: "POST",
+          cache: "no-store",
+          headers: { 
+            "Content-Type": "application/json",
+            'Cache-Control': 'no-cache'
+          },
+          body: JSON.stringify({ action: "cancel", alertId, email }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}: Failed to cancel alert`);
+        }
+        return await res.json();
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to cancel alert.");
-      return data;
     }
 
     async function apiUpdateAlert(alertId, email, newPrice) {
-      // Send multiple field names for compatibility (some backends differ)
-      const body = {
-        action: "update",
-        alertId,
-        email,
-        targetPrice: newPrice,
-        newPrice: newPrice,
-        price: newPrice
-      };
+      return apiWithRetry(async () => {
+        const body = {
+          action: "update",
+          alertId,
+          email,
+          targetPrice: newPrice,
+          newPrice: newPrice,
+          price: newPrice
+        };
 
-      const res = await fetch(API.alerts, {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        const res = await fetch(API.alerts, {
+          method: "POST",
+          cache: "no-store",
+          headers: { 
+            "Content-Type": "application/json",
+            'Cache-Control': 'no-cache'
+          },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}: Failed to update alert`);
+        }
+        return await res.json();
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to update alert.");
-      return data;
     }
 
     async function apiRemoveAlert(alertId, email) {
-      const res = await fetch(API.alerts, {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "remove", alertId, email }),
+      return apiWithRetry(async () => {
+        const res = await fetch(API.alerts, {
+          method: "POST",
+          cache: "no-store",
+          headers: { 
+            "Content-Type": "application/json",
+            'Cache-Control': 'no-cache'
+          },
+          body: JSON.stringify({ action: "remove", alertId, email }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}: Failed to remove alert`);
+        }
+        return await res.json();
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to remove alert.");
-      return data;
     }
 
     // =======================
@@ -1189,6 +1262,7 @@
       input.className = "edit-price-input";
       input.value = Math.round(Number(alert.targetPrice || 0));
       input.placeholder = "0";
+      input.autocomplete = "off";
 
       input.addEventListener('input', (e) => { e.target.value = e.target.value.replace(/[^0-9]/g, ''); });
       input.addEventListener('keypress', (e) => { if (e.key && !/[0-9]/.test(e.key)) e.preventDefault(); });
@@ -1201,20 +1275,29 @@
       saveBtn.setAttribute("data-tooltip", "Reset alert to 30 days");
       saveBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
+        if (isProcessing) return;
+        
         const newPrice = parseInt(input.value, 10);
-        if (!newPrice || newPrice <= 0) { showStatus("Please enter a valid price.", "error"); return; }
+        if (!newPrice || newPrice <= 0) { 
+          showStatus("Please enter a valid price.", "error"); 
+          return; 
+        }
 
-        // optimistic update so it "sticks" even if list API caches somewhere upstream
-        const idx = currentAlerts.findIndex(x => x.id === alert.id);
-        if (idx >= 0) currentAlerts[idx] = { ...currentAlerts[idx], targetPrice: newPrice, setAt: Date.now() };
+        isProcessing = true;
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Saving...";
 
         try {
           await apiUpdateAlert(alert.id, currentEmail, newPrice);
           showStatus("Alert updated and reset to 30 days!", "success");
           await refreshAlerts();
         } catch (err) {
+          console.error("Update failed:", err);
           showStatus(err.message || "Failed to update alert.", "error");
-          await refreshAlerts();
+        } finally {
+          isProcessing = false;
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save";
         }
       });
 
@@ -1248,12 +1331,28 @@
       const yesBtn = document.createElement("button");
       yesBtn.textContent = "Yes";
       yesBtn.className = "success";
-      yesBtn.addEventListener("click", (e) => { e.stopPropagation(); onYes(); });
+      yesBtn.addEventListener("click", async (e) => { 
+        e.stopPropagation(); 
+        if (isProcessing) return;
+        isProcessing = true;
+        yesBtn.disabled = true;
+        yesBtn.textContent = "Processing...";
+        try {
+          await onYes();
+        } finally {
+          isProcessing = false;
+          yesBtn.disabled = false;
+          yesBtn.textContent = "Yes";
+        }
+      });
 
       const noBtn = document.createElement("button");
       noBtn.textContent = "No";
       noBtn.className = "secondary";
-      noBtn.addEventListener("click", (e) => { e.stopPropagation(); renderAlertsDashboard(); });
+      noBtn.addEventListener("click", (e) => { 
+        e.stopPropagation(); 
+        renderAlertsDashboard(); 
+      });
 
       confirmDiv.appendChild(confirmText);
       confirmDiv.appendChild(yesBtn);
@@ -1370,14 +1469,30 @@
             const editBtn = document.createElement("button");
             editBtn.textContent = "Edit Price";
             editBtn.className = "secondary";
-            editBtn.addEventListener("click", (ev) => { ev.stopPropagation(); showEditPriceForm(actionsDiv, a); });
+            editBtn.addEventListener("click", (ev) => { 
+              ev.stopPropagation(); 
+              showEditPriceForm(actionsDiv, a); 
+            });
             actionsDiv.appendChild(editBtn);
 
             const refreshBtn = document.createElement("button");
             refreshBtn.textContent = "Refresh";
             refreshBtn.className = "secondary";
             refreshBtn.setAttribute("data-tooltip", "Refresh alerts list");
-            refreshBtn.addEventListener("click", async (ev) => { ev.stopPropagation(); await refreshAlerts(); });
+            refreshBtn.addEventListener("click", async (ev) => { 
+              ev.stopPropagation(); 
+              if (isProcessing) return;
+              isProcessing = true;
+              refreshBtn.disabled = true;
+              refreshBtn.textContent = "Refreshing...";
+              try {
+                await refreshAlerts(); 
+              } finally {
+                isProcessing = false;
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = "Refresh";
+              }
+            });
             actionsDiv.appendChild(refreshBtn);
 
             const cancelBtn = document.createElement("button");
@@ -1389,17 +1504,12 @@
               showConfirmation(actionsDiv, "Cancel this alert?", async () => {
                 try {
                   if (!currentEmail) throw new Error("Missing email context.");
-
-                  // optimistic cancel
-                  const idx = currentAlerts.findIndex(x => x.id === a.id);
-                  if (idx >= 0) currentAlerts[idx] = { ...currentAlerts[idx], cancelledAt: Date.now() };
-
                   await apiCancelAlert(a.id, currentEmail);
                   showStatus("Alert cancelled.", "success");
                   await refreshAlerts();
                 } catch (err) {
+                  console.error("Cancel failed:", err);
                   showStatus(err.message || "Failed to cancel alert.", "error");
-                  await refreshAlerts();
                 }
               });
             });
@@ -1414,16 +1524,12 @@
               showConfirmation(actionsDiv, "Remove this alert?", async () => {
                 try {
                   if (!currentEmail) throw new Error("Missing email context.");
-
-                  // optimistic remove
-                  currentAlerts = currentAlerts.filter(x => x.id !== a.id);
-
                   await apiRemoveAlert(a.id, currentEmail);
                   showStatus("Alert removed.", "success");
                   await refreshAlerts();
                 } catch (err) {
+                  console.error("Remove failed:", err);
                   showStatus(err.message || "Failed to remove alert.", "error");
-                  await refreshAlerts();
                 }
               });
             });
@@ -1469,8 +1575,7 @@
         currentAlerts = alerts;
         renderAlertsDashboard();
       } catch (err) {
-        currentAlerts = [];
-        renderAlertsDashboard();
+        console.error("Failed to refresh alerts:", err);
         showStatus(err.message || "Failed to load alerts.", "error");
       }
     }
@@ -1496,7 +1601,6 @@
           normalizeStr(alert.brand) === normalizeStr(brand) &&
           normalizeStr(alert.model) === normalizeStr(model);
 
-        // if backend stores gender, include it; otherwise ignore
         const storedGender = normalizeStr(alert.gender || "");
         const genderMatches = storedGender ? storedGender === normalizeStr(gender) : true;
 
@@ -1510,6 +1614,8 @@
     createAlertForm.addEventListener("submit", async (e) => {
       e.preventDefault();
 
+      if (isProcessing) return;
+
       const email = sanitizeInput(alertEmail.value).toLowerCase();
       const brand = sanitizeInput(alertBrand.value);
       const model = sanitizeInput(alertModel.value);
@@ -1517,22 +1623,34 @@
       const gender = selectedGender;
 
       // Validation
-      if (!email || !email.includes("@")) { showStatus("Please enter a valid email address.", "error"); return; }
-      if (!brand) { showStatus("Please enter a shoe brand.", "error"); return; }
-      if (!model) { showStatus("Please enter a shoe model.", "error"); return; }
-      if (!targetPrice || targetPrice <= 0) { showStatus("Please enter a valid target price (whole dollars).", "error"); return; }
+      if (!email || !email.includes("@")) { 
+        showStatus("Please enter a valid email address.", "error"); 
+        return; 
+      }
+      if (!brand) { 
+        showStatus("Please enter a shoe brand.", "error"); 
+        return; 
+      }
+      if (!model) { 
+        showStatus("Please enter a shoe model.", "error"); 
+        return; 
+      }
+      if (!targetPrice || targetPrice <= 0) { 
+        showStatus("Please enter a valid target price (whole dollars).", "error"); 
+        return; 
+      }
 
       if (hasActiveAlert(brand, model, gender)) {
         showStatus("You already have an active alert for this shoe. Please modify the existing alert or cancel it to create a new one.", "warning");
         return;
       }
 
+      isProcessing = true;
       setBusy(true);
 
       try {
         const result = await apiCreateAlert({ email, brand, model, targetPrice, gender });
 
-        // keep email in URL for convenience
         if (email && getEmailFromQueryString() !== email) {
           const u = new URL(window.location.href);
           u.searchParams.set("email", email);
@@ -1541,12 +1659,9 @@
 
         setEmailContext(email);
 
-        // Confirmation under email input (as requested)
         showInlineConfirmation(`Alert set: ${brand} ${model} • $${targetPrice} • ${genderLabel(gender)}`);
-
         showStatus(result.message || "Alert set! Check your email for confirmation.", "success");
 
-        // Reset only brand/model/price; keep email + gender selection
         alertBrand.value = "";
         alertModel.value = "";
         alertPrice.value = "";
@@ -1554,8 +1669,10 @@
 
         await refreshAlerts();
       } catch (err) {
+        console.error("Create alert failed:", err);
         showStatus(err.message || "Failed to set alert.", "error");
       } finally {
+        isProcessing = false;
         setBusy(false);
       }
     });
