@@ -1,5 +1,13 @@
+// /api/scrapers/_holabirdShared.js
+// NEW SCHEMA (authoritative):
+//   salePrice  -> current sale price (number)
+//   price      -> original/MSRP price (number)
+//   (NO originalPrice anywhere in the exported deal objects)
+
 const axios = require("axios");
 const cheerio = require("cheerio");
+
+const BASE = "https://www.holabirdsports.com";
 
 /** Remove HTML/CSS/widget junk from scraped strings */
 function sanitizeText(input) {
@@ -21,14 +29,8 @@ function sanitizeText(input) {
 
   // Strip tags if any
   if (s.includes("<")) {
-    s = s.replace(
-      /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
-      " "
-    );
-    s = s.replace(
-      /<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi,
-      " "
-    );
+    s = s.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ");
+    s = s.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ");
     s = s.replace(/<[^>]+>/g, " ");
   }
 
@@ -51,16 +53,16 @@ function sanitizeText(input) {
   return s;
 }
 
-function absolutizeUrl(url, base = "https://www.holabirdsports.com") {
+function absolutizeUrl(url, base = BASE) {
   if (!url) return null;
   const u = String(url).trim();
   if (!u) return null;
 
   if (/^https?:\/\//i.test(u)) return u;
   if (u.startsWith("//")) return "https:" + u;
-  if (u.startsWith("/")) return base + u;
+  if (u.startsWith("/")) return base.replace(/\/+$/, "") + u;
 
-  return base + "/" + u.replace(/^\/+/, "");
+  return base.replace(/\/+$/, "") + "/" + u.replace(/^\/+/, "");
 }
 
 function pickLargestFromSrcset(srcset) {
@@ -100,9 +102,7 @@ function findBestImageUrl($, $link, $container) {
   function pushFromImg($img) {
     if (!$img || !$img.length) return;
 
-    const src =
-      $img.attr("data-src") || $img.attr("data-original") || $img.attr("src");
-
+    const src = $img.attr("data-src") || $img.attr("data-original") || $img.attr("src");
     const srcset = $img.attr("data-srcset") || $img.attr("srcset");
     const picked = pickLargestFromSrcset(srcset);
 
@@ -124,83 +124,107 @@ function findBestImageUrl($, $link, $container) {
   );
 }
 
+/** Pull $ amounts like "$69.95" from text */
 function extractDollarAmounts(text) {
   if (!text) return [];
   const matches = String(text).match(/\$\s*[\d,]+(?:\.\d{1,2})?/g);
   if (!matches) return [];
 
   return matches
-    .map((m) => parseFloat(m.replace(/[$,\s]/g, "")))
+    .map((m) => parseFloat(m.replace(/[$,\s]/g, "").replace(/,/g, "")))
     .filter(Number.isFinite);
 }
 
+/**
+ * NEW SCHEMA: returns { salePrice, price, valid }
+ * - salePrice is the LOWER number
+ * - price is the HIGHER number (original/MSRP)
+ * - never returns originalPrice
+ */
 function extractPricesFromText(fullText) {
   let prices = extractDollarAmounts(fullText).filter((p) => p >= 10 && p < 1000);
 
+  // de-dupe by cents
   prices = [...new Set(prices.map((p) => p.toFixed(2)))].map(Number);
 
+  // Holabird tiles usually show 2 prices; sometimes extra (e.g., "You Save")
   if (prices.length < 2 || prices.length > 4) return { valid: false };
 
-  prices.sort((a, b) => b - a);
+  prices.sort((a, b) => a - b); // ascending
 
-  const original = prices[0];
-  const sale = prices[prices.length - 1];
+  const salePrice = prices[0];
+  const price = prices[prices.length - 1];
 
-  if (sale >= original) return { valid: false };
+  if (!Number.isFinite(salePrice) || !Number.isFinite(price)) return { valid: false };
+  if (salePrice <= 0 || price <= 0) return { valid: false };
+  if (salePrice >= price) return { valid: false };
 
-  const pct = ((original - sale) / original) * 100;
+  const pct = ((price - salePrice) / price) * 100;
   if (pct < 5 || pct > 90) return { valid: false };
 
-  return { salePrice: sale, originalPrice: original, valid: true };
+  return { salePrice, price, valid: true };
 }
 
 function extractBrandAndModel(title) {
   if (!title) return { brand: "Unknown", model: title || "" };
-  
+
   // Common shoe brands at Holabird Sports
   const brands = [
-    "Mizuno", "Saucony", "HOKA", "Brooks", "ASICS", "New Balance", 
-    "On", "Altra", "adidas", "Nike", "Puma", "Salomon", "Diadora",
-    "K-Swiss", "Wilson", "Babolat", "HEAD", "Yonex", "Under Armour",
-    "VEJA", "APL", "Merrell", "Teva", "Reebok", "Skechers", "Mount to Coast",
-    "norda", "inov8", "OOFOS", "Birkenstock", "Kane Footwear", "LANE EIGHT"
+    "Mizuno",
+    "Saucony",
+    "HOKA",
+    "Brooks",
+    "ASICS",
+    "New Balance",
+    "On",
+    "Altra",
+    "adidas",
+    "Nike",
+    "Puma",
+    "Salomon",
+    "Diadora",
+    "K-Swiss",
+    "Wilson",
+    "Babolat",
+    "HEAD",
+    "Yonex",
+    "Under Armour",
+    "VEJA",
+    "APL",
+    "Merrell",
+    "Teva",
+    "Reebok",
+    "Skechers",
+    "Mount to Coast",
+    "norda",
+    "inov8",
+    "OOFOS",
+    "Birkenstock",
+    "Kane Footwear",
+    "LANE EIGHT",
   ];
-  
-  // FIXED: Find brand ANYWHERE in the title (not just at start)
+
+  // Find brand anywhere in title
   for (const brand of brands) {
-    // Use word boundary \b to match whole words only, case-insensitive
     const regex = new RegExp(`\\b${brand}\\b`, "i");
-    
     if (regex.test(title)) {
-      // Remove the brand name and everything before it to get the model
       const parts = title.split(regex);
-      
-      // Take the part after the brand name as the model
       let model = parts.length > 1 ? parts[1].trim() : parts[0].trim();
-      
-      // Clean up common prefixes from the model
       model = model.replace(/^[-:,\s]+/, "").trim();
-      
-      return { 
-        brand, 
-        model: model || title 
-      };
+      return { brand, model: model || title };
     }
   }
-  
-  // If no brand match, try to extract from common patterns
-  // Remove common prefixes first (Men's, Women's, etc.)
-  const cleaned = title.replace(/^(Men's|Women's|Kids?|Youth|Junior|Unisex|Sale:?|New:?)\s+/gi, "").trim();
-  
-  // Split and assume first word is brand
+
+  // Fallback: strip common prefixes then assume first token is brand
+  const cleaned = title
+    .replace(/^(Men's|Women's|Kids?|Youth|Junior|Unisex|Sale:?|New:?)\s+/gi, "")
+    .trim();
+
   const parts = cleaned.split(/\s+/);
   if (parts.length >= 2) {
-    return {
-      brand: parts[0],
-      model: parts.slice(1).join(" ")
-    };
+    return { brand: parts[0], model: parts.slice(1).join(" ") };
   }
-  
+
   return { brand: "Unknown", model: title };
 }
 
@@ -210,11 +234,9 @@ function detectGender(url, title) {
   const titleLower = (title || "").toLowerCase();
   const combined = urlLower + " " + titleLower;
 
-  // Check URL patterns first (most reliable for Holabird)
   if (/gender_mens|\/mens[\/-]|men-/.test(urlLower)) return "mens";
   if (/gender_womens|\/womens[\/-]|women-/.test(urlLower)) return "womens";
-  
-  // Check title patterns
+
   if (/\b(men'?s?|male)\b/i.test(combined)) return "mens";
   if (/\b(women'?s?|female|ladies)\b/i.test(combined)) return "womens";
   if (/\bunisex\b/i.test(combined)) return "unisex";
@@ -226,17 +248,14 @@ function detectGender(url, title) {
 function detectShoeType(url, title) {
   const combined = ((url || "") + " " + (title || "")).toLowerCase();
 
-  // Trail indicators
   if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross)\b/i.test(combined)) {
     return "trail";
   }
 
-  // Track/spike indicators
   if (/\b(track|spike|dragonfly|zoom.*victory|spikes?)\b/i.test(combined)) {
     return "track";
   }
 
-  // Road is default for running shoes (Holabird primarily sells road running shoes)
   return "road";
 }
 
@@ -245,19 +264,13 @@ function randomDelay(min = 250, max = 700) {
   return new Promise((r) => setTimeout(r, wait));
 }
 
-async function scrapeHolabirdCollection({
-  collectionUrl,
-  maxPages = 50,
-  stopAfterEmptyPages = 1,
-}) {
+async function scrapeHolabirdCollection({ collectionUrl, maxPages = 50, stopAfterEmptyPages = 1 }) {
   const deals = [];
   const seen = new Set();
   let emptyPages = 0;
 
   for (let page = 1; page <= maxPages; page++) {
-    const url = collectionUrl.includes("?")
-      ? `${collectionUrl}&page=${page}`
-      : `${collectionUrl}?page=${page}`;
+    const url = collectionUrl.includes("?") ? `${collectionUrl}&page=${page}` : `${collectionUrl}?page=${page}`;
 
     const resp = await axios.get(url, {
       headers: {
@@ -281,58 +294,46 @@ async function scrapeHolabirdCollection({
       if (!productUrl || seen.has(productUrl)) return;
 
       const $container = $link.closest("li, article, div").first();
-
       const containerText = sanitizeText($container.text());
       if (!containerText || !containerText.includes("$")) return;
 
-      // FIXED: Better title extraction strategy
-      // The title appears in the link's text content or the image alt text
+      // Title extraction
       let title = "";
-      
-      // Strategy 1: Get from the link text itself (most reliable for Holabird)
+
       const linkText = sanitizeText($link.text());
-      if (linkText && !linkText.includes("<") && !linkText.includes("{")) {
-        title = linkText;
-      }
-      
-      // Strategy 2: If link text is empty, try the img alt attribute
+      if (linkText && !linkText.includes("<") && !linkText.includes("{")) title = linkText;
+
       if (!title) {
         const imgAlt = $link.find("img").first().attr("alt");
-        if (imgAlt) {
-          title = sanitizeText(imgAlt);
-        }
+        if (imgAlt) title = sanitizeText(imgAlt);
       }
-      
-      // Strategy 3: Try title attribute on the link
+
       if (!title) {
         const titleAttr = $link.attr("title");
-        if (titleAttr) {
-          title = sanitizeText(titleAttr);
-        }
+        if (titleAttr) title = sanitizeText(titleAttr);
       }
 
       // Hard guard: never accept markup/css as a "title"
       if (!title) return;
       if (title.includes("<") || title.includes("{") || title.includes("}")) return;
-      if (title.length < 5) return; // Too short to be a real product title
+      if (title.length < 5) return;
 
       const prices = extractPricesFromText(containerText);
       if (!prices.valid) return;
 
-      // Extract brand and model from title
       const { brand, model } = extractBrandAndModel(title);
 
       deals.push({
         title,
         brand,
         model,
-        salePrice: prices.salePrice,              // CHANGED from 'price'
-        price: prices.originalPrice,              // CHANGED from 'originalPrice'
+        salePrice: prices.salePrice, // NEW SCHEMA ✅
+        price: prices.price,         // NEW SCHEMA ✅ (original/MSRP)
         store: "Holabird Sports",
         url: productUrl,
         image: findBestImageUrl($, $link, $container),
-        gender: detectGender(productUrl, title),  // NEW
-        shoeType: detectShoeType(productUrl, title), // NEW
+        gender: detectGender(productUrl, title),
+        shoeType: detectShoeType(productUrl, title),
       });
 
       seen.add(productUrl);
