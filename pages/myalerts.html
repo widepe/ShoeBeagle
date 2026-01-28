@@ -185,7 +185,7 @@
     }
     .gender-chip:hover { background: rgba(33, 68, 120, 0.1); }
 
-    /* green check shown when selected */
+    /* green check shown AFTER text when selected */
     .gender-chip .check {
       display: none;
       width: 16px;
@@ -199,6 +199,11 @@
       line-height: 1;
       align-items: center;
       justify-content: center;
+      order: 2; /* Move check to end */
+    }
+
+    .gender-chip .text {
+      order: 1; /* Keep text first */
     }
 
     .gender-chip.active {
@@ -261,25 +266,87 @@
       font-style: italic;
     }
 
-    .below-button-note {
-      margin-top: 0.55rem;
-      font-size: 0.85rem;
-      color: #49543a;
-      font-style: italic;
+    /* Confirmation panel (replaces inline confirmation) */
+    .confirmation-panel {
+      margin-top: 1.25rem;
+      padding: 1.25rem;
+      border-radius: 0.75rem;
+      border: 2px solid rgba(46, 160, 67, 0.6);
+      background: rgba(46, 160, 67, 0.08);
+      display: none;
+    }
+
+    .confirmation-panel.show {
+      display: block;
+    }
+
+    .confirmation-header {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: #1f6a2a;
+      margin: 0 0 0.75rem;
       text-align: center;
     }
 
-    /* inline confirmation under email */
-    .inline-confirmation {
-      margin-top: 0.55rem;
-      padding: 0.6rem 0.75rem;
+    .confirmation-details {
+      background: white;
       border-radius: 0.5rem;
-      border: 1px solid rgba(46, 160, 67, 0.5);
-      background: rgba(46, 160, 67, 0.12);
-      color: #1f6a2a;
+      padding: 0.85rem;
+      margin-bottom: 0.85rem;
+      border: 1px solid rgba(46, 160, 67, 0.3);
+    }
+
+    .confirmation-details p {
+      margin: 0.35rem 0;
+      font-size: 0.95rem;
+      color: #2d2d2d;
+    }
+
+    .confirmation-details p strong {
+      color: #214478ff;
       font-weight: 700;
+    }
+
+    .confirmation-message {
       font-size: 0.9rem;
-      display: none;
+      line-height: 1.5;
+      color: #1f6a2a;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+
+    .confirmation-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      align-items: center;
+    }
+
+    .confirmation-btn {
+      width: 100%;
+      max-width: 280px;
+      height: 46px;
+      border-radius: 0.5rem;
+      border: 2px solid #214478ff;
+      background: #214478ff;
+      color: white;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      display: block;
+      text-align: center;
+      line-height: 46px;
+      text-decoration: none;
+    }
+    .confirmation-btn:hover { background: #1a3661; border-color: #1a3661; }
+
+    .confirmation-btn.secondary {
+      background: white;
+      color: #214478ff;
+    }
+    .confirmation-btn.secondary:hover {
+      background: rgba(33, 68, 120, 0.1);
     }
 
     .status-message {
@@ -596,7 +663,6 @@
         <div class="form-group">
           <label class="form-label" for="alertEmail">Email Address *</label>
           <input type="email" id="alertEmail" placeholder="your@email.com" required autocomplete="email" />
-          <div id="inlineConfirmation" class="inline-confirmation"></div>
           <div class="privacy-note">Your email will never be shared or sold by Shoe Beagle.</div>
         </div>
 
@@ -621,16 +687,16 @@
         <div class="form-group">
           <div class="gender-price-row">
             <div class="gender-group">
-              <label class="form-label">Gender Preference</label>
+              <label class="form-label">Gender</label>
               <div class="gender-selector">
                 <div class="gender-chip active" data-gender="both">
-                  <span class="check">✓</span><span>Both</span>
+                  <span class="text">Both</span><span class="check">✓</span>
                 </div>
                 <div class="gender-chip" data-gender="mens">
-                  <span class="check">✓</span><span>Mens</span>
+                  <span class="text">Mens</span><span class="check">✓</span>
                 </div>
                 <div class="gender-chip" data-gender="womens">
-                  <span class="check">✓</span><span>Womens</span>
+                  <span class="text">Womens</span><span class="check">✓</span>
                 </div>
               </div>
             </div>
@@ -646,10 +712,25 @@
         </div>
 
         <button type="submit" class="submit-btn" id="createAlertBtn">Set Alert</button>
-        <div class="below-button-note">
-          You'll receive a confirmation of this alert, and a second email when we find your shoes equal to, or lower than, your set price.
-        </div>
       </form>
+
+      <!-- Confirmation Panel (shown after successful alert creation) -->
+      <div id="confirmationPanel" class="confirmation-panel">
+        <div class="confirmation-header">✓ Alert Set Successfully!</div>
+        
+        <div class="confirmation-details" id="confirmationDetails">
+          <!-- Details populated by JavaScript -->
+        </div>
+
+        <div class="confirmation-message">
+          You'll receive a confirmation email shortly. When we find your shoes equal to, or lower than, your set price, we'll immediately send you a message. This alert expires in 30 days.
+        </div>
+
+        <div class="confirmation-actions">
+          <button type="button" class="confirmation-btn" id="setAnotherBtn">Set Another Alert?</button>
+          <a href="/" class="confirmation-btn secondary">Return</a>
+        </div>
+      </div>
 
       <div id="statusMessage" class="status-message"></div>
     </div>
@@ -759,7 +840,9 @@
     const alertPrice = document.getElementById("alertPrice");
     const createAlertBtn = document.getElementById("createAlertBtn");
     const statusMessage = document.getElementById("statusMessage");
-    const inlineConfirmation = document.getElementById("inlineConfirmation");
+    const confirmationPanel = document.getElementById("confirmationPanel");
+    const confirmationDetails = document.getElementById("confirmationDetails");
+    const setAnotherBtn = document.getElementById("setAnotherBtn");
 
     const alertBrandSuggestions = document.getElementById("alertBrandSuggestions");
     const alertModelSuggestions = document.getElementById("alertModelSuggestions");
@@ -776,7 +859,7 @@
     let currentAlerts = [];
     let currentEmail = "";
     let selectedGender = "both";
-    let isProcessing = false; // Prevent double-clicks
+    let isProcessing = false;
 
     // =======================
     // PRICE INPUT - NUMBERS ONLY (NO AUTOCOMPLETE)
@@ -811,6 +894,22 @@
         chip.classList.add("active");
         selectedGender = gender;
       });
+    });
+
+    // =======================
+    // SET ANOTHER ALERT BUTTON
+    // =======================
+    setAnotherBtn.addEventListener("click", () => {
+      // Hide confirmation panel
+      confirmationPanel.classList.remove("show");
+      
+      // Clear form fields (keep email and gender)
+      alertBrand.value = "";
+      alertModel.value = "";
+      alertPrice.value = "";
+      
+      // Focus on brand field
+      alertBrand.focus();
     });
 
     // =======================
@@ -875,10 +974,20 @@
       setTimeout(() => { statusMessage.style.display = "none"; }, 6500);
     }
 
-    function showInlineConfirmation(message) {
-      inlineConfirmation.textContent = message;
-      inlineConfirmation.style.display = "block";
-      setTimeout(() => { inlineConfirmation.style.display = "none"; }, 9000);
+    function showConfirmation(brand, model, gender, price) {
+      const genderText = gender === "mens" ? "Men's" : gender === "womens" ? "Women's" : "Men's or Women's";
+      
+      confirmationDetails.innerHTML = `
+        <p><strong>Shoe:</strong> ${brand} ${model}</p>
+        <p><strong>Gender:</strong> ${genderText}</p>
+        <p><strong>Target Price:</strong> $${price} or less</p>
+      `;
+      
+      confirmationPanel.classList.add("show");
+    }
+
+    function hideConfirmation() {
+      confirmationPanel.classList.remove("show");
     }
 
     function setBusy(isBusy) {
@@ -1319,7 +1428,7 @@
       input.select();
     }
 
-    function showConfirmation(actionsDiv, message, onYes) {
+    function showConfirmationDialog(actionsDiv, message, onYes) {
       actionsDiv.innerHTML = "";
       const confirmDiv = document.createElement("div");
       confirmDiv.className = "confirmation";
@@ -1501,7 +1610,7 @@
             cancelBtn.setAttribute("data-tooltip", "Cancel alert");
             cancelBtn.addEventListener("click", (ev) => {
               ev.stopPropagation();
-              showConfirmation(actionsDiv, "Cancel this alert?", async () => {
+              showConfirmationDialog(actionsDiv, "Cancel this alert?", async () => {
                 try {
                   if (!currentEmail) throw new Error("Missing email context.");
                   await apiCancelAlert(a.id, currentEmail);
@@ -1521,7 +1630,7 @@
             removeBtn.setAttribute("data-tooltip", "Remove from list");
             removeBtn.addEventListener("click", (ev) => {
               ev.stopPropagation();
-              showConfirmation(actionsDiv, "Remove this alert?", async () => {
+              showConfirmationDialog(actionsDiv, "Remove this alert?", async () => {
                 try {
                   if (!currentEmail) throw new Error("Missing email context.");
                   await apiRemoveAlert(a.id, currentEmail);
@@ -1659,9 +1768,10 @@
 
         setEmailContext(email);
 
-        showInlineConfirmation(`Alert set: ${brand} ${model} • $${targetPrice} • ${genderLabel(gender)}`);
-        showStatus(result.message || "Alert set! Check your email for confirmation.", "success");
+        // Show confirmation panel
+        showConfirmation(brand, model, gender, targetPrice);
 
+        // Clear form fields (keep email and gender)
         alertBrand.value = "";
         alertModel.value = "";
         alertPrice.value = "";
