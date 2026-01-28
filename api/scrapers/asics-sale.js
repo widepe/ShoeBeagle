@@ -1,9 +1,17 @@
 // api/scrapers/asics-sale.js
-// DIAGNOSTIC VERSION - Logs what Firecrawl actually returns
+// DIAGNOSTIC VERSION - Returns diagnostic info in API response
 
 const FirecrawlApp = require("@mendable/firecrawl-js").default;
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
+
+const diagnosticLog = []; // Collect diagnostic info
+
+function log(...args) {
+  const msg = args.join(" ");
+  console.log(...args);
+  diagnosticLog.push(msg);
+}
 
 /**
  * Pick the best (usually largest) URL from a srcset string.
@@ -130,9 +138,9 @@ function extractAsicsProducts(html, sourceUrl) {
 
   gender = normalizeGender(gender);
 
-  console.log(`\n[ASICS DIAGNOSTIC] Processing URL: ${sourceUrl}`);
-  console.log(`[ASICS DIAGNOSTIC] Detected gender: ${gender}`);
-  console.log(`[ASICS DIAGNOSTIC] HTML length: ${html.length} chars`);
+  log(`\n[DIAGNOSTIC] Processing: ${sourceUrl}`);
+  log(`[DIAGNOSTIC] Gender: ${gender}`);
+  log(`[DIAGNOSTIC] HTML length: ${html.length} chars`);
 
   // Try multiple selector strategies
   const strategies = [
@@ -148,60 +156,40 @@ function extractAsicsProducts(html, sourceUrl) {
   let bestStrategy = null;
   let maxFound = 0;
 
+  log(`[DIAGNOSTIC] Testing selectors:`);
   for (const strategy of strategies) {
     const elements = $(strategy.selector);
     const count = elements.length;
-    console.log(`[ASICS DIAGNOSTIC] ${strategy.name} (${strategy.selector}): ${count} found`);
+    log(`  - ${strategy.name}: ${count} found`);
     
     if (count > maxFound) {
       maxFound = count;
       bestStrategy = strategy;
     }
 
-    // Show first element details if found
-    if (count > 0) {
+    if (count > 0 && count <= 3) {
       const first = elements.first();
       const classes = first.attr("class") || "none";
       const tag = first.prop("tagName");
-      const hasLink = first.find('a[href*="/p/"]').length > 0 || first.is('a[href*="/p/"]');
-      const hasImg = first.find('img').length > 0;
-      const text = first.text().trim().substring(0, 100);
-      
-      console.log(`[ASICS DIAGNOSTIC]   First element: <${tag}> class="${classes}"`);
-      console.log(`[ASICS DIAGNOSTIC]   Has product link: ${hasLink}, Has image: ${hasImg}`);
-      console.log(`[ASICS DIAGNOSTIC]   Text preview: "${text}"`);
+      const text = first.text().trim().substring(0, 80);
+      log(`    First: <${tag}> class="${classes}" text="${text}..."`);
     }
   }
 
-  // Check for any links at all
-  const allLinks = $('a[href]');
-  console.log(`[ASICS DIAGNOSTIC] Total links on page: ${allLinks.length}`);
-  
-  // Check for price indicators
+  const allLinks = $('a[href]').length;
   const priceElements = $('*').filter(function() {
     return $(this).text().match(/\$\d+\.\d{2}/);
-  });
-  console.log(`[ASICS DIAGNOSTIC] Elements containing prices: ${priceElements.length}`);
+  }).length;
+  
+  log(`[DIAGNOSTIC] Total links: ${allLinks}, Elements with prices: ${priceElements}`);
 
-  // Check for "Sale" text
-  const saleElements = $('*').filter(function() {
-    const text = $(this).text().toLowerCase();
-    return text.includes('sale') && text.length < 50; // Short elements likely badges
-  });
-  console.log(`[ASICS DIAGNOSTIC] Elements with 'sale': ${saleElements.length}`);
-
-  // Use best strategy if found
   if (!bestStrategy || maxFound === 0) {
-    console.log(`[ASICS DIAGNOSTIC] ⚠️ NO PRODUCTS FOUND WITH ANY STRATEGY`);
-    
-    // Log first 1000 chars of HTML for debugging
-    console.log(`[ASICS DIAGNOSTIC] HTML Preview (first 1000 chars):`);
-    console.log(html.substring(0, 1000));
-    
+    log(`[DIAGNOSTIC] ⚠️ NO PRODUCTS FOUND`);
+    log(`[DIAGNOSTIC] HTML starts with: ${html.substring(0, 500)}`);
     return products;
   }
 
-  console.log(`[ASICS DIAGNOSTIC] Using strategy: ${bestStrategy.name}`);
+  log(`[DIAGNOSTIC] Best strategy: ${bestStrategy.name} (${maxFound} elements)`);
 
   const $elements = $(bestStrategy.selector);
   const seenUrls = new Set();
@@ -209,11 +197,9 @@ function extractAsicsProducts(html, sourceUrl) {
   $elements.each((_, el) => {
     const $el = $(el);
     
-    // Get link - might be the element itself or inside it
     let $link = $el.is('a') ? $el : $el.find('a[href*="/p/"]').first();
     
     if (!$link.length) {
-      // Try parent
       $link = $el.parent('a[href*="/p/"]');
     }
 
@@ -243,7 +229,6 @@ function extractAsicsProducts(html, sourceUrl) {
 
     const { price, salePrice } = extractPrices($, $link);
 
-    // Extract image
     let image = null;
     const $img = $el.find("img").first();
     
@@ -293,17 +278,17 @@ function extractAsicsProducts(html, sourceUrl) {
     });
   });
 
-  console.log(`[ASICS DIAGNOSTIC] Extracted ${products.length} products`);
+  log(`[DIAGNOSTIC] Extracted ${products.length} products`);
   
   return products;
 }
 
 async function scrapeAsicsUrlWithPagination(app, baseUrl, description) {
-  console.log(`\n[ASICS] ========== Scraping ${description} ==========`);
+  log(`\n[ASICS] ===== ${description} =====`);
 
   try {
     const url = baseUrl.includes("?") ? `${baseUrl}&sz=100` : `${baseUrl}?sz=100`;
-    console.log(`[ASICS] Fetching: ${url}`);
+    log(`[ASICS] Fetching: ${url}`);
 
     const scrapeResult = await app.scrapeUrl(url, {
       formats: ["html"],
@@ -311,20 +296,15 @@ async function scrapeAsicsUrlWithPagination(app, baseUrl, description) {
       timeout: 45000,
     });
 
-    console.log(`[ASICS] Firecrawl response received, HTML length: ${scrapeResult.html?.length || 0}`);
+    log(`[ASICS] Response received, HTML: ${scrapeResult.html?.length || 0} chars`);
 
     const products = extractAsicsProducts(scrapeResult.html, baseUrl);
 
-    const missingImages = products.filter((p) => !p.image).length;
-    const missingPrices = products.filter((p) => !p.price || !p.salePrice).length;
-    
-    console.log(`[ASICS] ${description}: Found ${products.length} products`);
-    console.log(`[ASICS]   - Missing images: ${missingImages}`);
-    console.log(`[ASICS]   - Missing price data: ${missingPrices}`);
+    log(`[ASICS] Result: ${products.length} products`);
 
     return { success: true, products, count: products.length, url };
   } catch (error) {
-    console.error(`[ASICS] Error scraping ${description}:`, error.message);
+    log(`[ASICS] ERROR: ${error.message}`);
     return { success: false, products: [], count: 0, error: error.message, url: baseUrl };
   }
 }
@@ -332,33 +312,21 @@ async function scrapeAsicsUrlWithPagination(app, baseUrl, description) {
 async function scrapeAllAsicsSales() {
   const app = new FirecrawlApp({ apiKey: process.env.FIRECRAWL_API_KEY });
 
-  console.log("[ASICS] Starting DIAGNOSTIC scrape of all sale pages...");
+  log("[ASICS] Starting DIAGNOSTIC scrape...");
 
   const pages = [
     {
       url: "https://www.asics.com/us/en-us/mens-clearance/c/aa10106000/running/shoes/",
       description: "Men's Clearance",
     },
-    {
-      url: "https://www.asics.com/us/en-us/womens-clearance/c/aa20106000/running/shoes/",
-      description: "Women's Clearance",
-    },
-    {
-      url: "https://www.asics.com/us/en-us/styles-leaving-asics-com/c/aa60400001/running/shoes/?prefn1=c_productGender&prefv1=Women%7CMen",
-      description: "Last Chance Styles",
-    },
   ];
 
+  // Only scrape first page for diagnostic
   const results = [];
   const allProducts = [];
 
   for (let i = 0; i < pages.length; i++) {
     const { url, description } = pages[i];
-
-    console.log(`\n[ASICS] ========================================`);
-    console.log(`[ASICS] Page ${i + 1}/${pages.length}: ${description}`);
-    console.log(`[ASICS] ========================================`);
-
     const result = await scrapeAsicsUrlWithPagination(app, url, description);
     results.push({
       page: description,
@@ -369,43 +337,17 @@ async function scrapeAllAsicsSales() {
     });
 
     if (result.success) allProducts.push(...result.products);
-
-    if (i < pages.length - 1) {
-      console.log("\n[ASICS] Waiting 2 seconds before next page...");
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
   }
 
-  // Deduplicate by URL
-  const uniqueProducts = [];
-  const seenUrls = new Set();
+  log(`\n[ASICS] FINAL: ${allProducts.length} products`);
 
-  for (const product of allProducts) {
-    if (!product.url) {
-      uniqueProducts.push(product);
-      continue;
-    }
-    if (!seenUrls.has(product.url)) {
-      seenUrls.add(product.url);
-      uniqueProducts.push(product);
-    }
-  }
-
-  const missingImagesTotal = uniqueProducts.filter((p) => !p.image).length;
-  const missingPricesTotal = uniqueProducts.filter((p) => !p.price || !p.salePrice).length;
-  
-  console.log(`\n[ASICS] ========== FINAL RESULTS ==========`);
-  console.log(`[ASICS] Total unique products: ${uniqueProducts.length}`);
-  console.log(`[ASICS]   - Missing images: ${missingImagesTotal}`);
-  console.log(`[ASICS]   - Missing prices: ${missingPricesTotal}`);
-  console.log(`[ASICS] Results per page:`, JSON.stringify(results, null, 2));
-
-  return { products: uniqueProducts, pageResults: results };
+  return { products: allProducts, pageResults: results };
 }
 
 module.exports = async (req, res) => {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
+  diagnosticLog.length = 0; // Clear log
   const start = Date.now();
 
   try {
@@ -418,31 +360,18 @@ module.exports = async (req, res) => {
       dealsByGender[g] += 1;
     }
 
-    const output = {
-      lastUpdated: new Date().toISOString(),
-      store: "ASICS",
-      segments: ["Men's Clearance", "Women's Clearance", "Last Chance Styles"],
-      totalDeals: deals.length,
-      dealsByGender,
-      pageResults,
-      deals,
-    };
-
-    const blob = await put("asics-sale.json", JSON.stringify(output, null, 2), {
-      access: "public",
-      addRandomSuffix: false,
-    });
-
     const duration = Date.now() - start;
 
     return res.status(200).json({
       success: true,
       totalDeals: deals.length,
-      dealsByGender: output.dealsByGender,
+      dealsByGender: dealsByGender,
       pageResults,
-      blobUrl: blob.url,
       duration: `${duration}ms`,
-      timestamp: output.lastUpdated,
+      timestamp: new Date().toISOString(),
+      // DIAGNOSTIC INFO BELOW
+      diagnosticLog: diagnosticLog,
+      sampleProducts: deals.slice(0, 3), // First 3 products if any
     });
   } catch (error) {
     console.error("[ASICS] Fatal error:", error);
@@ -450,6 +379,7 @@ module.exports = async (req, res) => {
       success: false,
       error: error.message,
       duration: `${Date.now() - start}ms`,
+      diagnosticLog: diagnosticLog,
     });
   }
 };
