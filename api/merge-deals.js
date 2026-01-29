@@ -1,6 +1,7 @@
 // /api/merge-deals.js
 //
-// Merges: (1) scrape-daily output + (2) Holabird outputs + (3) Brooks Running + (4) ASICS sale (+ others you add)
+// Merges: (1) cheerio_scrapers output + (2) apify_scrapers output
+//         + (3) Holabird outputs + (4) Brooks Running + (5) ASICS sale (+ others you add)
 //
 // Writes canonical blob(s) (overwritten each run; addRandomSuffix: false):
 //   1) deals.json                -> sanitized + normalized + filtered + deduped + sorted (SAFE for the app)
@@ -19,7 +20,8 @@
 //   each time because it can’t read the previous version without the URL.
 //
 // Env vars (recommended):
-//   OTHER_DEALS_BLOB_URL
+//   CHEERIO_DEALS_BLOB_URL
+//   APIFY_DEALS_BLOB_URL
 //   HOLABIRD_MENS_ROAD_BLOB_URL
 //   HOLABIRD_WOMENS_ROAD_BLOB_URL
 //   HOLABIRD_TRAIL_UNISEX_BLOB_URL
@@ -30,7 +32,8 @@
 //
 // Optional fallback (if you do NOT set blob URLs):
 //   Calls scraper endpoints directly:
-//     /api/scrape-daily
+//     /api/cheerio_scrapers
+//     /api/apify_scrapers
 //     /api/scrapers/holabird-mens-road
 //     /api/scrapers/holabird-womens-road
 //     /api/scrapers/holabird-trail-unisex
@@ -67,7 +70,8 @@ function extractDealsFromPayload(payload) {
 }
 
 function toNumber(x) {
-  const n = typeof x === "string" ? parseFloat(x) : x;
+  if (x == null) return null;
+  const n = typeof x === "string" ? parseFloat(String(x).replace(/,/g, "")) : x;
   return Number.isFinite(n) ? n : null;
 }
 
@@ -101,19 +105,23 @@ function parseDurationMs(dur) {
   return Number.isFinite(n) ? Math.round(n) : null;
 }
 
-// UPDATED: Use salePrice and price
-function computeDiscountPercent(d) {
-  const sale = toNumber(d?.salePrice);
-  const orig = toNumber(d?.price);
-  if (!sale || !orig || orig <= 0 || sale >= orig) return 0;
+/**
+ * Compute discount percent from canonical 11-schema fields:
+ * - originalPrice and salePrice
+ */
+function computeDiscountPercent(deal) {
+  const sale = toNumber(deal?.salePrice);
+  const orig = toNumber(deal?.originalPrice);
+  if (!Number.isFinite(sale) || !Number.isFinite(orig) || orig <= 0) return 0;
+  if (sale >= orig) return 0;
   return ((orig - sale) / orig) * 100;
 }
 
-// UPDATED: Use salePrice and price
-function computeDollarSavings(d) {
-  const sale = toNumber(d?.salePrice);
-  const orig = toNumber(d?.price);
-  if (!sale || !orig || orig <= 0 || sale >= orig) return 0;
+function computeDollarSavings(deal) {
+  const sale = toNumber(deal?.salePrice);
+  const orig = toNumber(deal?.originalPrice);
+  if (!Number.isFinite(sale) || !Number.isFinite(orig) || orig <= 0) return 0;
+  if (sale >= orig) return 0;
   return orig - sale;
 }
 
@@ -180,54 +188,117 @@ function storeBaseUrl(store) {
   return "https://example.com";
 }
 
-function sanitizeDeal(deal) {
-  if (!deal) return null;
+/**
+ * Sanitize a deal that might come in with older field names.
+ * We normalize to the canonical 11 fields used across the app:
+ *   listingName, brand, model, salePrice, originalPrice, discountPercent,
+ *   store, listingURL, imageURL, gender, shoeType
+ */
+function sanitizeDeal(raw) {
+  if (!raw) return null;
 
-  const base = storeBaseUrl(deal.store);
+  // Accept both old and new keys (just in case):
+  const store = raw.store || raw.retailer || raw.site || "Unknown";
+  const base = storeBaseUrl(store);
 
-  const title = cleanTitleText(deal.title);
-  const brand = cleanTitleText(deal.brand) || stripHtmlToText(deal.brand) || "Unknown";
-  const model = cleanTitleText(deal.model);
+  const listingNameRaw = raw.listingName ?? raw.title ?? raw.name ?? "";
+  const brandRaw = raw.brand ?? "";
+  const modelRaw = raw.model ?? "";
 
-  let url = String(deal.url || "").trim();
-  if (url) url = absolutizeUrl(url, base);
+  const listingName = cleanTitleText(listingNameRaw);
+  const brand = cleanTitleText(brandRaw) || stripHtmlToText(brandRaw) || "Unknown";
+  const model = cleanTitleText(modelRaw) || stripHtmlToText(modelRaw) || "";
 
-  let image = null;
-  if (typeof deal.image === "string" && deal.image.trim()) {
-    image = absolutizeUrl(deal.image.trim(), base);
+  // URLs
+  let listingURL = String(raw.listingURL ?? raw.url ?? "").trim();
+  if (listingURL) listingURL = absolutizeUrl(listingURL, base);
+
+  let imageURL = null;
+  const imgCandidate = raw.imageURL ?? raw.image ?? raw.img ?? null;
+  if (typeof imgCandidate === "string" && imgCandidate.trim()) {
+    imageURL = absolutizeUrl(imgCandidate.trim(), base);
   }
 
-  const finalTitle = title || normalizeWhitespace(`${brand} ${model}`).trim();
-  const safeTitle = looksLikeCssOrJunk(finalTitle) ? "" : finalTitle;
+  // Prices: accept multiple variants
+  const salePrice =
+    toNumber(raw.salePrice) ??
+    toNumber(raw.currentPrice) ??
+    toNumber(raw.price) ?? // some old actors used price as "current"
+    null;
 
-  return {
-    ...deal,
-    title: safeTitle,
-    brand,
-    model,
-    url,
-    image,
+  const originalPrice =
+    toNumber(raw.originalPrice) ??
+    toNumber(raw.msrp) ??
+    toNumber(raw.listPrice) ??
+    null;
+
+  const gender = typeof raw.gender === "string" ? raw.gender.trim() : "unknown";
+  const shoeType = typeof raw.shoeType === "string" ? raw.shoeType.trim() : "unknown";
+
+  // discountPercent: compute if missing (but keep if numeric + sane)
+  let discountPercent = toNumber(raw.discountPercent);
+  if (!Number.isFinite(discountPercent)) {
+    // some old payloads provide discount like "25%" or "25"
+    if (typeof raw.discount === "string") {
+      const m = raw.discount.match(/(\d{1,2})/);
+      if (m) discountPercent = toNumber(m[1]);
+    }
+  }
+
+  const safeListingName =
+    listingName ||
+    normalizeWhitespace(`${brand} ${model}`) ||
+    "Running Shoe";
+
+  const safeName = looksLikeCssOrJunk(safeListingName) ? "" : safeListingName;
+
+  // Final canonical object (11 fields)
+  const canonical = {
+    listingName: safeName,
+    brand: brand || "Unknown",
+    model: model || "",
+    salePrice: Number.isFinite(salePrice) ? salePrice : null,
+    originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
+    discountPercent: null, // filled below
+    store: typeof store === "string" ? store.trim() : "Unknown",
+    listingURL: listingURL || "",
+    imageURL: imageURL || null,
+    gender,
+    shoeType,
   };
+
+  const computed = computeDiscountPercent(canonical);
+  const hasNumericDiscount =
+    Number.isFinite(discountPercent) && discountPercent >= 0 && discountPercent <= 95;
+
+  canonical.discountPercent = hasNumericDiscount ? Math.round(discountPercent) : Math.round(computed);
+
+  return canonical;
 }
 
 /**
- * Centralized filter (same logic as your current scrape-daily).
- * UPDATED: Now uses salePrice and price (not price and originalPrice)
+ * Centralized filter (running shoes only, strict discount requirements)
+ * Uses canonical 11-schema:
+ *   salePrice + originalPrice + listingName + listingURL
  */
 function isValidRunningShoe(deal) {
-  if (!deal || !deal.url || !deal.title) return false;
+  if (!deal) return false;
+
+  const listingURL = String(deal.listingURL || "").trim();
+  const listingName = String(deal.listingName || "").trim();
+  if (!listingURL || !listingName) return false;
 
   const salePrice = toNumber(deal.salePrice);
-  const price = toNumber(deal.price);
+  const originalPrice = toNumber(deal.originalPrice);
 
-  if (!salePrice || !price) return false;
-  if (salePrice >= price) return false;
+  if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return false;
+  if (salePrice >= originalPrice) return false;
   if (salePrice < 10 || salePrice > 1000) return false;
 
-  const discount = ((price - salePrice) / price) * 100;
+  const discount = computeDiscountPercent(deal);
   if (discount < 5 || discount > 90) return false;
 
-  const title = String(deal.title || "").toLowerCase();
+  const title = listingName.toLowerCase();
 
   const excludePatterns = [
     "sock", "socks",
@@ -266,27 +337,26 @@ function isValidRunningShoe(deal) {
   return true;
 }
 
-// UPDATED: Now uses salePrice and price, and includes gender/shoeType
+/**
+ * normalizeDeal now simply ensures the object is canonical (11 vars),
+ * trims strings, and enforces types.
+ */
 function normalizeDeal(d) {
-  if (!d) return null;
-
-  const sanitized = sanitizeDeal(d);
-  if (!sanitized) return null;
-
-  const salePrice = toNumber(sanitized.salePrice);
-  const price = toNumber(sanitized.price);
+  const c = sanitizeDeal(d);
+  if (!c) return null;
 
   return {
-    title: typeof sanitized.title === "string" ? sanitized.title.trim() : "",
-    brand: typeof sanitized.brand === "string" ? sanitized.brand.trim() : "Unknown",
-    model: typeof sanitized.model === "string" ? sanitized.model.trim() : "",
-    salePrice,
-    price,
-    store: typeof sanitized.store === "string" ? sanitized.store.trim() : "Unknown",
-    url: typeof sanitized.url === "string" ? sanitized.url.trim() : "",
-    image: typeof sanitized.image === "string" ? sanitized.image.trim() : null,
-    gender: typeof sanitized.gender === "string" ? sanitized.gender.trim() : "unknown",
-    shoeType: typeof sanitized.shoeType === "string" ? sanitized.shoeType.trim() : "unknown",
+    listingName: typeof c.listingName === "string" ? c.listingName.trim() : "",
+    brand: typeof c.brand === "string" ? c.brand.trim() : "Unknown",
+    model: typeof c.model === "string" ? c.model.trim() : "",
+    salePrice: toNumber(c.salePrice),
+    originalPrice: toNumber(c.originalPrice),
+    discountPercent: Number.isFinite(toNumber(c.discountPercent)) ? Math.round(toNumber(c.discountPercent)) : 0,
+    store: typeof c.store === "string" ? c.store.trim() : "Unknown",
+    listingURL: typeof c.listingURL === "string" ? c.listingURL.trim() : "",
+    imageURL: typeof c.imageURL === "string" ? c.imageURL.trim() : null,
+    gender: typeof c.gender === "string" ? c.gender.trim() : "unknown",
+    shoeType: typeof c.shoeType === "string" ? c.shoeType.trim() : "unknown",
   };
 }
 
@@ -297,7 +367,7 @@ function dedupeDeals(deals) {
   for (const d of deals) {
     if (!d) continue;
 
-    const urlKey = (d.url || "").trim();
+    const urlKey = (d.listingURL || "").trim();
     const storeKey = (d.store || "Unknown").trim();
 
     if (!urlKey) {
@@ -335,7 +405,7 @@ async function loadDealsFromBlobOrEndpoint({ name, blobUrl, endpointUrl }) {
     blobUrl: null,
     timestamp: null,
     duration: null,
-    payloadMeta: null, // keep top-level metadata for scraper-data.json, if present
+    payloadMeta: null,
   };
 
   if (blobUrl) {
@@ -345,7 +415,7 @@ async function loadDealsFromBlobOrEndpoint({ name, blobUrl, endpointUrl }) {
     metadata.deals = deals;
     metadata.blobUrl = blobUrl;
     metadata.timestamp = payload.lastUpdated || payload.timestamp || null;
-    metadata.duration = payload.duration || null;
+    metadata.duration = payload.scrapeDurationMs ?? payload.duration ?? null;
     metadata.payloadMeta = payload;
     return metadata;
   }
@@ -360,12 +430,12 @@ async function loadDealsFromBlobOrEndpoint({ name, blobUrl, endpointUrl }) {
       deals = extractDealsFromPayload(payload2);
       metadata.blobUrl = payload.blobUrl;
       metadata.timestamp = payload2.lastUpdated || payload2.timestamp || payload.timestamp || null;
-      metadata.duration = payload.duration || payload2.duration || null;
-      metadata.payloadMeta = payload2; // prefer blob payload if we had to follow it
+      metadata.duration = payload2.scrapeDurationMs ?? payload.duration ?? payload2.duration ?? null;
+      metadata.payloadMeta = payload2;
     } else {
       metadata.blobUrl = payload.blobUrl || null;
       metadata.timestamp = payload.timestamp || payload.lastUpdated || null;
-      metadata.duration = payload.duration || null;
+      metadata.duration = payload.scrapeDurationMs ?? payload.duration ?? null;
       metadata.payloadMeta = payload;
     }
 
@@ -392,29 +462,25 @@ function bucketLabel(salePrice) {
 
 function dealSummary(deal) {
   if (!deal) return null;
-  const salePrice = toNumber(deal.salePrice);
-  const price = toNumber(deal.price);
-  const percentOff = computeDiscountPercent(deal);
-  const dollarSavings = computeDollarSavings(deal);
 
   return {
-    title: deal.title || "",
+    listingName: deal.listingName || "",
     brand: deal.brand || "Unknown",
     model: deal.model || "",
     store: deal.store || "Unknown",
-    url: deal.url || "",
-    image: deal.image || null,
-    salePrice,
-    price,
-    percentOff,
-    dollarSavings,
+    listingURL: deal.listingURL || "",
+    imageURL: deal.imageURL || null,
+    salePrice: toNumber(deal.salePrice),
+    originalPrice: toNumber(deal.originalPrice),
+    discountPercent: Math.round(computeDiscountPercent(deal)),
+    dollarSavings: computeDollarSavings(deal),
     gender: deal.gender || "unknown",
     shoeType: deal.shoeType || "unknown",
   };
 }
 
 function computeStats(deals, storeMetadata) {
-  const nowIso = new Date().toISOString();
+  const nowIsoStr = new Date().toISOString();
 
   const stores = Object.create(null);
   const brands = Object.create(null);
@@ -469,10 +535,10 @@ function computeStats(deals, storeMetadata) {
     const brandIsUnknown = brand === "Unknown" || !brandRaw;
     if (brandIsUnknown) s.unknownBrandCount += 1;
 
-    const img = typeof d.image === "string" ? d.image : "";
+    const img = typeof d.imageURL === "string" ? d.imageURL : "";
     if (!img || img.includes("placehold.co")) s.missingImageCount += 1;
 
-    const url = typeof d.url === "string" ? d.url : "";
+    const url = typeof d.listingURL === "string" ? d.listingURL : "";
     if (!url || url === "#") s.missingUrlCount += 1;
 
     const model = typeof d.model === "string" ? d.model.trim() : "";
@@ -498,7 +564,7 @@ function computeStats(deals, storeMetadata) {
         if (!lowestPrice || salePrice < lowestPrice.salePrice) lowestPrice = { deal: d, salePrice };
       }
 
-      const valueScore = percentOff + (dollarSavings * 0.5);
+      const valueScore = percentOff + dollarSavings * 0.5;
       if (!bestValue || valueScore > bestValue.valueScore) bestValue = { deal: d, valueScore };
     }
 
@@ -517,12 +583,15 @@ function computeStats(deals, storeMetadata) {
         maxPrice: 0,
       };
     }
+
     const b = brands[brand];
     b.count += 1;
+
     if (percentOff > 0) {
       b.discountSum += percentOff;
       b.discountCount += 1;
     }
+
     if (Number.isFinite(salePrice) && salePrice > 0) {
       b.minPrice = Math.min(b.minPrice, salePrice);
       b.maxPrice = Math.max(b.maxPrice, salePrice);
@@ -622,7 +691,7 @@ function computeStats(deals, storeMetadata) {
 
   return {
     version: 1,
-    generatedAt: nowIso,
+    generatedAt: nowIsoStr,
 
     totalDeals: safeArray(deals).length,
     totalStores: uniqueStoreSet.size,
@@ -704,33 +773,27 @@ function parseMoney(value) {
 function hasGoodImage(deal) {
   return (
     deal &&
-    deal.image &&
-    typeof deal.image === "string" &&
-    deal.image.trim() &&
-    !deal.image.includes("no-image") &&
-    !deal.image.includes("placeholder") &&
-    !deal.image.includes("placehold.co")
+    deal.imageURL &&
+    typeof deal.imageURL === "string" &&
+    deal.imageURL.trim() &&
+    !deal.imageURL.includes("no-image") &&
+    !deal.imageURL.includes("placeholder") &&
+    !deal.imageURL.includes("placehold.co")
   );
 }
 
 function isDiscountedDeal(deal) {
   const salePrice = parseMoney(deal.salePrice);
-  const price = parseMoney(deal.price);
-  return Number.isFinite(salePrice) && Number.isFinite(price) && price > salePrice;
+  const originalPrice = parseMoney(deal.originalPrice);
+  return Number.isFinite(salePrice) && Number.isFinite(originalPrice) && originalPrice > salePrice;
 }
 
 function discountPercent(deal) {
-  const sale = parseMoney(deal.salePrice);
-  const orig = parseMoney(deal.price);
-  if (!orig || orig <= 0 || sale >= orig) return 0;
-  return ((orig - sale) / orig) * 100;
+  return computeDiscountPercent(deal);
 }
 
 function dollarSavings(deal) {
-  const sale = parseMoney(deal.salePrice);
-  const orig = parseMoney(deal.price);
-  if (!orig || orig <= 0 || sale >= orig) return 0;
-  return orig - sale;
+  return computeDollarSavings(deal);
 }
 
 function shuffleWithDateSeed(items, seedStr) {
@@ -751,17 +814,18 @@ function shuffleWithDateSeed(items, seedStr) {
 
 function toDailyDealShape(deal) {
   const salePrice = parseMoney(deal.salePrice);
-  const price = parseMoney(deal.price);
+  const originalPrice = parseMoney(deal.originalPrice);
 
   return {
-    title: deal.title || "Running Shoe Deal",
+    listingName: deal.listingName || "Running Shoe Deal",
     brand: deal.brand || "",
     model: deal.model || "",
     salePrice: Number.isFinite(salePrice) ? salePrice : 0,
-    price: Number.isFinite(price) ? price : null,
+    originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
+    discountPercent: Math.round(computeDiscountPercent(deal)),
     store: deal.store || "Store",
-    url: deal.url || "#",
-    image: deal.image || "",
+    listingURL: deal.listingURL || "#",
+    imageURL: deal.imageURL || "",
     gender: deal.gender || "unknown",
     shoeType: deal.shoeType || "unknown",
   };
@@ -771,7 +835,7 @@ function computeTwelveDailyDeals(allDeals, seedStr) {
   const dateStr = seedStr || getDateSeedStringUTC();
 
   const qualityDeals = (allDeals || []).filter(
-    (d) => hasGoodImage(d) && isDiscountedDeal(d) && d.price && d.salePrice
+    (d) => hasGoodImage(d) && isDiscountedDeal(d) && d.originalPrice && d.salePrice
   );
 
   const workingPool =
@@ -789,17 +853,17 @@ function computeTwelveDailyDeals(allDeals, seedStr) {
     .slice(0, Math.min(20, workingPool.length));
 
   const byPercent = getRandomSample(top20ByPercent, Math.min(4, top20ByPercent.length), dateStr);
-  const pickedUrls = new Set(byPercent.map((d) => d.url).filter(Boolean));
+  const pickedUrls = new Set(byPercent.map((d) => d.listingURL).filter(Boolean));
 
   const top20ByDollar = [...workingPool]
-    .filter((d) => !pickedUrls.has(d.url))
+    .filter((d) => !pickedUrls.has(d.listingURL))
     .sort((a, b) => dollarSavings(b) - dollarSavings(a))
     .slice(0, 20);
 
   const byDollar = getRandomSample(top20ByDollar, Math.min(4, top20ByDollar.length), dateStr);
-  byDollar.forEach((d) => pickedUrls.add(d.url));
+  byDollar.forEach((d) => pickedUrls.add(d.listingURL));
 
-  const remaining = workingPool.filter((d) => !pickedUrls.has(d.url));
+  const remaining = workingPool.filter((d) => !pickedUrls.has(d.listingURL));
   const randomPicks = getRandomSample(remaining, Math.min(4, remaining.length), dateStr);
 
   const selectedRaw = [...byPercent, ...byDollar, ...randomPicks];
@@ -816,28 +880,21 @@ function toIsoDayUTC(isoOrDate) {
   return d.toISOString().split("T")[0];
 }
 
-/**
- * Build scraper performance records for "today".
- * - For normal single-source scrapers, we record one entry.
- * - For scrape-daily, we try to explode into individual store scrapers using payload.scraperResults (if present),
- *   otherwise we fall back to dealsByStore as per-store counts, otherwise a single combined entry.
- */
 function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
   const payload = meta?.payloadMeta || null;
   const timestamp = meta?.timestamp || payload?.lastUpdated || payload?.timestamp || null;
-  const durationMs = parseDurationMs(meta?.duration || payload?.duration || null);
+  const durationMs = parseDurationMs(meta?.duration || payload?.scrapeDurationMs || payload?.duration || null);
   const via = meta?.source || null;
   const blobUrl = meta?.blobUrl || null;
 
-  // If the source failed, record a failure entry.
   if (!perSourceOk) {
     return [
       {
         scraper: sourceName,
         ok: false,
         count: 0,
-        durationMs: durationMs,
-        timestamp: timestamp,
+        durationMs,
+        timestamp,
         via,
         blobUrl,
         error: meta?.error || "Unknown error",
@@ -845,61 +902,33 @@ function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
     ];
   }
 
-  // Special handling: break out scrape-daily into individual scrapers/stores if we can.
-  if (String(sourceName).toLowerCase().includes("scrape-daily")) {
+  // If a payload contains scraperResults, record each sub-scraper (nice for health cards/history)
+  if (payload && payload.scraperResults && typeof payload.scraperResults === "object") {
     const records = [];
+    for (const [name, r] of Object.entries(payload.scraperResults)) {
+      const ok =
+        typeof r?.success === "boolean"
+          ? r.success
+          : typeof r?.ok === "boolean"
+          ? r.ok
+          : true;
 
-    // 1) If scrape-daily includes scraperResults { "Zappos": {count, duration, ...}, ... }
-    if (payload && payload.scraperResults && typeof payload.scraperResults === "object") {
-      for (const [name, r] of Object.entries(payload.scraperResults)) {
-        // r might be {success,count} or {ok,count} etc.
-        const ok = typeof r?.success === "boolean" ? r.success : (typeof r?.ok === "boolean" ? r.ok : true);
-        const count = Number.isFinite(r?.count) ? r.count : (Number.isFinite(r?.totalDeals) ? r.totalDeals : 0);
-        const dMs = parseDurationMs(r?.duration || null) ?? durationMs ?? null;
-        records.push({
-          scraper: name,
-          ok,
-          count: Number.isFinite(count) ? count : 0,
-          durationMs: dMs,
-          timestamp: payload.timestamp || payload.lastUpdated || timestamp || null,
-          via,
-          blobUrl,
-        });
-      }
-      if (records.length) return records;
-    }
+      const count = Number.isFinite(r?.count) ? r.count : 0;
+      const dMs = parseDurationMs(r?.durationMs || r?.duration || null) ?? durationMs ?? null;
 
-    // 2) Else: if scrape-daily includes dealsByStore {storeName: count}
-    if (payload && payload.dealsByStore && typeof payload.dealsByStore === "object") {
-      for (const [store, count] of Object.entries(payload.dealsByStore)) {
-        records.push({
-          scraper: store,
-          ok: true,
-          count: Number.isFinite(count) ? count : 0,
-          durationMs: durationMs,
-          timestamp: payload.timestamp || payload.lastUpdated || timestamp || null,
-          via,
-          blobUrl,
-        });
-      }
-      if (records.length) return records;
-    }
-
-    // 3) Fallback: single combined scrape-daily entry
-    return [
-      {
-        scraper: sourceName,
-        ok: true,
-        count: safeArray(meta?.deals).length,
-        durationMs,
-        timestamp,
+      records.push({
+        scraper: name,
+        ok,
+        count,
+        durationMs: dMs,
+        timestamp: payload.lastUpdated || payload.timestamp || timestamp || null,
         via,
         blobUrl,
-      },
-    ];
+      });
+    }
+    if (records.length) return records;
   }
 
-  // Normal case: one entry per source
   return [
     {
       scraper: sourceName,
@@ -916,7 +945,6 @@ function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
 function mergeRollingScraperHistory(existing, todayDayUTC, todayRecords, maxDays = 30) {
   const history = safeArray(existing?.days).map((d) => d).filter(Boolean);
 
-  // Remove any existing entry for today's date, then append fresh
   const filtered = history.filter((d) => d?.dayUTC !== todayDayUTC);
 
   filtered.push({
@@ -925,10 +953,8 @@ function mergeRollingScraperHistory(existing, todayDayUTC, todayRecords, maxDays
     scrapers: safeArray(todayRecords),
   });
 
-  // Keep last N by day order (sorted ascending by date)
   filtered.sort((a, b) => String(a.dayUTC).localeCompare(String(b.dayUTC)));
 
-  // Trim to last N
   const trimmed = filtered.slice(Math.max(0, filtered.length - maxDays));
 
   return {
@@ -956,7 +982,9 @@ module.exports = async (req, res) => {
   // ============================================================================
   // BLOB URLs (recommended - set these in Vercel environment variables)
   // ============================================================================
-  const OTHER_DEALS_BLOB_URL = process.env.OTHER_DEALS_BLOB_URL || "";
+  const CHEERIO_DEALS_BLOB_URL = process.env.CHEERIO_DEALS_BLOB_URL || "";
+  const APIFY_DEALS_BLOB_URL = process.env.APIFY_DEALS_BLOB_URL || "";
+
   const HOLABIRD_MENS_ROAD_BLOB_URL = process.env.HOLABIRD_MENS_ROAD_BLOB_URL || "";
   const HOLABIRD_WOMENS_ROAD_BLOB_URL = process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "";
   const HOLABIRD_TRAIL_UNISEX_BLOB_URL = process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "";
@@ -964,13 +992,14 @@ module.exports = async (req, res) => {
   const ASICS_SALE_BLOB_URL = process.env.ASICS_SALE_BLOB_URL || "";
   const SHOEBACCA_CLEARANCE_BLOB_URL = process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "";
 
-  // For rolling history read-back (recommended)
   const SCRAPER_DATA_BLOB_URL = process.env.SCRAPER_DATA_BLOB_URL || "";
 
   // ============================================================================
   // ENDPOINT FALLBACKS (only used if blob URLs are missing)
   // ============================================================================
-  const OTHER_DEALS_ENDPOINT = `${baseUrl}/api/scrape-daily`;
+  const CHEERIO_DEALS_ENDPOINT = `${baseUrl}/api/cheerio_scrapers`;
+  const APIFY_DEALS_ENDPOINT = `${baseUrl}/api/apify_scrapers`;
+
   const HOLABIRD_MENS_ROAD_ENDPOINT = `${baseUrl}/api/scrapers/holabird-mens-road`;
   const HOLABIRD_WOMENS_ROAD_ENDPOINT = `${baseUrl}/api/scrapers/holabird-womens-road`;
   const HOLABIRD_TRAIL_UNISEX_ENDPOINT = `${baseUrl}/api/scrapers/holabird-trail-unisex`;
@@ -984,9 +1013,14 @@ module.exports = async (req, res) => {
 
     const sources = [
       {
-        name: "Other (scrape-daily)",
-        blobUrl: OTHER_DEALS_BLOB_URL || null,
-        endpointUrl: OTHER_DEALS_BLOB_URL ? null : OTHER_DEALS_ENDPOINT,
+        name: "Cheerio (non-Holabird)",
+        blobUrl: CHEERIO_DEALS_BLOB_URL || null,
+        endpointUrl: CHEERIO_DEALS_BLOB_URL ? null : CHEERIO_DEALS_ENDPOINT,
+      },
+      {
+        name: "Apify (non-Holabird)",
+        blobUrl: APIFY_DEALS_BLOB_URL || null,
+        endpointUrl: APIFY_DEALS_BLOB_URL ? null : APIFY_DEALS_ENDPOINT,
       },
       {
         name: "Holabird Mens Road",
@@ -1025,7 +1059,7 @@ module.exports = async (req, res) => {
     const perSource = {};
     const storeMetadata = {};
     const allDealsRaw = [];
-    const perSourceMeta = {}; // keep the full meta object per source for scraper-data
+    const perSourceMeta = {};
 
     for (let i = 0; i < settled.length; i++) {
       const name = sources[i].name;
@@ -1066,7 +1100,6 @@ module.exports = async (req, res) => {
 
     // ============================================================================
     // DEBUG BLOB (RAW, UNALTERED)
-    // Save BEFORE any manipulation/sanitization/filtering/deduping/sorting.
     // ============================================================================
     const unalteredPayload = {
       lastUpdated: new Date().toISOString(),
@@ -1076,7 +1109,7 @@ module.exports = async (req, res) => {
       deals: allDealsRaw,
     };
 
-    // 1) Normalize + sanitize
+    // 1) Normalize + sanitize -> canonical 11 fields
     const normalized = allDealsRaw.map(normalizeDeal).filter(Boolean);
 
     // 2) Filter (running shoes only, strict discount requirements)
@@ -1096,7 +1129,7 @@ module.exports = async (req, res) => {
       dealsByStore[s] = (dealsByStore[s] || 0) + 1;
     }
 
-    // 6) Build canonical deals output (SAFE for app)
+    // 6) Canonical deals output (SAFE for app)
     const output = {
       lastUpdated: new Date().toISOString(),
       totalDeals: unique.length,
@@ -1105,11 +1138,11 @@ module.exports = async (req, res) => {
       deals: unique,
     };
 
-    // 7) Compute stats and write stats.json (small dashboard payload)
+    // 7) Stats
     const stats = computeStats(unique, storeMetadata);
     stats.lastUpdated = output.lastUpdated;
 
-    // 8) Compute daily deals (12 picks)
+    // 8) Daily deals (12 picks)
     const dailySeedUTC = getDateSeedStringUTC();
     const twelveDailyDeals = computeTwelveDailyDeals(unique, dailySeedUTC);
 
@@ -1120,10 +1153,7 @@ module.exports = async (req, res) => {
       deals: twelveDailyDeals,
     };
 
-    // ============================================================================
-    // 9) scraper-data.json (rolling 30 days)
-    // Build today's records (including individual scrape-daily scrapers if present)
-    // ============================================================================
+    // 9) scraper-data.json rolling 30 days
     const todayDayUTC = toIsoDayUTC(output.lastUpdated);
 
     const todayRecords = [];
@@ -1134,7 +1164,6 @@ module.exports = async (req, res) => {
       todayRecords.push(...buildTodayScraperRecords({ sourceName: name, meta, perSourceOk: ok }));
     }
 
-    // Try to load existing history (only possible if SCRAPER_DATA_BLOB_URL is set)
     let existingScraperData = null;
     if (SCRAPER_DATA_BLOB_URL) {
       try {
@@ -1147,43 +1176,16 @@ module.exports = async (req, res) => {
 
     const scraperData = mergeRollingScraperHistory(existingScraperData, todayDayUTC, todayRecords, 30);
 
-    // ============================================================================
-    // 10) Write blobs (overwrite each run)
-    // ============================================================================
+    // 10) Write blobs
     const [dealsBlob, unalteredBlob, statsBlob, dailyDealsBlob, scraperDataBlob] = await Promise.all([
-      put("deals.json", JSON.stringify(output, null, 2), {
-        access: "public",
-        addRandomSuffix: false,
-      }),
-      put("unaltered-deals.json", JSON.stringify(unalteredPayload, null, 2), {
-        access: "public",
-        addRandomSuffix: false,
-      }),
-      put("stats.json", JSON.stringify(stats, null, 2), {
-        access: "public",
-        addRandomSuffix: false,
-      }),
-      put("twelve_daily_deals.json", JSON.stringify(dailyDealsPayload, null, 2), {
-        access: "public",
-        addRandomSuffix: false,
-      }),
-      put("scraper-data.json", JSON.stringify(scraperData, null, 2), {
-        access: "public",
-        addRandomSuffix: false,
-      }),
+      put("deals.json", JSON.stringify(output, null, 2), { access: "public", addRandomSuffix: false }),
+      put("unaltered-deals.json", JSON.stringify(unalteredPayload, null, 2), { access: "public", addRandomSuffix: false }),
+      put("stats.json", JSON.stringify(stats, null, 2), { access: "public", addRandomSuffix: false }),
+      put("twelve_daily_deals.json", JSON.stringify(dailyDealsPayload, null, 2), { access: "public", addRandomSuffix: false }),
+      put("scraper-data.json", JSON.stringify(scraperData, null, 2), { access: "public", addRandomSuffix: false }),
     ]);
 
     const durationMs = Date.now() - start;
-
-    console.log("[MERGE] Saved deals.json:", dealsBlob.url);
-    console.log("[MERGE] Saved unaltered-deals.json:", unalteredBlob.url);
-    console.log("[MERGE] Saved stats.json:", statsBlob.url);
-    console.log("[MERGE] Saved twelve_daily_deals.json:", dailyDealsBlob.url);
-    console.log("[MERGE] Saved scraper-data.json:", scraperDataBlob.url);
-
-    console.log(
-      `[MERGE] Complete in ${durationMs}ms; totalRaw=${allDealsRaw.length}; totalDeals=${unique.length}; dailyDeals=${twelveDailyDeals.length}`
-    );
 
     return res.status(200).json({
       success: true,
@@ -1202,7 +1204,6 @@ module.exports = async (req, res) => {
       duration: `${durationMs}ms`,
       timestamp: output.lastUpdated,
 
-      // helpful reminder for you in the response payload:
       note:
         SCRAPER_DATA_BLOB_URL
           ? "scraper-data history appended (SCRAPER_DATA_BLOB_URL was set)"
