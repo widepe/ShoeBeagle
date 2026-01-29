@@ -13,7 +13,7 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
-const { cleanModelName } = require("./modelNameCleaner");
+const { cleanModelName } = require("../modelNameCleaner");
 
 /** -------------------- Small helpers -------------------- **/
 
