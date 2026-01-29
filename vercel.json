@@ -29,10 +29,6 @@
       "schedule": "30 9 * * *"
     },
     {
-      "path": "/api/scrape-daily",
-      "schedule": "35 9 * * *"
-    },
-    {
       "path": "/api/merge-deals",
       "schedule": "40 9 * * *"
     },
