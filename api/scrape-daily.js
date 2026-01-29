@@ -6,6 +6,14 @@
 // - This endpoint ONLY scrapes + writes deals-other.json (raw-ish merged list)
 // - NO sanitization/filtering/deduping/sorting here anymore
 // - All "final shaping" happens in /api/merge-deals.js
+//
+// Output blob: deals-other.json
+// Top-level:
+//   { lastUpdated, scrapeDurationMs, scraperResults, deals }
+//
+// Deal schema (per deal):
+//   listingName, brand, model, salePrice, originalPrice, discountPercent,
+//   store, listingURL, imageURL, gender, shoeType
 
 const axios = require("axios");
 const cheerio = require("cheerio");
@@ -13,25 +21,15 @@ const { put } = require("@vercel/blob");
 const { ApifyClient } = require("apify-client");
 const { cleanModelName } = require("./modelNameCleaner");
 
-/**
- * @typedef {Object} Deal
- * @property {string} title - Product title
- * @property {string} brand - Brand name
- * @property {string} model - Model name
- * @property {number|null} salePrice - Current/sale price
- * @property {number|null} price - Original/MSRP price
- * @property {string} store - Store name
- * @property {string} url - Product page URL
- * @property {string|null} image - Product image URL
- * @property {string} gender - "mens" | "womens" | "unisex" | "unknown"
- * @property {string} shoeType - "road" | "trail" | "track" | "unknown"
- */
-
 const apifyClient = new ApifyClient({
   token: process.env.APIFY_TOKEN,
 });
 
 /** -------------------- Small helpers -------------------- **/
+
+function nowIso() {
+  return new Date().toISOString();
+}
 
 function normalizeWhitespace(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
@@ -160,11 +158,11 @@ function parseBrandModel(title) {
   return { brand, model };
 }
 
-// Detect gender from URL or title
-function detectGender(url, title) {
-  const urlLower = (url || "").toLowerCase();
-  const titleLower = (title || "").toLowerCase();
-  const combined = urlLower + " " + titleLower;
+// Detect gender from URL or listing text
+function detectGender(listingURL, listingName) {
+  const urlLower = (listingURL || "").toLowerCase();
+  const nameLower = (listingName || "").toLowerCase();
+  const combined = urlLower + " " + nameLower;
 
   // Check URL patterns first (most reliable)
   if (/\/mens?[\/-]|\/men\/|men-/.test(urlLower)) return "mens";
@@ -178,9 +176,9 @@ function detectGender(url, title) {
   return "unknown";
 }
 
-// Detect shoe type from title or model
-function detectShoeType(title, model) {
-  const combined = ((title || "") + " " + (model || "")).toLowerCase();
+// Detect shoe type from listing text or model
+function detectShoeType(listingName, model) {
+  const combined = ((listingName || "") + " " + (model || "")).toLowerCase();
 
   // Trail indicators
   if (
@@ -209,8 +207,21 @@ function detectShoeType(title, model) {
   return "road";
 }
 
+function computeDiscountPercent(originalPrice, salePrice) {
+  if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return null;
+  if (originalPrice <= 0 || salePrice <= 0) return null;
+  if (salePrice >= originalPrice) return 0;
+  return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+}
+
+function randomDelay(min = 3000, max = 5000) {
+  const wait = Math.floor(Math.random() * (max - min + 1)) + min;
+  return new Promise((resolve) => setTimeout(resolve, wait));
+}
+
+/** -------------------- UNIVERSAL PRICE EXTRACTOR -------------------- **/
+
 /**
- * UNIVERSAL PRICE EXTRACTOR
  * Returns: { salePrice: number|null, originalPrice: number|null, valid: boolean }
  */
 function extractPrices($, $element, fullText) {
@@ -357,11 +368,6 @@ function findPercentOff(text) {
   return percent > 0 && percent < 100 ? percent : null;
 }
 
-function randomDelay(min = 3000, max = 5000) {
-  const wait = Math.floor(Math.random() * (max - min + 1)) + min;
-  return new Promise((resolve) => setTimeout(resolve, wait));
-}
-
 /** -------------------- Apify fetchers -------------------- **/
 
 function toFiniteNumber(x) {
@@ -378,7 +384,7 @@ function toFiniteNumber(x) {
  * - OLD schema: { price, originalPrice } where price = current/sale and originalPrice = MSRP
  *
  * Returns:
- *   { salePrice: number|null, price: number|null }
+ *   { salePrice: number|null, originalPrice: number|null }
  */
 function normalizeApifyPrices(item) {
   const newSale = toFiniteNumber(item?.salePrice);
@@ -386,14 +392,14 @@ function normalizeApifyPrices(item) {
 
   // If actor is already on new schema, use it
   if (newSale != null || newOrig != null) {
-    return { salePrice: newSale, price: newOrig };
+    return { salePrice: newSale, originalPrice: newOrig };
   }
 
   // Otherwise fall back to old schema
   const oldSale = toFiniteNumber(item?.price);
   const oldOrig = toFiniteNumber(item?.originalPrice);
 
-  return { salePrice: oldSale, price: oldOrig };
+  return { salePrice: oldSale, originalPrice: oldOrig };
 }
 
 async function fetchActorDatasetItems(actorId, storeName) {
@@ -424,120 +430,107 @@ async function fetchActorDatasetItems(actorId, storeName) {
 }
 
 async function fetchRoadRunnerDeals() {
-  if (!process.env.APIFY_ROADRUNNER_ACTOR_ID) {
-    throw new Error("APIFY_ROADRUNNER_ACTOR_ID is not set");
-  }
+  const STORE = "Road Runner Sports";
+  const actorId = process.env.APIFY_ROADRUNNER_ACTOR_ID;
+  if (!actorId) throw new Error("APIFY_ROADRUNNER_ACTOR_ID is not set");
 
-  const items = await fetchActorDatasetItems(
-    process.env.APIFY_ROADRUNNER_ACTOR_ID,
-    "Road Runner Sports"
-  );
+  const items = await fetchActorDatasetItems(actorId, STORE);
 
-  const deals = items.map((item) => {
-    const { salePrice, price } = normalizeApifyPrices(item);
+  return items.map((item) => {
+    const { salePrice, originalPrice } = normalizeApifyPrices(item);
+    const brand = item.brand || "Unknown";
+    const model = item.model || "";
+    const listingName = item.title || `${brand} ${model}`.trim() || "Running Shoe";
+    const listingURL = item.url || "#";
+    const imageURL = item.image ?? null;
+    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
     return {
-      title: item.title || "Running Shoe",
-      brand: item.brand || "Unknown",
-      model: item.model || "",
-      salePrice,
-      price,
-      store: item.store || "Road Runner Sports",
-      url: item.url || "#",
-      image: item.image ?? null,
-      gender: item.gender || detectGender(item.url, item.title),
-      shoeType: item.shoeType || detectShoeType(item.title, item.model),
+      listingName,
+      brand,
+      model,
+      salePrice: salePrice ?? null,
+      originalPrice: originalPrice ?? null,
+      discountPercent,
+      store: item.store || STORE,
+      listingURL,
+      imageURL,
+      gender: item.gender || detectGender(listingURL, listingName),
+      shoeType: item.shoeType || detectShoeType(listingName, model),
     };
   });
-
-  console.log(
-    "[APIFY] Road Runner MSRP present:",
-    deals.filter((d) => d.price != null).length,
-    "/",
-    deals.length
-  );
-
-  return deals;
 }
 
 async function fetchZapposDeals() {
-  if (!process.env.APIFY_ZAPPOS_ACTOR_ID) {
-    throw new Error("APIFY_ZAPPOS_ACTOR_ID is not set");
-  }
+  const STORE = "Zappos";
+  const actorId = process.env.APIFY_ZAPPOS_ACTOR_ID;
+  if (!actorId) throw new Error("APIFY_ZAPPOS_ACTOR_ID is not set");
 
-  const items = await fetchActorDatasetItems(process.env.APIFY_ZAPPOS_ACTOR_ID, "Zappos");
+  const items = await fetchActorDatasetItems(actorId, STORE);
 
-  const deals = items.map((item) => {
-    const { salePrice, price } = normalizeApifyPrices(item);
+  return items.map((item) => {
+    const { salePrice, originalPrice } = normalizeApifyPrices(item);
+    const brand = item.brand || "Unknown";
+    const model = item.model || "";
+    const listingName = item.title || `${brand} ${model}`.trim() || "Running Shoe";
+    const listingURL = item.url || "#";
+    const imageURL = item.image ?? null;
+    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
     return {
-      title: item.title || "Running Shoe",
-      brand: item.brand || "Unknown",
-      model: item.model || "",
-      salePrice,
-      price,
-      store: item.store || "Zappos",
-      url: item.url || "#",
-      image: item.image ?? null,
-      gender: item.gender || detectGender(item.url, item.title),
-      shoeType: item.shoeType || detectShoeType(item.title, item.model),
+      listingName,
+      brand,
+      model,
+      salePrice: salePrice ?? null,
+      originalPrice: originalPrice ?? null,
+      discountPercent,
+      store: item.store || STORE,
+      listingURL,
+      imageURL,
+      gender: item.gender || detectGender(listingURL, listingName),
+      shoeType: item.shoeType || detectShoeType(listingName, model),
     };
   });
-
-  console.log(
-    "[APIFY] Zappos MSRP present:",
-    deals.filter((d) => d.price != null).length,
-    "/",
-    deals.length
-  );
-
-  return deals;
 }
 
 async function fetchReiDeals() {
-  console.log("[REI] fetchReiDeals called");
+  const STORE = "REI Outlet";
+  const actorId = process.env.APIFY_REI_ACTOR_ID;
+  if (!actorId) throw new Error("APIFY_REI_ACTOR_ID is not set");
 
-  if (!process.env.APIFY_REI_ACTOR_ID) {
-    throw new Error("APIFY_REI_ACTOR_ID is not set");
-  }
+  const items = await fetchActorDatasetItems(actorId, STORE);
 
-  const items = await fetchActorDatasetItems(process.env.APIFY_REI_ACTOR_ID, "REI Outlet");
+  return items.map((item) => {
+    const { salePrice, originalPrice } = normalizeApifyPrices(item);
 
-  const deals = items.map((item) => {
     const brand = item.brand || "Unknown";
     const model = item.model || "";
-    const title = item.title || `${brand} ${model}`.trim() || "REI Outlet Shoe";
-
-    const { salePrice, price } = normalizeApifyPrices(item);
+    const listingName = item.title || `${brand} ${model}`.trim() || "REI Outlet Shoe";
+    const listingURL = item.url || "#";
+    const imageURL = item.image ?? null;
+    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
     return {
-      title,
+      listingName,
       brand,
       model,
-      salePrice,
-      price,
-      store: item.store || "REI Outlet",
-      url: item.url || "#",
-      image: item.image ?? null,
-      gender: item.gender || detectGender(item.url, title),
-      shoeType: item.shoeType || detectShoeType(title, model),
+      salePrice: salePrice ?? null,
+      originalPrice: originalPrice ?? null,
+      discountPercent,
+      store: item.store || STORE,
+      listingURL,
+      imageURL,
+      gender: item.gender || detectGender(listingURL, listingName),
+      shoeType: item.shoeType || detectShoeType(listingName, model),
     };
   });
-
-  console.log(
-    "[APIFY] REI MSRP present:",
-    deals.filter((d) => d.price != null).length,
-    "/",
-    deals.length
-  );
-
-  return deals;
 }
 
 /** -------------------- Site scrapers (non-Holabird) -------------------- **/
 
 async function scrapeRunningWarehouse() {
-  console.log("[SCRAPER] Starting Running Warehouse scrape...");
+  const STORE = "Running Warehouse";
+  console.log(`[SCRAPER] Starting ${STORE} scrape...`);
 
   const urls = [
     "https://www.runningwarehouse.com/catpage-SALEMS.html",
@@ -547,10 +540,10 @@ async function scrapeRunningWarehouse() {
   const deals = [];
   const seenUrls = new Set();
 
-  for (const url of urls) {
-    console.log(`[SCRAPER] Fetching RW page: ${url}`);
+  for (const pageUrl of urls) {
+    console.log(`[SCRAPER] Fetching RW page: ${pageUrl}`);
 
-    const response = await axios.get(url, {
+    const response = await axios.get(pageUrl, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -572,51 +565,54 @@ async function scrapeRunningWarehouse() {
       const { salePrice, originalPrice, valid } = extractPrices($, anchor, text);
       if (!valid || !salePrice || !Number.isFinite(salePrice)) return;
 
-      const title = cleanTitleText(text);
-      if (!title) return;
+      const listingName = cleanTitleText(text);
+      if (!listingName) return;
 
-      let cleanUrl = href.trim();
-      if (!/^https?:\/\//i.test(cleanUrl)) {
-        cleanUrl = cleanUrl.startsWith("//")
-          ? "https:" + cleanUrl
-          : `https://www.runningwarehouse.com/${cleanUrl.replace(/^\/+/, "")}`;
+      let listingURL = href.trim();
+      if (!/^https?:\/\//i.test(listingURL)) {
+        listingURL = listingURL.startsWith("//")
+          ? "https:" + listingURL
+          : `https://www.runningwarehouse.com/${listingURL.replace(/^\/+/, "")}`;
       }
 
-      if (seenUrls.has(cleanUrl)) return;
-      seenUrls.add(cleanUrl);
+      if (seenUrls.has(listingURL)) return;
+      seenUrls.add(listingURL);
 
-      let image = null;
+      let imageURL = null;
       const container = anchor.closest("tr,td,div,li,article");
       if (container.length) {
         const imgEl = container.find("img").first();
-        image = pickBestImgUrl($, imgEl, "https://www.runningwarehouse.com");
+        imageURL = pickBestImgUrl($, imgEl, "https://www.runningwarehouse.com");
       }
 
-      const { brand, model } = parseBrandModel(title);
+      const { brand, model } = parseBrandModel(listingName);
+      const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
       deals.push({
-        title,
+        listingName,
         brand,
         model,
-        salePrice: salePrice,
-        price: Number.isFinite(originalPrice) && originalPrice > salePrice ? originalPrice : null,
-        store: "Running Warehouse",
-        url: cleanUrl,
-        image,
-        gender: detectGender(cleanUrl, title),
-        shoeType: detectShoeType(title, model),
+        salePrice,
+        originalPrice: Number.isFinite(originalPrice) && originalPrice > salePrice ? originalPrice : null,
+        discountPercent,
+        store: STORE,
+        listingURL,
+        imageURL,
+        gender: detectGender(listingURL, listingName),
+        shoeType: detectShoeType(listingName, model),
       });
     });
 
     await randomDelay();
   }
 
-  console.log(`[SCRAPER] Running Warehouse scrape complete. Found ${deals.length} deals.`);
+  console.log(`[SCRAPER] ${STORE} scrape complete. Found ${deals.length} deals.`);
   return deals;
 }
 
 async function scrapeFleetFeet() {
-  console.log("[SCRAPER] Starting Fleet Feet scrape...");
+  const STORE = "Fleet Feet";
+  console.log(`[SCRAPER] Starting ${STORE} scrape...`);
 
   const urls = [
     "https://www.fleetfeet.com/browse/shoes/mens?clearance=on",
@@ -626,10 +622,10 @@ async function scrapeFleetFeet() {
   const deals = [];
   const seenUrls = new Set();
 
-  for (const url of urls) {
-    console.log(`[SCRAPER] Fetching Fleet Feet page: ${url}`);
+  for (const pageUrl of urls) {
+    console.log(`[SCRAPER] Fetching ${STORE} page: ${pageUrl}`);
 
-    const response = await axios.get(url, {
+    const response = await axios.get(pageUrl, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -647,50 +643,53 @@ async function scrapeFleetFeet() {
       if (!href || !href.startsWith("/products/")) return;
 
       const fullText = normalizeWhitespace($link.text());
-      const title = cleanTitleText(fullText);
-      if (!title) return;
+      const listingName = cleanTitleText(fullText);
+      if (!listingName) return;
 
       const { salePrice, originalPrice, valid } = extractPrices($, $link, fullText);
       if (!valid || !salePrice || salePrice <= 0) return;
 
-      const fullUrl = absolutizeUrl(href, "https://www.fleetfeet.com");
-      if (seenUrls.has(fullUrl)) return;
-      seenUrls.add(fullUrl);
+      const listingURL = absolutizeUrl(href, "https://www.fleetfeet.com");
+      if (seenUrls.has(listingURL)) return;
+      seenUrls.add(listingURL);
 
       let $img = $link.find("img").first();
       if (!$img.length) $img = $link.closest("div, article, li").find("img").first();
-      const image = pickBestImgUrl($, $img, "https://www.fleetfeet.com");
+      const imageURL = pickBestImgUrl($, $img, "https://www.fleetfeet.com");
 
-      const { brand, model } = parseBrandModel(title);
+      const { brand, model } = parseBrandModel(listingName);
+      const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
       deals.push({
-        title,
+        listingName,
         brand,
         model,
-        salePrice: salePrice,
-        price: originalPrice || null,
-        store: "Fleet Feet",
-        url: fullUrl,
-        image,
-        gender: detectGender(fullUrl, title),
-        shoeType: detectShoeType(title, model),
+        salePrice,
+        originalPrice: originalPrice || null,
+        discountPercent,
+        store: STORE,
+        listingURL,
+        imageURL,
+        gender: detectGender(listingURL, listingName),
+        shoeType: detectShoeType(listingName, model),
       });
     });
 
     await randomDelay();
   }
 
-  console.log(`[SCRAPER] Fleet Feet scrape complete. Found ${deals.length} deals.`);
+  console.log(`[SCRAPER] ${STORE} scrape complete. Found ${deals.length} deals.`);
   return deals;
 }
 
 async function scrapeLukesLocker() {
-  console.log("[SCRAPER] Starting Luke's Locker scrape...");
+  const STORE = "Luke's Locker";
+  console.log(`[SCRAPER] Starting ${STORE} scrape...`);
 
-  const url = "https://lukeslocker.com/collections/closeout";
+  const pageUrl = "https://lukeslocker.com/collections/closeout";
   const deals = [];
 
-  const response = await axios.get(url, {
+  const response = await axios.get(pageUrl, {
     headers: {
       "User-Agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -714,40 +713,42 @@ async function scrapeLukesLocker() {
     if (fullText.length < 10) return;
     if (!fullText.includes("$")) return;
 
-    const title = cleanTitleText(fullText);
-    if (!title) return;
+    const listingName = cleanTitleText(fullText);
+    if (!listingName) return;
 
     const { salePrice, originalPrice, valid } = extractPrices($, $link, fullText);
     if (!valid || !salePrice || salePrice <= 0) return;
 
     let $img = $link.find("img").first();
     if (!$img.length) $img = $link.closest("div, article, li").find("img").first();
-    const image = pickBestImgUrl($, $img, "https://lukeslocker.com");
+    const imageURL = pickBestImgUrl($, $img, "https://lukeslocker.com");
 
-    const fullUrl = absolutizeUrl(href, "https://lukeslocker.com");
-
-    const { brand, model } = parseBrandModel(title);
+    const listingURL = absolutizeUrl(href, "https://lukeslocker.com");
+    const { brand, model } = parseBrandModel(listingName);
+    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
     deals.push({
-      title,
+      listingName,
       brand,
       model,
-      salePrice: salePrice,
-      price: originalPrice || null,
-      store: "Luke's Locker",
-      url: fullUrl,
-      image,
-      gender: detectGender(fullUrl, title),
-      shoeType: detectShoeType(title, model),
+      salePrice,
+      originalPrice: originalPrice || null,
+      discountPercent,
+      store: STORE,
+      listingURL,
+      imageURL,
+      gender: detectGender(listingURL, listingName),
+      shoeType: detectShoeType(listingName, model),
     });
   });
 
-  console.log(`[SCRAPER] Luke's Locker scrape complete. Found ${deals.length} deals.`);
+  console.log(`[SCRAPER] ${STORE} scrape complete. Found ${deals.length} deals.`);
   return deals;
 }
 
 async function scrapeMarathonSports() {
-  console.log("[SCRAPER] Starting Marathon Sports scrape...");
+  const STORE = "Marathon Sports";
+  console.log(`[SCRAPER] Starting ${STORE} scrape...`);
 
   const urls = [
     "https://www.marathonsports.com/shop/mens/shoes?sale=1",
@@ -758,10 +759,10 @@ async function scrapeMarathonSports() {
   const deals = [];
   const seenUrls = new Set();
 
-  for (const url of urls) {
-    console.log(`[SCRAPER] Fetching Marathon Sports page: ${url}`);
+  for (const pageUrl of urls) {
+    console.log(`[SCRAPER] Fetching ${STORE} page: ${pageUrl}`);
 
-    const response = await axios.get(url, {
+    const response = await axios.get(pageUrl, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -778,8 +779,8 @@ async function scrapeMarathonSports() {
       const href = ($link.attr("href") || "").trim();
       if (!href) return;
 
-      const fullUrl = absolutizeUrl(href, "https://www.marathonsports.com");
-      if (seenUrls.has(fullUrl)) return;
+      const listingURL = absolutizeUrl(href, "https://www.marathonsports.com");
+      if (seenUrls.has(listingURL)) return;
 
       const $container = $link.closest("div, article, li").filter(function () {
         return $(this).text().toLowerCase().includes("price");
@@ -790,44 +791,46 @@ async function scrapeMarathonSports() {
       const containerText = normalizeWhitespace($container.text());
       if (!containerText.includes("$") || !containerText.toLowerCase().includes("price")) return;
 
-      let title = "";
+      let listingName = "";
       const $titleEl = $container
         .find("h2, h3, .product-title, .product-name, [class*='title']")
         .first();
 
-      if ($titleEl.length) title = normalizeWhitespace($titleEl.text());
-      title = cleanTitleText(title);
-      if (!title) return;
+      if ($titleEl.length) listingName = normalizeWhitespace($titleEl.text());
+      listingName = cleanTitleText(listingName);
+      if (!listingName) return;
 
       const { salePrice, originalPrice, valid } = extractPrices($, $container, containerText);
       if (!valid || !salePrice || salePrice <= 0) return;
 
       let $img = $link.find("img").first();
       if (!$img.length) $img = $container.find("img").first();
-      const image = pickBestImgUrl($, $img, "https://www.marathonsports.com");
+      const imageURL = pickBestImgUrl($, $img, "https://www.marathonsports.com");
 
-      seenUrls.add(fullUrl);
+      seenUrls.add(listingURL);
 
-      const { brand, model } = parseBrandModel(title);
+      const { brand, model } = parseBrandModel(listingName);
+      const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
       deals.push({
-        title,
+        listingName,
         brand,
         model,
-        salePrice: salePrice,
-        price: originalPrice || null,
-        store: "Marathon Sports",
-        url: fullUrl,
-        image,
-        gender: detectGender(fullUrl, title),
-        shoeType: detectShoeType(title, model),
+        salePrice,
+        originalPrice: originalPrice || null,
+        discountPercent,
+        store: STORE,
+        listingURL,
+        imageURL,
+        gender: detectGender(listingURL, listingName),
+        shoeType: detectShoeType(listingName, model),
       });
     });
 
     await randomDelay();
   }
 
-  console.log(`[SCRAPER] Marathon Sports scrape complete. Found ${deals.length} deals.`);
+  console.log(`[SCRAPER] ${STORE} scrape complete. Found ${deals.length} deals.`);
   return deals;
 }
 
@@ -838,220 +841,82 @@ module.exports = async (req, res) => {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  // Temporarily disabled for local testing
-// const cronSecret = process.env.CRON_SECRET;
-// if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
-//   return res.status(401).json({ success: false, error: "Unauthorized" });
-// }
-  
-
+  // Optional cron auth
+  // const cronSecret = process.env.CRON_SECRET;
+  // if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
+  //   return res.status(401).json({ success: false, error: "Unauthorized" });
+  // }
 
   const overallStartTime = Date.now();
-  console.log("[SCRAPER] Starting daily scrape:", new Date().toISOString());
+  const runTimestamp = nowIso();
+
+  console.log("[SCRAPER] Starting daily scrape:", runTimestamp);
 
   try {
     const allDeals = [];
     const scraperResults = {};
 
-    // Running Warehouse
-    try {
+    async function runSource({ name, via, fn }) {
+      const timestamp = nowIso();
       const scraperStart = Date.now();
-      const rwDeals = await scrapeRunningWarehouse();
-      const scrapeDuration = Date.now() - scraperStart;
 
-      allDeals.push(...rwDeals);
-      scraperResults["Running Warehouse"] = {
-        success: true,
-        totalDeals: rwDeals.length,
-        scraper: "cheerio",
-        scrapeDuration: scrapeDuration,
-        lastUpdated: new Date().toISOString(),
-      };
-      console.log(`[SCRAPER] Running Warehouse: ${rwDeals.length} deals in ${scrapeDuration}ms`);
-    } catch (error) {
-      scraperResults["Running Warehouse"] = {
-        success: false,
-        error: error.message,
-        totalDeals: 0,
-        scraper: "cheerio",
-        scrapeDuration: 0,
-        lastUpdated: new Date().toISOString(),
-      };
-      console.error("[SCRAPER] Running Warehouse failed:", error.message);
+      try {
+        const deals = await fn();
+        const durationMs = Date.now() - scraperStart;
+
+        allDeals.push(...deals);
+
+        scraperResults[name] = {
+          scraper: name,
+          ok: true,
+          count: Array.isArray(deals) ? deals.length : 0,
+          durationMs,
+          timestamp,
+          via,
+          error: null,
+        };
+
+        console.log(`[SCRAPER] ${name}: ${scraperResults[name].count} deals in ${durationMs}ms`);
+      } catch (err) {
+        const durationMs = Date.now() - scraperStart;
+
+        scraperResults[name] = {
+          scraper: name,
+          ok: false,
+          count: 0,
+          durationMs,
+          timestamp,
+          via,
+          error: err?.message || "Unknown error",
+        };
+
+        console.error(`[SCRAPER] ${name} failed:`, scraperResults[name].error);
+      }
     }
 
-    // Fleet Feet
-    try {
-      await randomDelay();
-      const scraperStart = Date.now();
-      const fleetFeetDeals = await scrapeFleetFeet();
-      const scrapeDuration = Date.now() - scraperStart;
+    // Live scrapes
+    await runSource({ name: "Running Warehouse", via: "cheerio", fn: scrapeRunningWarehouse });
+    await randomDelay();
+    await runSource({ name: "Fleet Feet", via: "cheerio", fn: scrapeFleetFeet });
+    await randomDelay();
+    await runSource({ name: "Luke's Locker", via: "cheerio", fn: scrapeLukesLocker });
+    await randomDelay();
+    await runSource({ name: "Marathon Sports", via: "cheerio", fn: scrapeMarathonSports });
 
-      allDeals.push(...fleetFeetDeals);
-      scraperResults["Fleet Feet"] = {
-        success: true,
-        totalDeals: fleetFeetDeals.length,
-        scraper: "cheerio",
-        scrapeDuration: scrapeDuration,
-        lastUpdated: new Date().toISOString(),
-      };
-      console.log(`[SCRAPER] Fleet Feet: ${fleetFeetDeals.length} deals in ${scrapeDuration}ms`);
-    } catch (error) {
-      scraperResults["Fleet Feet"] = {
-        success: false,
-        error: error.message,
-        totalDeals: 0,
-        scraper: "cheerio",
-        scrapeDuration: 0,
-        lastUpdated: new Date().toISOString(),
-      };
-      console.error("[SCRAPER] Fleet Feet failed:", error.message);
-    }
+    // Apify (actors)
+    await randomDelay();
+    await runSource({ name: "Road Runner Sports", via: "apify", fn: fetchRoadRunnerDeals });
+    await randomDelay();
+    await runSource({ name: "REI Outlet", via: "apify", fn: fetchReiDeals });
+    await randomDelay();
+    await runSource({ name: "Zappos", via: "apify", fn: fetchZapposDeals });
 
-    // Luke's Locker
-    try {
-      await randomDelay();
-      const scraperStart = Date.now();
-      const lukesDeals = await scrapeLukesLocker();
-      const scrapeDuration = Date.now() - scraperStart;
+    const scrapeDurationMs = Date.now() - overallStartTime;
 
-      allDeals.push(...lukesDeals);
-      scraperResults["Luke's Locker"] = {
-        success: true,
-        totalDeals: lukesDeals.length,
-        scraper: "cheerio",
-        scrapeDuration: scrapeDuration,
-        lastUpdated: new Date().toISOString(),
-      };
-      console.log(`[SCRAPER] Luke's Locker: ${lukesDeals.length} deals in ${scrapeDuration}ms`);
-    } catch (error) {
-      scraperResults["Luke's Locker"] = {
-        success: false,
-        error: error.message,
-        totalDeals: 0,
-        scraper: "cheerio",
-        scrapeDuration: 0,
-        lastUpdated: new Date().toISOString(),
-      };
-      console.error("[SCRAPER] Luke's Locker failed:", error.message);
-    }
-
-    // Marathon Sports
-    try {
-      await randomDelay();
-      const scraperStart = Date.now();
-      const marathonDeals = await scrapeMarathonSports();
-      const scrapeDuration = Date.now() - scraperStart;
-
-      allDeals.push(...marathonDeals);
-      scraperResults["Marathon Sports"] = {
-        success: true,
-        totalDeals: marathonDeals.length,
-        scraper: "cheerio",
-        scrapeDuration: scrapeDuration,
-        lastUpdated: new Date().toISOString(),
-      };
-      console.log(`[SCRAPER] Marathon Sports: ${marathonDeals.length} deals in ${scrapeDuration}ms`);
-    } catch (error) {
-      scraperResults["Marathon Sports"] = {
-        success: false,
-        error: error.message,
-        totalDeals: 0,
-        scraper: "cheerio",
-        scrapeDuration: 0,
-        lastUpdated: new Date().toISOString(),
-      };
-      console.error("[SCRAPER] Marathon Sports failed:", error.message);
-    }
-
-    // Road Runner Sports (Apify)
-    try {
-      await randomDelay();
-      const scraperStart = Date.now();
-      const rrDeals = await fetchRoadRunnerDeals();
-      const scrapeDuration = Date.now() - scraperStart;
-
-      allDeals.push(...rrDeals);
-      scraperResults["Road Runner Sports"] = {
-        success: true,
-        totalDeals: rrDeals.length,
-        scraper: "apify",
-        scrapeDuration: scrapeDuration,
-        lastUpdated: new Date().toISOString(),
-      };
-      console.log(`[SCRAPER] Road Runner Sports: ${rrDeals.length} deals in ${scrapeDuration}ms`);
-    } catch (error) {
-      scraperResults["Road Runner Sports"] = {
-        success: false,
-        error: error.message,
-        totalDeals: 0,
-        scraper: "apify",
-        scrapeDuration: 0,
-        lastUpdated: new Date().toISOString(),
-      };
-      console.error("[SCRAPER] Road Runner Sports failed:", error.message);
-    }
-
-    // REI Outlet (Apify)
-    try {
-      await randomDelay();
-      const scraperStart = Date.now();
-      const reiDeals = await fetchReiDeals();
-      const scrapeDuration = Date.now() - scraperStart;
-
-      allDeals.push(...reiDeals);
-      scraperResults["REI Outlet"] = {
-        success: true,
-        totalDeals: reiDeals.length,
-        scraper: "apify",
-        scrapeDuration: scrapeDuration,
-        lastUpdated: new Date().toISOString(),
-      };
-      console.log(`[SCRAPER] REI Outlet: ${reiDeals.length} deals in ${scrapeDuration}ms`);
-    } catch (error) {
-      scraperResults["REI Outlet"] = {
-        success: false,
-        error: error.message,
-        totalDeals: 0,
-        scraper: "apify",
-        scrapeDuration: 0,
-        lastUpdated: new Date().toISOString(),
-      };
-      console.error("[SCRAPER] REI Outlet failed:", error.message);
-    }
-
-    // Zappos (Apify)
-    try {
-      await randomDelay();
-      const scraperStart = Date.now();
-      const zapposDeals = await fetchZapposDeals();
-      const scrapeDuration = Date.now() - scraperStart;
-
-      allDeals.push(...zapposDeals);
-      scraperResults["Zappos"] = {
-        success: true,
-        totalDeals: zapposDeals.length,
-        scraper: "apify",
-        scrapeDuration: scrapeDuration,
-        lastUpdated: new Date().toISOString(),
-      };
-      console.log(`[SCRAPER] Zappos: ${zapposDeals.length} deals in ${scrapeDuration}ms`);
-    } catch (error) {
-      scraperResults["Zappos"] = {
-        success: false,
-        error: error.message,
-        totalDeals: 0,
-        scraper: "apify",
-        scrapeDuration: 0,
-        lastUpdated: new Date().toISOString(),
-      };
-      console.error("[SCRAPER] Zappos failed:", error.message);
-    }
-
-    console.log(`[SCRAPER] Total deals collected from all sources: ${allDeals.length}`);
-
-    // Write output with new structure
+    // Blob write
     const output = {
+      lastUpdated: runTimestamp,
+      scrapeDurationMs,
       scraperResults,
       deals: allDeals,
     };
@@ -1061,23 +926,40 @@ module.exports = async (req, res) => {
       addRandomSuffix: false,
     });
 
-    const totalDuration = Date.now() - overallStartTime;
-    console.log("[SCRAPER] Saved to blob:", blob.url);
-    console.log(`[SCRAPER] Complete: ${allDeals.length} deals in ${totalDuration}ms`);
+    // Attach blobUrl to each scraper result so your health cards can show it
+    // (matches your desired structure better)
+    for (const key of Object.keys(scraperResults)) {
+      scraperResults[key].blobUrl = blob.url;
+    }
+
+    // Re-write with blobUrl included in scraperResults
+    const finalOutput = {
+      ...output,
+      scraperResults,
+    };
+
+    const finalBlob = await put("deals-other.json", JSON.stringify(finalOutput, null, 2), {
+      access: "public",
+      addRandomSuffix: false,
+    });
+
+    console.log("[SCRAPER] Saved to blob:", finalBlob.url);
+    console.log(`[SCRAPER] Complete: ${allDeals.length} deals in ${scrapeDurationMs}ms`);
 
     return res.status(200).json({
       success: true,
       totalDeals: allDeals.length,
       scraperResults,
-      blobUrl: blob.url,
-      duration: `${totalDuration}ms`,
+      blobUrl: finalBlob.url,
+      duration: `${scrapeDurationMs}ms`,
+      timestamp: runTimestamp,
     });
   } catch (error) {
     console.error("[SCRAPER] Fatal error:", error);
     return res.status(500).json({
       success: false,
-      error: error.message,
-      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      error: error?.message || "Unknown error",
+      stack: process.env.NODE_ENV === "development" ? error?.stack : undefined,
     });
   }
 };
