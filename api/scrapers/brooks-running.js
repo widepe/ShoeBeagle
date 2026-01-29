@@ -136,7 +136,7 @@ function extractBrooksDeals(html) {
     // Model (data attribute often just the model name; sometimes includes "Brooks")
     const model = itemName.replace(/^Brooks\s+/i, "").trim();
     const brand = "Brooks";
-    const listing = `${brand} ${model}`.trim();
+    const listingName = `${brand} ${model}`.trim();
 
     const { salePrice, originalPrice } = extractPricesFromTile($tile);
 
@@ -162,18 +162,19 @@ function extractBrooksDeals(html) {
     const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
     deals.push({
-      listing,
-      brand,
-      model,
-      salePrice,
-      originalPrice,
-      discountPercent,
-      store: "Brooks Running",
-      listingURL,
-      imageURL,
-      gender: detectGender(listing, listingURL),
-      shoeType: detectShoeType(listing, model),
-    });
+  listingName,
+  brand,
+  model,
+  salePrice,
+  originalPrice,
+  discountPercent,
+  store: "Brooks Running",
+  listingURL,
+  imageURL,
+  gender: detectGender(listingName, listingURL),
+  shoeType: detectShoeType(listingName, model),
+});
+
   });
 
   return deals;
