@@ -960,7 +960,7 @@ module.exports = async (req, res) => {
   const HOLABIRD_MENS_ROAD_BLOB_URL = process.env.HOLABIRD_MENS_ROAD_BLOB_URL || "";
   const HOLABIRD_WOMENS_ROAD_BLOB_URL = process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "";
   const HOLABIRD_TRAIL_UNISEX_BLOB_URL = process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "";
-  const BROOKS_SALE_BLOB_URL = process.env.BROOKS_SALE_BLOB_URL || "";
+  const BROOKS_RUNNING_BLOB_URL = process.env.BROOKS_RUNNING_BLOB_URL || "";
   const ASICS_SALE_BLOB_URL = process.env.ASICS_SALE_BLOB_URL || "";
   const SHOEBACCA_CLEARANCE_BLOB_URL = process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "";
 
@@ -974,7 +974,7 @@ module.exports = async (req, res) => {
   const HOLABIRD_MENS_ROAD_ENDPOINT = `${baseUrl}/api/scrapers/holabird-mens-road`;
   const HOLABIRD_WOMENS_ROAD_ENDPOINT = `${baseUrl}/api/scrapers/holabird-womens-road`;
   const HOLABIRD_TRAIL_UNISEX_ENDPOINT = `${baseUrl}/api/scrapers/holabird-trail-unisex`;
-  const BROOKS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/brooks-running`;
+  const BROOKS_RUNNING_ENDPOINT = `${baseUrl}/api/scrapers/brooks-running`;
   const ASICS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/asics-sale`;
   const SHOEBACCA_CLEARANCE_ENDPOINT = `${baseUrl}/api/scrapers/shoebacca-clearance`;
 
@@ -1005,8 +1005,8 @@ module.exports = async (req, res) => {
       },
       {
         name: "Brooks Running",
-        blobUrl: BROOKS_SALE_BLOB_URL || null,
-        endpointUrl: BROOKS_SALE_BLOB_URL ? null : BROOKS_SALE_ENDPOINT,
+        blobUrl: BROOKS_RUNNING_BLOB_URL || null,
+        endpointUrl: BROOKS_RUNNING_BLOB_URL ? null : BROOKS_RUNNING_ENDPOINT,
       },
       {
         name: "ASICS Sale",
