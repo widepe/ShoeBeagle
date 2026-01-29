@@ -1,4 +1,4 @@
-// api/scrapers/brooks-sale.js
+// api/scrapers/brooks-running.js
 // Brooks Sale Scraper (Firecrawl + Cheerio)
 // Output schema (per deal):
 //   listing, brand, model, salePrice, originalPrice, discountPercent,
