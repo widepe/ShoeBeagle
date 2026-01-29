@@ -236,7 +236,7 @@ module.exports = async (req, res) => {
       deals,
     };
 
-    const blob = await put("brooks-sale.json", JSON.stringify(payload, null, 2), {
+    const blob = await put("brooks-running.json", JSON.stringify(payload, null, 2), {
       access: "public",
       addRandomSuffix: false,
     });
