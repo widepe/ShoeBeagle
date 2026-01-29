@@ -1,6 +1,6 @@
 // /api/merge-deals.js
 //
-// Merges: (1) scrape-daily output + (2) Holabird outputs + (3) Brooks sale + (4) ASICS sale (+ others you add)
+// Merges: (1) scrape-daily output + (2) Holabird outputs + (3) Brooks Running + (4) ASICS sale (+ others you add)
 //
 // Writes canonical blob(s) (overwritten each run; addRandomSuffix: false):
 //   1) deals.json                -> sanitized + normalized + filtered + deduped + sorted (SAFE for the app)
@@ -23,7 +23,7 @@
 //   HOLABIRD_MENS_ROAD_BLOB_URL
 //   HOLABIRD_WOMENS_ROAD_BLOB_URL
 //   HOLABIRD_TRAIL_UNISEX_BLOB_URL
-//   BROOKS_SALE_BLOB_URL
+//   BROOKS_RUNNING_BLOB_URL
 //   ASICS_SALE_BLOB_URL
 //   SHOEBACCA_CLEARANCE_BLOB_URL
 //   SCRAPER_DATA_BLOB_URL   <-- (recommended) allows rolling 30-day history to persist
@@ -34,7 +34,7 @@
 //     /api/scrapers/holabird-mens-road
 //     /api/scrapers/holabird-womens-road
 //     /api/scrapers/holabird-trail-unisex
-//     /api/scrapers/brooks-sale
+//     /api/scrapers/brooks-running
 //     /api/scrapers/asics-sale
 //     /api/scrapers/shoebacca-clearance
 
@@ -974,7 +974,7 @@ module.exports = async (req, res) => {
   const HOLABIRD_MENS_ROAD_ENDPOINT = `${baseUrl}/api/scrapers/holabird-mens-road`;
   const HOLABIRD_WOMENS_ROAD_ENDPOINT = `${baseUrl}/api/scrapers/holabird-womens-road`;
   const HOLABIRD_TRAIL_UNISEX_ENDPOINT = `${baseUrl}/api/scrapers/holabird-trail-unisex`;
-  const BROOKS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/brooks-sale`;
+  const BROOKS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/brooks-running`;
   const ASICS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/asics-sale`;
   const SHOEBACCA_CLEARANCE_ENDPOINT = `${baseUrl}/api/scrapers/shoebacca-clearance`;
 
@@ -1004,7 +1004,7 @@ module.exports = async (req, res) => {
         endpointUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL ? null : HOLABIRD_TRAIL_UNISEX_ENDPOINT,
       },
       {
-        name: "Brooks Sale",
+        name: "Brooks Running",
         blobUrl: BROOKS_SALE_BLOB_URL || null,
         endpointUrl: BROOKS_SALE_BLOB_URL ? null : BROOKS_SALE_ENDPOINT,
       },
