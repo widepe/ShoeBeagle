@@ -643,10 +643,10 @@ module.exports = async (req, res) => {
   }
 
   // Optional cron auth (recommended)
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
-    return res.status(401).json({ success: false, error: "Unauthorized" });
-  }
+  //const cronSecret = process.env.CRON_SECRET;
+ // if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
+ //   return res.status(401).json({ success: false, error: "Unauthorized" });
+ // }
 
   const overallStartTime = Date.now();
   const runTimestamp = nowIso();
