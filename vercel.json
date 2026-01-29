@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/scrapers/brooks-sale",
+      "path": "/api/scrapers/brooks-running",
       "schedule": "0 9 * * *"
     },
     {
