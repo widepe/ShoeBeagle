@@ -1,8 +1,8 @@
 // api/scrapers/als-sale.js
 // Scrapes ALS Men's + Women's running shoes (all pages)
 //
-// Output schema (11 fields) — MATCHES BROOKS:
-// { listing, brand, model, salePrice, originalPrice, discountPercent,
+// Output schema (11 fields) — CANONICAL:
+// { listingName, brand, model, salePrice, originalPrice, discountPercent,
 //   store, listingURL, imageURL, gender, shoeType }
 //
 // STRICT RULES:
@@ -81,17 +81,35 @@ function cleanTitle(t) {
   return (t || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function splitBrandModel(listing) {
-  const t = cleanTitle(listing);
-  if (!t) return {};
+function splitBrandModel(listingName) {
+  const t = cleanTitle(listingName);
+  if (!t) return { brand: "", model: "" };
+
+  // A bit safer for multi-word brands
+  const KNOWN_MULTI = [
+    "New Balance",
+    "Under Armour",
+    "Mount to Coast",
+    "Brooks Running",
+    "Topo Athletic",
+  ];
+
+  for (const b of KNOWN_MULTI) {
+    const re = new RegExp(`^${b}\\b`, "i");
+    if (re.test(t)) {
+      const model = t.replace(re, "").trim().replace(/^[-:,]\s*/, "");
+      return { brand: b, model: model || t };
+    }
+  }
+
   const brand = t.split(" ")[0];
   let model = t.replace(new RegExp("^" + brand + "\\s+", "i"), "").trim();
   model = model.replace(/\s+-\s+(men's|women's)\s*$/i, "").trim();
   return { brand, model };
 }
 
-function detectShoeType(listing) {
-  const t = String(listing || "").toLowerCase();
+function detectShoeType(listingName) {
+  const t = String(listingName || "").toLowerCase();
   if (t.includes("trail")) return "trail";
   if (t.includes("track") || t.includes("spike")) return "track";
   return "road";
@@ -112,9 +130,9 @@ function extractDeals(html, gender) {
   links.each((_, a) => {
     const $a = $(a);
 
-    const listing = cleanTitle($a.text());
+    const listingName = cleanTitle($a.text());
     const listingURL = absolutize($a.attr("href"));
-    if (!listing || !listingURL) return;
+    if (!listingName || !listingURL) return;
 
     // Find a reasonable "card" root to look for prices/images
     let $card = $a.closest('div[class*="product"], li[class*="product"], article');
@@ -125,10 +143,11 @@ function extractDeals(html, gender) {
 
     const imageURL = absolutize(
       $card.find("img").first().attr("src") ||
-        $card.find("img").first().attr("data-src")
+        $card.find("img").first().attr("data-src") ||
+        $card.find("img").first().attr("data-original")
     );
 
-    const { brand, model } = splitBrandModel(listing);
+    const { brand, model } = splitBrandModel(listingName);
     if (!brand || !model) return;
 
     const discountPercent = computeDiscountPercent(
@@ -137,7 +156,7 @@ function extractDeals(html, gender) {
     );
 
     deals.push({
-      listing,
+      listingName,
       brand,
       model,
       salePrice: priceData.salePrice,
@@ -147,7 +166,7 @@ function extractDeals(html, gender) {
       listingURL,
       imageURL: imageURL || null,
       gender,
-      shoeType: detectShoeType(listing),
+      shoeType: detectShoeType(listingName),
     });
   });
 
