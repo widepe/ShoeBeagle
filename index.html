@@ -253,9 +253,12 @@
       min-width: 80px;
     }
     .search-btn:hover { background: #1a3661; }
+
+    /* UPDATED: disabled is still "blocked", but not faded */
     .search-btn:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
+      opacity: 1;
+      cursor: pointer;
+      pointer-events: none; /* prevents clicking */
     }
 
     .status-message {
@@ -545,6 +548,25 @@
       }
     }
 
+    /* Load more UI */
+    .load-more-wrap{
+      width:100%;
+      display:flex;
+      justify-content:center;
+      margin: 1rem 0 0.5rem;
+    }
+
+    .load-more-btn{
+      height: 42px;
+      padding: 0 1.25rem;
+      border-radius: 0.75rem;
+      border: 1px solid #214478ff;
+      background: #214478ff;
+      color:#fff;
+      font-weight:700;
+    }
+    .load-more-btn:hover{ background:#1a3661; }
+
     .disclaimer {
       font-size: 0.8rem;
       color: #555;
@@ -606,6 +628,7 @@
         </button>
         <div id="menuDropdown" class="menu-dropdown">
           <a href="/pages/myalerts.html">My Alerts</a>
+          <a href="/pages/setalert.html">Set Alert</a>
         </div>
       </div>
     </form>
@@ -640,6 +663,12 @@
       </div>
 
       <div class="shoe-grid" id="results"></div>
+
+      <!-- Load More (search results) -->
+      <div class="load-more-wrap" id="loadMoreWrap" style="display:none;">
+        <button type="button" class="load-more-btn" id="loadMoreBtn">Load More…</button>
+      </div>
+
       <p class="disclaimer">Shoe Beagle does not sell products directly and is not responsible for changes in price, availability, or shipping terms on retailer sites.</p>
     </div>
 
@@ -674,6 +703,12 @@
     const filtersEl = document.getElementById("filters");
     const genderChips = document.getElementById("genderChips");
     const typeChips = document.getElementById("typeChips");
+
+    // Pagination
+    const PAGE_SIZE = 12;
+    let visibleCount = 0;
+    const loadMoreWrap = document.getElementById("loadMoreWrap");
+    const loadMoreBtn = document.getElementById("loadMoreBtn");
 
     let currentSearch = { brand: "", model: "" };
     let lastSearchResults = [];
@@ -1203,18 +1238,38 @@
       });
     }
 
-    function renderFilteredResults() {
+    // UPDATED: paginated render + new status message format
+    function renderFilteredResults(resetPagination = true) {
       const filtered = applyFilters(lastSearchResults);
 
-      resultsEl.innerHTML = "";
-      filtered.forEach(item => resultsEl.appendChild(createDealCard(item)));
+      if (resetPagination) visibleCount = PAGE_SIZE;
+      const shown = filtered.slice(0, visibleCount);
 
-      const displayQuery = [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ");
+      resultsEl.innerHTML = "";
+      shown.forEach(item => resultsEl.appendChild(createDealCard(item)));
+
+      const displayQuery = [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() || "all shoes";
+
       if (!filtered.length) {
         statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
+        if (loadMoreWrap) loadMoreWrap.style.display = "none";
         return;
       }
-      statusMessageEl.textContent = `Showing ${filtered.length} deal${filtered.length === 1 ? "" : "s"} for ${displayQuery}.`;
+
+      statusMessageEl.textContent =
+        `Showing ${shown.length} of ${filtered.length} deal${filtered.length === 1 ? "" : "s"} for ${displayQuery}.`;
+
+      if (loadMoreWrap) {
+        loadMoreWrap.style.display = (shown.length < filtered.length) ? "flex" : "none";
+      }
+    }
+
+    // Load more handler
+    if (loadMoreBtn) {
+      loadMoreBtn.addEventListener("click", () => {
+        visibleCount += PAGE_SIZE;
+        renderFilteredResults(false);
+      });
     }
 
     if (genderChips) {
@@ -1223,7 +1278,7 @@
         if (!btn) return;
         selectedGender = normalizeEnum(btn.dataset.gender);
         setActiveChip(genderChips, btn);
-        renderFilteredResults();
+        renderFilteredResults(true);
       });
     }
 
@@ -1233,7 +1288,7 @@
         if (!btn) return;
         selectedShoeType = normalizeEnum(btn.dataset.type);
         setActiveChip(typeChips, btn);
-        renderFilteredResults();
+        renderFilteredResults(true);
       });
     }
 
@@ -1427,6 +1482,7 @@
 
       statusMessageEl.textContent = "Searching deals…";
       resultsEl.innerHTML = "";
+      if (loadMoreWrap) loadMoreWrap.style.display = "none";
       dailyDeals.style.display = "none";
       if (filtersEl) filtersEl.style.display = "none";
 
@@ -1452,6 +1508,7 @@
       if (!results.length) {
         statusMessageEl.textContent = `No results found for ${displayQuery}.`;
         if (filtersEl) filtersEl.style.display = "none";
+        if (loadMoreWrap) loadMoreWrap.style.display = "none";
         dailyDeals.style.display = "block";
         return;
       }
@@ -1475,7 +1532,9 @@
       }
 
       if (filtersEl) filtersEl.style.display = "flex";
-      renderFilteredResults();
+
+      // UPDATED: initial render uses pagination
+      renderFilteredResults(true);
     });
 
     // Keep Fetch enabled/disabled while typing
