@@ -4,7 +4,8 @@
 // - Handles gt2000 / gt-2000 / gt 2000 / 2000
 // - Handles prefix tolerance: asic -> asics
 // - Scores + sorts results (best matches first)
-// - Keeps your: rate limiting, requestId, caching, blob loading, schema mapping
+// - Keeps your: rate limiting, requestId, caching, blob loading
+// - ✅ RETURNS CANONICAL 11-FIELD SCHEMA (matches merge-deals + UI)
 
 const { list } = require("@vercel/blob");
 
@@ -48,10 +49,9 @@ function queryTokensFromRaw(rawQuery) {
   if (tokens.length === 1 && squashedQuery.length >= 4 && /^[a-z0-9]+$/.test(squashedQuery)) {
     const nums = squashedQuery.match(/\d+/g) || [];
     const letters = squashedQuery.match(/[a-z]+/g) || [];
-    // Only add short letter chunks (gt) if present
     const extras = [
-      ...letters.filter(x => x.length >= 2 && x.length <= 6),
-      ...nums.filter(x => x.length >= 2),
+      ...letters.filter((x) => x.length >= 2 && x.length <= 6),
+      ...nums.filter((x) => x.length >= 2),
     ];
     return Array.from(new Set([...tokens, ...extras])).filter(isMeaningfulToken);
   }
@@ -65,7 +65,8 @@ function queryTokensFromRaw(rawQuery) {
 function buildIndex(deal) {
   const brand = deal.brand || "";
   const model = deal.model || "";
-  const title = deal.title || "";
+  // ✅ Canonical title field is listingName (fallback to title/name if any legacy source leaks through)
+  const title = deal.listingName || deal.title || deal.name || "";
 
   const combined = `${brand} ${model} ${title}`;
   const tokens = tokenize(combined);
@@ -80,9 +81,8 @@ function buildIndex(deal) {
 function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
   let score = 0;
 
-  // Helpers
   const hasExact = (t) => idx.tokenSet.has(t);
-  const hasPrefix = (t) => idx.tokens.some(dt => dt.startsWith(t));
+  const hasPrefix = (t) => idx.tokens.some((dt) => dt.startsWith(t));
   const hasSquashed = (qSquashed) => idx.squashedCombined.includes(qSquashed);
 
   // --- Brand field (if provided) should be relatively strong ---
@@ -94,10 +94,9 @@ function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
       if (hasPrefix(t)) { score += 12; brandHits++; continue; } // asic -> asics
     }
 
-    // Require at least one brand hit if brand was provided (prevents weird matches)
+    // Require at least one brand hit if brand was provided
     if (brandHits === 0) return 0;
 
-    // Bonus if most brand tokens hit
     score += Math.floor((brandHits / brandTokens.length) * 10);
   }
 
@@ -114,8 +113,11 @@ function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
     for (const t of modelTokens) {
       if (hasExact(t)) { score += /^\d+$/.test(t) ? 18 : 14; modelHits++; continue; }
       if (hasPrefix(t)) { score += 9; modelHits++; continue; }
-      // numeric partial: "200" helps "2000" a bit, but only if token length >=2
-      if (/^\d+$/.test(t) && t.length >= 2 && idx.tokens.some(dt => /^\d+$/.test(dt) && dt.startsWith(t))) {
+      if (
+        /^\d+$/.test(t) &&
+        t.length >= 2 &&
+        idx.tokens.some((dt) => /^\d+$/.test(dt) && dt.startsWith(t))
+      ) {
         score += 7;
         modelHits++;
         continue;
@@ -132,7 +134,6 @@ function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
   if (queryTokens.length) {
     let hits = 0;
 
-    // Squashed full-query match can boost for glued user input like "gt2000"
     const qSquashed = squash(queryTokens.join(" "));
     if (qSquashed && qSquashed.length >= 4 && hasSquashed(qSquashed)) {
       score += 18;
@@ -145,13 +146,11 @@ function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
     }
 
     // For query-only searches, require a minimum hit rate
-    // (prevents a single tiny token from matching everything)
     if (!brandTokens.length && !modelTokens.length) {
       const required = queryTokens.length === 1 ? 1 : Math.ceil(queryTokens.length * 0.6);
       if (hits < required) return 0;
     }
 
-    // Bonus for coverage
     score += Math.floor((hits / queryTokens.length) * 12);
   }
 
@@ -226,6 +225,14 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
+/* ------------------------------- Helpers -------------------------------- */
+
+function safeNum(x) {
+  if (x == null) return null;
+  const n = typeof x === "string" ? parseFloat(String(x).replace(/,/g, "")) : Number(x);
+  return Number.isFinite(n) ? n : null;
+}
+
 /* ------------------------------- Handler -------------------------------- */
 
 module.exports = async (req, res) => {
@@ -248,11 +255,8 @@ module.exports = async (req, res) => {
     // NEW style: single query string
     const rawQuery = req.query && req.query.query ? req.query.query : "";
 
-    // Tokenize inputs (keep as close to user intent as possible)
     const brandTokens = tokenize(rawBrand).filter(isMeaningfulToken);
     const modelTokens = tokenize(rawModel).filter(isMeaningfulToken);
-
-    // For query=, we do slightly smarter token extraction (handles gt2000 better)
     const queryTokens = queryTokensFromRaw(rawQuery).filter(isMeaningfulToken);
 
     console.log("[/api/search] Request:", {
@@ -278,7 +282,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    const cacheKey = `search:v2:${brandTokens.join(".")}:${modelTokens.join(".")}:${queryTokens.join(".")}`;
+    const cacheKey = `search:v3:${brandTokens.join(".")}:${modelTokens.join(".")}:${queryTokens.join(".")}`;
     const cached = getCached(cacheKey);
     if (cached) {
       console.log("[/api/search] Cache hit");
@@ -325,21 +329,27 @@ module.exports = async (req, res) => {
 
     scored.sort((a, b) => b.score - a.score);
 
+    // ✅ Return CANONICAL SCHEMA FIELDS that your UI expects
     const results = scored
       .slice(0, 24)
-      .map(({ deal, score }) => ({
-        title: deal.title,
-        brand: deal.brand,
-        model: deal.model,
-        salePrice: Number(deal.salePrice),
-        price: deal.price != null ? Number(deal.price) : null,
-        store: deal.store,
-        url: deal.url,
-        image: deal.image || "https://placehold.co/600x400?text=Running+Shoe",
+      .map(({ deal /*, score*/ }) => ({
+        listingName: deal.listingName || deal.title || deal.name || "Running Shoe Deal",
+        brand: deal.brand || "Unknown",
+        model: deal.model || "",
+        salePrice: safeNum(deal.salePrice),
+        originalPrice: safeNum(deal.originalPrice),
+        discountPercent: Number.isFinite(safeNum(deal.discountPercent)) ? Math.round(safeNum(deal.discountPercent)) : 0,
+        store: deal.store || "Unknown",
+        listingURL: deal.listingURL || deal.url || "",
+        imageURL:
+          deal.imageURL ||
+          deal.imageUrl ||
+          deal.image ||
+          deal.img ||
+          deal.thumbnail ||
+          "https://placehold.co/600x400?text=Running+Shoe",
         gender: deal.gender || "unknown",
         shoeType: deal.shoeType || "unknown",
-        // Useful for debugging; remove if you don’t want it exposed:
-        // _score: score,
       }));
 
     setCache(cacheKey, results);
