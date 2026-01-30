@@ -220,7 +220,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Uncomment when ready:
+  // TEMPORARILY TURNED OFF Uncomment when ready:
   // const cronSecret = process.env.CRON_SECRET;
   // if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
   //   return res.status(401).json({ error: "Unauthorized" });
