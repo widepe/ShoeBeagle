@@ -4,30 +4,19 @@ const cheerio = require("cheerio");
 
 const HOLABIRD_BASE = "https://www.holabirdsports.com";
 
-/**
- * Minimal text cleanup.
- * Goal: extract usable text without trying to fully sanitize everything
- * (merge-deals does the heavier normalization/sanitization later).
- */
 function normalizeText(input) {
   if (input == null) return "";
   return String(input).replace(/\s+/g, " ").trim();
 }
 
-/**
- * Hard reject strings that look like injected CSS/widget garbage.
- * This is the key upstream guard that prevents the "#review-stars..." bug.
- */
 function looksLikeCssOrWidgetJunk(s) {
   const t = normalizeText(s);
   if (!t) return true;
 
-  // Common junk patterns
   if (t.length < 4) return true;
   if (/^#review-stars-/i.test(t)) return true;
   if (/oke-sr-count/i.test(t)) return true;
 
-  // CSS-ish signatures (we don't want to output these at all)
   if (t.includes("{") && t.includes("}") && t.includes(":")) return true;
   if (t.startsWith("@media") || t.startsWith(":root")) return true;
   if (/^#[-_a-z0-9]+/i.test(t)) return true;
@@ -97,7 +86,6 @@ function findBestImageUrl($, $link, $container) {
   pushFromImg($link.find("img").first());
   pushFromImg($container.find("img").first());
 
-  // sometimes there are multiple images; first valid wins
   $container.find("img").each((_, el) => pushFromImg($(el)));
 
   return (
@@ -107,7 +95,7 @@ function findBestImageUrl($, $link, $container) {
   );
 }
 
-/** -------------------- Schema helpers (match Brooks/ASICS) -------------------- **/
+/** -------------------- Schema helpers -------------------- **/
 
 function round2(n) {
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
@@ -120,10 +108,6 @@ function computeDiscountPercent(originalPrice, salePrice) {
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
-/**
- * Extract dollar amounts from tile text.
- * This is intentionally simple and "schema strict".
- */
 function extractDollarAmounts(text) {
   if (!text) return [];
   const matches = String(text).match(/\$\s*[\d,]+(?:\.\d{1,2})?/g);
@@ -134,24 +118,17 @@ function extractDollarAmounts(text) {
     .filter(Number.isFinite);
 }
 
-/**
- * returns { salePrice, originalPrice, valid }
- * - salePrice = lower price
- * - originalPrice = higher price
- */
 function extractPricesFromTileText(tileText) {
   let prices = extractDollarAmounts(tileText).filter((p) => p >= 10 && p < 1000);
 
-  // unique by cents
   prices = [...new Set(prices.map((p) => p.toFixed(2)))].map(Number);
 
-  // Holabird tiles tend to have 2 prices; allow up to 4 for safety
   if (prices.length < 2 || prices.length > 4) return { valid: false };
 
   prices.sort((a, b) => b - a);
 
-  const originalPrice = round2(prices[0]); // higher
-  const salePrice = round2(prices[prices.length - 1]); // lower
+  const originalPrice = round2(prices[0]);
+  const salePrice = round2(prices[prices.length - 1]);
 
   if (!(salePrice < originalPrice)) return { valid: false };
 
@@ -165,11 +142,11 @@ function extractBrandAndModel(title) {
   if (!title) return { brand: "Unknown", model: "" };
 
   const brands = [
-    "Mizuno", "Saucony", "HOKA", "Brooks", "ASICS", "New Balance",
-    "On", "Altra", "adidas", "Nike", "Puma", "Salomon", "Diadora",
-    "K-Swiss", "Wilson", "Babolat", "HEAD", "Yonex", "Under Armour",
-    "VEJA", "APL", "Merrell", "Teva", "Reebok", "Skechers", "Mount to Coast",
-    "norda", "inov8", "OOFOS", "Birkenstock", "Kane Footwear", "LANE EIGHT"
+    "Mizuno","Saucony","HOKA","Brooks","ASICS","New Balance",
+    "On","Altra","adidas","Nike","Puma","Salomon","Diadora",
+    "K-Swiss","Wilson","Babolat","HEAD","Yonex","Under Armour",
+    "VEJA","APL","Merrell","Teva","Reebok","Skechers","Mount to Coast",
+    "norda","inov8","OOFOS","Birkenstock","Kane Footwear","LANE EIGHT"
   ];
 
   for (const brand of brands) {
@@ -209,12 +186,8 @@ function detectGender(url, listingName) {
 function detectShoeType(url, listingName) {
   const combined = ((url || "") + " " + (listingName || "")).toLowerCase();
 
-  if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross)\b/i.test(combined)) {
-    return "trail";
-  }
-  if (/\b(track|spike|dragonfly|zoom.*victory|spikes?)\b/i.test(combined)) {
-    return "track";
-  }
+  if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross)\b/i.test(combined)) return "trail";
+  if (/\b(track|spike|dragonfly|zoom.*victory|spikes?)\b/i.test(combined)) return "track";
   return "road";
 }
 
@@ -223,12 +196,6 @@ function randomDelay(min = 250, max = 700) {
   return new Promise((r) => setTimeout(r, wait));
 }
 
-/**
- * Scrapes a Holabird collection.
- * Outputs schema-matched deals:
- * { listingName, brand, model, salePrice, originalPrice, discountPercent,
- *   store, listingURL, imageURL, gender, shoeType }
- */
 async function scrapeHolabirdCollection({
   collectionUrl,
   maxPages = 50,
@@ -266,11 +233,9 @@ async function scrapeHolabirdCollection({
 
       const $container = $link.closest("li, article, div").first();
 
-      // Use raw text (no heavy sanitizing). We only need dollars for extraction.
       const containerText = normalizeText($container.text());
       if (!containerText || !containerText.includes("$")) return;
 
-      // Title extraction (must be real text, not widget junk)
       let title =
         normalizeText($link.text()) ||
         normalizeText($link.find("img").first().attr("alt")) ||
@@ -282,11 +247,18 @@ async function scrapeHolabirdCollection({
       if (!prices.valid) return;
 
       const { brand, model } = extractBrandAndModel(title);
-      const listingName = `${brand} ${model}`.trim();
+
+      // ✅ Fix #1: better listingName fallback
+      const listingName =
+        brand && brand !== "Unknown" && model
+          ? `${brand} ${model}`.trim()
+          : title;
 
       const salePrice = prices.salePrice;
       const originalPrice = prices.originalPrice;
-      const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+
+      // ✅ Fix #2: keep schema numeric (never null)
+      const discountPercent = computeDiscountPercent(originalPrice, salePrice) ?? 0;
 
       deals.push({
         listingName,
