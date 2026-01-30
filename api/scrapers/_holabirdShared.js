@@ -107,6 +107,19 @@ function findBestImageUrl($, $link, $container) {
   );
 }
 
+/** -------------------- Schema helpers (match Brooks/ASICS) -------------------- **/
+
+function round2(n) {
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+
+function computeDiscountPercent(originalPrice, salePrice) {
+  if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return null;
+  if (originalPrice <= 0 || salePrice <= 0) return null;
+  if (salePrice >= originalPrice) return 0;
+  return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+}
+
 /**
  * Extract dollar amounts from tile text.
  * This is intentionally simple and "schema strict".
@@ -122,10 +135,9 @@ function extractDollarAmounts(text) {
 }
 
 /**
- * NEW-SCHEMA STRICT:
- * returns { salePrice, price, valid }
+ * returns { salePrice, originalPrice, valid }
  * - salePrice = lower price
- * - price = original/MSRP (higher price)
+ * - originalPrice = higher price
  */
 function extractPricesFromTileText(tileText) {
   let prices = extractDollarAmounts(tileText).filter((p) => p >= 10 && p < 1000);
@@ -138,15 +150,15 @@ function extractPricesFromTileText(tileText) {
 
   prices.sort((a, b) => b - a);
 
-  const price = prices[0]; // higher
-  const salePrice = prices[prices.length - 1]; // lower
+  const originalPrice = round2(prices[0]); // higher
+  const salePrice = round2(prices[prices.length - 1]); // lower
 
-  if (!(salePrice < price)) return { valid: false };
+  if (!(salePrice < originalPrice)) return { valid: false };
 
-  const pct = ((price - salePrice) / price) * 100;
+  const pct = ((originalPrice - salePrice) / originalPrice) * 100;
   if (pct < 5 || pct > 90) return { valid: false };
 
-  return { salePrice, price, valid: true };
+  return { salePrice, originalPrice, valid: true };
 }
 
 function extractBrandAndModel(title) {
@@ -180,9 +192,9 @@ function extractBrandAndModel(title) {
   return { brand: "Unknown", model: title };
 }
 
-function detectGender(url, title) {
+function detectGender(url, listingName) {
   const urlLower = (url || "").toLowerCase();
-  const combined = (urlLower + " " + (title || "").toLowerCase()).trim();
+  const combined = (urlLower + " " + (listingName || "").toLowerCase()).trim();
 
   if (/gender_mens|\/mens[\/-]|men-/.test(urlLower)) return "mens";
   if (/gender_womens|\/womens[\/-]|women-/.test(urlLower)) return "womens";
@@ -194,8 +206,8 @@ function detectGender(url, title) {
   return "unknown";
 }
 
-function detectShoeType(url, title) {
-  const combined = ((url || "") + " " + (title || "")).toLowerCase();
+function detectShoeType(url, listingName) {
+  const combined = ((url || "") + " " + (listingName || "")).toLowerCase();
 
   if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross)\b/i.test(combined)) {
     return "trail";
@@ -212,9 +224,10 @@ function randomDelay(min = 250, max = 700) {
 }
 
 /**
- * Scrapes a Holabird "collections/shoe-deals" collection.
- * Outputs NEW SCHEMA STRICT deals:
- * {title, brand, model, salePrice, price, store, url, image, gender, shoeType}
+ * Scrapes a Holabird collection.
+ * Outputs schema-matched deals:
+ * { listingName, brand, model, salePrice, originalPrice, discountPercent,
+ *   store, listingURL, imageURL, gender, shoeType }
  */
 async function scrapeHolabirdCollection({
   collectionUrl,
@@ -248,8 +261,8 @@ async function scrapeHolabirdCollection({
       const href = $link.attr("href");
       if (!href || href.includes("#")) return;
 
-      const productUrl = absolutizeUrl(href);
-      if (!productUrl || seen.has(productUrl)) return;
+      const listingURL = absolutizeUrl(href);
+      if (!listingURL || seen.has(listingURL)) return;
 
       const $container = $link.closest("li, article, div").first();
 
@@ -269,21 +282,27 @@ async function scrapeHolabirdCollection({
       if (!prices.valid) return;
 
       const { brand, model } = extractBrandAndModel(title);
+      const listingName = `${brand} ${model}`.trim();
+
+      const salePrice = prices.salePrice;
+      const originalPrice = prices.originalPrice;
+      const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
       deals.push({
-        title,
+        listingName,
         brand,
         model,
-        salePrice: prices.salePrice,
-        price: prices.price,
+        salePrice,
+        originalPrice,
+        discountPercent,
         store: "Holabird Sports",
-        url: productUrl,
-        image: findBestImageUrl($, $link, $container),
-        gender: detectGender(productUrl, title),
-        shoeType: detectShoeType(productUrl, title),
+        listingURL,
+        imageURL: findBestImageUrl($, $link, $container),
+        gender: detectGender(listingURL, listingName),
+        shoeType: detectShoeType(listingURL, listingName),
       });
 
-      seen.add(productUrl);
+      seen.add(listingURL);
       found++;
     });
 
@@ -304,8 +323,8 @@ function dedupeByUrl(deals) {
   const out = [];
   const seen = new Set();
   for (const d of deals || []) {
-    if (!d?.url || seen.has(d.url)) continue;
-    seen.add(d.url);
+    if (!d?.listingURL || seen.has(d.listingURL)) continue;
+    seen.add(d.listingURL);
     out.push(d);
   }
   return out;
