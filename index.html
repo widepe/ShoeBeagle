@@ -815,27 +815,26 @@
       }
     }
 
+    // UPDATED: uses schema: salePrice, originalPrice, discountPercent
     function getDiscountInfo(item) {
-      const current = Number(item.salePrice ?? item.price);
-      const original = Number(item.price ?? item.originalPrice);
+      const current = Number(item.salePrice);
+      const original = Number(item.originalPrice);
 
       if (Number.isFinite(current) && Number.isFinite(original) && original > 0 && current < original) {
         const pct = Math.round(((original - current) / original) * 100);
         return { hasDiscount: true, current: current.toFixed(2), original: original.toFixed(2), percent: pct };
       }
 
-      if (Number.isFinite(current) && typeof item.discount === "string" && item.discount.includes("%")) {
-        const m = item.discount.match(/(-?\d+(?:\.\d+)?)%/);
-        if (m) {
-          const pct = Math.abs(Number(m[1]));
-          if (Number.isFinite(pct) && pct > 0 && pct < 100) {
-            const origGuess = current / (1 - pct / 100);
-            if (Number.isFinite(origGuess) && origGuess > current) {
-              return { hasDiscount: true, current: current.toFixed(2), original: origGuess.toFixed(2), percent: Math.round(pct) };
-            }
-          }
+      const pct2 = Number(item.discountPercent);
+      if (Number.isFinite(current) && Number.isFinite(pct2) && pct2 > 0 && pct2 < 100) {
+        // If originalPrice is missing, you can estimate it
+        const origGuess = current / (1 - pct2 / 100);
+        if (Number.isFinite(origGuess) && origGuess > current) {
+          return { hasDiscount: true, current: current.toFixed(2), original: origGuess.toFixed(2), percent: Math.round(pct2) };
         }
+        return { hasDiscount: true, current: current.toFixed(2), original: "", percent: Math.round(pct2) };
       }
+
       return { hasDiscount: false };
     }
 
@@ -967,7 +966,6 @@
       }
 
       // Accept only "close enough" corrections
-      // (short inputs can be noisy; keep threshold tight)
       const len = q.length;
       const threshold = len <= 4 ? 1 : (len <= 7 ? 2 : 3);
 
@@ -1302,10 +1300,12 @@
       const link = document.createElement("a");
       link.className = "card-link";
 
-      const safeUrl = isValidRetailerUrl(item.url) ? item.url : '#';
-      if (safeUrl === '#' && item.url) console.warn('Blocked untrusted retailer URL:', item.url);
+      // UPDATED: schema uses listingURL
+      const listingUrl = item.listingURL;
+      const safeLink = isValidRetailerUrl(listingUrl) ? listingUrl : "#";
+      if (safeLink === "#" && listingUrl) console.warn("Blocked untrusted retailer URL:", listingUrl);
 
-      link.href = safeUrl;
+      link.href = safeLink;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
 
@@ -1313,8 +1313,9 @@
       imgWrapper.className = "card-image-wrapper";
 
       const img = document.createElement("img");
-      img.src = item.image ? item.image : "https://placehold.co/600x400?text=Running+Shoe";
-      img.alt = item.title || "Running shoe deal";
+      // UPDATED: schema uses imageURL
+      img.src = item.imageURL ? item.imageURL : "https://placehold.co/600x400?text=Running+Shoe";
+      img.alt = (item.brand && item.model) ? `${item.brand} ${item.model}` : (item.model || item.brand || "Running shoe deal");
       imgWrapper.appendChild(img);
 
       if (discount.hasDiscount) {
@@ -1371,7 +1372,7 @@
       } else if (model) {
         titleDiv.textContent = model;
       } else {
-        titleDiv.textContent = item.title || "Deal";
+        titleDiv.textContent = "Deal";
       }
 
       contentDiv.appendChild(titleDiv);
@@ -1389,15 +1390,14 @@
       const priceSpan = document.createElement("span");
       priceSpan.className = "price";
 
-      const currentPrice = Number(item.salePrice ?? item.price);
+      // UPDATED: schema uses salePrice only
+      const currentPrice = Number(item.salePrice);
       if (Number.isFinite(currentPrice)) priceSpan.textContent = `$${currentPrice.toFixed(2)}`;
-      else {
-        const fallback = item.salePrice ?? item.price;
-        priceSpan.textContent = fallback != null ? String(fallback) : "—";
-      }
+      else priceSpan.textContent = item.salePrice != null ? String(item.salePrice) : "—";
+
       priceRow.appendChild(priceSpan);
 
-      if (discount.hasDiscount) {
+      if (discount.hasDiscount && discount.original) {
         const origSpan = document.createElement("span");
         origSpan.className = "card-original-price";
         origSpan.textContent = `$${discount.original}`;
@@ -1533,7 +1533,7 @@
 
       if (filtersEl) filtersEl.style.display = "flex";
 
-      // UPDATED: initial render uses pagination
+      // initial render uses pagination
       renderFilteredResults(true);
     });
 
