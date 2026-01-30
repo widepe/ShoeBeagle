@@ -1,7 +1,8 @@
 // /api/merge-deals.js
 //
 // Merges: (1) cheerio_scrapers output + (2) apify_scrapers output
-//         + (3) Holabird outputs + (4) Brooks Running + (5) ASICS sale (+ others you add)
+//         + (3) Holabird outputs + (4) Brooks Running + (5) ASICS sale
+//         + (6) Shoebacca clearance + (7) A Snail's Pace sale + (8) ALS sale
 //
 // Writes canonical blob(s) (overwritten each run; addRandomSuffix: false):
 //   1) deals.json                -> sanitized + normalized + filtered + deduped + sorted (SAFE for the app)
@@ -29,6 +30,7 @@
 //   ASICS_SALE_BLOB_URL
 //   SHOEBACCA_CLEARANCE_BLOB_URL
 //   SNAILSPACE_SALE_BLOB_URL
+//   ALS_SALE_BLOB_URL
 //   SCRAPER_DATA_BLOB_URL   <-- (recommended) allows rolling 30-day history to persist
 //
 // Optional fallback (if you do NOT set blob URLs):
@@ -42,6 +44,9 @@
 //     /api/scrapers/asics-sale
 //     /api/scrapers/shoebacca-clearance
 //     /api/scrapers/snailspace-sale
+//     /api/scrapers/als-sale
+//
+// NOTE: Cron secret is temporarily commented out for debugging (search "TEMPORARILY TURNED OFF")
 
 const axios = require("axios");
 const { put } = require("@vercel/blob");
@@ -199,6 +204,7 @@ function storeBaseUrl(store) {
   if (s.includes("road runner")) return "https://www.roadrunnersports.com";
   if (s.includes("shoebacca")) return "https://www.shoebacca.com";
   if (s.includes("snail")) return "https://shop.asnailspace.net";
+  if (s === "als" || s.includes("als ")) return "https://www.als.com";
 
   return "https://example.com";
 }
@@ -227,9 +233,7 @@ function sanitizeDeal(raw) {
   const model = cleanLooseText(modelRaw) || "";
 
   // URLs: broaden aliases to prevent misses
-  let listingURL = String(
-    raw.listingURL ?? raw.listingUrl ?? raw.url ?? raw.href ?? ""
-  ).trim();
+  let listingURL = String(raw.listingURL ?? raw.listingUrl ?? raw.url ?? raw.href ?? "").trim();
   if (listingURL) listingURL = absolutizeUrl(listingURL, base);
 
   let imageURL = null;
@@ -270,9 +274,7 @@ function sanitizeDeal(raw) {
     }
   }
 
-  const safeListingName =
-    listingName || normalizeWhitespace(`${brand} ${model}`) || "Running Shoe";
-
+  const safeListingName = listingName || normalizeWhitespace(`${brand} ${model}`) || "Running Shoe";
   const safeName = looksLikeCssOrJunk(safeListingName) ? "" : safeListingName;
 
   const canonical = {
@@ -290,9 +292,7 @@ function sanitizeDeal(raw) {
   };
 
   const computed = computeDiscountPercent(canonical);
-  const hasNumericDiscount =
-    Number.isFinite(discountPercent) && discountPercent >= 0 && discountPercent <= 95;
-
+  const hasNumericDiscount = Number.isFinite(discountPercent) && discountPercent >= 0 && discountPercent <= 95;
   canonical.discountPercent = hasNumericDiscount ? Math.round(discountPercent) : Math.round(computed);
 
   return canonical;
@@ -709,10 +709,7 @@ function computeStats(deals, storeMetadata) {
     return acc;
   }, {});
 
-  let healthyCount = 0,
-    warningCount = 0,
-    criticalCount = 0;
-
+  let healthyCount = 0, warningCount = 0, criticalCount = 0;
   for (const s of storesTable) {
     if (s.health.status === "healthy") healthyCount++;
     else if (s.health.status === "warning") warningCount++;
@@ -866,7 +863,9 @@ function toDailyDealShape(deal) {
 function computeTwelveDailyDeals(allDeals, seedStr) {
   const dateStr = seedStr || getDateSeedStringUTC();
 
-  const qualityDeals = (allDeals || []).filter((d) => hasGoodImage(d) && isDiscountedDeal(d) && d.originalPrice && d.salePrice);
+  const qualityDeals = (allDeals || []).filter(
+    (d) => hasGoodImage(d) && isDiscountedDeal(d) && d.originalPrice && d.salePrice
+  );
 
   const workingPool = qualityDeals.length >= 12 ? qualityDeals : (allDeals || []).filter(hasGoodImage);
 
@@ -935,11 +934,8 @@ function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
     const records = [];
     for (const [name, r] of Object.entries(payload.scraperResults)) {
       const ok =
-        typeof r?.success === "boolean"
-          ? r.success
-          : typeof r?.ok === "boolean"
-          ? r.ok
-          : true;
+        typeof r?.success === "boolean" ? r.success :
+        typeof r?.ok === "boolean" ? r.ok : true;
 
       const count = Number.isFinite(r?.count) ? r.count : 0;
       const dMs = parseDurationMs(r?.durationMs || r?.duration || null) ?? durationMs ?? null;
@@ -1021,6 +1017,7 @@ module.exports = async (req, res) => {
   const ASICS_SALE_BLOB_URL = process.env.ASICS_SALE_BLOB_URL || "";
   const SHOEBACCA_CLEARANCE_BLOB_URL = process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "";
   const SNAILSPACE_SALE_BLOB_URL = process.env.SNAILSPACE_SALE_BLOB_URL || "";
+  const ALS_SALE_BLOB_URL = process.env.ALS_SALE_BLOB_URL || "";
 
   const SCRAPER_DATA_BLOB_URL = process.env.SCRAPER_DATA_BLOB_URL || "";
 
@@ -1037,6 +1034,7 @@ module.exports = async (req, res) => {
   const ASICS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/asics-sale`;
   const SHOEBACCA_CLEARANCE_ENDPOINT = `${baseUrl}/api/scrapers/shoebacca-clearance`;
   const SNAILSPACE_SALE_ENDPOINT = `${baseUrl}/api/scrapers/snailspace-sale`;
+  const ALS_SALE_ENDPOINT = `${baseUrl}/api/scrapers/als-sale`;
 
   try {
     console.log("[MERGE] Starting merge:", new Date().toISOString());
@@ -1087,6 +1085,11 @@ module.exports = async (req, res) => {
         name: "A Snail's Pace Sale",
         blobUrl: SNAILSPACE_SALE_BLOB_URL || null,
         endpointUrl: SNAILSPACE_SALE_BLOB_URL ? null : SNAILSPACE_SALE_ENDPOINT,
+      },
+      {
+        name: "ALS Sale",
+        blobUrl: ALS_SALE_BLOB_URL || null,
+        endpointUrl: ALS_SALE_BLOB_URL ? null : ALS_SALE_ENDPOINT,
       },
     ];
 
@@ -1201,10 +1204,10 @@ module.exports = async (req, res) => {
 
     const todayRecords = [];
     for (const src of sources) {
-      const name = src.name;
-      const ok = !!perSource[name]?.ok;
-      const meta = perSourceMeta[name] || null;
-      todayRecords.push(...buildTodayScraperRecords({ sourceName: name, meta, perSourceOk: ok }));
+      const srcName = src.name;
+      const ok = !!perSource[srcName]?.ok;
+      const meta = perSourceMeta[srcName] || null;
+      todayRecords.push(...buildTodayScraperRecords({ sourceName: srcName, meta, perSourceOk: ok }));
     }
 
     let existingScraperData = null;
