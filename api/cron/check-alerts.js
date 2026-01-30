@@ -14,6 +14,9 @@
 // - Matching is brand/model fuzzy-ish (token prefix + squashed fallback)
 // - Price match uses salePrice <= targetPrice
 // - Email shows salePrice + strikethrough originalPrice (when original > sale)
+// - Email includes: Manage My Alerts + Search for More Deals buttons
+// - Email footer includes: "This is an automated email..." line
+// - Images are displayed in a 4:3 container (240x180) without warping (object-fit: contain)
 
 const { list, put } = require("@vercel/blob");
 const sgMail = require("@sendgrid/mail");
@@ -67,7 +70,6 @@ function money(n) {
 function safeUrl(u) {
   const s = String(u || "").trim();
   if (!s) return "";
-  // Basic allowlist: http(s) only
   if (!/^https?:\/\//i.test(s)) return "";
   return s;
 }
@@ -125,79 +127,88 @@ function formatActiveText(daysLeft) {
 
 function generateMatchEmail(alert, matches, daysLeft) {
   const sorted = [...matches].sort(
-    (a, b) => Number(a.salePrice) - Number(b.salePrice)
+    (a, b) => toNumber(a.salePrice) - toNumber(b.salePrice)
   );
 
   const topDeals = sorted.slice(0, 12);
 
-  const dealsHtml = topDeals.map(deal => {
-    const sale = Number(deal.salePrice);
-    const original = Number(deal.originalPrice);
-    const showOriginal = Number.isFinite(original) && original > sale;
+  const dealsHtml = topDeals
+    .map((deal) => {
+      const sale = toNumber(deal.salePrice);
+      const original = toNumber(deal.originalPrice);
+      const showOriginal =
+        Number.isFinite(original) && Number.isFinite(sale) && original > sale;
 
-    return `
-      <div style="border:1px solid #ddd; border-radius:12px; padding:16px; margin-bottom:16px; background:#f9f9f9;">
-        
-        <div style="
-          width:100%;
-          max-width:240px;
-          aspect-ratio:4 / 3;
-          background:#ffffff;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          margin-bottom:12px;
-          border-radius:8px;
-          overflow:hidden;
-        ">
-          <img
-            src="${deal.imageURL}"
-            alt="${deal.brand} ${deal.model}"
-            style="
-              max-width:100%;
-              max-height:100%;
-              object-fit:contain;
-              display:block;
-            "
-          />
-        </div>
+      const brand = escapeHtml(deal.brand || "");
+      const model = escapeHtml(deal.model || "");
+      const store = escapeHtml(deal.store || "");
 
-        <h3 style="margin:0 0 8px; color:#214478; font-size:16px;">
-          ${deal.brand} ${deal.model}
-        </h3>
+      const img = safeUrl(deal.imageURL);
+      const url = safeUrl(deal.listingURL);
 
-        <p style="margin:4px 0; font-size:14px;">
-          <strong>Store:</strong> ${deal.store}
-        </p>
+      return `
+        <div style="border:1px solid #ddd; border-radius:12px; padding:16px; margin-bottom:16px; background:#f9f9f9;">
 
-        <p style="margin:6px 0; font-size:14px;">
-          <strong>Price:</strong>
-          <span style="color:#dc3545; font-size:18px; font-weight:bold;">
-            $${sale.toFixed(2)}
-          </span>
+          <div style="
+            width:240px;
+            height:180px; /* 4:3 */
+            background:#ffffff;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            margin:0 0 12px 0;
+            border-radius:8px;
+            overflow:hidden;
+          ">
+            ${
+              img
+                ? `<img src="${img}" alt="${brand} ${model}" style="max-width:100%; max-height:100%; object-fit:contain; display:block; border:0;" />`
+                : ""
+            }
+          </div>
+
+          <h3 style="margin:0 0 8px; color:#214478; font-size:16px;">
+            ${brand} ${model}
+          </h3>
+
+          <p style="margin:4px 0; font-size:14px;">
+            <strong>Store:</strong> ${store}
+          </p>
+
+          <p style="margin:6px 0; font-size:14px;">
+            <strong>Price:</strong>
+            <span style="color:#dc3545; font-size:18px; font-weight:bold;">
+              $${money(sale)}
+            </span>
+            ${
+              showOriginal
+                ? `<span style="text-decoration:line-through; color:#999; margin-left:8px;">
+                     $${money(original)}
+                   </span>`
+                : ""
+            }
+          </p>
+
           ${
-            showOriginal
-              ? `<span style="text-decoration:line-through; color:#999; margin-left:8px;">
-                   $${original.toFixed(2)}
-                 </span>`
+            url
+              ? `<a href="${url}"
+                   style="display:inline-block; margin-top:10px; padding:10px 18px;
+                          background:#214478; color:#fff; text-decoration:none;
+                          border-radius:8px; font-size:14px;">
+                  View Deal
+                </a>`
               : ""
           }
-        </p>
+        </div>
+      `;
+    })
+    .join("");
 
-        <a href="${deal.listingURL}"
-           style="display:inline-block; margin-top:10px; padding:10px 18px;
-                  background:#214478; color:#fff; text-decoration:none;
-                  border-radius:8px; font-size:14px;">
-          View Deal
-        </a>
-      </div>
-    `;
-  }).join("");
+  const activeText = formatActiveText(daysLeft);
 
-  const activeText =
-    daysLeft > 0
-      ? `for the next ${daysLeft} day${daysLeft === 1 ? "" : "s"}`
-      : "until the end of today";
+  const alertBrand = escapeHtml(alert.brand || "");
+  const alertModel = escapeHtml(alert.model || "");
+  const emailParam = encodeURIComponent(alert.email || "");
 
   return `
 <!DOCTYPE html>
@@ -214,16 +225,16 @@ function generateMatchEmail(alert, matches, daysLeft) {
         </a>
       </div>
 
-      <h1 style="color:#214478; font-size:24px;">
+      <h1 style="color:#214478; font-size:24px; margin:0 0 12px;">
         Great News! Marty Found Your Shoes!
       </h1>
 
-      <p style="font-size:16px; line-height:1.6;">
+      <p style="font-size:16px; line-height:1.6; margin:0 0 18px;">
         We found <strong>${matches.length}</strong> deal${matches.length === 1 ? "" : "s"} for
-        <strong>${alert.brand} ${alert.model}</strong> at or below your target price.
+        <strong>${alertBrand} ${alertModel}</strong> at or below your target price.
       </p>
 
-      <h2 style="color:#214478; font-size:18px; margin-top:24px;">
+      <h2 style="color:#214478; font-size:18px; margin:18px 0 12px;">
         Top Deals
       </h2>
 
@@ -237,7 +248,7 @@ function generateMatchEmail(alert, matches, daysLeft) {
       </div>
 
       <div style="margin-top:22px; text-align:center;">
-        <a href="https://shoebeagle.com/pages/myalerts.html?email=${encodeURIComponent(alert.email)}"
+        <a href="https://shoebeagle.com/pages/myalerts.html?email=${emailParam}"
            style="display:inline-block; padding:10px 22px;
                   background:#214478; color:#fff;
                   text-decoration:none; border-radius:8px; font-size:14px;">
@@ -270,142 +281,6 @@ function generateMatchEmail(alert, matches, daysLeft) {
 `.trim();
 }
 
-
-  const topDeals = sorted.slice(0, 12);
-
-  const dealsHtml = topDeals
-    .map((deal) => {
-      const sale = toNumber(deal.salePrice);
-      const original = toNumber(deal.originalPrice);
-      const showOriginal = Number.isFinite(original) && Number.isFinite(sale) && original > sale;
-
-      const title = `${deal.brand || ""} ${deal.model || ""}`.trim() || "Shoe Deal";
-      const store = escapeHtml(deal.store || "");
-      const url = safeUrl(deal.listingURL);
-      const img = safeUrl(deal.imageURL);
-
-      const discountPercent = toNumber(deal.discountPercent);
-      const discountBadge =
-        Number.isFinite(discountPercent) && discountPercent > 0
-          ? `<span style="display:inline-block; margin-left:10px; padding:4px 8px; background:#dc3545; color:#fff; border-radius:999px; font-size:12px; font-weight:bold;">${Math.round(
-              discountPercent
-            )}% OFF</span>`
-          : "";
-
-      const metaBits = [];
-      if (deal.gender) metaBits.push(escapeHtml(deal.gender));
-      if (deal.shoeType) metaBits.push(escapeHtml(deal.shoeType));
-      const metaLine = metaBits.length
-        ? `<p style="margin:6px 0 0; font-size:13px; color:#666;">${metaBits.join(" • ")}</p>`
-        : "";
-
-      return `
-        <div style="border:1px solid #ddd; border-radius:12px; padding:16px; margin-bottom:16px; background:#f9f9f9;">
-          ${img ? `<img src="${img}" alt="${escapeHtml(title)}" style="max-width:150px; height:auto; border-radius:8px; margin-bottom:12px; border:0;" />` : ""}
-          <h3 style="margin:0 0 10px; color:#214478; font-size:16px; line-height:1.25;">
-            ${escapeHtml(title)}
-            ${discountBadge}
-          </h3>
-          <p style="margin:6px 0; font-size:14px;"><strong>Store:</strong> ${store}</p>
-          <p style="margin:6px 0; font-size:14px;">
-            <strong>Price:</strong>
-            <span style="color:#dc3545; font-size:18px; font-weight:bold;">$${money(sale)}</span>
-            ${
-              showOriginal
-                ? `<span style="text-decoration:line-through; color:#999; margin-left:8px;">$${money(
-                    original
-                  )}</span>`
-                : ""
-            }
-          </p>
-          ${metaLine}
-          ${
-            url
-              ? `<a href="${url}" style="display:inline-block; margin-top:12px; padding:10px 18px; background:#214478; color:#fff; text-decoration:none; border-radius:8px; font-size:14px;">View Deal</a>`
-              : ""
-          }
-        </div>
-      `;
-    })
-    .join("");
-
-  const searchQuery = encodeURIComponent(`${alert.brand || ""} ${alert.model || ""}`.trim());
-  const alertName = escapeHtml(`${alert.brand || ""} ${alert.model || ""}`.trim());
-  const target = toNumber(alert.targetPrice);
-  const targetText = Number.isFinite(target) ? `$${Math.round(target)}` : escapeHtml(alert.targetPrice);
-
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-</head>
-<body style="margin:0; padding:0; font-family:Arial, sans-serif; background-color:#f4ede3;">
-  <div style="max-width:600px; margin:0 auto; padding:20px;">
-    <div style="background:#fff; border-radius:12px; padding:28px; box-shadow:0 2px 6px rgba(0,0,0,0.10);">
-      <div style="text-align:center; margin-bottom:22px;">
-        <a href="https://shoebeagle.com" style="display:inline-block;">
-          <img src="https://shoebeagle.com/images/email_logo.png" alt="Shoe Beagle" style="max-width:300px; height:auto; border:0;" />
-        </a>
-      </div>
-
-      <h1 style="color:#214478; margin:0 0 14px; font-size:24px; line-height:1.2;">
-        Great News! Marty Found Your Shoes!
-      </h1>
-
-      <p style="font-size:16px; line-height:1.6; color:#333; margin:0 0 18px;">
-        He found <strong>${matches.length}</strong> deal${matches.length === 1 ? "" : "s"} for
-        <strong>${alertName}</strong> at, or below, your target price of <strong>${targetText}</strong>.
-      </p>
-
-      <div style="text-align:center; margin:22px 0 10px;">
-        <a href="https://shoebeagle.com/?query=${searchQuery}"
-           style="display:inline-block; padding:14px 34px; background:#28a745; color:#fff; text-decoration:none; border-radius:8px; font-weight:bold; font-size:16px;">
-          Click Here to View Your Deals
-        </a>
-      </div>
-
-      <p style="font-size:14px; color:#666; text-align:center; margin:0 0 22px;">
-        Your search will show matching deals sorted by lowest price first.
-      </p>
-
-      <h2 style="color:#214478; font-size:18px; margin:22px 0 12px;">
-        Top ${Math.min(12, topDeals.length)} Deals (Lowest Price First)
-      </h2>
-
-      ${dealsHtml}
-
-      <div style="margin-top:22px; padding:16px; background:#f4ede3; border-radius:10px;">
-        <p style="margin:0; font-size:14px; color:#333; line-height:1.6;">
-          <strong>Your alert will remain active ${formatActiveText(daysLeft)}</strong> (or until you cancel it).
-          If we find more matches, we'll send you another update.
-        </p>
-      </div>
-
-      <div style="margin-top:22px; padding-top:18px; border-top:1px solid #ddd;">
-        <p style="font-size:14px; color:#666; margin:0 0 12px;">
-          Want to manage or cancel this alert?
-        </p>
-        <a href="https://shoebeagle.com/pages/myalerts.html?email=${encodeURIComponent(alert.email || "")}"
-           style="display:inline-block; padding:10px 22px; background:#214478; color:#fff; text-decoration:none; border-radius:8px; font-size:14px;">
-          Manage My Alerts
-        </a>
-      </div>
-
-      <div style="margin-top:22px; padding-top:18px; border-top:1px solid #ddd; font-size:12px; color:#666;">
-        <p style="margin:0;">
-          Shoe Beagle does not sell products directly and is not responsible for changes in price,
-          availability, or shipping terms on retailer sites.
-        </p>
-      </div>
-    </div>
-  </div>
-</body>
-</html>
-  `.trim();
-}
-
 // -----------------------------
 // Handler
 // -----------------------------
@@ -429,8 +304,11 @@ module.exports = async (req, res) => {
     if (!dealBlobs || dealBlobs.length === 0) throw new Error("Could not locate deals.json");
 
     const dealBlob = dealBlobs.find((b) => b.pathname === "deals.json") || dealBlobs[0];
+
     const dealsResponse = await fetch(dealBlob.url);
-    if (!dealsResponse.ok) throw new Error(`Failed to fetch deals.json (${dealsResponse.status})`);
+    if (!dealsResponse.ok) {
+      throw new Error(`Failed to fetch deals.json (${dealsResponse.status})`);
+    }
 
     const dealsData = await dealsResponse.json();
     const deals = Array.isArray(dealsData.deals) ? dealsData.deals : [];
@@ -451,8 +329,11 @@ module.exports = async (req, res) => {
     }
 
     const alertBlob = alertBlobs.find((b) => b.pathname === "alerts.json") || alertBlobs[0];
+
     const alertsResponse = await fetch(alertBlob.url);
-    if (!alertsResponse.ok) throw new Error(`Failed to fetch alerts.json (${alertsResponse.status})`);
+    if (!alertsResponse.ok) {
+      throw new Error(`Failed to fetch alerts.json (${alertsResponse.status})`);
+    }
 
     const alertsData = await alertsResponse.json();
     let alerts = Array.isArray(alertsData.alerts) ? alertsData.alerts : [];
