@@ -477,7 +477,7 @@
       <!-- Confirmation Panel -->
       <div id="confirmationPanel" class="confirmation-panel">
         <div class="confirmation-header">✓ Alert Set Successfully!</div>
-        
+
         <div class="confirmation-details" id="confirmationDetails"></div>
 
         <div class="confirmation-message">
@@ -485,7 +485,9 @@
         </div>
 
         <div class="confirmation-actions">
-          <button type="button" class="confirmation-btn" id="setAnotherBtn">Set Another Alert?</button>
+          <!-- UPDATED: Button now takes user to My Alerts automatically -->
+          <button type="button" class="confirmation-btn" id="setAnotherBtn">Continue</button>
+
           <a href="/pages/myalerts.html" class="confirmation-btn secondary" id="viewAlertsBtn">View My Alerts</a>
         </div>
       </div>
@@ -582,6 +584,9 @@
     let selectedGender = "both"; // Default to Both
     let isProcessing = false;
 
+    // NEW: remember the last email used to set an alert
+    let lastAlertEmail = "";
+
     // =======================
     // PRICE INPUT - NUMBERS ONLY
     // =======================
@@ -618,14 +623,11 @@
     });
 
     // =======================
-    // SET ANOTHER ALERT BUTTON
+    // CONTINUE BUTTON (GO TO MY ALERTS)
     // =======================
     setAnotherBtn.addEventListener("click", () => {
-      confirmationPanel.classList.remove("show");
-      alertBrand.value = "";
-      alertModel.value = "";
-      alertPrice.value = "";
-      alertBrand.focus();
+      const email = (lastAlertEmail || alertEmail.value || "").trim().toLowerCase();
+      window.location.href = `/pages/myalerts.html${email ? `?email=${encodeURIComponent(email)}` : ""}`;
     });
 
     // Update View My Alerts link with email
@@ -659,13 +661,13 @@
 
     function showConfirmation(brand, model, gender, price) {
       const genderText = gender === "mens" ? "Men's" : gender === "womens" ? "Women's" : "Men's or Women's";
-      
+
       confirmationDetails.innerHTML = `
         <p><strong>Shoe:</strong> ${brand} ${model}</p>
         <p><strong>Gender:</strong> ${genderText}</p>
         <p><strong>Target Price:</strong> $${price} or less</p>
       `;
-      
+
       confirmationPanel.classList.add("show");
     }
 
@@ -694,7 +696,7 @@
         const res = await fetch(API.alerts, {
           method: "POST",
           cache: "no-store",
-          headers: { 
+          headers: {
             "Content-Type": "application/json",
             'Cache-Control': 'no-cache'
           },
@@ -949,7 +951,6 @@
     // =======================
     setAlertForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-
       if (isProcessing) return;
 
       const email = sanitizeInput(alertEmail.value).toLowerCase();
@@ -958,29 +959,32 @@
       const targetPrice = parseInt(String(alertPrice.value || ""), 10);
       const gender = selectedGender;
 
+      // Remember email for redirect button
+      lastAlertEmail = email;
+
       // Validation
-      if (!email || !email.includes("@")) { 
-        showStatus("Please enter a valid email address.", "error"); 
-        return; 
+      if (!email || !email.includes("@")) {
+        showStatus("Please enter a valid email address.", "error");
+        return;
       }
-      if (!brand) { 
-        showStatus("Please enter a shoe brand.", "error"); 
-        return; 
+      if (!brand) {
+        showStatus("Please enter a shoe brand.", "error");
+        return;
       }
-      if (!model) { 
-        showStatus("Please enter a shoe model.", "error"); 
-        return; 
+      if (!model) {
+        showStatus("Please enter a shoe model.", "error");
+        return;
       }
-      if (!targetPrice || targetPrice <= 0) { 
-        showStatus("Please enter a valid target price (whole dollars).", "error"); 
-        return; 
+      if (!targetPrice || targetPrice <= 0) {
+        showStatus("Please enter a valid target price (whole dollars).", "error");
+        return;
       }
 
       isProcessing = true;
       setBusy(true);
 
       try {
-        const result = await apiCreateAlert({ email, brand, model, targetPrice, gender });
+        await apiCreateAlert({ email, brand, model, targetPrice, gender });
 
         // Update View My Alerts button with email
         updateViewAlertsLink(email);
@@ -1011,8 +1015,10 @@
       const params = new URLSearchParams(window.location.search);
       const emailFromQS = params.get("email");
       if (emailFromQS) {
-        alertEmail.value = emailFromQS.trim().toLowerCase();
-        updateViewAlertsLink(emailFromQS);
+        const clean = emailFromQS.trim().toLowerCase();
+        alertEmail.value = clean;
+        lastAlertEmail = clean;
+        updateViewAlertsLink(clean);
       }
     })();
   </script>
