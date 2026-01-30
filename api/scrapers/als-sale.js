@@ -1,7 +1,7 @@
 // api/scrapers/als-sale.js
 // Scrapes ALS Men's + Women's running shoes (all pages)
 //
-// Output schema (11 fields) — CANONICAL:
+// Output schema (canonical 11 fields):
 // { listingName, brand, model, salePrice, originalPrice, discountPercent,
 //   store, listingURL, imageURL, gender, shoeType }
 //
@@ -28,7 +28,7 @@ const WOMEN_URL =
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** -------------------- small helpers -------------------- **/
+/** -------------------- helpers -------------------- **/
 
 function absolutize(url) {
   if (!url || typeof url !== "string") return null;
@@ -41,8 +41,9 @@ function absolutize(url) {
 }
 
 function parsePrice(text) {
-  if (!text || text.includes("-")) return null; // ranges excluded
-  const m = text.replace(/,/g, "").match(/\$([\d]+(?:\.\d{2})?)/);
+  if (!text) return null;
+  // ranges excluded elsewhere; keep parse simple
+  const m = String(text).replace(/,/g, "").match(/\$([\d]+(?:\.\d{2})?)/);
   return m ? parseFloat(m[1]) : null;
 }
 
@@ -57,6 +58,15 @@ function computeDiscountPercent(originalPrice, salePrice) {
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
+function cleanTitle(t) {
+  return (t || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Extract exactly 2 prices from a "card".
+ * - reject explicit ranges like "$89.99 - $129.99"
+ * - require exactly 2 unique prices
+ */
 function extractTwoPricesStrict($el) {
   const text = $el.text().replace(/\s+/g, " ").trim();
 
@@ -77,35 +87,16 @@ function extractTwoPricesStrict($el) {
   return { originalPrice: round2(hi), salePrice: round2(lo) };
 }
 
-function cleanTitle(t) {
-  return (t || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
-}
-
 function splitBrandModel(listingName) {
   const t = cleanTitle(listingName);
-  if (!t) return { brand: "", model: "" };
+  if (!t) return { brand: "Unknown", model: "" };
 
-  // A bit safer for multi-word brands
-  const KNOWN_MULTI = [
-    "New Balance",
-    "Under Armour",
-    "Mount to Coast",
-    "Brooks Running",
-    "Topo Athletic",
-  ];
-
-  for (const b of KNOWN_MULTI) {
-    const re = new RegExp(`^${b}\\b`, "i");
-    if (re.test(t)) {
-      const model = t.replace(re, "").trim().replace(/^[-:,]\s*/, "");
-      return { brand: b, model: model || t };
-    }
-  }
-
+  // Simple heuristic (ALS titles are usually "Brand Model ...")
   const brand = t.split(" ")[0];
   let model = t.replace(new RegExp("^" + brand + "\\s+", "i"), "").trim();
   model = model.replace(/\s+-\s+(men's|women's)\s*$/i, "").trim();
-  return { brand, model };
+
+  return { brand: brand || "Unknown", model: model || "" };
 }
 
 function detectShoeType(listingName) {
@@ -139,21 +130,17 @@ function extractDeals(html, gender) {
     if (!$card.length) $card = $a.parent();
 
     const priceData = extractTwoPricesStrict($card);
-    if (!priceData) return; // must have exactly 2 prices
+    if (!priceData) return;
 
     const imageURL = absolutize(
       $card.find("img").first().attr("src") ||
-        $card.find("img").first().attr("data-src") ||
-        $card.find("img").first().attr("data-original")
+        $card.find("img").first().attr("data-src")
     );
 
     const { brand, model } = splitBrandModel(listingName);
-    if (!brand || !model) return;
+    if (!brand || brand === "Unknown" || !model) return;
 
-    const discountPercent = computeDiscountPercent(
-      priceData.originalPrice,
-      priceData.salePrice
-    );
+    const discountPercent = computeDiscountPercent(priceData.originalPrice, priceData.salePrice);
 
     deals.push({
       listingName,
@@ -220,7 +207,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // TEMPORARILY TURNED OFF Uncomment when ready:
+  // Uncomment when ready:
   // const cronSecret = process.env.CRON_SECRET;
   // if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
   //   return res.status(401).json({ error: "Unauthorized" });
