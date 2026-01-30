@@ -607,7 +607,7 @@
               <th class="sortable" onclick="sortDataQuality('totalDeals')">Total Deals</th>
               <th class="sortable" onclick="sortDataQuality('unknownBrands')">Unknown Brands</th>
               <th class="sortable" onclick="sortDataQuality('unknownModels')">Unknown Models</th>
-              <th class="sortable" onclick="sortDataQuality('noPrice')">No Price</th>
+              <th class="sortable" onclick="sortDataQuality('noOriginalPrice')">No Original Price</th>
               <th class="sortable" onclick="sortDataQuality('noSalePrice')">No Sale Price</th>
               <th class="sortable" onclick="sortDataQuality('badImage')">Bad/Missing Image</th>
               <th class="sortable" onclick="sortDataQuality('badUrl')">Bad/Missing URL</th>
@@ -638,6 +638,19 @@
   </div>
 
   <script>
+    // ============================================================
+    // ShoeBeagle Dashboard
+    //
+    // IMPORTANT:
+    // This dashboard assumes each deal in deals.json uses THIS schema:
+    //
+    //   listingName, brand, model, salePrice, originalPrice, discountPercent,
+    //   store, listingURL, imageURL, gender, shoeType
+    //
+    // It intentionally does NOT rely on old keys like:
+    //   title, price, url, image
+    // ============================================================
+
     // Store scraper URL mapping (canonical store list)
     const SCRAPER_URLS = {
       'Als': 'https://www.als.com/',
@@ -660,6 +673,57 @@
     let CURRENT_STORE_SORT = { column: 'count', direction: 'desc' };
     let CURRENT_DATA_QUALITY_SORT = { column: 'totalDeals', direction: 'desc' };
 
+    // ------------------------------------------------------------
+    // Small helpers
+    // ------------------------------------------------------------
+    function normalizeStore(s) {
+      return String(s || '').trim() || 'Unknown';
+    }
+
+    function normalizeStr(s) {
+      return String(s || '').trim();
+    }
+
+    function formatMoney(n) {
+      const x = Number(n);
+      return Number.isFinite(x) ? `$${x.toFixed(2)}` : "—";
+    }
+
+    function safeNumber(n) {
+      const x = Number(n);
+      return Number.isFinite(x) ? x : 0;
+    }
+
+    function computeDiscountPercent(originalPrice, salePrice) {
+      const o = safeNumber(originalPrice);
+      const s = safeNumber(salePrice);
+      if (o > 0 && s > 0 && o > s) return ((o - s) / o) * 100;
+      return 0;
+    }
+
+    function getDealTitle(d) {
+      // Prefer brand+model. If missing, fall back to listingName.
+      const brand = normalizeStr(d.brand);
+      const model = normalizeStr(d.model);
+      const listingName = normalizeStr(d.listingName);
+      if (brand || model) return [brand, model].filter(Boolean).join(' ');
+      return listingName || 'Deal';
+    }
+
+    function getDealImage(d) {
+      const img = normalizeStr(d.imageURL);
+      if (!img) return "https://placehold.co/600x400?text=Running+Shoe";
+      return img;
+    }
+
+    function getDealUrl(d) {
+      const url = normalizeStr(d.listingURL);
+      return url || "#";
+    }
+
+    // ------------------------------------------------------------
+    // Scraper History (optional)
+    // ------------------------------------------------------------
     async function loadScraperHistory() {
       try {
         const cacheBuster = Date.now();
@@ -782,6 +846,9 @@
       panel.style.display = 'block';
     }
 
+    // ------------------------------------------------------------
+    // Gender breakdown
+    // ------------------------------------------------------------
     function calculateGenderStats(deals) {
       const stats = { mens: 0, womens: 0, unisex: 0, unknown: 0 };
 
@@ -797,6 +864,9 @@
       return stats;
     }
 
+    // ------------------------------------------------------------
+    // Main loader
+    // ------------------------------------------------------------
     async function loadStats() {
       const loading = document.getElementById('loading');
       const error = document.getElementById('error');
@@ -848,8 +918,8 @@
         renderDealsForSelectedStore();
 
         // Debug
-        const unknownBrands = deals.filter(d => (d.brand || '').trim() === 'Unknown' || !(d.brand || '').trim()).length;
-        const uniqueBrands = [...new Set(deals.map(d => (d.brand || 'Unknown').trim()))]
+        const unknownBrands = deals.filter(d => (normalizeStr(d.brand) === 'Unknown' || !normalizeStr(d.brand))).length;
+        const uniqueBrands = [...new Set(deals.map(d => normalizeStr(d.brand) || 'Unknown'))]
           .filter(b => b && b !== 'Unknown')
           .sort();
 
@@ -857,7 +927,7 @@
           <strong>Total deals in array:</strong> ${deals.length}<br>
           <strong>Unknown brands:</strong> ${unknownBrands} (${deals.length ? ((unknownBrands / deals.length) * 100).toFixed(1) : '0.0'}%)<br>
           <strong>Deals by store (from JSON):</strong> ${JSON.stringify(data.dealsByStore)}<br>
-          <strong>Unique stores found:</strong> ${[...new Set(deals.map(d => d.store))].filter(Boolean).join(', ')}<br>
+          <strong>Unique stores found:</strong> ${[...new Set(deals.map(d => normalizeStore(d.store)))].filter(Boolean).join(', ')}<br>
           <strong>Shoe brands found (${uniqueBrands.length}):</strong> ${uniqueBrands.join(', ')}<br><br>
         `;
 
@@ -922,6 +992,9 @@
       el.style.display = 'block';
     }
 
+    // ------------------------------------------------------------
+    // Stats (schema-correct: salePrice + originalPrice + discountPercent)
+    // ------------------------------------------------------------
     function calculateStats(deals) {
       const stats = {
         totalDeals: deals.length,
@@ -931,13 +1004,17 @@
       };
 
       deals.forEach(deal => {
-        const salePrice = Number(deal.salePrice) || 0;
-        const price = Number(deal.price) || 0;
+        const salePrice = safeNumber(deal.salePrice);
+        const originalPrice = safeNumber(deal.originalPrice);
 
-        const store = (deal.store || 'Unknown').trim() || 'Unknown';
+        const store = normalizeStore(deal.store);
 
-        const dollarSavings = price > salePrice ? price - salePrice : 0;
-        const percentOff = price > salePrice ? ((price - salePrice) / price) * 100 : 0;
+        const dollarSavings = (originalPrice > salePrice && salePrice > 0) ? (originalPrice - salePrice) : 0;
+
+        // Prefer discountPercent from schema; fall back to computed if missing/invalid.
+        const pctFromData = Number(deal.discountPercent);
+        const computedPct = computeDiscountPercent(originalPrice, salePrice);
+        const percentOff = (Number.isFinite(pctFromData) && pctFromData > 0) ? pctFromData : computedPct;
 
         if (!stats.stores[store]) {
           stats.stores[store] = { count: 0, totalDiscount: 0, totalSavings: 0, deals: [] };
@@ -961,7 +1038,7 @@
         }
       });
 
-      // If Unknown exists, keep it too (optional)
+      // Keep Unknown if it exists (optional)
       if (stats.stores['Unknown'] && !CANONICAL_STORES.includes('Unknown')) {
         // keep as-is
       }
@@ -969,6 +1046,9 @@
       return stats;
     }
 
+    // ------------------------------------------------------------
+    // Data Quality (schema-correct fields)
+    // ------------------------------------------------------------
     function displayDataQuality(deals, stats) {
       const tbody = document.getElementById('dataQualityTableBody');
       if (!tbody) return;
@@ -981,20 +1061,20 @@
           totalDeals: 0,
           unknownBrands: 0,
           unknownModels: 0,
-          noPrice: 0,
+          noOriginalPrice: 0,
           noSalePrice: 0,
           badImage: 0,
           badUrl: 0
         };
       });
 
-      // Include Unknown if present in stats (optional)
+      // Include Unknown if present
       if (stats?.stores?.Unknown && !storeQuality['Unknown']) {
         storeQuality['Unknown'] = {
           totalDeals: 0,
           unknownBrands: 0,
           unknownModels: 0,
-          noPrice: 0,
+          noOriginalPrice: 0,
           noSalePrice: 0,
           badImage: 0,
           badUrl: 0
@@ -1002,14 +1082,14 @@
       }
 
       deals.forEach(deal => {
-        const store = (deal.store || 'Unknown').trim() || 'Unknown';
+        const store = normalizeStore(deal.store);
 
         if (!storeQuality[store]) {
           storeQuality[store] = {
             totalDeals: 0,
             unknownBrands: 0,
             unknownModels: 0,
-            noPrice: 0,
+            noOriginalPrice: 0,
             noSalePrice: 0,
             badImage: 0,
             badUrl: 0
@@ -1018,25 +1098,23 @@
 
         storeQuality[store].totalDeals++;
 
-        const brand = (deal.brand || '').trim();
+        const brand = normalizeStr(deal.brand);
         if (!brand || brand === 'Unknown') storeQuality[store].unknownBrands++;
 
-        const model = (deal.model || '').trim();
+        const model = normalizeStr(deal.model);
         if (!model) storeQuality[store].unknownModels++;
 
-        const price = Number(deal.price);
-        if (!price || price === 0) storeQuality[store].noPrice++;
+        const originalPrice = Number(deal.originalPrice);
+        if (!Number.isFinite(originalPrice) || originalPrice === 0) storeQuality[store].noOriginalPrice++;
 
         const salePrice = Number(deal.salePrice);
-        if (!salePrice || salePrice === 0) storeQuality[store].noSalePrice++;
+        if (!Number.isFinite(salePrice) || salePrice === 0) storeQuality[store].noSalePrice++;
 
-        if (!deal.image || deal.image.includes('placehold.co') || deal.image.trim() === '') {
-          storeQuality[store].badImage++;
-        }
+        const img = normalizeStr(deal.imageURL);
+        if (!img || img.includes('placehold.co')) storeQuality[store].badImage++;
 
-        if (!deal.url || deal.url === '#' || deal.url.trim() === '') {
-          storeQuality[store].badUrl++;
-        }
+        const url = normalizeStr(deal.listingURL);
+        if (!url || url === '#') storeQuality[store].badUrl++;
       });
 
       renderDataQualityTable(storeQuality);
@@ -1064,7 +1142,7 @@
             <td>${row.totalDeals.toLocaleString()}</td>
             <td><span class="issue-count ${getIssueClass(row.unknownBrands, row.totalDeals)}">${row.unknownBrands}</span></td>
             <td><span class="issue-count ${getIssueClass(row.unknownModels, row.totalDeals)}">${row.unknownModels}</span></td>
-            <td><span class="issue-count ${getIssueClass(row.noPrice, row.totalDeals)}">${row.noPrice}</span></td>
+            <td><span class="issue-count ${getIssueClass(row.noOriginalPrice, row.totalDeals)}">${row.noOriginalPrice}</span></td>
             <td><span class="issue-count ${getIssueClass(row.noSalePrice, row.totalDeals)}">${row.noSalePrice}</span></td>
             <td><span class="issue-count ${getIssueClass(row.badImage, row.totalDeals)}">${row.badImage}</span></td>
             <td><span class="issue-count ${getIssueClass(row.badUrl, row.totalDeals)}">${row.badUrl}</span></td>
@@ -1102,6 +1180,9 @@
       });
     }
 
+    // ------------------------------------------------------------
+    // Store Breakdown table
+    // ------------------------------------------------------------
     function sortStoreTable(column) {
       if (CURRENT_STORE_SORT.column === column) {
         CURRENT_STORE_SORT.direction = CURRENT_STORE_SORT.direction === 'asc' ? 'desc' : 'asc';
@@ -1122,9 +1203,14 @@
 
         const bestDeal = (data.deals || [])
           .map(d => {
-            const price = Number(d.price) || 0;
-            const salePrice = Number(d.salePrice) || 0;
-            const pct = (price > salePrice && price > 0) ? ((price - salePrice) / price) * 100 : 0;
+            const originalPrice = safeNumber(d.originalPrice);
+            const salePrice = safeNumber(d.salePrice);
+
+            const pctFromData = Number(d.discountPercent);
+            const pct = (Number.isFinite(pctFromData) && pctFromData > 0)
+              ? pctFromData
+              : computeDiscountPercent(originalPrice, salePrice);
+
             return { deal: d, pct };
           })
           .sort((a, b) => b.pct - a.pct)[0];
@@ -1164,17 +1250,25 @@
         }
       }
 
-      tbody.innerHTML = sorted.map(({ name, data, avgDiscount, avgSavings, bestDeal }) => `
-        <tr>
-          <td><strong>${name}</strong></td>
-          <td>${(data.count || 0).toLocaleString()}</td>
-          <td>${avgDiscount.toFixed(1)}%</td>
-          <td>$${avgSavings.toFixed(2)}</td>
-          <td>${bestDeal ? `${bestDeal.deal.brand || 'Unknown'} ${(bestDeal.deal.model || '')} (${bestDeal.pct.toFixed(0)}% off)` : '-'}</td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = sorted.map(({ name, data, avgDiscount, avgSavings, bestDeal }) => {
+        const bestLabel = bestDeal
+          ? `${normalizeStr(bestDeal.deal.brand) || 'Unknown'} ${normalizeStr(bestDeal.deal.model) || ''} (${bestDeal.pct.toFixed(0)}% off)`
+          : '-';
+        return `
+          <tr>
+            <td><strong>${name}</strong></td>
+            <td>${(data.count || 0).toLocaleString()}</td>
+            <td>${avgDiscount.toFixed(1)}%</td>
+            <td>$${avgSavings.toFixed(2)}</td>
+            <td>${bestLabel}</td>
+          </tr>
+        `;
+      }).join('');
     }
 
+    // ------------------------------------------------------------
+    // Health Status (schema-correct: imageURL + listingURL + prices)
+    // ------------------------------------------------------------
     function displayHealthStatus(deals, stats, mergeData) {
       const healthPanel = document.getElementById('healthPanel');
       const healthGrid = document.getElementById('healthGrid');
@@ -1239,7 +1333,7 @@
           }
         }
 
-        const storeDeals = deals.filter(d => (d.store || 'Unknown').trim() === storeName);
+        const storeDeals = deals.filter(d => normalizeStore(d.store) === storeName);
 
         // Health checks
         if (storeData.count === 0) {
@@ -1247,7 +1341,7 @@
           health.status = 'critical';
         }
 
-        const unknownBrands = storeDeals.filter(d => (d.brand || '').trim() === 'Unknown' || !(d.brand || '').trim()).length;
+        const unknownBrands = storeDeals.filter(d => (normalizeStr(d.brand) === 'Unknown' || !normalizeStr(d.brand))).length;
         const unknownPercent = storeData.count > 0 ? (unknownBrands / storeData.count) * 100 : 0;
 
         if (unknownPercent > 50) {
@@ -1258,7 +1352,10 @@
           if (health.status !== 'critical') health.status = 'warning';
         }
 
-        const missingImages = storeDeals.filter(d => !d.image || d.image.includes('placehold.co')).length;
+        const missingImages = storeDeals.filter(d => {
+          const img = normalizeStr(d.imageURL);
+          return !img || img.includes('placehold.co');
+        }).length;
         const missingImagesPercent = storeData.count > 0 ? (missingImages / storeData.count) * 100 : 0;
 
         if (missingImagesPercent > 30) {
@@ -1266,7 +1363,10 @@
           if (health.status !== 'critical') health.status = 'warning';
         }
 
-        const missingUrls = storeDeals.filter(d => !d.url || d.url === '#').length;
+        const missingUrls = storeDeals.filter(d => {
+          const url = normalizeStr(d.listingURL);
+          return !url || url === '#';
+        }).length;
         const missingUrlsPercent = storeData.count > 0 ? (missingUrls / storeData.count) * 100 : 0;
 
         if (missingUrlsPercent > 10) {
@@ -1274,13 +1374,13 @@
           if (health.status !== 'critical') health.status = 'warning';
         }
 
-        const missingPrices = storeDeals.filter(d => !d.salePrice || Number(d.salePrice) === 0).length;
-        if (missingPrices > 0) {
-          health.issues.push({ type: 'warning', message: `⚠️ ${missingPrices} Missing Prices` });
+        const missingSalePrices = storeDeals.filter(d => !Number.isFinite(Number(d.salePrice)) || Number(d.salePrice) === 0).length;
+        if (missingSalePrices > 0) {
+          health.issues.push({ type: 'warning', message: `⚠️ ${missingSalePrices} Missing Sale Prices` });
           if (health.status !== 'critical') health.status = 'warning';
         }
 
-        const missingModels = storeDeals.filter(d => !d.model || d.model.trim() === '').length;
+        const missingModels = storeDeals.filter(d => !normalizeStr(d.model)).length;
         const missingModelsPercent = storeData.count > 0 ? (missingModels / storeData.count) * 100 : 0;
 
         if (missingModelsPercent > 30) {
@@ -1306,7 +1406,7 @@
         <div class="health-summary-item critical">${criticalCount} Critical</div>
       `;
 
-      // Alphabetical order (as requested)
+      // Alphabetical order
       const sortedStores = Object.values(storeHealth).sort((a, b) =>
         a.store.toLowerCase().localeCompare(b.store.toLowerCase())
       );
@@ -1327,10 +1427,9 @@
         const scrapedUrlStr = health.scrapedUrl || 'Not Available';
 
         // Gender stats
-        const storeDeals = ALL_DEALS.filter(d => (d.store || 'Unknown').trim() === health.store);
+        const storeDeals = ALL_DEALS.filter(d => normalizeStore(d.store) === health.store);
         const genderStats = calculateGenderStats(storeDeals);
 
-        // Total Deals moved into "Gender Breakdown" title area (and breakdown below it)
         const totalDealsStr = (health.dealCount || 0).toLocaleString();
 
         return `
@@ -1402,15 +1501,13 @@
 
       healthPanel.style.display = 'block';
 
-      // Also update Store Breakdown after health is built (so it reflects canonical stores too)
+      // Also update Store Breakdown after health is built
       displayStoreTable(stats.stores);
     }
 
-    function formatMoney(n) {
-      const x = Number(n);
-      return Number.isFinite(x) ? `$${x.toFixed(2)}` : "—";
-    }
-
+    // ------------------------------------------------------------
+    // Deals browser by store (schema-correct)
+    // ------------------------------------------------------------
     function buildStoreDropdown(deals) {
       const select = document.getElementById("storeSelect");
       if (!select) return;
@@ -1425,7 +1522,8 @@
         select.appendChild(opt);
       });
 
-      select.addEventListener("change", () => renderDealsForSelectedStore());
+      // Prevent stacking event listeners if user clicks refresh a lot
+      select.onchange = () => renderDealsForSelectedStore();
     }
 
     function renderDealsForSelectedStore() {
@@ -1438,7 +1536,7 @@
       let filtered = [];
 
       if (chosen === "__none__") filtered = [];
-      else filtered = ALL_DEALS.filter(d => (d.store || "") === chosen);
+      else filtered = ALL_DEALS.filter(d => normalizeStore(d.store) === chosen);
 
       if (countEl) {
         if (chosen === "__none__") countEl.textContent = "";
@@ -1460,13 +1558,13 @@
       toShow.forEach((d) => {
         const a = document.createElement("a");
         a.className = "deal-card";
-        a.href = d.url || "#";
+        a.href = getDealUrl(d);
         a.target = "_blank";
         a.rel = "noopener noreferrer";
 
         const img = document.createElement("img");
-        img.src = d.image || "https://placehold.co/600x400?text=Running+Shoe";
-        img.alt = (d.brand && d.model) ? `${d.brand} ${d.model}` : (d.title || "Deal");
+        img.src = getDealImage(d);
+        img.alt = getDealTitle(d);
         a.appendChild(img);
 
         const body = document.createElement("div");
@@ -1474,14 +1572,12 @@
 
         const title = document.createElement("div");
         title.className = "deal-title";
-        title.textContent = (d.brand || d.model)
-          ? [d.brand, d.model].filter(Boolean).join(" ")
-          : (d.title || "Deal");
+        title.textContent = getDealTitle(d);
         body.appendChild(title);
 
         const meta = document.createElement("div");
         meta.className = "deal-meta";
-        meta.textContent = d.store || "";
+        meta.textContent = normalizeStore(d.store);
         body.appendChild(meta);
 
         const priceRow = document.createElement("div");
@@ -1489,20 +1585,26 @@
 
         const priceSpan = document.createElement("div");
         priceSpan.className = "deal-price";
-        priceSpan.textContent = formatMoney(d.salePrice);
 
-        const price = Number(d.price);
-        const salePrice = Number(d.salePrice);
-        if (Number.isFinite(price) && Number.isFinite(salePrice) && price > salePrice) {
+        const salePrice = safeNumber(d.salePrice);
+        const originalPrice = safeNumber(d.originalPrice);
+
+        priceSpan.textContent = formatMoney(salePrice);
+
+        if (Number.isFinite(originalPrice) && Number.isFinite(salePrice) && originalPrice > salePrice && salePrice > 0) {
           const origSpan = document.createElement("span");
           origSpan.className = "deal-orig";
-          origSpan.textContent = formatMoney(price);
+          origSpan.textContent = formatMoney(originalPrice);
           priceSpan.appendChild(origSpan);
 
-          const discountPercent = ((price - salePrice) / price) * 100;
+          const pctFromData = Number(d.discountPercent);
+          const computed = computeDiscountPercent(originalPrice, salePrice);
+          const discountPercent = (Number.isFinite(pctFromData) && pctFromData > 0) ? pctFromData : computed;
+
           const discountBadge = document.createElement("div");
           discountBadge.className = "deal-discount";
           discountBadge.textContent = `-${discountPercent.toFixed(0)}%`;
+
           priceRow.appendChild(priceSpan);
           priceRow.appendChild(discountBadge);
         } else {
