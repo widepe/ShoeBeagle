@@ -31,7 +31,9 @@ function absolutizeUrl(url, base = HOLABIRD_BASE) {
 
   if (/^https?:\/\//i.test(u)) return u;
   if (u.startsWith("//")) return "https:" + u;
-  if (u.startsWith("/")) return base + u;
+
+  // safer if base ever ends with "/"
+  if (u.startsWith("/")) return base.replace(/\/+$/, "") + u;
 
   return base.replace(/\/+$/, "") + "/" + u.replace(/^\/+/, "");
 }
@@ -67,7 +69,7 @@ function pickLargestFromSrcset(srcset) {
   return best;
 }
 
-function findBestImageUrl($, $link, $container) {
+function findBestImageURL($, $link, $container) {
   const candidates = [];
 
   function pushFromImg($img) {
@@ -138,19 +140,58 @@ function extractPricesFromTileText(tileText) {
   return { salePrice, originalPrice, valid: true };
 }
 
+function escapeRegex(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function extractBrandAndModel(title) {
   if (!title) return { brand: "Unknown", model: "" };
 
   const brands = [
-    "Mizuno","Saucony","HOKA","Brooks","ASICS","New Balance",
-    "On","Altra","adidas","Nike","Puma","Salomon","Diadora",
-    "K-Swiss","Wilson","Babolat","HEAD","Yonex","Under Armour",
-    "VEJA","APL","Merrell","Teva","Reebok","Skechers","Mount to Coast",
-    "norda","inov8","OOFOS","Birkenstock","Kane Footwear","LANE EIGHT"
+    "Mizuno",
+    "Saucony",
+    "HOKA",
+    "Brooks",
+    "ASICS",
+    "New Balance",
+    "On",
+    "Altra",
+    "adidas",
+    "Nike",
+    "Puma",
+    "Salomon",
+    "Diadora",
+    "K-Swiss",
+    "Wilson",
+    "Babolat",
+    "HEAD",
+    "Yonex",
+    "Under Armour",
+    "VEJA",
+    "APL",
+    "Merrell",
+    "Teva",
+    "Reebok",
+    "Skechers",
+    "Mount to Coast",
+    "norda",
+    "inov8",
+    "OOFOS",
+    "Birkenstock",
+    "Kane Footwear",
+    "LANE EIGHT",
   ];
 
   for (const brand of brands) {
-    const regex = new RegExp(`\\b${brand}\\b`, "i");
+    // Special case: "On" must be capitalized exactly as a standalone word.
+    // We do NOT accept "on" or "ON" to avoid false positives (e.g., "on sale").
+    let regex;
+    if (brand === "On") {
+      regex = /\bOn\b/;
+    } else {
+      regex = new RegExp(`\\b${escapeRegex(brand)}\\b`, "i");
+    }
+
     if (regex.test(title)) {
       const parts = title.split(regex);
       let model = parts.length > 1 ? parts[1].trim() : parts[0].trim();
@@ -186,7 +227,8 @@ function detectGender(url, listingName) {
 function detectShoeType(url, listingName) {
   const combined = ((url || "") + " " + (listingName || "")).toLowerCase();
 
-  if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross)\b/i.test(combined)) return "trail";
+  if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross)\b/i.test(combined))
+    return "trail";
   if (/\b(track|spike|dragonfly|zoom.*victory|spikes?)\b/i.test(combined)) return "track";
   return "road";
 }
@@ -250,9 +292,7 @@ async function scrapeHolabirdCollection({
 
       // ✅ Fix #1: better listingName fallback
       const listingName =
-        brand && brand !== "Unknown" && model
-          ? `${brand} ${model}`.trim()
-          : title;
+        brand && brand !== "Unknown" && model ? `${brand} ${model}`.trim() : title;
 
       const salePrice = prices.salePrice;
       const originalPrice = prices.originalPrice;
@@ -269,7 +309,7 @@ async function scrapeHolabirdCollection({
         discountPercent,
         store: "Holabird Sports",
         listingURL,
-        imageURL: findBestImageUrl($, $link, $container),
+        imageURL: findBestImageURL($, $link, $container),
         gender: detectGender(listingURL, listingName),
         shoeType: detectShoeType(listingURL, listingName),
       });
