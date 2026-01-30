@@ -1,7 +1,7 @@
 {
   "crons": [
-    { "path": "/api/cheerio_scrapers", "schedule": "0 9 * * *" },
-    { "path": "/api/apify_scrapers", "schedule": "5 9 * * *" },
+    { "path": "/api/scrapers/cheerio_scrapers", "schedule": "0 9 * * *" },
+    { "path": "/api/scrapers/apify_scrapers", "schedule": "5 9 * * *" },
     { "path": "/api/scrapers/brooks-running", "schedule": "10 9 * * *" },
     { "path": "/api/scrapers/asics-sale", "schedule": "15 9 * * *" },
     { "path": "/api/scrapers/als-sale", "schedule": "20 9 * * *" },
