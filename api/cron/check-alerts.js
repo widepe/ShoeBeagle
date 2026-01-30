@@ -124,15 +124,152 @@ function formatActiveText(daysLeft) {
 }
 
 function generateMatchEmail(alert, matches, daysLeft) {
-  // Sort by lowest salePrice first
-  const sorted = [...matches].sort((a, b) => {
-    const aP = toNumber(a.salePrice);
-    const bP = toNumber(b.salePrice);
-    if (!Number.isFinite(aP) && !Number.isFinite(bP)) return 0;
-    if (!Number.isFinite(aP)) return 1;
-    if (!Number.isFinite(bP)) return -1;
-    return aP - bP;
-  });
+  const sorted = [...matches].sort(
+    (a, b) => Number(a.salePrice) - Number(b.salePrice)
+  );
+
+  const topDeals = sorted.slice(0, 12);
+
+  const dealsHtml = topDeals.map(deal => {
+    const sale = Number(deal.salePrice);
+    const original = Number(deal.originalPrice);
+    const showOriginal = Number.isFinite(original) && original > sale;
+
+    return `
+      <div style="border:1px solid #ddd; border-radius:12px; padding:16px; margin-bottom:16px; background:#f9f9f9;">
+        
+        <div style="
+          width:100%;
+          max-width:240px;
+          aspect-ratio:4 / 3;
+          background:#ffffff;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          margin-bottom:12px;
+          border-radius:8px;
+          overflow:hidden;
+        ">
+          <img
+            src="${deal.imageURL}"
+            alt="${deal.brand} ${deal.model}"
+            style="
+              max-width:100%;
+              max-height:100%;
+              object-fit:contain;
+              display:block;
+            "
+          />
+        </div>
+
+        <h3 style="margin:0 0 8px; color:#214478; font-size:16px;">
+          ${deal.brand} ${deal.model}
+        </h3>
+
+        <p style="margin:4px 0; font-size:14px;">
+          <strong>Store:</strong> ${deal.store}
+        </p>
+
+        <p style="margin:6px 0; font-size:14px;">
+          <strong>Price:</strong>
+          <span style="color:#dc3545; font-size:18px; font-weight:bold;">
+            $${sale.toFixed(2)}
+          </span>
+          ${
+            showOriginal
+              ? `<span style="text-decoration:line-through; color:#999; margin-left:8px;">
+                   $${original.toFixed(2)}
+                 </span>`
+              : ""
+          }
+        </p>
+
+        <a href="${deal.listingURL}"
+           style="display:inline-block; margin-top:10px; padding:10px 18px;
+                  background:#214478; color:#fff; text-decoration:none;
+                  border-radius:8px; font-size:14px;">
+          View Deal
+        </a>
+      </div>
+    `;
+  }).join("");
+
+  const activeText =
+    daysLeft > 0
+      ? `for the next ${daysLeft} day${daysLeft === 1 ? "" : "s"}`
+      : "until the end of today";
+
+  return `
+<!DOCTYPE html>
+<html>
+<body style="margin:0; padding:0; font-family:Arial,sans-serif; background:#f4ede3;">
+  <div style="max-width:600px; margin:0 auto; padding:20px;">
+    <div style="background:#fff; border-radius:12px; padding:28px;">
+
+      <div style="text-align:center; margin-bottom:22px;">
+        <a href="https://shoebeagle.com">
+          <img src="https://shoebeagle.com/images/email_logo.png"
+               alt="Shoe Beagle"
+               style="max-width:300px; height:auto; border:0;" />
+        </a>
+      </div>
+
+      <h1 style="color:#214478; font-size:24px;">
+        Great News! Marty Found Your Shoes!
+      </h1>
+
+      <p style="font-size:16px; line-height:1.6;">
+        We found <strong>${matches.length}</strong> deal${matches.length === 1 ? "" : "s"} for
+        <strong>${alert.brand} ${alert.model}</strong> at or below your target price.
+      </p>
+
+      <h2 style="color:#214478; font-size:18px; margin-top:24px;">
+        Top Deals
+      </h2>
+
+      ${dealsHtml}
+
+      <div style="margin-top:22px; padding:16px; background:#f4ede3; border-radius:10px;">
+        <p style="margin:0; font-size:14px;">
+          <strong>Your alert will remain active ${activeText}</strong>.
+          If we find more matches, we’ll send another update.
+        </p>
+      </div>
+
+      <div style="margin-top:22px; text-align:center;">
+        <a href="https://shoebeagle.com/pages/myalerts.html?email=${encodeURIComponent(alert.email)}"
+           style="display:inline-block; padding:10px 22px;
+                  background:#214478; color:#fff;
+                  text-decoration:none; border-radius:8px; font-size:14px;">
+          Manage My Alerts
+        </a>
+      </div>
+
+      <div style="margin-top:14px; text-align:center;">
+        <a href="https://shoebeagle.com"
+           style="display:inline-block; padding:10px 22px;
+                  background:#28a745; color:#fff;
+                  text-decoration:none; border-radius:8px; font-size:14px;">
+          Search for More Deals at Shoe Beagle
+        </a>
+      </div>
+
+      <div style="margin-top:22px; font-size:12px; color:#666; border-top:1px solid #ddd; padding-top:16px;">
+        <p style="margin:0 0 6px;">
+          This is an automated email from Shoe Beagle. Replies to this address aren’t monitored.
+        </p>
+        <p style="margin:0;">
+          Shoe Beagle does not sell products directly and is not responsible for retailer pricing or availability.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>
+`.trim();
+}
+
 
   const topDeals = sorted.slice(0, 12);
 
