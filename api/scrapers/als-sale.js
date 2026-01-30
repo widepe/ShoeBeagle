@@ -1,16 +1,16 @@
 // api/scrapers/als-sale.js
 // Scrapes ALS Men's + Women's running shoes (all pages)
-// ASICS-style output ONLY — no pageResults, no tileCount, no diagnostics
+//
+// Output schema (11 fields) — MATCHES BROOKS:
+// { listing, brand, model, salePrice, originalPrice, discountPercent,
+//   store, listingURL, imageURL, gender, shoeType }
 //
 // STRICT RULES:
 // - Must have exactly ONE original price + ONE sale price
 // - Skip price ranges
 // - Skip if missing sale price
-// - Original price = higher of the two
-// - Sale price = lower of the two
-//
-// Output schema (10 fields):
-// { title, brand, model, salePrice, price, store, url, image, gender, shoeType }
+// - originalPrice = higher of the two
+// - salePrice = lower of the two
 //
 // Blob: als-sale.json (stable)
 
@@ -26,7 +26,9 @@ const MEN_URL =
 const WOMEN_URL =
   "https://www.als.com/footwear/women-s-footwear/women-s-running-shoes?filter.category-1=footwear&filter.category-2=women-s-footwear&filter.category-3=women-s-running-shoes&sort=discount%3Adesc";
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** -------------------- small helpers -------------------- **/
 
 function absolutize(url) {
   if (!url || typeof url !== "string") return null;
@@ -39,17 +41,27 @@ function absolutize(url) {
 }
 
 function parsePrice(text) {
-  if (!text || text.includes("-")) return null;
+  if (!text || text.includes("-")) return null; // ranges excluded
   const m = text.replace(/,/g, "").match(/\$([\d]+(?:\.\d{2})?)/);
   return m ? parseFloat(m[1]) : null;
+}
+
+function round2(n) {
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+
+function computeDiscountPercent(originalPrice, salePrice) {
+  if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return null;
+  if (originalPrice <= 0 || salePrice <= 0) return null;
+  if (salePrice >= originalPrice) return 0;
+  return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
 function extractTwoPricesStrict($el) {
   const text = $el.text().replace(/\s+/g, " ").trim();
 
-  if (/\$\s*\d+(\.\d{2})?\s*-\s*\$\s*\d+(\.\d{2})?/.test(text)) {
-    return null;
-  }
+  // Explicit range like "$89.99 - $129.99"
+  if (/\$\s*\d+(\.\d{2})?\s*-\s*\$\s*\d+(\.\d{2})?/.test(text)) return null;
 
   const matches = text.match(/\$\s*\d+(\.\d{2})?/g) || [];
   const prices = [...new Set(matches.map(parsePrice).filter(Boolean))];
@@ -59,17 +71,18 @@ function extractTwoPricesStrict($el) {
   const hi = Math.max(...prices);
   const lo = Math.min(...prices);
 
+  if (!Number.isFinite(hi) || !Number.isFinite(lo)) return null;
   if (lo >= hi) return null;
 
-  return { price: hi, salePrice: lo };
+  return { originalPrice: round2(hi), salePrice: round2(lo) };
 }
 
 function cleanTitle(t) {
   return (t || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function splitBrandModel(title) {
-  const t = cleanTitle(title);
+function splitBrandModel(listing) {
+  const t = cleanTitle(listing);
   if (!t) return {};
   const brand = t.split(" ")[0];
   let model = t.replace(new RegExp("^" + brand + "\\s+", "i"), "").trim();
@@ -77,17 +90,20 @@ function splitBrandModel(title) {
   return { brand, model };
 }
 
-function detectShoeType(title) {
-  const t = title.toLowerCase();
+function detectShoeType(listing) {
+  const t = String(listing || "").toLowerCase();
   if (t.includes("trail")) return "trail";
   if (t.includes("track") || t.includes("spike")) return "track";
   return "road";
 }
 
+/** -------------------- extraction -------------------- **/
+
 function extractDeals(html, gender) {
   const $ = cheerio.load(html);
   const deals = [];
 
+  // ALS commonly links product cards with href ending in "/p"
   const links = $('a[href$="/p"]').filter((_, a) => {
     const text = cleanTitle($(a).text());
     return text.length >= 5;
@@ -95,43 +111,51 @@ function extractDeals(html, gender) {
 
   links.each((_, a) => {
     const $a = $(a);
-    const title = cleanTitle($a.text());
-    const url = absolutize($a.attr("href"));
-    if (!title || !url) return;
 
+    const listing = cleanTitle($a.text());
+    const listingURL = absolutize($a.attr("href"));
+    if (!listing || !listingURL) return;
+
+    // Find a reasonable "card" root to look for prices/images
     let $card = $a.closest('div[class*="product"], li[class*="product"], article');
     if (!$card.length) $card = $a.parent();
 
     const priceData = extractTwoPricesStrict($card);
-    if (!priceData) return;
+    if (!priceData) return; // must have exactly 2 prices
 
-    const image = absolutize(
+    const imageURL = absolutize(
       $card.find("img").first().attr("src") ||
-      $card.find("img").first().attr("data-src")
+        $card.find("img").first().attr("data-src")
     );
 
-    const { brand, model } = splitBrandModel(title);
+    const { brand, model } = splitBrandModel(listing);
     if (!brand || !model) return;
 
+    const discountPercent = computeDiscountPercent(
+      priceData.originalPrice,
+      priceData.salePrice
+    );
+
     deals.push({
-      title,
+      listing,
       brand,
       model,
       salePrice: priceData.salePrice,
-      price: priceData.price,
+      originalPrice: priceData.originalPrice,
+      discountPercent,
       store: STORE,
-      url,
-      image: image || null,
+      listingURL,
+      imageURL: imageURL || null,
       gender,
-      shoeType: detectShoeType(title),
+      shoeType: detectShoeType(listing),
     });
   });
 
-  // dedupe by URL
+  // Dedupe by listingURL
   const seen = new Set();
-  return deals.filter(d => {
-    if (seen.has(d.url)) return false;
-    seen.add(d.url);
+  return deals.filter((d) => {
+    if (seen.has(d.listingURL)) return false;
+    seen.add(d.listingURL);
     return true;
   });
 }
@@ -151,12 +175,13 @@ async function scrapeCategory(baseUrl, gender) {
   for (let page = 1; page <= 50; page++) {
     const url = `${baseUrl}&page=${page}`;
     const html = await fetch(url);
-    const deals = extractDeals(html, gender);
+
+    const pageDeals = extractDeals(html, gender);
 
     let added = 0;
-    for (const d of deals) {
-      if (!seen.has(d.url)) {
-        seen.add(d.url);
+    for (const d of pageDeals) {
+      if (!seen.has(d.listingURL)) {
+        seen.add(d.listingURL);
         all.push(d);
         added++;
       }
@@ -169,16 +194,18 @@ async function scrapeCategory(baseUrl, gender) {
   return all;
 }
 
+/** -------------------- handler -------------------- **/
+
 module.exports = async (req, res) => {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  //TEMPORARY COMMENTED OUT FOR DEBUGGING
-  //const cronSecret = process.env.CRON_SECRET;
-  //if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
-  //  return res.status(401).json({ error: "Unauthorized" });
-  //}
+  // Uncomment when ready:
+  // const cronSecret = process.env.CRON_SECRET;
+  // if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
+  //   return res.status(401).json({ error: "Unauthorized" });
+  // }
 
   const start = Date.now();
 
@@ -218,7 +245,9 @@ module.exports = async (req, res) => {
   } catch (err) {
     return res.status(500).json({
       success: false,
-      error: err.message,
+      error: err?.message || "Unknown error",
+      duration: `${Date.now() - start}ms`,
+      stack: process.env.NODE_ENV === "development" ? err?.stack : undefined,
     });
   }
 };
