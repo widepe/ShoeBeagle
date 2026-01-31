@@ -6,7 +6,6 @@
     { "path": "/api/scrapers/asics-sale", "schedule": "15 9 * * *" },
     { "path": "/api/scrapers/als-sale", "schedule": "20 9 * * *" },
     { "path": "/api/scrapers/shoebacca-clearance", "schedule": "25 9 * * *" },
-    { "path": "/api/scrapers/snailspace-sale", "schedule": "28 9 * * *" },
 
     { "path": "/api/scrapers/holabird-mens-road", "schedule": "30 9 * * *" },
     { "path": "/api/scrapers/holabird-womens-road", "schedule": "35 9 * * *" },
