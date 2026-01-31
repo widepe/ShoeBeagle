@@ -173,6 +173,26 @@
       font-size: 0.95rem;
     }
 
+    .stale-banner {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin: 0 auto 18px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 2px solid #ffc107;
+      background: #fffbf0;
+      color: #7a5b00;
+      font-weight: 700;
+      max-width: 760px;
+      text-align: center;
+    }
+
+    .stale-banner strong {
+      color: #7a4b00;
+    }
+
     .stores-table, .chart-container {
       background: white;
       border: 2px solid #214478ff;
@@ -429,6 +449,37 @@
     .health-summary-item.warning { background: #ffc107; color: #333; }
     .health-summary-item.critical { background: #dc3545; color: white; }
 
+    .health-issues-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 18px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(220, 53, 69, 0.4);
+      background: rgba(220, 53, 69, 0.08);
+      color: #8a1f2c;
+      font-weight: 600;
+    }
+
+    .health-issues-list.hidden {
+      display: none;
+    }
+
+    .health-issues-list-title {
+      font-weight: 800;
+      color: #8a1f2c;
+    }
+
+    .health-issues-list ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .health-issues-list li {
+      margin: 2px 0;
+    }
+
     .scraped-url {
       font-size: 0.75rem;
       color: #666;
@@ -545,6 +596,7 @@
 
     <h1>Dashboard</h1>
     <div id="overallMeta" class="meta-line" style="display:none;"></div>
+    <div id="staleBanner" class="stale-banner" style="display:none;"></div>
 
     <div class="button-row">
       <button class="refresh-btn" onclick="loadStats()">Refresh Data</button>
@@ -570,6 +622,7 @@
     <div id="healthPanel" class="health-panel" style="display: none;">
       <h2>🏥 Scraper Health Status</h2>
       <div class="health-summary" id="healthSummary"></div>
+      <div id="healthIssuesList" class="health-issues-list hidden"></div>
       <div class="health-grid" id="healthGrid"></div>
     </div>
 
@@ -687,6 +740,17 @@
     function formatMoney(n) {
       const x = Number(n);
       return Number.isFinite(x) ? `$${x.toFixed(2)}` : "—";
+    }
+
+    function formatAge(ms) {
+      if (!Number.isFinite(ms) || ms < 0) return "—";
+      const totalMinutes = Math.floor(ms / 60000);
+      const days = Math.floor(totalMinutes / 1440);
+      const hours = Math.floor((totalMinutes % 1440) / 60);
+      const minutes = totalMinutes % 60;
+      if (days > 0) return `${days}d ${hours}h`;
+      if (hours > 0) return `${hours}h ${minutes}m`;
+      return `${minutes}m`;
     }
 
     function safeNumber(n) {
@@ -974,15 +1038,19 @@
 
     function displayOverallMeta(stats, dealsJson, mergeData) {
       const el = document.getElementById('overallMeta');
+      const staleBanner = document.getElementById('staleBanner');
       if (!el) return;
 
       // Prefer deals.json lastUpdated if present, else merge-deals timestamp if present
       let lastUpdated = dealsJson?.lastUpdated || mergeData?.timestamp || mergeData?.lastUpdated || null;
 
       let lastUpdatedStr = 'Not Available';
+      let lastUpdatedAge = null;
       if (lastUpdated) {
         const d = new Date(lastUpdated);
-        lastUpdatedStr = Number.isFinite(d.getTime()) ? d.toLocaleString() : String(lastUpdated);
+        const ts = d.getTime();
+        lastUpdatedStr = Number.isFinite(ts) ? d.toLocaleString() : String(lastUpdated);
+        lastUpdatedAge = Number.isFinite(ts) ? Date.now() - ts : null;
       }
 
       el.innerHTML = `
@@ -990,6 +1058,16 @@
         <span class="inline-pill">Last Updated: ${lastUpdatedStr}</span>
       `;
       el.style.display = 'block';
+
+      if (staleBanner) {
+        const staleThresholdMs = 6 * 60 * 60 * 1000;
+        if (lastUpdatedAge && lastUpdatedAge > staleThresholdMs) {
+          staleBanner.innerHTML = `⚠️ Data is stale. Last updated <strong>${formatAge(lastUpdatedAge)}</strong> ago.`;
+          staleBanner.style.display = 'flex';
+        } else {
+          staleBanner.style.display = 'none';
+        }
+      }
     }
 
     // ------------------------------------------------------------
@@ -1136,16 +1214,21 @@
           return '';
         };
 
+        const formatIssueCell = (count, total) => {
+          const percent = total > 0 ? (count / total) * 100 : 0;
+          return `${count} (${percent.toFixed(1)}%)`;
+        };
+
         return `
           <tr>
             <td><strong>${row.store}</strong></td>
             <td>${row.totalDeals.toLocaleString()}</td>
-            <td><span class="issue-count ${getIssueClass(row.unknownBrands, row.totalDeals)}">${row.unknownBrands}</span></td>
-            <td><span class="issue-count ${getIssueClass(row.unknownModels, row.totalDeals)}">${row.unknownModels}</span></td>
-            <td><span class="issue-count ${getIssueClass(row.noOriginalPrice, row.totalDeals)}">${row.noOriginalPrice}</span></td>
-            <td><span class="issue-count ${getIssueClass(row.noSalePrice, row.totalDeals)}">${row.noSalePrice}</span></td>
-            <td><span class="issue-count ${getIssueClass(row.badImage, row.totalDeals)}">${row.badImage}</span></td>
-            <td><span class="issue-count ${getIssueClass(row.badUrl, row.totalDeals)}">${row.badUrl}</span></td>
+            <td><span class="issue-count ${getIssueClass(row.unknownBrands, row.totalDeals)}">${formatIssueCell(row.unknownBrands, row.totalDeals)}</span></td>
+            <td><span class="issue-count ${getIssueClass(row.unknownModels, row.totalDeals)}">${formatIssueCell(row.unknownModels, row.totalDeals)}</span></td>
+            <td><span class="issue-count ${getIssueClass(row.noOriginalPrice, row.totalDeals)}">${formatIssueCell(row.noOriginalPrice, row.totalDeals)}</span></td>
+            <td><span class="issue-count ${getIssueClass(row.noSalePrice, row.totalDeals)}">${formatIssueCell(row.noSalePrice, row.totalDeals)}</span></td>
+            <td><span class="issue-count ${getIssueClass(row.badImage, row.totalDeals)}">${formatIssueCell(row.badImage, row.totalDeals)}</span></td>
+            <td><span class="issue-count ${getIssueClass(row.badUrl, row.totalDeals)}">${formatIssueCell(row.badUrl, row.totalDeals)}</span></td>
           </tr>
         `;
       }).join('');
@@ -1273,6 +1356,7 @@
       const healthPanel = document.getElementById('healthPanel');
       const healthGrid = document.getElementById('healthGrid');
       const healthSummary = document.getElementById('healthSummary');
+      const healthIssuesList = document.getElementById('healthIssuesList');
       if (!healthPanel || !healthGrid || !healthSummary) return;
 
       const storeMetadata = mergeData?.storeMetadata || {};
@@ -1406,6 +1490,24 @@
         <div class="health-summary-item critical">${criticalCount} Critical</div>
       `;
 
+      if (healthIssuesList) {
+        const criticalStores = Object.values(storeHealth)
+          .filter(health => health.status === 'critical')
+          .map(health => health.store);
+
+        if (criticalStores.length > 0) {
+          healthIssuesList.innerHTML = `
+            <div class="health-issues-list-title">🚨 Critical Issues</div>
+            <div>Scrapers with zero results or severe data quality problems:</div>
+            <ul>${criticalStores.map(store => `<li>${store}</li>`).join('')}</ul>
+          `;
+          healthIssuesList.classList.remove('hidden');
+        } else {
+          healthIssuesList.classList.add('hidden');
+          healthIssuesList.innerHTML = '';
+        }
+      }
+
       // Alphabetical order
       const sortedStores = Object.values(storeHealth).sort((a, b) =>
         a.store.toLowerCase().localeCompare(b.store.toLowerCase())
@@ -1422,7 +1524,12 @@
         }
 
         let durationStr = 'Not Available';
+        let ageStr = 'Not Available';
         if (hasMetadata && meta.duration) durationStr = meta.duration;
+        if (hasMetadata && meta.timestamp) {
+          const ts = new Date(meta.timestamp).getTime();
+          if (Number.isFinite(ts)) ageStr = `${formatAge(Date.now() - ts)} ago`;
+        }
 
         const scrapedUrlStr = health.scrapedUrl || 'Not Available';
 
@@ -1448,17 +1555,19 @@
             </div>
 
             <div class="health-metrics">
-              <div class="health-metric full">
-                <div class="health-metric-label">Last Updated • Scrape Duration</div>
-                <div class="health-metric-value ${timestampStr === 'Not Available' ? 'na' : ''}" style="font-size: 0.86rem;">
-                  <span class="inline-pair">
-                    <span>${timestampStr}</span>
-                    <span style="opacity:.65;">|</span>
-                    <span class="${durationStr === 'Not Available' ? 'na' : ''}">${durationStr}</span>
-                  </span>
-                </div>
+            <div class="health-metric full">
+              <div class="health-metric-label">Last Updated • Scrape Duration • Age</div>
+              <div class="health-metric-value ${timestampStr === 'Not Available' ? 'na' : ''}" style="font-size: 0.86rem;">
+                <span class="inline-pair">
+                  <span>${timestampStr}</span>
+                  <span style="opacity:.65;">|</span>
+                  <span class="${durationStr === 'Not Available' ? 'na' : ''}">${durationStr}</span>
+                  <span style="opacity:.65;">|</span>
+                  <span class="${ageStr === 'Not Available' ? 'na' : ''}">${ageStr}</span>
+                </span>
               </div>
             </div>
+          </div>
 
             <div class="gender-breakdown">
               <div class="gender-breakdown-title">
@@ -1538,12 +1647,18 @@
       if (chosen === "__none__") filtered = [];
       else filtered = ALL_DEALS.filter(d => normalizeStore(d.store) === chosen);
 
+      const SHOW_MAX = 500;
+
       if (countEl) {
-        if (chosen === "__none__") countEl.textContent = "";
-        else countEl.textContent = `${filtered.length.toLocaleString()} deal${filtered.length === 1 ? "" : "s"}`;
+        if (chosen === "__none__") {
+          countEl.textContent = "";
+        } else if (filtered.length > SHOW_MAX) {
+          countEl.textContent = `Showing ${SHOW_MAX.toLocaleString()} of ${filtered.length.toLocaleString()} deals`;
+        } else {
+          countEl.textContent = `${filtered.length.toLocaleString()} deal${filtered.length === 1 ? "" : "s"}`;
+        }
       }
 
-      const SHOW_MAX = 500;
       const toShow = filtered.slice(0, SHOW_MAX);
 
       grid.innerHTML = "";
