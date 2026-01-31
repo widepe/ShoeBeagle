@@ -706,17 +706,27 @@
 
     // Store scraper URL mapping (canonical store list)
     const SCRAPER_URLS = {
-      'Als': 'https://www.als.com/',
+      'ALS': 'https://www.als.com/',
       'ASICS': 'https://www.asics.com/us/en-us/sale/mens-running-shoes/c/aa10107020/',
       'Brooks Running': 'https://www.brooksrunning.com/en_us/mens-sale-running-shoes/c/301/',
       'Fleet Feet': 'https://www.fleetfeet.com/collections/mens-running-shoes-on-sale',
       'Holabird Sports': 'https://www.holabirdsports.com',
-      'REI': 'https://www.rei.com/',
+      'REI Outlet': 'https://www.rei.com/rei-garage',
       'Road Runner Sports': 'https://www.roadrunnersports.com/rrs/mens/shoes/sale/_/N-u5Z1z141i0',
       'Running Warehouse': 'https://www.runningwarehouse.com/',
       'Shoebacca': 'https://www.shoebacca.com/collections/clearance-athletic',
-      'Snails Pace': 'https://www.asnailspace.com/',
+      "A Snail's Pace": 'https://shop.asnailspace.net/',
       'Zappos': 'https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso',
+    };
+
+    const STORE_ALIASES = {
+      'als': 'ALS',
+      'a snail’s pace': "A Snail's Pace",
+      "a snail's pace": "A Snail's Pace",
+      'snails pace': "A Snail's Pace",
+      'snail pace': "A Snail's Pace",
+      'rei': 'REI Outlet',
+      'rei outlet': 'REI Outlet',
     };
 
     const CANONICAL_STORES = Object.keys(SCRAPER_URLS).slice().sort((a,b) => a.localeCompare(b));
@@ -730,7 +740,10 @@
     // Small helpers
     // ------------------------------------------------------------
     function normalizeStore(s) {
-      return String(s || '').trim() || 'Unknown';
+      const cleaned = String(s || '').trim();
+      if (!cleaned) return 'Unknown';
+      const key = cleaned.toLowerCase();
+      return STORE_ALIASES[key] || cleaned;
     }
 
     function normalizeStr(s) {
