@@ -620,6 +620,23 @@
       color: #6b7280;
       font-weight: 600;
       font-size: 0.78rem;
+    .deals-table th .column-subtitle {
+      display: block;
+      color: #6b7280;
+      font-weight: 500;
+      font-size: 0.78rem;
+      margin-top: 2px;
+    }
+
+    .column-percent {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #f3f4f6;
+      color: #111827;
+      font-size: 0.75rem;
+      font-weight: 600;
     }
 
     .deals-table td a {
@@ -1769,6 +1786,10 @@
       const select = document.getElementById(selectId);
       const tableWrap = document.getElementById(tableWrapId);
       const countEl = document.getElementById(countId);
+    function renderDealsForSelectedStore() {
+      const select = document.getElementById("storeSelect");
+      const tableWrap = document.getElementById("storeDealsTableWrap");
+      const countEl = document.getElementById("storeCount");
       if (!select || !tableWrap) return;
 
       const chosen = select.value;
@@ -1804,24 +1825,32 @@
         {
           key: "listingName",
           label: "listingName",
+          label: "Listing",
+          subLabel: "listingName",
           getValue: (d) => normalizeStr(d.listingName),
           isMissing: (d) => !isPresentText(d.listingName),
         },
         {
           key: "brand",
           label: "brand",
+          label: "Brand",
+          subLabel: "brand",
           getValue: (d) => normalizeStr(d.brand) || "Unknown",
           isMissing: (d) => !isPresentText(d.brand),
         },
         {
           key: "model",
           label: "model",
+          label: "Model",
+          subLabel: "model",
           getValue: (d) => normalizeStr(d.model),
           isMissing: (d) => !isPresentText(d.model),
         },
         {
           key: "salePrice",
           label: "salePrice",
+          label: "Sale price",
+          subLabel: "salePrice",
           getValue: (d) => {
             const val = Number(d.salePrice);
             return Number.isFinite(val) && val > 0 ? formatMoney(val) : "—";
@@ -1831,6 +1860,8 @@
         {
           key: "originalPrice",
           label: "originalPrice",
+          label: "Original price",
+          subLabel: "originalPrice",
           getValue: (d) => {
             const val = Number(d.originalPrice);
             return Number.isFinite(val) && val > 0 ? formatMoney(val) : "—";
@@ -1840,6 +1871,8 @@
         {
           key: "discountPercent",
           label: "discountPercent",
+          label: "Discount %",
+          subLabel: "discountPercent",
           getValue: (d) => {
             const val = Number(d.discountPercent);
             return Number.isFinite(val) && val > 0 ? `${val.toFixed(0)}%` : "—";
@@ -1849,12 +1882,16 @@
         {
           key: "store",
           label: "store",
+          label: "Store",
+          subLabel: "store",
           getValue: (d) => normalizeStore(d.store),
           isMissing: (d) => !isPresentText(d.store),
         },
         {
           key: "listingURL",
           label: "listingURL",
+          label: "URL",
+          subLabel: "listingURL",
           getValue: (d) => normalizeStr(d.listingURL),
           isMissing: (d) => {
             const url = normalizeStr(d.listingURL);
@@ -1864,18 +1901,24 @@
         {
           key: "imageURL",
           label: "imageURL",
+          label: "Image",
+          subLabel: "imageURL",
           getValue: (d) => normalizeStr(d.imageURL),
           isMissing: (d) => !hasValidImage(d),
         },
         {
           key: "gender",
           label: "gender",
+          label: "Gender",
+          subLabel: "gender",
           getValue: (d) => normalizeStr(d.gender),
           isMissing: (d) => !isPresentText(d.gender),
         },
         {
           key: "shoeType",
           label: "shoeType",
+          label: "Shoe type",
+          subLabel: "shoeType",
           getValue: (d) => normalizeStr(d.shoeType),
           isMissing: (d) => !isPresentText(d.shoeType),
         },
@@ -1893,6 +1936,7 @@
           <th>
             ${col.label}
             <span class="column-percent">${pct}%</span>
+            <span class="column-subtitle">${col.subLabel}</span>
           </th>
         `;
       }).join("");
