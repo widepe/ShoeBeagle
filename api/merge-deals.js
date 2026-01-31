@@ -979,8 +979,8 @@ module.exports = async (req, res) => {
   // ============================================================================
   // ENDPOINT FALLBACKS (only used if blob URLs missing)
   // ============================================================================
-  const CHEERIO_DEALS_ENDPOINT = `${baseUrl}/api/cheerio_scrapers`;
-  const APIFY_DEALS_ENDPOINT = `${baseUrl}/api/apify_scrapers`;
+  const CHEERIO_DEALS_ENDPOINT = `${baseUrl}/api/scrapers/cheerio_scrapers`;
+  const APIFY_DEALS_ENDPOINT = `${baseUrl}/api/scrapers/apify_scrapers`;
 
   const HOLABIRD_MENS_ROAD_ENDPOINT = `${baseUrl}/api/scrapers/holabird-mens-road`;
   const HOLABIRD_WOMENS_ROAD_ENDPOINT = `${baseUrl}/api/scrapers/holabird-womens-road`;
