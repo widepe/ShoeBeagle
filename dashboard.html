@@ -8,6 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <title>ShoeBeagle - Deal Statistics Dashboard</title>
+
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -58,92 +59,6 @@
       font-size: 1.5rem;
     }
 
-    .deals-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 16px;
-    }
-
-    .deal-card {
-      border: 2px solid #214478ff;
-      border-radius: 12px;
-      overflow: hidden;
-      background: #d9e1ebff;
-      text-decoration: none;
-      color: inherit;
-      display: flex;
-      flex-direction: column;
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-
-    .deal-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 6px 20px rgba(33, 68, 120, 0.3);
-    }
-
-    .deal-card img {
-      width: 100%;
-      height: 200px;
-      object-fit: contain;
-      background: white;
-      border-bottom: 2px solid #214478ff;
-      padding: 10px;
-    }
-
-    .deal-card-body {
-      padding: 12px 14px;
-      flex-grow: 1;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .deal-title {
-      font-weight: 700;
-      font-size: 1rem;
-      margin-bottom: 8px;
-      line-height: 1.3;
-      color: #214478ff;
-      min-height: 2.6em;
-    }
-
-    .deal-meta {
-      font-size: 0.85rem;
-      color: #49543a;
-      margin-bottom: 8px;
-      font-weight: 600;
-    }
-
-    .deal-price-row {
-      margin-top: auto;
-      padding-top: 8px;
-      border-top: 1px solid rgba(33, 68, 120, 0.2);
-    }
-
-    .deal-price {
-      font-weight: 800;
-      color: #214478ff;
-      font-size: 1.3rem;
-    }
-
-    .deal-orig {
-      margin-left: 8px;
-      color: #999;
-      text-decoration: line-through;
-      font-weight: 600;
-      font-size: 1rem;
-    }
-
-    .deal-discount {
-      display: inline-block;
-      background: #dc3545;
-      color: white;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 0.85rem;
-      font-weight: bold;
-      margin-top: 6px;
-    }
-
     /* Logo at top with 6px buffer */
     .brand-header {
       display: flex;
@@ -189,9 +104,7 @@
       text-align: center;
     }
 
-    .stale-banner strong {
-      color: #7a4b00;
-    }
+    .stale-banner strong { color: #7a4b00; }
 
     .stores-table, .chart-container {
       background: white;
@@ -255,6 +168,7 @@
       border-radius: 8px;
       text-align: center;
       margin: 20px 0;
+      white-space: pre-wrap;
     }
 
     .refresh-btn {
@@ -612,14 +526,10 @@
       top: 0;
       background: #fafafa;
       z-index: 1;
+      color: #111;
+      cursor: default;
     }
 
-    .column-percent {
-      display: block;
-      margin-top: 4px;
-      color: #6b7280;
-      font-weight: 600;
-      font-size: 0.78rem;
     .deals-table th .column-subtitle {
       display: block;
       color: #6b7280;
@@ -795,6 +705,17 @@
     //   title, price, url, image
     // ============================================================
 
+    // Show JS parse/runtime errors on the page (prevents silent "Loading..." forever)
+    window.addEventListener("error", (e) => {
+      const errorEl = document.getElementById("error");
+      const loading = document.getElementById("loading");
+      if (loading) loading.style.display = "none";
+      if (errorEl) {
+        errorEl.style.display = "block";
+        errorEl.textContent = `JavaScript Error:\n${e.message}\n${e.filename || ""}:${e.lineno || ""}`;
+      }
+    });
+
     // Store scraper URL mapping (canonical store list)
     const SCRAPER_URLS = {
       'ALS': 'https://www.als.com/',
@@ -896,9 +817,8 @@
       return Boolean(normalizeStr(value));
     }
 
-    function getDealUrl(d) {
-      const url = normalizeStr(d.listingURL);
-      return url || "#";
+    function openExternal(url) {
+      window.open(url, "_blank", "noopener,noreferrer");
     }
 
     // ------------------------------------------------------------
@@ -931,7 +851,6 @@
         return;
       }
 
-      // Get all unique scraper names
       const allScrapers = new Set();
       scraperData.days.forEach(day => {
         (day.scrapers || []).forEach(s => allScrapers.add(s.scraper));
@@ -939,7 +858,6 @@
 
       const scraperNames = Array.from(allScrapers).sort();
 
-      // Build 30 dates newest -> oldest (today on the far left)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -950,7 +868,6 @@
         allDates.push(d.toISOString().split('T')[0]);
       }
 
-      // Create a map of existing data
       const dataMap = {};
       scraperData.days.forEach(day => {
         const dateKey = (day.dayUTC || '').split('T')[0];
@@ -965,7 +882,6 @@
                 <th class="scraper-name">Scraper</th>
       `;
 
-      // Date headers newest -> oldest
       allDates.forEach(dateStr => {
         const date = new Date(dateStr + 'T00:00:00');
         const monthDay = `${date.getMonth() + 1}/${date.getDate()}`;
@@ -1071,10 +987,11 @@
 
         const data = await dealsResponse.json();
 
+        // Fetch unaltered-deals.json (optional)  ✅ FIXED FILENAME
         let unalteredDeals = [];
         try {
           const unalteredResponse = await fetch(
-            `https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/unalteredDeals.json?t=${cacheBuster}`,
+            `https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/unaltered-deals.json?t=${cacheBuster}`,
             { cache: "no-store" }
           );
           if (unalteredResponse.ok) {
@@ -1105,7 +1022,7 @@
           console.log("Could not load merge metadata (continuing without it):", mergeError.message);
         }
 
-        if (!data.deals || !Array.isArray(data.deals)) throw new Error('Invalid data format');
+        if (!data.deals || !Array.isArray(data.deals)) throw new Error('Invalid deals.json format (missing data.deals array)');
 
         const deals = data.deals;
         ALL_DEALS = deals;
@@ -1113,7 +1030,14 @@
 
         buildStoreDropdown(deals, "storeSelect");
         buildStoreDropdown(unalteredDeals, "unalteredStoreSelect");
-        renderDealsForSelectedStore();
+
+        renderDealsForSelectedStore({
+          selectId: "storeSelect",
+          tableWrapId: "storeDealsTableWrap",
+          countId: "storeCount",
+          deals: ALL_DEALS,
+        });
+
         renderDealsForSelectedStore({
           selectId: "unalteredStoreSelect",
           tableWrapId: "unalteredDealsTableWrap",
@@ -1130,7 +1054,7 @@
         let debugHTML = `
           <strong>Total deals in array:</strong> ${deals.length}<br>
           <strong>Unknown brands:</strong> ${unknownBrands} (${deals.length ? ((unknownBrands / deals.length) * 100).toFixed(1) : '0.0'}%)<br>
-          <strong>Deals by store (from JSON):</strong> ${JSON.stringify(data.dealsByStore)}<br>
+          <strong>Deals by store (from JSON):</strong> ${JSON.stringify(data.dealsByStore || {}, null, 0)}<br>
           <strong>Unique stores found:</strong> ${[...new Set(deals.map(d => normalizeStore(d.store)))].filter(Boolean).join(', ')}<br>
           <strong>Shoe brands found (${uniqueBrands.length}):</strong> ${uniqueBrands.join(', ')}<br><br>
         `;
@@ -1138,7 +1062,7 @@
         if (mergeData && mergeData.storeMetadata) {
           debugHTML += `<strong>Scraper Blob URLs:</strong><br>`;
           Object.entries(mergeData.storeMetadata).forEach(([scraperName, meta]) => {
-            if (meta.blobUrl) {
+            if (meta && meta.blobUrl) {
               debugHTML += `<div style="margin-left: 10px; margin-top: 4px;">
                 <strong>${scraperName}:</strong> <a href="${meta.blobUrl}" target="_blank" style="color: #214478ff; word-break: break-all;">${meta.blobUrl}</a>
               </div>`;
@@ -1156,9 +1080,7 @@
         const stats = calculateStats(deals);
         STORE_DATA = stats.stores;
 
-        // Overall meta line
         displayOverallMeta(stats, data, mergeData);
-
         displayDataQuality(deals, stats);
         displayHealthStatus(deals, stats, mergeData);
 
@@ -1181,7 +1103,6 @@
       const staleBanner = document.getElementById('staleBanner');
       if (!el) return;
 
-      // Prefer deals.json lastUpdated if present, else merge-deals timestamp if present
       let lastUpdated = dealsJson?.lastUpdated || mergeData?.timestamp || mergeData?.lastUpdated || null;
 
       let lastUpdatedStr = 'Not Available';
@@ -1229,7 +1150,6 @@
 
         const dollarSavings = (originalPrice > salePrice && salePrice > 0) ? (originalPrice - salePrice) : 0;
 
-        // Prefer discountPercent from schema; fall back to computed if missing/invalid.
         const pctFromData = Number(deal.discountPercent);
         const computedPct = computeDiscountPercent(originalPrice, salePrice);
         const percentOff = (Number.isFinite(pctFromData) && pctFromData > 0) ? pctFromData : computedPct;
@@ -1245,21 +1165,14 @@
         if (percentOff > 0) {
           stats.discounts.push({ deal, percentOff, dollarSavings, salePrice });
         }
-
         if (salePrice > 0) stats.prices.push(salePrice);
       });
 
-      // Ensure ALL stores always have a report (even if 0)
       CANONICAL_STORES.forEach(store => {
         if (!stats.stores[store]) {
           stats.stores[store] = { count: 0, totalDiscount: 0, totalSavings: 0, deals: [] };
         }
       });
-
-      // Keep Unknown if it exists (optional)
-      if (stats.stores['Unknown'] && !CANONICAL_STORES.includes('Unknown')) {
-        // keep as-is
-      }
 
       return stats;
     }
@@ -1273,7 +1186,6 @@
 
       const storeQuality = {};
 
-      // Initialize all stores with zeros (so every store always shows)
       CANONICAL_STORES.forEach(store => {
         storeQuality[store] = {
           totalDeals: 0,
@@ -1285,19 +1197,6 @@
           badUrl: 0
         };
       });
-
-      // Include Unknown if present
-      if (stats?.stores?.Unknown && !storeQuality['Unknown']) {
-        storeQuality['Unknown'] = {
-          totalDeals: 0,
-          unknownBrands: 0,
-          unknownModels: 0,
-          noOriginalPrice: 0,
-          noSalePrice: 0,
-          badImage: 0,
-          badUrl: 0
-        };
-      }
 
       deals.forEach(deal => {
         const store = normalizeStore(deal.store);
@@ -1381,7 +1280,6 @@
         CURRENT_DATA_QUALITY_SORT.column = column;
         CURRENT_DATA_QUALITY_SORT.direction = column === 'store' ? 'asc' : 'desc';
       }
-      // Re-render from current ALL_DEALS
       const stats = calculateStats(ALL_DEALS);
       displayDataQuality(ALL_DEALS, stats);
     }
@@ -1490,7 +1388,7 @@
     }
 
     // ------------------------------------------------------------
-    // Health Status (schema-correct: imageURL + listingURL + prices)
+    // Health Status (schema-correct)
     // ------------------------------------------------------------
     function displayHealthStatus(deals, stats, mergeData) {
       const healthPanel = document.getElementById('healthPanel');
@@ -1512,7 +1410,6 @@
       let warningCount = 0;
       let criticalCount = 0;
 
-      // Use canonical stores so all stores always show (even if 0)
       CANONICAL_STORES.forEach(storeName => {
         const storeData = stats.stores[storeName] || { count: 0, deals: [], totalDiscount: 0, totalSavings: 0 };
 
@@ -1525,7 +1422,6 @@
           scrapedUrl: SCRAPER_URLS[storeName] || null
         };
 
-        // Metadata selection
         if (storeToScraperName[storeName]) {
           const scraperNames = Array.isArray(storeToScraperName[storeName])
             ? storeToScraperName[storeName]
@@ -1559,7 +1455,6 @@
 
         const storeDeals = deals.filter(d => normalizeStore(d.store) === storeName);
 
-        // Health checks
         if (storeData.count === 0) {
           health.issues.push({ type: 'critical', message: '🚨 ZERO RESULTS - Scraper may be broken' });
           health.status = 'critical';
@@ -1632,8 +1527,8 @@
 
       if (healthIssuesList) {
         const criticalStores = Object.values(storeHealth)
-          .filter(health => health.status === 'critical')
-          .map(health => health.store);
+          .filter(h => h.status === 'critical')
+          .map(h => h.store);
 
         if (criticalStores.length > 0) {
           healthIssuesList.innerHTML = `
@@ -1648,7 +1543,6 @@
         }
       }
 
-      // Alphabetical order
       const sortedStores = Object.values(storeHealth).sort((a, b) =>
         a.store.toLowerCase().localeCompare(b.store.toLowerCase())
       );
@@ -1673,7 +1567,6 @@
 
         const scrapedUrlStr = health.scrapedUrl || 'Not Available';
 
-        // Gender stats
         const storeDeals = ALL_DEALS.filter(d => normalizeStore(d.store) === health.store);
         const genderStats = calculateGenderStats(storeDeals);
 
@@ -1695,19 +1588,19 @@
             </div>
 
             <div class="health-metrics">
-            <div class="health-metric full">
-              <div class="health-metric-label">Last Updated • Scrape Duration • Age</div>
-              <div class="health-metric-value ${timestampStr === 'Not Available' ? 'na' : ''}" style="font-size: 0.86rem;">
-                <span class="inline-pair">
-                  <span>${timestampStr}</span>
-                  <span style="opacity:.65;">|</span>
-                  <span class="${durationStr === 'Not Available' ? 'na' : ''}">${durationStr}</span>
-                  <span style="opacity:.65;">|</span>
-                  <span class="${ageStr === 'Not Available' ? 'na' : ''}">${ageStr}</span>
-                </span>
+              <div class="health-metric full">
+                <div class="health-metric-label">Last Updated • Scrape Duration • Age</div>
+                <div class="health-metric-value ${timestampStr === 'Not Available' ? 'na' : ''}" style="font-size: 0.86rem;">
+                  <span class="inline-pair">
+                    <span>${timestampStr}</span>
+                    <span style="opacity:.65;">|</span>
+                    <span class="${durationStr === 'Not Available' ? 'na' : ''}">${durationStr}</span>
+                    <span style="opacity:.65;">|</span>
+                    <span class="${ageStr === 'Not Available' ? 'na' : ''}">${ageStr}</span>
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
             <div class="gender-breakdown">
               <div class="gender-breakdown-title">
@@ -1749,8 +1642,6 @@
       }).join('');
 
       healthPanel.style.display = 'block';
-
-      // Also update Store Breakdown after health is built
       displayStoreTable(stats.stores);
     }
 
@@ -1763,7 +1654,6 @@
 
       select.innerHTML = `<option value="__none__" selected>Select store or Close</option>`;
 
-      // Always show all canonical stores (even if 0)
       CANONICAL_STORES.forEach(store => {
         const opt = document.createElement("option");
         opt.value = store;
@@ -1772,9 +1662,15 @@
       });
 
       // Prevent stacking event listeners if user clicks refresh a lot
-      select.onchange = () => renderDealsForSelectedStore({ selectId });
+      select.onchange = () => renderDealsForSelectedStore({
+        selectId,
+        tableWrapId: selectId === "unalteredStoreSelect" ? "unalteredDealsTableWrap" : "storeDealsTableWrap",
+        countId: selectId === "unalteredStoreSelect" ? "unalteredStoreCount" : "storeCount",
+        deals: selectId === "unalteredStoreSelect" ? UNALTERED_DEALS : ALL_DEALS,
+      });
     }
 
+    // ✅ FIXED: ONLY ONE renderDealsForSelectedStore FUNCTION (no nested duplicate)
     function renderDealsForSelectedStore(options = {}) {
       const {
         selectId = "storeSelect",
@@ -1786,10 +1682,6 @@
       const select = document.getElementById(selectId);
       const tableWrap = document.getElementById(tableWrapId);
       const countEl = document.getElementById(countId);
-    function renderDealsForSelectedStore() {
-      const select = document.getElementById("storeSelect");
-      const tableWrap = document.getElementById("storeDealsTableWrap");
-      const countEl = document.getElementById("storeCount");
       if (!select || !tableWrap) return;
 
       const chosen = select.value;
@@ -1810,11 +1702,11 @@
         }
       }
 
-      const toShow = filtered.slice(0, SHOW_MAX);
-
       tableWrap.innerHTML = "";
 
       if (chosen === "__none__") return;
+
+      const toShow = filtered.slice(0, SHOW_MAX);
 
       if (!toShow.length) {
         tableWrap.innerHTML = `<div style="text-align:center;color:#666;padding:18px;">No deals found for this store.</div>`;
@@ -1824,7 +1716,6 @@
       const columns = [
         {
           key: "listingName",
-          label: "listingName",
           label: "Listing",
           subLabel: "listingName",
           getValue: (d) => normalizeStr(d.listingName),
@@ -1832,7 +1723,6 @@
         },
         {
           key: "brand",
-          label: "brand",
           label: "Brand",
           subLabel: "brand",
           getValue: (d) => normalizeStr(d.brand) || "Unknown",
@@ -1840,7 +1730,6 @@
         },
         {
           key: "model",
-          label: "model",
           label: "Model",
           subLabel: "model",
           getValue: (d) => normalizeStr(d.model),
@@ -1848,7 +1737,6 @@
         },
         {
           key: "salePrice",
-          label: "salePrice",
           label: "Sale price",
           subLabel: "salePrice",
           getValue: (d) => {
@@ -1859,7 +1747,6 @@
         },
         {
           key: "originalPrice",
-          label: "originalPrice",
           label: "Original price",
           subLabel: "originalPrice",
           getValue: (d) => {
@@ -1870,7 +1757,6 @@
         },
         {
           key: "discountPercent",
-          label: "discountPercent",
           label: "Discount %",
           subLabel: "discountPercent",
           getValue: (d) => {
@@ -1881,7 +1767,6 @@
         },
         {
           key: "store",
-          label: "store",
           label: "Store",
           subLabel: "store",
           getValue: (d) => normalizeStore(d.store),
@@ -1889,7 +1774,6 @@
         },
         {
           key: "listingURL",
-          label: "listingURL",
           label: "URL",
           subLabel: "listingURL",
           getValue: (d) => normalizeStr(d.listingURL),
@@ -1900,7 +1784,6 @@
         },
         {
           key: "imageURL",
-          label: "imageURL",
           label: "Image",
           subLabel: "imageURL",
           getValue: (d) => normalizeStr(d.imageURL),
@@ -1908,7 +1791,6 @@
         },
         {
           key: "gender",
-          label: "gender",
           label: "Gender",
           subLabel: "gender",
           getValue: (d) => normalizeStr(d.gender),
@@ -1916,7 +1798,6 @@
         },
         {
           key: "shoeType",
-          label: "shoeType",
           label: "Shoe type",
           subLabel: "shoeType",
           getValue: (d) => normalizeStr(d.shoeType),
@@ -1943,8 +1824,10 @@
 
       const rows = toShow.map((deal, idx) => {
         const rowHasIssues = columns.some((col) => col.isMissing(deal));
+
         const cells = columns.map((col) => {
           const missing = col.isMissing(deal);
+
           if (col.key === "listingURL") {
             const url = normalizeStr(deal.listingURL);
             return `
@@ -1953,6 +1836,7 @@
               </td>
             `;
           }
+
           if (col.key === "imageURL") {
             return `
               <td class="${missing ? "missing-cell" : ""}">
@@ -1960,6 +1844,7 @@
               </td>
             `;
           }
+
           const value = col.getValue(deal);
           return `<td class="${missing ? "missing-cell" : ""}">${value || "—"}</td>`;
         }).join("");
@@ -1987,10 +1872,7 @@
       `;
     }
 
-    function openExternal(url) {
-      window.open(url, "_blank", "noopener,noreferrer");
-    }
-
+    // Kick off
     loadStats();
   </script>
 </body>
