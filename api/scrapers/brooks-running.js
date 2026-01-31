@@ -1,7 +1,7 @@
 // api/scrapers/brooks-running.js
 // Brooks Sale Scraper (Firecrawl + Cheerio)
 // Output schema (per deal):
-//   listing, brand, model, salePrice, originalPrice, discountPercent,
+//   listingName, brand, model, salePrice, originalPrice, discountPercent,
 //   store, listingURL, imageURL, gender, shoeType
 
 const FirecrawlApp = require("@mendable/firecrawl-js").default;
@@ -39,7 +39,7 @@ function absolutizeUrl(maybeUrl, base) {
 
 /** -------------------- Classification helpers -------------------- **/
 
-function detectGender(listing, listingURL) {
+function detectGender(, listingURL) {
   const combined = `${listing || ""} ${listingURL || ""}`.toLowerCase();
 
   if (/\b(men'?s?|male)\b/i.test(combined)) return "mens";
