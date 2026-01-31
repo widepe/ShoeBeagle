@@ -584,6 +584,65 @@
       align-items: center;
       gap: 6px;
     }
+
+    .deals-table-wrap {
+      margin-top: 12px;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      overflow: auto;
+      background: #fff;
+    }
+
+    .deals-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1100px;
+    }
+
+    .deals-table th,
+    .deals-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #ececec;
+      vertical-align: top;
+      font-size: 0.92rem;
+    }
+
+    .deals-table thead th {
+      position: sticky;
+      top: 0;
+      background: #fafafa;
+      z-index: 1;
+    }
+
+    .column-percent {
+      display: block;
+      margin-top: 4px;
+      color: #6b7280;
+      font-weight: 600;
+      font-size: 0.78rem;
+    }
+
+    .deals-table td a {
+      color: #1d4ed8;
+      word-break: break-all;
+    }
+
+    .deal-thumb {
+      width: 48px;
+      height: 32px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+    }
+
+    .row-has-issues {
+      background: #fff6f5;
+    }
+
+    .missing-cell {
+      color: #9ca3af;
+      font-style: italic;
+    }
   </style>
 </head>
 
@@ -646,7 +705,22 @@
           <div id="storeCount" style="color:#666;font-size:0.95rem;"></div>
         </div>
 
-        <div class="deals-grid" id="storeDealsGrid"></div>
+        <div class="deals-table-wrap" id="storeDealsTableWrap"></div>
+      </div>
+
+      <!-- Unaltered Deals Browser by Store -->
+      <div class="deals-panel">
+        <h2>🧾 Browse Unaltered Deals by Store</h2>
+
+        <div class="filter-row">
+          <label for="unalteredStoreSelect">Store:</label>
+          <select id="unalteredStoreSelect">
+            <option value="__none__">Select store or Close</option>
+          </select>
+          <div id="unalteredStoreCount" style="color:#666;font-size:0.95rem;"></div>
+        </div>
+
+        <div class="deals-table-wrap" id="unalteredDealsTableWrap"></div>
       </div>
 
       <!-- Data Quality by Store -->
@@ -706,22 +780,33 @@
 
     // Store scraper URL mapping (canonical store list)
     const SCRAPER_URLS = {
-      'Als': 'https://www.als.com/',
+      'ALS': 'https://www.als.com/',
       'ASICS': 'https://www.asics.com/us/en-us/sale/mens-running-shoes/c/aa10107020/',
       'Brooks Running': 'https://www.brooksrunning.com/en_us/mens-sale-running-shoes/c/301/',
       'Fleet Feet': 'https://www.fleetfeet.com/collections/mens-running-shoes-on-sale',
       'Holabird Sports': 'https://www.holabirdsports.com',
-      'REI': 'https://www.rei.com/',
+      'REI Outlet': 'https://www.rei.com/rei-garage',
       'Road Runner Sports': 'https://www.roadrunnersports.com/rrs/mens/shoes/sale/_/N-u5Z1z141i0',
       'Running Warehouse': 'https://www.runningwarehouse.com/',
       'Shoebacca': 'https://www.shoebacca.com/collections/clearance-athletic',
-      'Snails Pace': 'https://www.asnailspace.com/',
+      "A Snail's Pace": 'https://shop.asnailspace.net/',
       'Zappos': 'https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso',
+    };
+
+    const STORE_ALIASES = {
+      'als': 'ALS',
+      'a snail’s pace': "A Snail's Pace",
+      "a snail's pace": "A Snail's Pace",
+      'snails pace': "A Snail's Pace",
+      'snail pace': "A Snail's Pace",
+      'rei': 'REI Outlet',
+      'rei outlet': 'REI Outlet',
     };
 
     const CANONICAL_STORES = Object.keys(SCRAPER_URLS).slice().sort((a,b) => a.localeCompare(b));
 
     let ALL_DEALS = [];
+    let UNALTERED_DEALS = [];
     let STORE_DATA = null;
     let CURRENT_STORE_SORT = { column: 'count', direction: 'desc' };
     let CURRENT_DATA_QUALITY_SORT = { column: 'totalDeals', direction: 'desc' };
@@ -730,7 +815,10 @@
     // Small helpers
     // ------------------------------------------------------------
     function normalizeStore(s) {
-      return String(s || '').trim() || 'Unknown';
+      const cleaned = String(s || '').trim();
+      if (!cleaned) return 'Unknown';
+      const key = cleaned.toLowerCase();
+      return STORE_ALIASES[key] || cleaned;
     }
 
     function normalizeStr(s) {
@@ -778,6 +866,17 @@
       const img = normalizeStr(d.imageURL);
       if (!img) return "https://placehold.co/600x400?text=Running+Shoe";
       return img;
+    }
+
+    function hasValidImage(d) {
+      const img = normalizeStr(d.imageURL);
+      if (!img) return false;
+      if (img.includes("placehold.co") || img.includes("placeholder") || img.includes("no-image")) return false;
+      return true;
+    }
+
+    function isPresentText(value) {
+      return Boolean(normalizeStr(value));
     }
 
     function getDealUrl(d) {
@@ -955,6 +1054,22 @@
 
         const data = await dealsResponse.json();
 
+        let unalteredDeals = [];
+        try {
+          const unalteredResponse = await fetch(
+            `https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/unalteredDeals.json?t=${cacheBuster}`,
+            { cache: "no-store" }
+          );
+          if (unalteredResponse.ok) {
+            const unalteredData = await unalteredResponse.json();
+            if (unalteredData && Array.isArray(unalteredData.deals)) {
+              unalteredDeals = unalteredData.deals;
+            }
+          }
+        } catch (unalteredError) {
+          console.log("Could not load unaltered deals (continuing without it):", unalteredError.message);
+        }
+
         // Try to fetch merge-deals metadata (optional, with timeout)
         let mergeData = null;
         try {
@@ -977,9 +1092,17 @@
 
         const deals = data.deals;
         ALL_DEALS = deals;
+        UNALTERED_DEALS = unalteredDeals;
 
-        buildStoreDropdown(deals);
+        buildStoreDropdown(deals, "storeSelect");
+        buildStoreDropdown(unalteredDeals, "unalteredStoreSelect");
         renderDealsForSelectedStore();
+        renderDealsForSelectedStore({
+          selectId: "unalteredStoreSelect",
+          tableWrapId: "unalteredDealsTableWrap",
+          countId: "unalteredStoreCount",
+          deals: UNALTERED_DEALS,
+        });
 
         // Debug
         const unknownBrands = deals.filter(d => (normalizeStr(d.brand) === 'Unknown' || !normalizeStr(d.brand))).length;
@@ -1363,7 +1486,7 @@
 
       const storeToScraperName = {
         'ASICS': 'ASICS Sale',
-        'Brooks Running': 'Brooks Sale',
+        'Brooks Running': 'Brooks Running',
         'Holabird Sports': ['Holabird Mens Road', 'Holabird Womens Road', 'Holabird Trail + Unisex']
       };
 
@@ -1617,8 +1740,8 @@
     // ------------------------------------------------------------
     // Deals browser by store (schema-correct)
     // ------------------------------------------------------------
-    function buildStoreDropdown(deals) {
-      const select = document.getElementById("storeSelect");
+    function buildStoreDropdown(deals, selectId) {
+      const select = document.getElementById(selectId);
       if (!select) return;
 
       select.innerHTML = `<option value="__none__" selected>Select store or Close</option>`;
@@ -1632,20 +1755,27 @@
       });
 
       // Prevent stacking event listeners if user clicks refresh a lot
-      select.onchange = () => renderDealsForSelectedStore();
+      select.onchange = () => renderDealsForSelectedStore({ selectId });
     }
 
-    function renderDealsForSelectedStore() {
-      const select = document.getElementById("storeSelect");
-      const grid = document.getElementById("storeDealsGrid");
-      const countEl = document.getElementById("storeCount");
-      if (!select || !grid) return;
+    function renderDealsForSelectedStore(options = {}) {
+      const {
+        selectId = "storeSelect",
+        tableWrapId = "storeDealsTableWrap",
+        countId = "storeCount",
+        deals = ALL_DEALS,
+      } = options;
+
+      const select = document.getElementById(selectId);
+      const tableWrap = document.getElementById(tableWrapId);
+      const countEl = document.getElementById(countId);
+      if (!select || !tableWrap) return;
 
       const chosen = select.value;
       let filtered = [];
 
       if (chosen === "__none__") filtered = [];
-      else filtered = ALL_DEALS.filter(d => normalizeStore(d.store) === chosen);
+      else filtered = deals.filter(d => normalizeStore(d.store) === chosen);
 
       const SHOW_MAX = 500;
 
@@ -1661,75 +1791,156 @@
 
       const toShow = filtered.slice(0, SHOW_MAX);
 
-      grid.innerHTML = "";
+      tableWrap.innerHTML = "";
 
       if (chosen === "__none__") return;
 
       if (!toShow.length) {
-        grid.innerHTML = `<div style="text-align:center;color:#666;padding:18px;">No deals found for this store.</div>`;
+        tableWrap.innerHTML = `<div style="text-align:center;color:#666;padding:18px;">No deals found for this store.</div>`;
         return;
       }
 
-      toShow.forEach((d) => {
-        const a = document.createElement("a");
-        a.className = "deal-card";
-        a.href = getDealUrl(d);
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
+      const columns = [
+        {
+          key: "listingName",
+          label: "listingName",
+          getValue: (d) => normalizeStr(d.listingName),
+          isMissing: (d) => !isPresentText(d.listingName),
+        },
+        {
+          key: "brand",
+          label: "brand",
+          getValue: (d) => normalizeStr(d.brand) || "Unknown",
+          isMissing: (d) => !isPresentText(d.brand),
+        },
+        {
+          key: "model",
+          label: "model",
+          getValue: (d) => normalizeStr(d.model),
+          isMissing: (d) => !isPresentText(d.model),
+        },
+        {
+          key: "salePrice",
+          label: "salePrice",
+          getValue: (d) => {
+            const val = Number(d.salePrice);
+            return Number.isFinite(val) && val > 0 ? formatMoney(val) : "—";
+          },
+          isMissing: (d) => !(Number.isFinite(Number(d.salePrice)) && Number(d.salePrice) > 0),
+        },
+        {
+          key: "originalPrice",
+          label: "originalPrice",
+          getValue: (d) => {
+            const val = Number(d.originalPrice);
+            return Number.isFinite(val) && val > 0 ? formatMoney(val) : "—";
+          },
+          isMissing: (d) => !(Number.isFinite(Number(d.originalPrice)) && Number(d.originalPrice) > 0),
+        },
+        {
+          key: "discountPercent",
+          label: "discountPercent",
+          getValue: (d) => {
+            const val = Number(d.discountPercent);
+            return Number.isFinite(val) && val > 0 ? `${val.toFixed(0)}%` : "—";
+          },
+          isMissing: (d) => !Number.isFinite(Number(d.discountPercent)),
+        },
+        {
+          key: "store",
+          label: "store",
+          getValue: (d) => normalizeStore(d.store),
+          isMissing: (d) => !isPresentText(d.store),
+        },
+        {
+          key: "listingURL",
+          label: "listingURL",
+          getValue: (d) => normalizeStr(d.listingURL),
+          isMissing: (d) => {
+            const url = normalizeStr(d.listingURL);
+            return !url || url === "#";
+          },
+        },
+        {
+          key: "imageURL",
+          label: "imageURL",
+          getValue: (d) => normalizeStr(d.imageURL),
+          isMissing: (d) => !hasValidImage(d),
+        },
+        {
+          key: "gender",
+          label: "gender",
+          getValue: (d) => normalizeStr(d.gender),
+          isMissing: (d) => !isPresentText(d.gender),
+        },
+        {
+          key: "shoeType",
+          label: "shoeType",
+          getValue: (d) => normalizeStr(d.shoeType),
+          isMissing: (d) => !isPresentText(d.shoeType),
+        },
+      ];
 
-        const img = document.createElement("img");
-        img.src = getDealImage(d);
-        img.alt = getDealTitle(d);
-        a.appendChild(img);
-
-        const body = document.createElement("div");
-        body.className = "deal-card-body";
-
-        const title = document.createElement("div");
-        title.className = "deal-title";
-        title.textContent = getDealTitle(d);
-        body.appendChild(title);
-
-        const meta = document.createElement("div");
-        meta.className = "deal-meta";
-        meta.textContent = normalizeStore(d.store);
-        body.appendChild(meta);
-
-        const priceRow = document.createElement("div");
-        priceRow.className = "deal-price-row";
-
-        const priceSpan = document.createElement("div");
-        priceSpan.className = "deal-price";
-
-        const salePrice = safeNumber(d.salePrice);
-        const originalPrice = safeNumber(d.originalPrice);
-
-        priceSpan.textContent = formatMoney(salePrice);
-
-        if (Number.isFinite(originalPrice) && Number.isFinite(salePrice) && originalPrice > salePrice && salePrice > 0) {
-          const origSpan = document.createElement("span");
-          origSpan.className = "deal-orig";
-          origSpan.textContent = formatMoney(originalPrice);
-          priceSpan.appendChild(origSpan);
-
-          const pctFromData = Number(d.discountPercent);
-          const computed = computeDiscountPercent(originalPrice, salePrice);
-          const discountPercent = (Number.isFinite(pctFromData) && pctFromData > 0) ? pctFromData : computed;
-
-          const discountBadge = document.createElement("div");
-          discountBadge.className = "deal-discount";
-          discountBadge.textContent = `-${discountPercent.toFixed(0)}%`;
-
-          priceRow.appendChild(priceSpan);
-          priceRow.appendChild(discountBadge);
-        } else {
-          priceRow.appendChild(priceSpan);
-        }
-
-        body.appendChild(priceRow);
-        a.appendChild(body);
-        grid.appendChild(a);
+      const completeness = columns.map((col) => {
+        const presentCount = toShow.filter((d) => !col.isMissing(d)).length;
+        const pct = toShow.length ? Math.round((presentCount / toShow.length) * 100) : 0;
+        return { key: col.key, pct };
       });
+
+      const headerCells = columns.map((col) => {
+        const pct = completeness.find((c) => c.key === col.key)?.pct ?? 0;
+        return `
+          <th>
+            ${col.label}
+            <span class="column-percent">${pct}%</span>
+          </th>
+        `;
+      }).join("");
+
+      const rows = toShow.map((deal, idx) => {
+        const rowHasIssues = columns.some((col) => col.isMissing(deal));
+        const cells = columns.map((col) => {
+          const missing = col.isMissing(deal);
+          if (col.key === "listingURL") {
+            const url = normalizeStr(deal.listingURL);
+            return `
+              <td class="${missing ? "missing-cell" : ""}">
+                ${url && url !== "#" ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>` : "—"}
+              </td>
+            `;
+          }
+          if (col.key === "imageURL") {
+            return `
+              <td class="${missing ? "missing-cell" : ""}">
+                ${hasValidImage(deal) ? `<img class="deal-thumb" src="${getDealImage(deal)}" alt="${getDealTitle(deal)}">` : "—"}
+              </td>
+            `;
+          }
+          const value = col.getValue(deal);
+          return `<td class="${missing ? "missing-cell" : ""}">${value || "—"}</td>`;
+        }).join("");
+
+        return `
+          <tr class="${rowHasIssues ? "row-has-issues" : ""}">
+            <td>${idx + 1}</td>
+            ${cells}
+          </tr>
+        `;
+      }).join("");
+
+      tableWrap.innerHTML = `
+        <table class="deals-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              ${headerCells}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      `;
     }
 
     function openExternal(url) {
