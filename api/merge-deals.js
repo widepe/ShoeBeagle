@@ -5,8 +5,8 @@
 // Sources (by blob URL env var or endpoint fallback):
 // - Cheerio (non-Holabird):        CHEERIO_DEALS_BLOB_URL   or /api/cheerio_scrapers
 // - Apify (non-Holabird):          APIFY_DEALS_BLOB_URL     or /api/apify_scrapers
-// - Holabird Mens Road:            HOLABIRD_MENS_ROAD_BLOB_URL      or /api/scrapers/holabird-mens-road
-// - Holabird Womens Road:          HOLABIRD_WOMENS_ROAD_BLOB_URL    or /api/scrapers/holabird-womens-road
+// - Holabird Men's Road:            HOLABIRD_MENS_ROAD_BLOB_URL      or /api/scrapers/holabird-mens-road
+// - Holabird Women's Road:          HOLABIRD_WOMENS_ROAD_BLOB_URL    or /api/scrapers/holabird-womens-road
 // - Holabird Trail + Unisex:       HOLABIRD_TRAIL_UNISEX_BLOB_URL   or /api/scrapers/holabird-trail-unisex
 // - Brooks Running:                BROOKS_RUNNING_BLOB_URL          or /api/scrapers/brooks-running
 // - ASICS Sale:                    ASICS_SALE_BLOB_URL             or /api/scrapers/asics-sale
