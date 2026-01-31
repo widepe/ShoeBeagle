@@ -3,8 +3,8 @@
 // Merges sources into canonical deals.json (11-field schema)
 //
 // Sources (by blob URL env var or endpoint fallback):
-// - Cheerio (non-Holabird):        CHEERIO_DEALS_BLOB_URL   or /api/cheerio_scrapers
-// - Apify (non-Holabird):          APIFY_DEALS_BLOB_URL     or /api/apify_scrapers
+// - Cheerio (non-Holabird):        CHEERIO_DEALS_BLOB_URL   or /api/scrapers/cheerio_scrapers
+// - Apify (non-Holabird):          APIFY_DEALS_BLOB_URL     or /api/scrapers/apify_scrapers
 // - Holabird Men's Road:            HOLABIRD_MENS_ROAD_BLOB_URL      or /api/scrapers/holabird-mens-road
 // - Holabird Women's Road:          HOLABIRD_WOMENS_ROAD_BLOB_URL    or /api/scrapers/holabird-womens-road
 // - Holabird Trail + Unisex:       HOLABIRD_TRAIL_UNISEX_BLOB_URL   or /api/scrapers/holabird-trail-unisex
@@ -16,7 +16,7 @@
 //
 // Writes blobs (stable names, overwritten):
 // - deals.json
-// - unaltered-deals.json
+// - unalteredDeals.json
 // - stats.json
 // - twelve_daily_deals.json
 // - scraper-data.json (rolling 30 days; needs SCRAPER_DATA_BLOB_URL set to persist history)
@@ -1166,7 +1166,7 @@ module.exports = async (req, res) => {
 
     const [dealsBlob, unalteredBlob, statsBlob, dailyDealsBlob, scraperDataBlob] = await Promise.all([
       put("deals.json", JSON.stringify(output, null, 2), { access: "public", addRandomSuffix: false }),
-      put("unaltered-deals.json", JSON.stringify(unalteredPayload, null, 2), { access: "public", addRandomSuffix: false }),
+      put("unalteredDeals.json", JSON.stringify(unalteredPayload, null, 2), { access: "public", addRandomSuffix: false }),
       put("stats.json", JSON.stringify(stats, null, 2), { access: "public", addRandomSuffix: false }),
       put("twelve_daily_deals.json", JSON.stringify(dailyDealsPayload, null, 2), { access: "public", addRandomSuffix: false }),
       put("scraper-data.json", JSON.stringify(scraperData, null, 2), { access: "public", addRandomSuffix: false }),
@@ -1183,7 +1183,7 @@ module.exports = async (req, res) => {
       storeMetadata,
 
       dealsBlobUrl: dealsBlob.url,
-      unalteredBlobUrl: unalteredBlob.url,
+      unalteredDealsBlobUrl: unalteredBlob.url,
       statsBlobUrl: statsBlob.url,
       dailyDealsBlobUrl: dailyDealsBlob.url,
       scraperDataBlobUrl: scraperDataBlob.url,

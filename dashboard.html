@@ -614,6 +614,12 @@
       z-index: 1;
     }
 
+    .column-percent {
+      display: block;
+      margin-top: 4px;
+      color: #6b7280;
+      font-weight: 600;
+      font-size: 0.78rem;
     .deals-table th .column-subtitle {
       display: block;
       color: #6b7280;
@@ -719,6 +725,21 @@
         <div class="deals-table-wrap" id="storeDealsTableWrap"></div>
       </div>
 
+      <!-- Unaltered Deals Browser by Store -->
+      <div class="deals-panel">
+        <h2>🧾 Browse Unaltered Deals by Store</h2>
+
+        <div class="filter-row">
+          <label for="unalteredStoreSelect">Store:</label>
+          <select id="unalteredStoreSelect">
+            <option value="__none__">Select store or Close</option>
+          </select>
+          <div id="unalteredStoreCount" style="color:#666;font-size:0.95rem;"></div>
+        </div>
+
+        <div class="deals-table-wrap" id="unalteredDealsTableWrap"></div>
+      </div>
+
       <!-- Data Quality by Store -->
       <div class="stores-table">
         <h2>📊 Data Quality by Store</h2>
@@ -802,6 +823,7 @@
     const CANONICAL_STORES = Object.keys(SCRAPER_URLS).slice().sort((a,b) => a.localeCompare(b));
 
     let ALL_DEALS = [];
+    let UNALTERED_DEALS = [];
     let STORE_DATA = null;
     let CURRENT_STORE_SORT = { column: 'count', direction: 'desc' };
     let CURRENT_DATA_QUALITY_SORT = { column: 'totalDeals', direction: 'desc' };
@@ -1049,6 +1071,22 @@
 
         const data = await dealsResponse.json();
 
+        let unalteredDeals = [];
+        try {
+          const unalteredResponse = await fetch(
+            `https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/unalteredDeals.json?t=${cacheBuster}`,
+            { cache: "no-store" }
+          );
+          if (unalteredResponse.ok) {
+            const unalteredData = await unalteredResponse.json();
+            if (unalteredData && Array.isArray(unalteredData.deals)) {
+              unalteredDeals = unalteredData.deals;
+            }
+          }
+        } catch (unalteredError) {
+          console.log("Could not load unaltered deals (continuing without it):", unalteredError.message);
+        }
+
         // Try to fetch merge-deals metadata (optional, with timeout)
         let mergeData = null;
         try {
@@ -1071,9 +1109,17 @@
 
         const deals = data.deals;
         ALL_DEALS = deals;
+        UNALTERED_DEALS = unalteredDeals;
 
-        buildStoreDropdown(deals);
+        buildStoreDropdown(deals, "storeSelect");
+        buildStoreDropdown(unalteredDeals, "unalteredStoreSelect");
         renderDealsForSelectedStore();
+        renderDealsForSelectedStore({
+          selectId: "unalteredStoreSelect",
+          tableWrapId: "unalteredDealsTableWrap",
+          countId: "unalteredStoreCount",
+          deals: UNALTERED_DEALS,
+        });
 
         // Debug
         const unknownBrands = deals.filter(d => (normalizeStr(d.brand) === 'Unknown' || !normalizeStr(d.brand))).length;
@@ -1457,7 +1503,7 @@
 
       const storeToScraperName = {
         'ASICS': 'ASICS Sale',
-        'Brooks Running': 'Brooks Sale',
+        'Brooks Running': 'Brooks Running',
         'Holabird Sports': ['Holabird Mens Road', 'Holabird Womens Road', 'Holabird Trail + Unisex']
       };
 
@@ -1711,8 +1757,8 @@
     // ------------------------------------------------------------
     // Deals browser by store (schema-correct)
     // ------------------------------------------------------------
-    function buildStoreDropdown(deals) {
-      const select = document.getElementById("storeSelect");
+    function buildStoreDropdown(deals, selectId) {
+      const select = document.getElementById(selectId);
       if (!select) return;
 
       select.innerHTML = `<option value="__none__" selected>Select store or Close</option>`;
@@ -1726,9 +1772,20 @@
       });
 
       // Prevent stacking event listeners if user clicks refresh a lot
-      select.onchange = () => renderDealsForSelectedStore();
+      select.onchange = () => renderDealsForSelectedStore({ selectId });
     }
 
+    function renderDealsForSelectedStore(options = {}) {
+      const {
+        selectId = "storeSelect",
+        tableWrapId = "storeDealsTableWrap",
+        countId = "storeCount",
+        deals = ALL_DEALS,
+      } = options;
+
+      const select = document.getElementById(selectId);
+      const tableWrap = document.getElementById(tableWrapId);
+      const countEl = document.getElementById(countId);
     function renderDealsForSelectedStore() {
       const select = document.getElementById("storeSelect");
       const tableWrap = document.getElementById("storeDealsTableWrap");
@@ -1739,7 +1796,7 @@
       let filtered = [];
 
       if (chosen === "__none__") filtered = [];
-      else filtered = ALL_DEALS.filter(d => normalizeStore(d.store) === chosen);
+      else filtered = deals.filter(d => normalizeStore(d.store) === chosen);
 
       const SHOW_MAX = 500;
 
@@ -1767,6 +1824,7 @@
       const columns = [
         {
           key: "listingName",
+          label: "listingName",
           label: "Listing",
           subLabel: "listingName",
           getValue: (d) => normalizeStr(d.listingName),
@@ -1774,6 +1832,7 @@
         },
         {
           key: "brand",
+          label: "brand",
           label: "Brand",
           subLabel: "brand",
           getValue: (d) => normalizeStr(d.brand) || "Unknown",
@@ -1781,6 +1840,7 @@
         },
         {
           key: "model",
+          label: "model",
           label: "Model",
           subLabel: "model",
           getValue: (d) => normalizeStr(d.model),
@@ -1788,6 +1848,7 @@
         },
         {
           key: "salePrice",
+          label: "salePrice",
           label: "Sale price",
           subLabel: "salePrice",
           getValue: (d) => {
@@ -1798,6 +1859,7 @@
         },
         {
           key: "originalPrice",
+          label: "originalPrice",
           label: "Original price",
           subLabel: "originalPrice",
           getValue: (d) => {
@@ -1808,6 +1870,7 @@
         },
         {
           key: "discountPercent",
+          label: "discountPercent",
           label: "Discount %",
           subLabel: "discountPercent",
           getValue: (d) => {
@@ -1818,6 +1881,7 @@
         },
         {
           key: "store",
+          label: "store",
           label: "Store",
           subLabel: "store",
           getValue: (d) => normalizeStore(d.store),
@@ -1825,6 +1889,7 @@
         },
         {
           key: "listingURL",
+          label: "listingURL",
           label: "URL",
           subLabel: "listingURL",
           getValue: (d) => normalizeStr(d.listingURL),
@@ -1835,6 +1900,7 @@
         },
         {
           key: "imageURL",
+          label: "imageURL",
           label: "Image",
           subLabel: "imageURL",
           getValue: (d) => normalizeStr(d.imageURL),
@@ -1842,6 +1908,7 @@
         },
         {
           key: "gender",
+          label: "gender",
           label: "Gender",
           subLabel: "gender",
           getValue: (d) => normalizeStr(d.gender),
@@ -1849,6 +1916,7 @@
         },
         {
           key: "shoeType",
+          label: "shoeType",
           label: "Shoe type",
           subLabel: "shoeType",
           getValue: (d) => normalizeStr(d.shoeType),
