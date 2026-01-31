@@ -626,6 +626,18 @@
         isProcessing = true;
         saveBtn.disabled = true;
         saveBtn.textContent = "Saving...";
+        const previousAlerts = currentAlerts.slice();
+        const optimisticIndex = currentAlerts.findIndex((item) => item.id === alert.id);
+        if (optimisticIndex !== -1) {
+          currentAlerts[optimisticIndex] = {
+            ...currentAlerts[optimisticIndex],
+            targetPrice: newPrice,
+            setAt: Date.now(),
+            cancelledAt: null,
+            lastNotifiedAt: null
+          };
+          renderAlertsDashboard();
+        }
 
         try {
           await apiUpdateAlert(alert.id, currentEmail, newPrice);
@@ -633,6 +645,8 @@
           await refreshAlerts();
         } catch (err) {
           console.error("Update failed:", err);
+          currentAlerts = previousAlerts;
+          renderAlertsDashboard();
           showStatus(err.message || "Failed to update alert.", "error");
         } finally {
           isProcessing = false;
