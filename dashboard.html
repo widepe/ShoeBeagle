@@ -327,6 +327,10 @@
       font-size: 0.82rem;
       color: #214478ff;
       font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 3px 4px;
     }
 
     .health-issues {
@@ -475,8 +479,9 @@
     .history-table .scraper-name {
       text-align: left;
       font-weight: bold;
-      min-width: 180px;
+      min-width: 220px;
       padding-left: 12px;
+      white-space: nowrap;
     }
 
     .history-cell-success { background: #f0f9f4; color: #28a745; }
@@ -485,18 +490,26 @@
     .history-cell-missing { color: #999; }
 
     .history-legend {
-      margin-top: 15px;
+      margin-top: 12px;
       font-size: 0.85rem;
       color: #666;
       display: flex;
-      gap: 20px;
+      gap: 14px;
       flex-wrap: wrap;
+      align-items: center;
     }
 
     .history-legend-item {
       display: flex;
       align-items: center;
       gap: 6px;
+    }
+
+    .history-notes {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: #444;
+      line-height: 1.35;
     }
 
     .deals-table-wrap {
@@ -693,17 +706,22 @@
 
   <script>
     // ============================================================
-    // ShoeBeagle Dashboard
+    // ShoeBeagle Dashboard (Complete, fixed)
     //
-    // IMPORTANT:
-    // This dashboard assumes each deal in deals.json uses THIS schema:
-    //
+    // Schema expected per deal:
     //   listingName, brand, model, salePrice, originalPrice, discountPercent,
     //   store, listingURL, imageURL, gender, shoeType
     //
-    // It intentionally does NOT rely on old keys like:
-    //   title, price, url, image
+    // Key fixes included:
+    // - Single BLOB_BASE used everywhere
+    // - deals.json / unaltered-deals.json can be ARRAY or {deals:[...]}
+    // - Store dropdowns + health use ACTUAL stores found in blob data
+    // - 30-day history hides: "Cheerio (non-Holabird)" and "Apify (non-Holabird)"
+    // - 30-day history marks scrapers with * (Apify) and † (Cheerio), notes at bottom
     // ============================================================
+
+    // One base blob URL everywhere (prevents "wrong blob" drift)
+    const BLOB_BASE = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
 
     // Show JS parse/runtime errors on the page (prevents silent "Loading..." forever)
     window.addEventListener("error", (e) => {
@@ -716,7 +734,7 @@
       }
     });
 
-    // Store scraper URL mapping (canonical store list)
+    // Store scraper URL mapping (used for "Scraped URL" links in health cards)
     const SCRAPER_URLS = {
       'ALS': 'https://www.als.com/',
       'ASICS': 'https://www.asics.com/us/en-us/sale/mens-running-shoes/c/aa10107020/',
@@ -741,7 +759,8 @@
       'rei outlet': 'REI Outlet',
     };
 
-    const CANONICAL_STORES = Object.keys(SCRAPER_URLS).slice().sort((a,b) => a.localeCompare(b));
+    // NOTE: made dynamic (not const) so we can rebuild after blob loads
+    let CANONICAL_STORES = [];
 
     let ALL_DEALS = [];
     let UNALTERED_DEALS = [];
@@ -792,7 +811,6 @@
     }
 
     function getDealTitle(d) {
-      // Prefer brand+model. If missing, fall back to listingName.
       const brand = normalizeStr(d.brand);
       const model = normalizeStr(d.model);
       const listingName = normalizeStr(d.listingName);
@@ -821,21 +839,30 @@
       window.open(url, "_blank", "noopener,noreferrer");
     }
 
+    function getStoresFromDeals(dealsArr) {
+      return Array.from(new Set((dealsArr || []).map(d => normalizeStore(d.store)).filter(Boolean)))
+        .filter(s => s && s !== "Unknown")
+        .sort((a,b)=>a.localeCompare(b));
+    }
+
+    function rebuildCanonicalStores() {
+      const fromUrls = Object.keys(SCRAPER_URLS);
+      const fromDeals = getStoresFromDeals(ALL_DEALS);
+      const fromUnaltered = getStoresFromDeals(UNALTERED_DEALS);
+
+      CANONICAL_STORES = Array.from(new Set([...fromUrls, ...fromDeals, ...fromUnaltered]))
+        .filter(s => s && s !== "Unknown")
+        .sort((a,b)=>a.localeCompare(b));
+    }
+
     // ------------------------------------------------------------
-    // Scraper History (optional)
+    // Scraper History
     // ------------------------------------------------------------
     async function loadScraperHistory() {
       try {
         const cacheBuster = Date.now();
-        const response = await fetch(`https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/scraper-data.json?t=${cacheBuster}`, {
-          cache: "no-store"
-        });
-
-        if (!response.ok) {
-          console.log("No scraper history available yet");
-          return null;
-        }
-
+        const response = await fetch(`${BLOB_BASE}/scraper-data.json?t=${cacheBuster}`, { cache: "no-store" });
+        if (!response.ok) return null;
         return await response.json();
       } catch (err) {
         console.error("Error loading scraper history:", err);
@@ -843,21 +870,76 @@
       }
     }
 
-    function displayScraperHistory(scraperData) {
+    function getScraperViaMapFromHistory(scraperData) {
+      // Build scraper -> {apify|cheerio|other|null} from newest day where available
+      const viaMap = {};
+      if (!scraperData || !Array.isArray(scraperData.days)) return viaMap;
+
+      const days = scraperData.days.slice();
+      // newest first (if already newest first, still ok)
+      days.sort((a,b) => String(b.dayUTC || "").localeCompare(String(a.dayUTC || "")));
+
+      for (const day of days) {
+        for (const s of (day.scrapers || [])) {
+          const name = s?.scraper;
+          if (!name || viaMap[name]) continue;
+
+          const via = String(s?.via || "").toLowerCase().trim();
+          if (via) viaMap[name] = via; // "apify", "cheerio", etc.
+        }
+      }
+      return viaMap;
+    }
+
+    function getScraperViaFromMerge(mergeData) {
+      const viaMap = {};
+      const sr = mergeData?.scraperResults || null;
+      if (!sr) return viaMap;
+
+      for (const [name, obj] of Object.entries(sr)) {
+        const via = String(obj?.via || "").toLowerCase().trim();
+        if (via) viaMap[name] = via;
+      }
+      return viaMap;
+    }
+
+    function decorateScraperName(name, via) {
+      // Required by you:
+      // - Apify scrapers: add *
+      // - Cheerio scrapers: add †
+      // (We use different symbols so the notes are unambiguous.)
+      const v = String(via || "").toLowerCase();
+      if (v === "apify") return `${name}*`;
+      if (v === "cheerio") return `${name}†`;
+      return name;
+    }
+
+    function displayScraperHistory(scraperData, mergeData) {
       const panel = document.getElementById('scraperHistoryPanel');
       const chart = document.getElementById('scraperHistoryChart');
 
-      if (!panel || !chart || !scraperData || !scraperData.days || scraperData.days.length === 0) {
+      if (!panel || !chart || !scraperData || !Array.isArray(scraperData.days) || scraperData.days.length === 0) {
         return;
       }
 
+      // Remove these from the history list per your request
+      const HIDE_FROM_HISTORY = new Set(["Cheerio (non-Holabird)", "Apify (non-Holabird)"]);
+
+      // Collect scraper names
       const allScrapers = new Set();
       scraperData.days.forEach(day => {
-        (day.scrapers || []).forEach(s => allScrapers.add(s.scraper));
+        (day.scrapers || []).forEach(s => {
+          if (s?.scraper && !HIDE_FROM_HISTORY.has(s.scraper)) allScrapers.add(s.scraper);
+        });
       });
 
-      const scraperNames = Array.from(allScrapers).sort();
+      const scraperNames = Array.from(allScrapers).sort((a,b)=>a.localeCompare(b));
 
+      // Build via maps (history preferred, merge fallback)
+      const viaFromHistory = getScraperViaMapFromHistory(scraperData);
+      const viaFromMerge = getScraperViaFromMerge(mergeData);
+
+      // Build 30 dates (today-0 ... today-29)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -868,14 +950,18 @@
         allDates.push(d.toISOString().split('T')[0]);
       }
 
+      // Map dateKey -> day object
       const dataMap = {};
       scraperData.days.forEach(day => {
         const dateKey = (day.dayUTC || '').split('T')[0];
         if (dateKey) dataMap[dateKey] = day;
       });
 
+      const apifyInTable = new Set();
+      const cheerioInTable = new Set();
+
       let html = `
-        <div style="overflow-x: auto;">
+        <div style="overflow-x:auto;">
           <table class="history-table">
             <thead>
               <tr>
@@ -895,7 +981,13 @@
       `;
 
       scraperNames.forEach(scraperName => {
-        html += `<tr><td class="scraper-name">${scraperName}</td>`;
+        const via = viaFromHistory[scraperName] || viaFromMerge[scraperName] || "";
+        const decorated = decorateScraperName(scraperName, via);
+
+        if (String(via).toLowerCase() === "apify") apifyInTable.add(scraperName);
+        if (String(via).toLowerCase() === "cheerio") cheerioInTable.add(scraperName);
+
+        html += `<tr><td class="scraper-name">${decorated}</td>`;
 
         allDates.forEach(dateStr => {
           const dayData = dataMap[dateStr];
@@ -925,18 +1017,28 @@
             </tbody>
           </table>
         </div>
+
         <div class="history-legend">
           <div class="history-legend-item">
-            <span style="color: #28a745; font-weight: bold;">■</span> Good (10+ deals)
+            <span style="color:#28a745;font-weight:bold;">■</span> Good (10+ deals)
           </div>
           <div class="history-legend-item">
-            <span style="color: #856404; font-weight: bold;">■</span> Warning (&lt;10 deals)
+            <span style="color:#856404;font-weight:bold;">■</span> Warning (&lt;10 deals)
           </div>
           <div class="history-legend-item">
-            <span style="color: #dc3545; font-weight: bold;">✗</span> Failed/Zero/Not Run
+            <span style="color:#dc3545;font-weight:bold;">✗</span> Failed/Zero/Not Run
           </div>
         </div>
       `;
+
+      // Notes per your requirement
+      const notes = [];
+      if (apifyInTable.size > 0) notes.push(`<div><strong>*</strong> Apify scraper.</div>`);
+      if (cheerioInTable.size > 0) notes.push(`<div><strong>†</strong> Cheerio scraper.</div>`);
+
+      if (notes.length) {
+        html += `<div class="history-notes">${notes.join("")}</div>`;
+      }
 
       chart.innerHTML = html;
       panel.style.display = 'block';
@@ -978,27 +1080,23 @@
       try {
         const cacheBuster = Date.now();
 
-        // Fetch deals.json (required)
-        const dealsResponse = await fetch(`https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json?t=${cacheBuster}`, {
-          cache: "no-store"
-        });
-
+        // Fetch deals.json (required) - supports ARRAY or {deals:[...]}
+        const dealsResponse = await fetch(`${BLOB_BASE}/deals.json?t=${cacheBuster}`, { cache: "no-store" });
         if (!dealsResponse.ok) throw new Error(`Failed to fetch deals: ${dealsResponse.status}`);
 
-        const data = await dealsResponse.json();
+        const dealsJson = await dealsResponse.json();
+        const deals = Array.isArray(dealsJson) ? dealsJson : (Array.isArray(dealsJson.deals) ? dealsJson.deals : null);
+        if (!deals) throw new Error('Invalid deals.json format (expected array or {deals:[...]})');
 
-        // Fetch unaltered-deals.json (optional)  ✅ FIXED FILENAME
+        // Fetch unaltered-deals.json (optional) - supports ARRAY or {deals:[...]}
         let unalteredDeals = [];
         try {
-          const unalteredResponse = await fetch(
-            `https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/unaltered-deals.json?t=${cacheBuster}`,
-            { cache: "no-store" }
-          );
+          const unalteredResponse = await fetch(`${BLOB_BASE}/unaltered-deals.json?t=${cacheBuster}`, { cache: "no-store" });
           if (unalteredResponse.ok) {
-            const unalteredData = await unalteredResponse.json();
-            if (unalteredData && Array.isArray(unalteredData.deals)) {
-              unalteredDeals = unalteredData.deals;
-            }
+            const unalteredJson = await unalteredResponse.json();
+            unalteredDeals = Array.isArray(unalteredJson)
+              ? unalteredJson
+              : (Array.isArray(unalteredJson.deals) ? unalteredJson.deals : []);
           }
         } catch (unalteredError) {
           console.log("Could not load unaltered deals (continuing without it):", unalteredError.message);
@@ -1022,15 +1120,18 @@
           console.log("Could not load merge metadata (continuing without it):", mergeError.message);
         }
 
-        if (!data.deals || !Array.isArray(data.deals)) throw new Error('Invalid deals.json format (missing data.deals array)');
-
-        const deals = data.deals;
+        // Save globals
         ALL_DEALS = deals;
         UNALTERED_DEALS = unalteredDeals;
 
-        buildStoreDropdown(deals, "storeSelect");
-        buildStoreDropdown(unalteredDeals, "unalteredStoreSelect");
+        // Rebuild canonical store list based on actual blob content + known URLs
+        rebuildCanonicalStores();
 
+        // Build dropdowns
+        buildStoreDropdown(ALL_DEALS, "storeSelect");
+        buildStoreDropdown(UNALTERED_DEALS, "unalteredStoreSelect");
+
+        // Render initial store selections
         renderDealsForSelectedStore({
           selectId: "storeSelect",
           tableWrapId: "storeDealsTableWrap",
@@ -1045,22 +1146,26 @@
           deals: UNALTERED_DEALS,
         });
 
-        // Debug
+        // Debug panel (helps catch mismatched store names and blob drift)
         const unknownBrands = deals.filter(d => (normalizeStr(d.brand) === 'Unknown' || !normalizeStr(d.brand))).length;
+
+        const uniqueStores = [...new Set(deals.map(d => normalizeStore(d.store)))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
         const uniqueBrands = [...new Set(deals.map(d => normalizeStr(d.brand) || 'Unknown'))]
           .filter(b => b && b !== 'Unknown')
-          .sort();
+          .sort((a,b)=>a.localeCompare(b));
 
         let debugHTML = `
+          <strong>BLOB_BASE:</strong> ${BLOB_BASE}<br>
           <strong>Total deals in array:</strong> ${deals.length}<br>
+          <strong>Unaltered deals loaded:</strong> ${unalteredDeals.length}<br>
           <strong>Unknown brands:</strong> ${unknownBrands} (${deals.length ? ((unknownBrands / deals.length) * 100).toFixed(1) : '0.0'}%)<br>
-          <strong>Deals by store (from JSON):</strong> ${JSON.stringify(data.dealsByStore || {}, null, 0)}<br>
-          <strong>Unique stores found:</strong> ${[...new Set(deals.map(d => normalizeStore(d.store)))].filter(Boolean).join(', ')}<br>
+          <strong>Unique stores found (${uniqueStores.length}):</strong> ${uniqueStores.join(', ')}<br>
+          <strong>Canonical store list (${CANONICAL_STORES.length}):</strong> ${CANONICAL_STORES.join(', ')}<br>
           <strong>Shoe brands found (${uniqueBrands.length}):</strong> ${uniqueBrands.join(', ')}<br><br>
         `;
 
         if (mergeData && mergeData.storeMetadata) {
-          debugHTML += `<strong>Scraper Blob URLs:</strong><br>`;
+          debugHTML += `<strong>Scraper Blob URLs (from /api/merge-deals):</strong><br>`;
           Object.entries(mergeData.storeMetadata).forEach(([scraperName, meta]) => {
             if (meta && meta.blobUrl) {
               debugHTML += `<div style="margin-left: 10px; margin-top: 4px;">
@@ -1068,10 +1173,6 @@
               </div>`;
             }
           });
-
-          debugHTML += `<div style="margin-left: 10px; margin-top: 4px;">
-            <strong>Daily Deals (12):</strong> <a href="https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/twelve_daily_deals.json" target="_blank" style="color: #214478ff; word-break: break-all;">https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/twelve_daily_deals.json</a>
-          </div>`;
         }
 
         debugContent.innerHTML = debugHTML;
@@ -1080,12 +1181,12 @@
         const stats = calculateStats(deals);
         STORE_DATA = stats.stores;
 
-        displayOverallMeta(stats, data, mergeData);
+        displayOverallMeta(stats, dealsJson, mergeData);
         displayDataQuality(deals, stats);
         displayHealthStatus(deals, stats, mergeData);
 
         const scraperHistory = await loadScraperHistory();
-        if (scraperHistory) displayScraperHistory(scraperHistory);
+        if (scraperHistory) displayScraperHistory(scraperHistory, mergeData);
 
         loading.style.display = 'none';
         content.style.display = 'block';
@@ -1098,12 +1199,15 @@
       }
     }
 
-    function displayOverallMeta(stats, dealsJson, mergeData) {
+    function displayOverallMeta(stats, dealsJsonRaw, mergeData) {
       const el = document.getElementById('overallMeta');
       const staleBanner = document.getElementById('staleBanner');
       if (!el) return;
 
-      let lastUpdated = dealsJson?.lastUpdated || mergeData?.timestamp || mergeData?.lastUpdated || null;
+      // lastUpdated might exist in object-style deals.json; otherwise use merge timestamp
+      const dealsObj = (!Array.isArray(dealsJsonRaw) && dealsJsonRaw && typeof dealsJsonRaw === "object") ? dealsJsonRaw : null;
+
+      let lastUpdated = dealsObj?.lastUpdated || mergeData?.timestamp || mergeData?.lastUpdated || null;
 
       let lastUpdatedStr = 'Not Available';
       let lastUpdatedAge = null;
@@ -1168,6 +1272,7 @@
         if (salePrice > 0) stats.prices.push(salePrice);
       });
 
+      // Ensure all canonical stores exist even if zero
       CANONICAL_STORES.forEach(store => {
         if (!stats.stores[store]) {
           stats.stores[store] = { count: 0, totalDiscount: 0, totalSavings: 0, deals: [] };
@@ -1388,7 +1493,7 @@
     }
 
     // ------------------------------------------------------------
-    // Health Status (schema-correct)
+    // Health Status (schema-correct + fixed store alignment)
     // ------------------------------------------------------------
     function displayHealthStatus(deals, stats, mergeData) {
       const healthPanel = document.getElementById('healthPanel');
@@ -1398,12 +1503,6 @@
       if (!healthPanel || !healthGrid || !healthSummary) return;
 
       const storeMetadata = mergeData?.storeMetadata || {};
-
-      const storeToScraperName = {
-        'ASICS': 'ASICS Sale',
-        'Brooks Running': 'Apify (non-Holabird)',
-        'Holabird Sports': ['Holabird Mens Road', 'Holabird Womens Road', 'Holabird Trail + Unisex']
-      };
 
       const storeHealth = {};
       let healthyCount = 0;
@@ -1422,46 +1521,35 @@
           scrapedUrl: SCRAPER_URLS[storeName] || null
         };
 
-        if (storeToScraperName[storeName]) {
-          const scraperNames = Array.isArray(storeToScraperName[storeName])
-            ? storeToScraperName[storeName]
-            : [storeToScraperName[storeName]];
-
-          const scraperMetas = scraperNames.map(name => storeMetadata[name]).filter(Boolean);
-
-          if (scraperMetas.length > 0) {
-            const timestamps = scraperMetas.map(m => m.timestamp).filter(Boolean);
-            const mostRecent = timestamps.length > 0 ? timestamps.sort().reverse()[0] : null;
-
-            const durations = scraperMetas.map(m => m.duration).filter(Boolean);
-            const combinedDuration = durations.length > 0 ? durations.join(', ') : null;
-
-            health.metadata = {
-              timestamp: mostRecent,
-              duration: combinedDuration,
-              count: storeData.count
-            };
-          }
+        // Best-effort metadata: if /api/merge-deals has a matching key, use it.
+        // (If your storeMetadata keys are different, the debug panel shows them.)
+        if (storeMetadata[storeName]) {
+          const m = storeMetadata[storeName];
+          health.metadata = {
+            timestamp: m.timestamp || null,
+            duration: m.duration != null ? String(m.duration) : null
+          };
         } else {
-          const otherMeta = storeMetadata['Other (scrape-daily)'];
-          if (otherMeta) {
+          // If there's a single overall merge timestamp, fall back to it
+          if (mergeData?.timestamp) {
             health.metadata = {
-              timestamp: otherMeta.timestamp,
-              duration: otherMeta.duration,
-              count: storeData.count
+              timestamp: mergeData.timestamp,
+              duration: null
             };
           }
         }
 
         const storeDeals = deals.filter(d => normalizeStore(d.store) === storeName);
 
-        if (storeData.count === 0) {
-          health.issues.push({ type: 'critical', message: '🚨 ZERO RESULTS - Scraper may be broken' });
+        // Zero results is critical
+        if (health.dealCount === 0) {
+          health.issues.push({ type: 'critical', message: '🚨 ZERO RESULTS - scraper/store mapping broken or scraper failed' });
           health.status = 'critical';
         }
 
+        // Unknown brands %
         const unknownBrands = storeDeals.filter(d => (normalizeStr(d.brand) === 'Unknown' || !normalizeStr(d.brand))).length;
-        const unknownPercent = storeData.count > 0 ? (unknownBrands / storeData.count) * 100 : 0;
+        const unknownPercent = health.dealCount > 0 ? (unknownBrands / health.dealCount) * 100 : 0;
 
         if (unknownPercent > 50) {
           health.issues.push({ type: 'critical', message: `🚨 ${unknownPercent.toFixed(0)}% Unknown Brands` });
@@ -1471,44 +1559,49 @@
           if (health.status !== 'critical') health.status = 'warning';
         }
 
+        // Missing images %
         const missingImages = storeDeals.filter(d => {
           const img = normalizeStr(d.imageURL);
           return !img || img.includes('placehold.co');
         }).length;
-        const missingImagesPercent = storeData.count > 0 ? (missingImages / storeData.count) * 100 : 0;
+        const missingImagesPercent = health.dealCount > 0 ? (missingImages / health.dealCount) * 100 : 0;
 
         if (missingImagesPercent > 30) {
           health.issues.push({ type: 'warning', message: `⚠️ ${missingImagesPercent.toFixed(0)}% Missing Images` });
           if (health.status !== 'critical') health.status = 'warning';
         }
 
+        // Missing URLs %
         const missingUrls = storeDeals.filter(d => {
           const url = normalizeStr(d.listingURL);
           return !url || url === '#';
         }).length;
-        const missingUrlsPercent = storeData.count > 0 ? (missingUrls / storeData.count) * 100 : 0;
+        const missingUrlsPercent = health.dealCount > 0 ? (missingUrls / health.dealCount) * 100 : 0;
 
         if (missingUrlsPercent > 10) {
           health.issues.push({ type: 'warning', message: `⚠️ ${missingUrlsPercent.toFixed(0)}% Missing URLs` });
           if (health.status !== 'critical') health.status = 'warning';
         }
 
+        // Missing sale prices count
         const missingSalePrices = storeDeals.filter(d => !Number.isFinite(Number(d.salePrice)) || Number(d.salePrice) === 0).length;
         if (missingSalePrices > 0) {
           health.issues.push({ type: 'warning', message: `⚠️ ${missingSalePrices} Missing Sale Prices` });
           if (health.status !== 'critical') health.status = 'warning';
         }
 
+        // Missing models %
         const missingModels = storeDeals.filter(d => !normalizeStr(d.model)).length;
-        const missingModelsPercent = storeData.count > 0 ? (missingModels / storeData.count) * 100 : 0;
+        const missingModelsPercent = health.dealCount > 0 ? (missingModels / health.dealCount) * 100 : 0;
 
         if (missingModelsPercent > 30) {
           health.issues.push({ type: 'warning', message: `⚠️ ${missingModelsPercent.toFixed(0)}% Missing Models` });
           if (health.status !== 'critical') health.status = 'warning';
         }
 
-        if (storeData.count > 0 && storeData.count < 5) {
-          health.issues.push({ type: 'warning', message: `⚠️ Low Deal Count (${storeData.count})` });
+        // Very low counts warning (but don't double-warn if already critical)
+        if (health.dealCount > 0 && health.dealCount < 5) {
+          health.issues.push({ type: 'warning', message: `⚠️ Low Deal Count (${health.dealCount})` });
           if (health.status !== 'critical') health.status = 'warning';
         }
 
@@ -1533,7 +1626,7 @@
         if (criticalStores.length > 0) {
           healthIssuesList.innerHTML = `
             <div class="health-issues-list-title">🚨 Critical Issues</div>
-            <div>Scrapers with zero results or severe data quality problems:</div>
+            <div>Stores with zero results or severe data quality problems:</div>
             <ul>${criticalStores.map(store => `<li>${store}</li>`).join('')}</ul>
           `;
           healthIssuesList.classList.remove('hidden');
@@ -1589,7 +1682,7 @@
 
             <div class="health-metrics">
               <div class="health-metric full">
-                <div class="health-metric-label">Last Updated • Scrape Duration • Age</div>
+                <div class="health-metric-label">Last Updated • Duration • Age</div>
                 <div class="health-metric-value ${timestampStr === 'Not Available' ? 'na' : ''}" style="font-size: 0.86rem;">
                   <span class="inline-pair">
                     <span>${timestampStr}</span>
@@ -1654,6 +1747,7 @@
 
       select.innerHTML = `<option value="__none__" selected>Select store or Close</option>`;
 
+      // Use current canonical store list (rebuilt from blob + urls)
       CANONICAL_STORES.forEach(store => {
         const opt = document.createElement("option");
         opt.value = store;
@@ -1661,7 +1755,7 @@
         select.appendChild(opt);
       });
 
-      // Prevent stacking event listeners if user clicks refresh a lot
+      // Prevent stacking event listeners if refresh is clicked often
       select.onchange = () => renderDealsForSelectedStore({
         selectId,
         tableWrapId: selectId === "unalteredStoreSelect" ? "unalteredDealsTableWrap" : "storeDealsTableWrap",
@@ -1670,7 +1764,6 @@
       });
     }
 
-    // ✅ FIXED: ONLY ONE renderDealsForSelectedStore FUNCTION (no nested duplicate)
     function renderDealsForSelectedStore(options = {}) {
       const {
         selectId = "storeSelect",
@@ -1688,7 +1781,7 @@
       let filtered = [];
 
       if (chosen === "__none__") filtered = [];
-      else filtered = deals.filter(d => normalizeStore(d.store) === chosen);
+      else filtered = (deals || []).filter(d => normalizeStore(d.store) === chosen);
 
       const SHOW_MAX = 500;
 
