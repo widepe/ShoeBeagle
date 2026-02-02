@@ -14,7 +14,6 @@
 // - HOLABIRD_MENS_ROAD_BLOB_URL
 // - HOLABIRD_WOMENS_ROAD_BLOB_URL
 // - HOLABIRD_TRAIL_UNISEX_BLOB_URL
-// - BROOKS_RUNNING_BLOB_URL
 // - ASICS_SALE_BLOB_URL
 // - ALS_SALE_BLOB_URL
 // - SHOEBACCA_CLEARANCE_BLOB_URL
@@ -147,7 +146,6 @@ function storeBaseUrl(store) {
   const s = String(store || "").toLowerCase();
 
   if (s.includes("holabird")) return "https://www.holabirdsports.com";
-  if (s.includes("brooks")) return "https://www.brooksrunning.com";
   if (s.includes("asics")) return "https://www.asics.com";
   if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
   if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
@@ -918,7 +916,6 @@ module.exports = async (req, res) => {
   const HOLABIRD_WOMENS_ROAD_BLOB_URL   = String(process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "").trim();
   const HOLABIRD_TRAIL_UNISEX_BLOB_URL  = String(process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "").trim();
 
-  const BROOKS_RUNNING_BLOB_URL         = String(process.env.BROOKS_RUNNING_BLOB_URL || "").trim();
   const ASICS_SALE_BLOB_URL             = String(process.env.ASICS_SALE_BLOB_URL || "").trim();
   const ALS_SALE_BLOB_URL               = String(process.env.ALS_SALE_BLOB_URL || "").trim();
   const SHOEBACCA_CLEARANCE_BLOB_URL    = String(process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "").trim();
@@ -940,7 +937,6 @@ module.exports = async (req, res) => {
       { name: "Holabird Womens Road", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
       { name: "Holabird Trail + Unisex", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
 
-      { name: "Brooks Running", blobUrl: BROOKS_RUNNING_BLOB_URL },
       { name: "ASICS Sale", blobUrl: ASICS_SALE_BLOB_URL },
       { name: "ALS Sale", blobUrl: ALS_SALE_BLOB_URL },
       { name: "Shoebacca Clearance", blobUrl: SHOEBACCA_CLEARANCE_BLOB_URL },
