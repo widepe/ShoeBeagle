@@ -220,6 +220,39 @@ async function fetchReiDeals() {
   });
 }
 
+async function fetchBrooksDeals() {
+  const STORE = "Brooks Running";
+  const actorId = process.env.APIFY_BROOKS_ACTOR_ID;
+  if (!actorId) throw new Error("APIFY_BROOKS_ACTOR_ID is not set");
+
+  const items = await fetchActorDatasetItems(actorId, STORE);
+
+  return items.map((item) => {
+    const { salePrice, originalPrice } = normalizeApifyPrices(item);
+
+    const brand = item.brand || "Brooks";
+    const model = item.model || "";
+    const listingName = item.title || `${brand} ${model}`.trim() || "Brooks Running Shoe";
+    const listingURL = item.url || "#";
+    const imageURL = item.image ?? null;
+    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+
+    return {
+      listingName,
+      brand,
+      model,
+      salePrice: salePrice ?? null,
+      originalPrice: originalPrice ?? null,
+      discountPercent,
+      store: item.store || STORE,
+      listingURL,
+      imageURL,
+      gender: item.gender || detectGender(listingURL, listingName),
+      shoeType: item.shoeType || detectShoeType(listingName, model),
+    };
+  });
+}
+
 /** -------------------- Main handler -------------------- **/
 
 module.exports = async (req, res) => {
@@ -277,6 +310,7 @@ module.exports = async (req, res) => {
     await runSource({ name: "Road Runner Sports", via: "apify", fn: fetchRoadRunnerDeals });
     await runSource({ name: "REI Outlet", via: "apify", fn: fetchReiDeals });
     await runSource({ name: "Zappos", via: "apify", fn: fetchZapposDeals });
+    await runSource({ name: "Brooks Running", via: "apify", fn: fetchBrooksDeals });
 
     const scrapeDurationMs = Date.now() - overallStartTime;
 
