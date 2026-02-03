@@ -452,7 +452,7 @@ function isValidRunningShoe(deal) {
   const effective = Number.isFinite(exact) ? exact : Number.isFinite(upTo) ? upTo : null;
 
   if (!Number.isFinite(effective)) return false;
-  if (effective < 5 || effective > 90) return false;
+  if (effective < 5 || effective > 95) return false;
 
   const title = listingName.toLowerCase();
 
@@ -513,6 +513,7 @@ function isValidRunningShoe(deal) {
     "youth",
     "junior",
     "juniors",
+    "windbreaker",
   ];
 
   for (const pattern of excludePatterns) {
