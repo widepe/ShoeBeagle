@@ -9,6 +9,7 @@
 // Required env vars for non-Holabird sources:ƒ
 // - CHEERIO_DEALS_BLOB_URL
 // - APIFY_DEALS_BLOB_URL
+// - BROOKS_DEALS_BLOB_URL
 //
 // Other blob env vars (as you already have):
 // - HOLABIRD_MENS_ROAD_BLOB_URL
@@ -146,8 +147,9 @@ function absolutizeUrl(u, base) {
 function storeBaseUrl(store) {
   const s = String(store || "").toLowerCase();
 
-  if (s.includes("holabird")) return "https://www.holabirdsports.com";
+  ("holabird")) return "https://www.holabirdsports.com";
   if (s.includes("asics")) return "https://www.asics.com";
+  if (s.includes("brooks")) return "https://www.brooksrunning.com";
   if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
   if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
   if (s.includes("luke")) return "https://lukeslocker.com";
@@ -912,6 +914,7 @@ module.exports = async (req, res) => {
   // ============================================================================
   const CHEERIO_DEALS_BLOB_URL = String(process.env.CHEERIO_DEALS_BLOB_URL || "").trim();
   const APIFY_DEALS_BLOB_URL   = String(process.env.APIFY_DEALS_BLOB_URL || "").trim();
+  const BROOKS_DEALS_BLOB_URL = String(process.env.BROOKS_DEALS_BLOB_URL || "").trim();
   const ROADRUNNER_DEALS_BLOB_URL = String(process.env.ROADRUNNER_DEALS_BLOB_URL || "").trim();
   const REI_DEALS_BLOB_URL = String(process.env.REI_DEALS_BLOB_URL || "").trim();
 
@@ -931,12 +934,14 @@ module.exports = async (req, res) => {
     console.log("[MERGE] Blob-only mode: endpoints disabled.");
     console.log("[MERGE] CHEERIO_DEALS_BLOB_URL set?", !!CHEERIO_DEALS_BLOB_URL);
     console.log("[MERGE] APIFY_DEALS_BLOB_URL set?", !!APIFY_DEALS_BLOB_URL);
+    console.log("[MERGE] BROOKS_DEALS_BLOB_URL set?", !!BROOKS_DEALS_BLOB_URL);
     console.log("[MERGE] ROADRUNNER_DEALS_BLOB_URL set?", !!ROADRUNNER_DEALS_BLOB_URL);
     console.log("[MERGE] REI_DEALS_BLOB_URL set?", !!REI_DEALS_BLOB_URL);
 
     const sources = [
       { name: "Cheerio (non-Holabird)", blobUrl: CHEERIO_DEALS_BLOB_URL },
       { name: "Apify (non-Holabird)", blobUrl: APIFY_DEALS_BLOB_URL },
+      { name: "Brooks", blobUrl: BROOKS_DEALS_BLOB_URL },
       { name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
       { name: "REI", blobUrl: REI_DEALS_BLOB_URL },
       
