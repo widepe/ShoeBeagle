@@ -17,6 +17,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
+
+
+    
     .card { position: relative; }
 
     .card-image-wrapper {
@@ -75,6 +78,10 @@
       padding-top: 0;
     }
 
+    :root{
+  --input-h: 42px;
+  --stack-gap: 10px;
+}
     /* --- NEW TOP BAR LAYOUT (logo left, inputs stacked right) --- */
     .topbar{
       width: 100%;
@@ -117,7 +124,7 @@
     .inputs-stack{
       display: flex;
       flex-direction: column;
-      gap: 10px;
+gap: var(--stack-gap);
       width: 100%;
     }
 
@@ -135,7 +142,8 @@
         align-items: center;
       }
       .brand-logo{
-        height: 52px;
+       height: calc(var(--input-h) * 2 + var(--stack-gap));
+
         max-width: 280px;
       }
       form#search-form{
@@ -149,7 +157,8 @@
     input[type="text"],
     input[type="search"] {
       width: 100%;
-      height: 42px;
+      height: var(--input-h);
+
       padding: 0 0.75rem;
       border-radius: 0.5rem;
       border: 1px solid #214478ff;
