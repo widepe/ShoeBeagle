@@ -32,6 +32,7 @@
 
 const axios = require("axios");
 const { put } = require("@vercel/blob");
+const { assertDealSchema } = require("../lib/dealSchema");
 
 /** ------------ Utilities ------------ **/
 
@@ -1304,6 +1305,22 @@ module.exports = async (req, res) => {
     const filtered = normalized.filter(isValidRunningShoe);
     const unique = dedupeDeals(filtered);
 
+// --- SCHEMA CHECK (non-fatal) ---
+let schemaWarnings = 0;
+for (const d of unique) {
+  const errs = assertDealSchema(d);
+  if (errs.length) {
+    schemaWarnings++;
+    console.log("[SCHEMA WARNING]", errs.join("; "), {
+      store: d.store,
+      listingURL: d.listingURL,
+    });
+  }
+}
+console.log(`[SCHEMA] warnings: ${schemaWarnings}`);
+// --- END SCHEMA CHECK ---
+
+    
     // Sort: effective discount (exact else up-to)
     const discountForSort = (d) => {
       const exact = toNumber(d.discountPercent);
