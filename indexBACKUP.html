@@ -147,7 +147,6 @@
       z-index: 20;
     }
     .input-clear:hover { background: #666; }
-    /* Uses :has(); modern browsers only. JS also keeps button state sane. */
     .input-wrapper:has(input:not(:placeholder-shown)) .input-clear { display: flex; }
 
     .menu-btn {
@@ -253,9 +252,11 @@
       min-width: 80px;
     }
     .search-btn:hover { background: #1a3661; }
+
     .search-btn:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
+      opacity: 1;
+      cursor: pointer;
+      pointer-events: none;
     }
 
     .status-message {
@@ -545,6 +546,24 @@
       }
     }
 
+    .load-more-wrap{
+      width:100%;
+      display:flex;
+      justify-content:center;
+      margin: 1rem 0 0.5rem;
+    }
+
+    .load-more-btn{
+      height: 42px;
+      padding: 0 1.25rem;
+      border-radius: 0.75rem;
+      border: 1px solid #214478ff;
+      background: #214478ff;
+      color:#fff;
+      font-weight:700;
+    }
+    .load-more-btn:hover{ background:#1a3661; }
+
     .disclaimer {
       font-size: 0.8rem;
       color: #555;
@@ -573,6 +592,14 @@
 
     .footer a:hover { text-decoration: underline; }
   </style>
+
+  <!--
+    IMPORTANT:
+    Set this at deploy time to avoid hardcoding the blob store base.
+    Example value:
+      https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com
+  -->
+  <meta name="shoebeagle-blob-base" content="__BLOB_BASE_URL__">
 </head>
 
 <body>
@@ -606,6 +633,7 @@
         </button>
         <div id="menuDropdown" class="menu-dropdown">
           <a href="/pages/myalerts.html">My Alerts</a>
+          <a href="/pages/setalert.html">Set Alert</a>
         </div>
       </div>
     </form>
@@ -617,8 +645,8 @@
         <div class="filter-label">Gender:</div>
         <div class="chip-group" id="genderChips">
           <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
-          <button type="button" class="chip" data-gender="mens" aria-label="Mens">M</button>
-          <button type="button" class="chip" data-gender="womens" aria-label="Womens">W</button>
+          <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
+          <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
         </div>
       </div>
 
@@ -640,6 +668,11 @@
       </div>
 
       <div class="shoe-grid" id="results"></div>
+
+      <div class="load-more-wrap" id="loadMoreWrap" style="display:none;">
+        <button type="button" class="load-more-btn" id="loadMoreBtn">Load More…</button>
+      </div>
+
       <p class="disclaimer">Shoe Beagle does not sell products directly and is not responsible for changes in price, availability, or shipping terms on retailer sites.</p>
     </div>
 
@@ -674,6 +707,11 @@
     const filtersEl = document.getElementById("filters");
     const genderChips = document.getElementById("genderChips");
     const typeChips = document.getElementById("typeChips");
+
+    const PAGE_SIZE = 12;
+    let visibleCount = 0;
+    const loadMoreWrap = document.getElementById("loadMoreWrap");
+    const loadMoreBtn = document.getElementById("loadMoreBtn");
 
     let currentSearch = { brand: "", model: "" };
     let lastSearchResults = [];
@@ -715,13 +753,8 @@
     });
 
     // --- Helpers ---
-    function normalizeStr(s) {
-      return String(s || "").trim().toLowerCase();
-    }
-
-    function normalizeEnum(s) {
-      return String(s || "").trim().toLowerCase();
-    }
+    function normalizeStr(s) { return String(s || "").trim().toLowerCase(); }
+    function normalizeEnum(s) { return String(s || "").trim().toLowerCase(); }
 
     function sanitizeInput(str) {
       return String(str || "")
@@ -737,11 +770,8 @@
       const hasAny = !!(brandInput.value.trim() || modelInput.value.trim());
       fetchBtn.disabled = !hasAny;
     }
-
-    // Initialize button state
     updateFetchReady();
 
-    // Clear buttons
     document.querySelectorAll('.input-clear').forEach((clearBtn, index) => {
       clearBtn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -756,51 +786,60 @@
       });
     });
 
-    const allowedRetailerDomains = [
-      'academy.com','adidas.com','als.com','altrarunning.com','amazon.com','asics.com','backcountry.com',
-      'bigcommerce.com','brooksrunning.com','dickssportinggoods.com','eastbay.com','finishline.com',
-      'fleetfeet.com','hokaoneone.com','holabird.com','jackrabbit.com','joesnewbalanceoutlet.com',
-      'karhu.com','lukeslocker.com','marathonsports.com','mizunousa.com','newbalance.com','nike.com',
-      'on-running.com','rei.com','roadrunnersports.com','runrepeat.com','saucony.com','shoebacca.com',
-      'shopify.com','topo-athletic.com','zappos.com',
-    ];
-
     function isValidRetailerUrl(url) {
       if (!url || url === '#') return false;
       try {
-        const urlObj = new URL(url);
-        const hostname = urlObj.hostname.toLowerCase();
-        const cleanHostname = hostname.replace(/^www\./, '');
-        return allowedRetailerDomains.some(domain =>
-          cleanHostname === domain || cleanHostname.endsWith('.' + domain)
-        );
-      } catch (error) {
-        console.warn('Invalid URL format:', url);
+        const u = new URL(url);
+        return u.protocol === "https:" || u.protocol === "http:";
+      } catch {
         return false;
       }
     }
 
+    // --- Blob base (NO hardcoding) ---
+    function getBlobBase() {
+      const meta = document.querySelector('meta[name="shoebeagle-blob-base"]');
+      const fromMeta = meta ? String(meta.getAttribute("content") || "").trim() : "";
+
+      // If you didn’t replace __BLOB_BASE_URL__, it’ll still be that placeholder.
+      const looksLikePlaceholder = fromMeta.includes("__BLOB_BASE_URL__");
+      if (fromMeta && !looksLikePlaceholder) return fromMeta.replace(/\/+$/, "");
+
+      // Fallback (keeps your current behavior if you forget to set meta)
+      return "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
+    }
+
+    function blobUrl(path) {
+      const base = getBlobBase();
+      const cleanPath = String(path || "").replace(/^\/+/, "");
+      return base.replace(/\/+$/, "") + "/" + cleanPath;
+    }
+
+    function withCacheBust(url) {
+      const u = new URL(url, window.location.origin);
+      u.searchParams.set("cb", String(Date.now()));
+      return u.toString();
+    }
+
+    // UPDATED: uses schema: salePrice, originalPrice, discountPercent
     function getDiscountInfo(item) {
-      const current = Number(item.salePrice ?? item.price);
-      const original = Number(item.price ?? item.originalPrice);
+      const current = Number(item.salePrice);
+      const original = Number(item.originalPrice);
 
       if (Number.isFinite(current) && Number.isFinite(original) && original > 0 && current < original) {
         const pct = Math.round(((original - current) / original) * 100);
         return { hasDiscount: true, current: current.toFixed(2), original: original.toFixed(2), percent: pct };
       }
 
-      if (Number.isFinite(current) && typeof item.discount === "string" && item.discount.includes("%")) {
-        const m = item.discount.match(/(-?\d+(?:\.\d+)?)%/);
-        if (m) {
-          const pct = Math.abs(Number(m[1]));
-          if (Number.isFinite(pct) && pct > 0 && pct < 100) {
-            const origGuess = current / (1 - pct / 100);
-            if (Number.isFinite(origGuess) && origGuess > current) {
-              return { hasDiscount: true, current: current.toFixed(2), original: origGuess.toFixed(2), percent: Math.round(pct) };
-            }
-          }
+      const pct2 = Number(item.discountPercent);
+      if (Number.isFinite(current) && Number.isFinite(pct2) && pct2 > 0 && pct2 < 100) {
+        const origGuess = current / (1 - pct2 / 100);
+        if (Number.isFinite(origGuess) && origGuess > current) {
+          return { hasDiscount: true, current: current.toFixed(2), original: origGuess.toFixed(2), percent: Math.round(pct2) };
         }
+        return { hasDiscount: true, current: current.toFixed(2), original: "", percent: Math.round(pct2) };
       }
+
       return { hasDiscount: false };
     }
 
@@ -844,10 +883,7 @@
 
     const brands = Object.keys(brandModels).sort((a,b) => a.localeCompare(b));
 
-    // --- Suggestions engine ---
-    function squashStr(s) {
-      return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    }
+    function squashStr(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
 
     function scoreSuggestion(candidate, query) {
       const c = String(candidate || "");
@@ -859,7 +895,6 @@
       const qSquash = squashStr(q);
 
       let score = 0;
-
       if (cl.startsWith(q)) score += 120;
       if (cl.includes(q)) score += 80;
       if (qSquash.length >= 3 && cSquash.includes(qSquash)) score += 110;
@@ -878,7 +913,6 @@
       return score;
     }
 
-    // Lightweight Levenshtein for brand autocorrect (ascs -> asics)
     function levenshtein(a, b) {
       a = String(a || "");
       b = String(b || "");
@@ -895,27 +929,20 @@
         for (let j = 1; j <= n; j++) {
           const temp = dp[j];
           const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-          dp[j] = Math.min(
-            dp[j] + 1,      // delete
-            dp[j - 1] + 1,  // insert
-            prev + cost     // substitute
-          );
+          dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + cost);
           prev = temp;
         }
       }
       return dp[n];
     }
 
-    // GLOBAL (top-level) so submit handler can call it
     function resolveClosestBrand(input) {
       const raw = String(input || "").trim();
       if (!raw) return "";
 
-      // If exact match (case-insensitive), return canonical key
       const exact = brands.find(b => normalizeStr(b) === normalizeStr(raw));
       if (exact) return exact;
 
-      // Fuzzy on squashed strings (handles missing letter: ascs -> asics)
       const q = squashStr(raw);
       if (!q) return raw;
 
@@ -931,11 +958,8 @@
         }
       }
 
-      // Accept only "close enough" corrections
-      // (short inputs can be noisy; keep threshold tight)
       const len = q.length;
       const threshold = len <= 4 ? 1 : (len <= 7 ? 2 : 3);
-
       return (best != null && bestDist <= threshold) ? best : raw;
     }
 
@@ -944,8 +968,6 @@
       if (!q) return [];
 
       const qLower = q.toLowerCase();
-
-      // Pass 1: startsWith only
       const starts = list.filter(v => String(v).toLowerCase().startsWith(qLower));
       if (starts.length) {
         const ranked = starts
@@ -956,7 +978,6 @@
         return Array.from(new Set(ranked));
       }
 
-      // Pass 2: contains/squash scoring
       const scored = list
         .map(v => ({ v, s: scoreSuggestion(v, q) }))
         .filter(x => x.s > 0)
@@ -980,16 +1001,9 @@
       const normalized = normalizeStr(input);
       return brands.find(b => normalizeStr(b) === normalized) || "";
     }
-    function resolveBrand() {
-      return resolveBrandKey(brandInput.value.trim());
-    }
+    function resolveBrand() { return resolveBrandKey(brandInput.value.trim()); }
 
-    // --- Suggestions UI + keyboard nav ---
-    const suggestionState = {
-      openFor: null,          // "brand" | "model" | null
-      items: [],
-      activeIndex: -1,
-    };
+    const suggestionState = { openFor: null, items: [], activeIndex: -1 };
 
     function closeSuggestions(which) {
       if (!which || which === "brand") {
@@ -1098,10 +1112,8 @@
       }
     }
 
-    // Brand suggestions
     brandInput.addEventListener("input", () => {
       const typed = brandInput.value.trim();
-
       if (typed.length < 1) {
         closeSuggestions("brand");
         updateFetchReady();
@@ -1109,7 +1121,6 @@
       }
 
       const matches = filterSuggestions(brands, typed, 12);
-
       renderSuggestions(brandSuggestions, matches, "brand", (value) => {
         brandInput.value = value;
         closeSuggestions("brand");
@@ -1131,10 +1142,8 @@
 
     brandInput.addEventListener("blur", () => setTimeout(() => closeSuggestions("brand"), 140));
 
-    // Model suggestions
     modelInput.addEventListener("input", () => {
       const text = modelInput.value.trim();
-
       if (text.length < 1) {
         closeSuggestions("model");
         updateFetchReady();
@@ -1142,12 +1151,9 @@
       }
 
       const brandKey = resolveBrand();
-      const pool = (brandKey && Array.isArray(brandModels[brandKey]))
-        ? brandModels[brandKey]
-        : allModels;
+      const pool = (brandKey && Array.isArray(brandModels[brandKey])) ? brandModels[brandKey] : allModels;
 
       const matches = filterSuggestions(pool, text, 12);
-
       renderSuggestions(modelSuggestions, matches, "model", (value) => {
         modelInput.value = value;
         closeSuggestions("model");
@@ -1169,11 +1175,9 @@
 
     modelInput.addEventListener("blur", () => setTimeout(() => closeSuggestions("model"), 140));
 
-    // Click selects text
     brandInput.addEventListener("click", () => brandInput.select());
     modelInput.addEventListener("click", () => modelInput.select());
 
-    // Close dropdowns if user clicks elsewhere
     document.addEventListener("click", (e) => {
       const insideBrand = brandSuggestions.contains(e.target) || brandInput.contains(e.target);
       const insideModel = modelSuggestions.contains(e.target) || modelInput.contains(e.target);
@@ -1181,7 +1185,6 @@
       if (!insideModel) closeSuggestions("model");
     });
 
-    // --- Filter chips ---
     function setActiveChip(groupEl, activeBtn) {
       if (!groupEl) return;
       groupEl.querySelectorAll(".chip").forEach(btn => btn.classList.remove("active"));
@@ -1203,18 +1206,36 @@
       });
     }
 
-    function renderFilteredResults() {
+    function renderFilteredResults(resetPagination = true) {
       const filtered = applyFilters(lastSearchResults);
 
-      resultsEl.innerHTML = "";
-      filtered.forEach(item => resultsEl.appendChild(createDealCard(item)));
+      if (resetPagination) visibleCount = PAGE_SIZE;
+      const shown = filtered.slice(0, visibleCount);
 
-      const displayQuery = [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ");
+      resultsEl.innerHTML = "";
+      shown.forEach(item => resultsEl.appendChild(createDealCard(item)));
+
+      const displayQuery = [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() || "all shoes";
+
       if (!filtered.length) {
         statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
+        if (loadMoreWrap) loadMoreWrap.style.display = "none";
         return;
       }
-      statusMessageEl.textContent = `Showing ${filtered.length} deal${filtered.length === 1 ? "" : "s"} for ${displayQuery}.`;
+
+      statusMessageEl.textContent =
+        `Showing ${shown.length} of ${filtered.length} deal${filtered.length === 1 ? "" : "s"} for ${displayQuery}.`;
+
+      if (loadMoreWrap) {
+        loadMoreWrap.style.display = (shown.length < filtered.length) ? "flex" : "none";
+      }
+    }
+
+    if (loadMoreBtn) {
+      loadMoreBtn.addEventListener("click", () => {
+        visibleCount += PAGE_SIZE;
+        renderFilteredResults(false);
+      });
     }
 
     if (genderChips) {
@@ -1223,7 +1244,7 @@
         if (!btn) return;
         selectedGender = normalizeEnum(btn.dataset.gender);
         setActiveChip(genderChips, btn);
-        renderFilteredResults();
+        renderFilteredResults(true);
       });
     }
 
@@ -1233,11 +1254,10 @@
         if (!btn) return;
         selectedShoeType = normalizeEnum(btn.dataset.type);
         setActiveChip(typeChips, btn);
-        renderFilteredResults();
+        renderFilteredResults(true);
       });
     }
 
-    // --- Cards ---
     function createDealCard(item) {
       const discount = getDiscountInfo(item);
 
@@ -1247,10 +1267,11 @@
       const link = document.createElement("a");
       link.className = "card-link";
 
-      const safeUrl = isValidRetailerUrl(item.url) ? item.url : '#';
-      if (safeUrl === '#' && item.url) console.warn('Blocked untrusted retailer URL:', item.url);
+      const listingUrl = item.listingURL;
+      const safeLink = isValidRetailerUrl(listingUrl) ? listingUrl : "#";
+      if (safeLink === "#" && listingUrl) console.warn("Blocked untrusted retailer URL:", listingUrl);
 
-      link.href = safeUrl;
+      link.href = safeLink;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
 
@@ -1258,8 +1279,8 @@
       imgWrapper.className = "card-image-wrapper";
 
       const img = document.createElement("img");
-      img.src = item.image ? item.image : "https://placehold.co/600x400?text=Running+Shoe";
-      img.alt = item.title || "Running shoe deal";
+      img.src = item.imageURL ? item.imageURL : "https://placehold.co/600x400?text=Running+Shoe";
+      img.alt = (item.brand && item.model) ? `${item.brand} ${item.model}` : (item.model || item.brand || "Running shoe deal");
       imgWrapper.appendChild(img);
 
       if (discount.hasDiscount) {
@@ -1316,7 +1337,7 @@
       } else if (model) {
         titleDiv.textContent = model;
       } else {
-        titleDiv.textContent = item.title || "Deal";
+        titleDiv.textContent = "Deal";
       }
 
       contentDiv.appendChild(titleDiv);
@@ -1334,15 +1355,13 @@
       const priceSpan = document.createElement("span");
       priceSpan.className = "price";
 
-      const currentPrice = Number(item.salePrice ?? item.price);
+      const currentPrice = Number(item.salePrice);
       if (Number.isFinite(currentPrice)) priceSpan.textContent = `$${currentPrice.toFixed(2)}`;
-      else {
-        const fallback = item.salePrice ?? item.price;
-        priceSpan.textContent = fallback != null ? String(fallback) : "—";
-      }
+      else priceSpan.textContent = item.salePrice != null ? String(item.salePrice) : "—";
+
       priceRow.appendChild(priceSpan);
 
-      if (discount.hasDiscount) {
+      if (discount.hasDiscount && discount.original) {
         const origSpan = document.createElement("span");
         origSpan.className = "card-original-price";
         origSpan.textContent = `$${discount.original}`;
@@ -1359,8 +1378,8 @@
     // --- Daily deals ---
     async function loadDailyDeals() {
       try {
-        const blobUrl = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/twelve_daily_deals.json";
-        const res = await fetch(blobUrl + "?cb=" + Date.now());
+        const url = withCacheBust(blobUrl("twelve_daily_deals.json"));
+        const res = await fetch(url);
 
         if (!res.ok) {
           console.error("Failed to fetch daily deals:", res.status, res.statusText);
@@ -1390,8 +1409,10 @@
 
     async function dailyDealCount() {
       try {
-        const blobUrl = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json?cb=" + Date.now();
-        const res = await fetch(blobUrl);
+        const url = withCacheBust(blobUrl("deals.json"));
+        const res = await fetch(url);
+        if (!res.ok) return;
+
         const data = await res.json();
         const totalDeals = data.totalDeals || 0;
 
@@ -1411,7 +1432,7 @@
 
       let brandTyped = sanitizeInput(brandInput.value);
       brandTyped = resolveClosestBrand(brandTyped);
-      brandInput.value = brandTyped; // optional: visibly correct it
+      brandInput.value = brandTyped;
 
       const modelTyped = sanitizeInput(modelInput.value);
 
@@ -1427,6 +1448,7 @@
 
       statusMessageEl.textContent = "Searching deals…";
       resultsEl.innerHTML = "";
+      if (loadMoreWrap) loadMoreWrap.style.display = "none";
       dailyDeals.style.display = "none";
       if (filtersEl) filtersEl.style.display = "none";
 
@@ -1452,6 +1474,7 @@
       if (!results.length) {
         statusMessageEl.textContent = `No results found for ${displayQuery}.`;
         if (filtersEl) filtersEl.style.display = "none";
+        if (loadMoreWrap) loadMoreWrap.style.display = "none";
         dailyDeals.style.display = "block";
         return;
       }
@@ -1475,10 +1498,9 @@
       }
 
       if (filtersEl) filtersEl.style.display = "flex";
-      renderFilteredResults();
+      renderFilteredResults(true);
     });
 
-    // Keep Fetch enabled/disabled while typing
     brandInput.addEventListener("input", updateFetchReady);
     modelInput.addEventListener("input", updateFetchReady);
   </script>
