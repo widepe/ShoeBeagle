@@ -6,7 +6,7 @@
 // - merge-deals NEVER scrapes.
 // - It ONLY fetches pre-scraped JSON from blob URLs provided via env vars.
 //
-// Required env vars for non-Holabird sources:
+// Required env vars for non-Holabird sources:ƒ
 // - CHEERIO_DEALS_BLOB_URL
 // - APIFY_DEALS_BLOB_URL
 //
@@ -911,6 +911,7 @@ module.exports = async (req, res) => {
   // ============================================================================
   const CHEERIO_DEALS_BLOB_URL = String(process.env.CHEERIO_DEALS_BLOB_URL || "").trim();
   const APIFY_DEALS_BLOB_URL   = String(process.env.APIFY_DEALS_BLOB_URL || "").trim();
+  const ROADRUNNER_DEALS_BLOB_URL = String(process.env.ROADRUNNER_DEALS_BLOB_URL || "").trim();
 
   const HOLABIRD_MENS_ROAD_BLOB_URL     = String(process.env.HOLABIRD_MENS_ROAD_BLOB_URL || "").trim();
   const HOLABIRD_WOMENS_ROAD_BLOB_URL   = String(process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "").trim();
