@@ -147,7 +147,7 @@ function absolutizeUrl(u, base) {
 function storeBaseUrl(store) {
   const s = String(store || "").toLowerCase();
 
-  ("holabird")) return "https://www.holabirdsports.com";
+  if (s.includes("holabird")) return "https://www.holabirdsports.com";
   if (s.includes("asics")) return "https://www.asics.com";
   if (s.includes("brooks")) return "https://www.brooksrunning.com";
   if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
@@ -165,6 +165,7 @@ function storeBaseUrl(store) {
 
   return "https://example.com";
 }
+
 
 /**
  * Canonical 11 fields:
