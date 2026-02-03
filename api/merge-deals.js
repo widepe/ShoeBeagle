@@ -1,26 +1,34 @@
 // /api/merge-deals.js
 //
-// Merges sources into canonical deals.json (11-field schema)
+// Merges sources into canonical deals.json.
 //
 // IMPORTANT RULE (per your requirement):
 // - merge-deals NEVER scrapes.
 // - It ONLY fetches pre-scraped JSON from blob URLs provided via env vars.
 //
-// Required env vars for non-Holabird sources:ƒ
-// - CHEERIO_DEALS_BLOB_URL
-// - APIFY_DEALS_BLOB_URL
-// - BROOKS_DEALS_BLOB_URL
+// Canonical legacy 11 fields (kept):
+//   listingName, brand, model, salePrice, originalPrice, discountPercent,
+//   store, listingURL, imageURL, gender, shoeType
 //
-// Other blob env vars (as you already have):
-// - HOLABIRD_MENS_ROAD_BLOB_URL
-// - HOLABIRD_WOMENS_ROAD_BLOB_URL
-// - HOLABIRD_TRAIL_UNISEX_BLOB_URL
-// - ASICS_SALE_BLOB_URL
-// - ALS_SALE_BLOB_URL
-// - REI_DEALS_BLOB_URL
-// - SHOEBACCA_CLEARANCE_BLOB_URL
-// - SNAILSPACE_SALE_BLOB_URL (optional)
-// - SCRAPER_DATA_BLOB_URL (optional rolling history source)
+// Added OPTIONAL fields (new):
+//   salePriceLow, salePriceHigh, originalPriceLow, originalPriceHigh, discountPercentUpTo
+//
+// HONESTY RULES:
+// - A deal is included ONLY if it has BOTH sale pricing AND original pricing,
+//   either as single prices or as ranges.
+// - discountPercent is EXACT-ONLY:
+//   * if salePrice AND originalPrice are both single numbers -> discountPercent = exact %
+//   * if any range is involved -> discountPercent = null
+// - discountPercentUpTo is RANGE-ONLY:
+//   * if any range is involved -> discountPercentUpTo = "up to" %
+//     computed as (originalHigh - saleLow) / originalHigh
+//
+// Also: legacy salePrice/originalPrice remain populated where possible.
+// For range cases we set:
+//   salePrice    = salePriceLow
+//   originalPrice= originalPriceLow
+// so your existing pipeline still has a single-number anchor,
+// but UI should prefer the range fields when present.
 
 const axios = require("axios");
 const { put } = require("@vercel/blob");
@@ -77,24 +85,175 @@ function parseDurationMs(dur) {
   return Number.isFinite(n) ? Math.round(n) : null;
 }
 
+/** ------------ Price range helpers ------------ **/
+
 /**
- * Compute discount percent from canonical 11-schema fields:
- * - originalPrice and salePrice
+ * Interprets incoming deals that might contain:
+ * - salePrice (single) OR salePriceLow+salePriceHigh (range)
+ * - originalPrice (single) OR originalPriceLow+originalPriceHigh (range)
+ *
+ * Returns normalized numeric values (or nulls).
+ *
+ * IMPORTANT:
+ * - If a range exists, BOTH low and high must exist, otherwise we null them both.
+ * - If a single exists, it is used as-is.
  */
-function computeDiscountPercent(deal) {
-  const sale = toNumber(deal?.salePrice);
-  const orig = toNumber(deal?.originalPrice);
-  if (!Number.isFinite(sale) || !Number.isFinite(orig) || orig <= 0) return 0;
-  if (sale >= orig) return 0;
-  return ((orig - sale) / orig) * 100;
+function normalizePriceShapes(raw) {
+  const salePrice = toNumber(raw?.salePrice ?? raw?.currentPrice ?? raw?.sale_price ?? raw?.price ?? null);
+  const originalPrice = toNumber(
+    raw?.originalPrice ??
+      raw?.original_price ??
+      raw?.compareAtPrice ??
+      raw?.compare_at_price ??
+      raw?.msrp ??
+      raw?.listPrice ??
+      raw?.wasPrice ??
+      null
+  );
+
+  // NEW optional range fields (accept common aliases too, just in case)
+  let saleLow = toNumber(raw?.salePriceLow ?? raw?.sale_low ?? raw?.saleMin ?? raw?.saleMinPrice ?? null);
+  let saleHigh = toNumber(raw?.salePriceHigh ?? raw?.sale_high ?? raw?.saleMax ?? raw?.saleMaxPrice ?? null);
+
+  let origLow = toNumber(raw?.originalPriceLow ?? raw?.original_low ?? raw?.origMin ?? raw?.origMinPrice ?? null);
+  let origHigh = toNumber(raw?.originalPriceHigh ?? raw?.original_high ?? raw?.origMax ?? raw?.origMaxPrice ?? null);
+
+  // Enforce pair integrity: if one side missing, drop both
+  if ((saleLow == null) !== (saleHigh == null)) {
+    saleLow = null;
+    saleHigh = null;
+  }
+  if ((origLow == null) !== (origHigh == null)) {
+    origLow = null;
+    origHigh = null;
+  }
+
+  // Basic sanity: swap if reversed
+  if (saleLow != null && saleHigh != null && saleLow > saleHigh) {
+    const tmp = saleLow;
+    saleLow = saleHigh;
+    saleHigh = tmp;
+  }
+  if (origLow != null && origHigh != null && origLow > origHigh) {
+    const tmp = origLow;
+    origLow = origHigh;
+    origHigh = tmp;
+  }
+
+  // If a range exists but looks invalid, null it
+  if (saleLow != null && saleHigh != null && (saleLow <= 0 || saleHigh <= 0)) {
+    saleLow = null;
+    saleHigh = null;
+  }
+  if (origLow != null && origHigh != null && (origLow <= 0 || origHigh <= 0)) {
+    origLow = null;
+    origHigh = null;
+  }
+
+  return {
+    salePrice: Number.isFinite(salePrice) ? salePrice : null,
+    originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
+    salePriceLow: saleLow,
+    salePriceHigh: saleHigh,
+    originalPriceLow: origLow,
+    originalPriceHigh: origHigh,
+  };
 }
 
-function computeDollarSavings(deal) {
+/**
+ * Returns whether the deal has a usable SALE price:
+ * - either single salePrice
+ * - or a valid sale range (low+high)
+ */
+function hasSalePriceShape(d) {
+  const sp = toNumber(d?.salePrice);
+  const lo = toNumber(d?.salePriceLow);
+  const hi = toNumber(d?.salePriceHigh);
+  return Number.isFinite(sp) || (Number.isFinite(lo) && Number.isFinite(hi));
+}
+
+/**
+ * Returns whether the deal has a usable ORIGINAL price:
+ * - either single originalPrice
+ * - or a valid original range (low+high)
+ */
+function hasOriginalPriceShape(d) {
+  const op = toNumber(d?.originalPrice);
+  const lo = toNumber(d?.originalPriceLow);
+  const hi = toNumber(d?.originalPriceHigh);
+  return Number.isFinite(op) || (Number.isFinite(lo) && Number.isFinite(hi));
+}
+
+/**
+ * Exact discount percent ONLY when both are single numbers.
+ * Returns null if not computable or if ranges are involved.
+ */
+function computeDiscountPercentExact(deal) {
   const sale = toNumber(deal?.salePrice);
   const orig = toNumber(deal?.originalPrice);
-  if (!Number.isFinite(sale) || !Number.isFinite(orig) || orig <= 0) return 0;
-  if (sale >= orig) return 0;
-  return orig - sale;
+
+  // exact-only means ranges must not be used
+  if (!Number.isFinite(sale) || !Number.isFinite(orig)) return null;
+  if (orig <= 0) return null;
+  if (sale >= orig) return null;
+
+  const pct = ((orig - sale) / orig) * 100;
+  if (!Number.isFinite(pct)) return null;
+
+  // keep same clamp style as before
+  const rounded = Math.round(pct);
+  if (rounded < 0) return null;
+  if (rounded > 95) return 95;
+  return rounded;
+}
+
+/**
+ * "Up to" discount percent for any case where a range is involved.
+ *
+ * Honest interpretation:
+ * - best-case percent uses:
+ *   * originalHigh (highest original)
+ *   * saleLow (lowest sale)
+ *
+ * If originalHigh isn't available, we fall back to originalPrice (single).
+ * If saleLow isn't available, we fall back to salePrice (single).
+ *
+ * Returns null if not computable.
+ */
+function computeDiscountPercentUpTo(deal) {
+  const saleLow = toNumber(deal?.salePriceLow) ?? toNumber(deal?.salePrice);
+  const origHigh = toNumber(deal?.originalPriceHigh) ?? toNumber(deal?.originalPrice);
+
+  if (!Number.isFinite(saleLow) || !Number.isFinite(origHigh) || origHigh <= 0) return null;
+  if (saleLow >= origHigh) return null;
+
+  const pct = ((origHigh - saleLow) / origHigh) * 100;
+  if (!Number.isFinite(pct)) return null;
+
+  const rounded = Math.round(pct);
+  if (rounded < 0) return null;
+  if (rounded > 95) return 95;
+  return rounded;
+}
+
+/**
+ * Dollar savings for ranking/stats:
+ * - exact-only uses originalPrice - salePrice
+ * - range-aware uses originalHigh - saleLow (best case)
+ */
+function computeDollarSavings(deal) {
+  const exactOrig = toNumber(deal?.originalPrice);
+  const exactSale = toNumber(deal?.salePrice);
+
+  if (Number.isFinite(exactOrig) && Number.isFinite(exactSale) && exactOrig > exactSale) {
+    return exactOrig - exactSale;
+  }
+
+  const origHigh = toNumber(deal?.originalPriceHigh) ?? exactOrig;
+  const saleLow = toNumber(deal?.salePriceLow) ?? exactSale;
+
+  if (!Number.isFinite(origHigh) || !Number.isFinite(saleLow) || origHigh <= saleLow) return 0;
+  return origHigh - saleLow;
 }
 
 /** ------------ Theme-change-resistant sanitization ------------ **/
@@ -166,11 +325,11 @@ function storeBaseUrl(store) {
   return "https://example.com";
 }
 
-
 /**
- * Canonical 11 fields:
- * listingName, brand, model, salePrice, originalPrice, discountPercent,
- * store, listingURL, imageURL, gender, shoeType
+ * sanitizeDeal:
+ * - Cleans text and URLs
+ * - Normalizes price shapes (single vs range)
+ * - Applies honesty rules for discount fields
  */
 function sanitizeDeal(raw) {
   if (!raw) return null;
@@ -195,33 +354,18 @@ function sanitizeDeal(raw) {
     imageURL = absolutizeUrl(imgCandidate.trim(), base);
   }
 
-  const salePrice =
-    toNumber(raw.salePrice) ??
-    toNumber(raw.currentPrice) ??
-    toNumber(raw.sale_price) ??
-    toNumber(raw.price) ??
-    null;
-
-  const originalPrice =
-    toNumber(raw.originalPrice) ??
-    toNumber(raw.original_price) ??
-    toNumber(raw.compareAtPrice) ??
-    toNumber(raw.compare_at_price) ??
-    toNumber(raw.msrp) ??
-    toNumber(raw.listPrice) ??
-    toNumber(raw.wasPrice) ??
-    null;
-
   const gender = typeof raw.gender === "string" ? raw.gender.trim() : "unknown";
   const shoeType = typeof raw.shoeType === "string" ? raw.shoeType.trim() : "unknown";
 
-  let discountPercent = toNumber(raw.discountPercent);
-  if (!Number.isFinite(discountPercent)) {
-    if (typeof raw.discount === "string") {
-      const m = raw.discount.match(/(\d{1,2})/);
-      if (m) discountPercent = toNumber(m[1]);
-    }
-  }
+  // -----------------------------
+  // Price shape normalization
+  // -----------------------------
+  const priceShape = normalizePriceShapes(raw);
+
+  // If range fields exist, we ALSO set legacy salePrice/originalPrice to LOW
+  // so downstream code that expects single numbers doesn't crash.
+  const legacySale = priceShape.salePrice != null ? priceShape.salePrice : priceShape.salePriceLow;
+  const legacyOrig = priceShape.originalPrice != null ? priceShape.originalPrice : priceShape.originalPriceLow;
 
   const safeListingName = listingName || normalizeWhitespace(`${brand} ${model}`) || "Running Shoe";
   const safeName = looksLikeCssOrJunk(safeListingName) ? "" : safeListingName;
@@ -230,23 +374,57 @@ function sanitizeDeal(raw) {
     listingName: safeName,
     brand: brand || "Unknown",
     model: model || "",
-    salePrice: Number.isFinite(salePrice) ? salePrice : null,
-    originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
+    salePrice: Number.isFinite(legacySale) ? legacySale : null,
+    originalPrice: Number.isFinite(legacyOrig) ? legacyOrig : null,
+
+    // discount fields filled below based on exact vs range logic
     discountPercent: null,
+    discountPercentUpTo: null,
+
     store: typeof store === "string" ? store.trim() : "Unknown",
     listingURL: listingURL || "",
     imageURL: imageURL || null,
     gender,
     shoeType,
+
+    // new optional range fields (may be null)
+    salePriceLow: priceShape.salePriceLow,
+    salePriceHigh: priceShape.salePriceHigh,
+    originalPriceLow: priceShape.originalPriceLow,
+    originalPriceHigh: priceShape.originalPriceHigh,
   };
 
-  const computed = computeDiscountPercent(canonical);
-  const hasNumericDiscount = Number.isFinite(discountPercent) && discountPercent >= 0 && discountPercent <= 95;
-  canonical.discountPercent = hasNumericDiscount ? Math.round(discountPercent) : Math.round(computed);
+  // -----------------------------
+  // Honesty logic for discount fields
+  // -----------------------------
+  const anySaleRange = Number.isFinite(toNumber(canonical.salePriceLow)) && Number.isFinite(toNumber(canonical.salePriceHigh));
+  const anyOrigRange =
+    Number.isFinite(toNumber(canonical.originalPriceLow)) && Number.isFinite(toNumber(canonical.originalPriceHigh));
+  const anyRangeInvolved = anySaleRange || anyOrigRange;
+
+  if (!anyRangeInvolved) {
+    // exact-only
+    canonical.discountPercent = computeDiscountPercentExact(canonical);
+    canonical.discountPercentUpTo = null;
+  } else {
+    // range involved => exact must be null; compute "up to"
+    canonical.discountPercent = null;
+    canonical.discountPercentUpTo = computeDiscountPercentUpTo(canonical);
+  }
 
   return canonical;
 }
 
+/**
+ * Deal inclusion rules:
+ * - MUST have listingURL + listingName
+ * - MUST have BOTH sale pricing AND original pricing,
+ *   either as single values or as ranges.
+ * - MUST represent an actual discount:
+ *   * exact case: originalPrice > salePrice
+ *   * range case: originalHigh > saleLow
+ * - sanity bounds for price
+ */
 function isValidRunningShoe(deal) {
   if (!deal) return false;
 
@@ -254,45 +432,87 @@ function isValidRunningShoe(deal) {
   const listingName = String(deal.listingName || "").trim();
   if (!listingURL || !listingName) return false;
 
-  const salePrice = toNumber(deal.salePrice);
-  const originalPrice = toNumber(deal.originalPrice);
+  // Require both sides present (single or range)
+  if (!hasSalePriceShape(deal)) return false;
+  if (!hasOriginalPriceShape(deal)) return false;
 
-  if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return false;
-  if (salePrice >= originalPrice) return false;
-  if (salePrice < 10 || salePrice > 1000) return false;
+  // Determine saleLow and origHigh for sanity / discount
+  const saleLow = toNumber(deal.salePriceLow) ?? toNumber(deal.salePrice);
+  const origHigh = toNumber(deal.originalPriceHigh) ?? toNumber(deal.originalPrice);
 
-  const discount = computeDiscountPercent(deal);
-  if (discount < 5 || discount > 90) return false;
+  if (!Number.isFinite(saleLow) || !Number.isFinite(origHigh)) return false;
+  if (saleLow >= origHigh) return false;
+
+  // price sanity (use saleLow)
+  if (saleLow < 10 || saleLow > 1000) return false;
+
+  // discount sanity (prefer exact if present; else use up-to)
+  const exact = toNumber(deal.discountPercent);
+  const upTo = toNumber(deal.discountPercentUpTo);
+  const effective = Number.isFinite(exact) ? exact : Number.isFinite(upTo) ? upTo : null;
+
+  if (!Number.isFinite(effective)) return false;
+  if (effective < 5 || effective > 90) return false;
 
   const title = listingName.toLowerCase();
 
   const excludePatterns = [
-    "sock","socks",
-    "apparel","shirt","shorts","tights","pants",
-    "hat","cap","beanie",
-    "insole","insoles",
-    "laces","lace",
-    "accessories","accessory",
-    "hydration","bottle","flask",
-    "watch","watches",
-    "gear","equipment",
-    "bag","bags","pack","backpack",
-    "vest","vests",
-    "jacket","jackets",
-    "bra","bras",
-    "underwear","brief",
-    "glove","gloves","mitt",
+    "sock",
+    "socks",
+    "apparel",
+    "shirt",
+    "shorts",
+    "tights",
+    "pants",
+    "hat",
+    "cap",
+    "beanie",
+    "insole",
+    "insoles",
+    "laces",
+    "lace",
+    "accessories",
+    "accessory",
+    "hydration",
+    "bottle",
+    "flask",
+    "watch",
+    "watches",
+    "gear",
+    "equipment",
+    "bag",
+    "bags",
+    "pack",
+    "backpack",
+    "vest",
+    "vests",
+    "jacket",
+    "jackets",
+    "bra",
+    "bras",
+    "underwear",
+    "brief",
+    "glove",
+    "gloves",
+    "mitt",
     "compression sleeve",
-    "arm warmer","leg warmer",
-    "headband","wristband",
-    "sunglasses","eyewear",
-    "sleeve","sleeves",
-    "throw","throws",
+    "arm warmer",
+    "leg warmer",
+    "headband",
+    "wristband",
+    "sunglasses",
+    "eyewear",
+    "sleeve",
+    "sleeves",
+    "throw",
+    "throws",
     "yaktrax",
     "out of stock",
-    "kids","kid",
+    "kids",
+    "kid",
     "youth",
-    "junior","juniors",
+    "junior",
+    "juniors",
   ];
 
   for (const pattern of excludePatterns) {
@@ -303,22 +523,52 @@ function isValidRunningShoe(deal) {
   return true;
 }
 
+/**
+ * normalizeDeal:
+ * - runs sanitizeDeal
+ * - returns the canonical shape INCLUDING new optional fields
+ */
 function normalizeDeal(d) {
   const c = sanitizeDeal(d);
   if (!c) return null;
+
+  // Ensure range pairs are consistent at output time
+  const saleLo = toNumber(c.salePriceLow);
+  const saleHi = toNumber(c.salePriceHigh);
+  const origLo = toNumber(c.originalPriceLow);
+  const origHi = toNumber(c.originalPriceHigh);
+
+  const saleRangeOk = (saleLo == null && saleHi == null) || (Number.isFinite(saleLo) && Number.isFinite(saleHi));
+  const origRangeOk = (origLo == null && origHi == null) || (Number.isFinite(origLo) && Number.isFinite(origHi));
 
   return {
     listingName: typeof c.listingName === "string" ? c.listingName.trim() : "",
     brand: typeof c.brand === "string" ? c.brand.trim() : "Unknown",
     model: typeof c.model === "string" ? c.model.trim() : "",
+
+    // Legacy single fields:
+    // - For range deals, these are intentionally set to LOW (anchor),
+    //   but UI should prefer low/high fields when present.
     salePrice: toNumber(c.salePrice),
     originalPrice: toNumber(c.originalPrice),
-    discountPercent: Number.isFinite(toNumber(c.discountPercent)) ? Math.round(toNumber(c.discountPercent)) : 0,
+
+    // Exact-only discount:
+    discountPercent: Number.isFinite(toNumber(c.discountPercent)) ? Math.round(toNumber(c.discountPercent)) : null,
+
     store: typeof c.store === "string" ? c.store.trim() : "Unknown",
     listingURL: typeof c.listingURL === "string" ? c.listingURL.trim() : "",
-    imageURL: typeof c.imageURL === "string" ? c.imageURL.trim() : null,
+    imageURL: typeof c.imageURL === "string" ? c.imageURL.trim() : c.imageURL ?? null,
     gender: typeof c.gender === "string" ? c.gender.trim() : "unknown",
     shoeType: typeof c.shoeType === "string" ? c.shoeType.trim() : "unknown",
+
+    // New optional range fields
+    salePriceLow: saleRangeOk ? saleLo : null,
+    salePriceHigh: saleRangeOk ? saleHi : null,
+    originalPriceLow: origRangeOk ? origLo : null,
+    originalPriceHigh: origRangeOk ? origHi : null,
+
+    // Range-only discount
+    discountPercentUpTo: Number.isFinite(toNumber(c.discountPercentUpTo)) ? Math.round(toNumber(c.discountPercentUpTo)) : null,
   };
 }
 
@@ -361,7 +611,6 @@ async function fetchJson(url) {
     });
     return resp.data;
   } catch (e) {
-    // Critical for debugging: tells you exactly WHICH URL failed.
     throw new Error(`fetchJson failed for ${url}: ${e?.message || String(e)}`);
   }
 }
@@ -409,9 +658,6 @@ async function loadDealsFromBlobOnly({ name, blobUrl }) {
 }
 
 /** ------------ Stats / Daily Deals / scraper-data ------------ **/
-// (UNCHANGED from your original; kept as-is for brevity)
-// NOTE: Everything below is identical to your original merge-deals,
-// except the handler uses loadDealsFromBlobOnly instead of blob-or-endpoint.
 
 function bucketLabel(salePrice) {
   if (!Number.isFinite(salePrice)) return null;
@@ -426,6 +672,13 @@ function bucketLabel(salePrice) {
 function dealSummary(deal) {
   if (!deal) return null;
 
+  // For summary ranking:
+  // - discountPercent exact if present
+  // - else discountPercentUpTo
+  const exact = toNumber(deal.discountPercent);
+  const upTo = toNumber(deal.discountPercentUpTo);
+  const effectiveDiscount = Number.isFinite(exact) ? exact : Number.isFinite(upTo) ? upTo : null;
+
   return {
     listingName: deal.listingName || "",
     brand: deal.brand || "Unknown",
@@ -433,9 +686,21 @@ function dealSummary(deal) {
     store: deal.store || "Unknown",
     listingURL: deal.listingURL || "",
     imageURL: deal.imageURL || null,
+
+    // show legacy anchor fields
     salePrice: toNumber(deal.salePrice),
     originalPrice: toNumber(deal.originalPrice),
-    discountPercent: Math.round(computeDiscountPercent(deal)),
+
+    // include range fields too
+    salePriceLow: toNumber(deal.salePriceLow),
+    salePriceHigh: toNumber(deal.salePriceHigh),
+    originalPriceLow: toNumber(deal.originalPriceLow),
+    originalPriceHigh: toNumber(deal.originalPriceHigh),
+
+    discountPercent: Number.isFinite(exact) ? Math.round(exact) : null,
+    discountPercentUpTo: Number.isFinite(upTo) ? Math.round(upTo) : null,
+    discountEffective: Number.isFinite(effectiveDiscount) ? Math.round(effectiveDiscount) : null,
+
     dollarSavings: computeDollarSavings(deal),
     gender: deal.gender || "unknown",
     shoeType: deal.shoeType || "unknown",
@@ -472,8 +737,7 @@ function computeStats(deals, storeMetadata) {
     const brandRaw = (d.brand || "").trim();
     const brand = brandRaw ? brandRaw : "Unknown";
 
-    const salePrice = toNumber(d.salePrice);
-
+    const saleLow = toNumber(d.salePriceLow) ?? toNumber(d.salePrice);
     uniqueStoreSet.add(store);
     uniqueBrandSet.add(brand);
 
@@ -507,9 +771,13 @@ function computeStats(deals, storeMetadata) {
     const model = typeof d.model === "string" ? d.model.trim() : "";
     if (!model) s.missingModelCount += 1;
 
-    if (!Number.isFinite(salePrice) || salePrice <= 0) s.missingPriceCount += 1;
+    if (!Number.isFinite(saleLow) || saleLow <= 0) s.missingPriceCount += 1;
 
-    const percentOff = computeDiscountPercent(d);
+    // discount handling: exact preferred, else up-to
+    const exact = toNumber(d.discountPercent);
+    const upTo = toNumber(d.discountPercentUpTo);
+    const percentOff = Number.isFinite(exact) ? exact : Number.isFinite(upTo) ? upTo : 0;
+
     const dollarSavings = computeDollarSavings(d);
 
     if (percentOff > 0) {
@@ -523,16 +791,16 @@ function computeStats(deals, storeMetadata) {
       if (!topPercent || percentOff > topPercent.percentOff) topPercent = { deal: d, percentOff };
       if (!topDollar || dollarSavings > topDollar.dollarSavings) topDollar = { deal: d, dollarSavings };
 
-      if (Number.isFinite(salePrice)) {
-        if (!lowestPrice || salePrice < lowestPrice.salePrice) lowestPrice = { deal: d, salePrice };
+      if (Number.isFinite(saleLow)) {
+        if (!lowestPrice || saleLow < lowestPrice.salePrice) lowestPrice = { deal: d, salePrice: saleLow };
       }
 
       const valueScore = percentOff + dollarSavings * 0.5;
       if (!bestValue || valueScore > bestValue.valueScore) bestValue = { deal: d, valueScore };
     }
 
-    if (Number.isFinite(salePrice) && salePrice > 0) {
-      const label = bucketLabel(salePrice);
+    if (Number.isFinite(saleLow) && saleLow > 0) {
+      const label = bucketLabel(saleLow);
       if (label) priceBuckets[label] += 1;
     }
 
@@ -555,9 +823,9 @@ function computeStats(deals, storeMetadata) {
       b.discountCount += 1;
     }
 
-    if (Number.isFinite(salePrice) && salePrice > 0) {
-      b.minPrice = Math.min(b.minPrice, salePrice);
-      b.maxPrice = Math.max(b.maxPrice, salePrice);
+    if (Number.isFinite(saleLow) && saleLow > 0) {
+      b.minPrice = Math.min(b.minPrice, saleLow);
+      b.maxPrice = Math.max(b.maxPrice, saleLow);
     }
   }
 
@@ -643,7 +911,9 @@ function computeStats(deals, storeMetadata) {
     return acc;
   }, {});
 
-  let healthyCount = 0, warningCount = 0, criticalCount = 0;
+  let healthyCount = 0,
+    warningCount = 0,
+    criticalCount = 0;
   for (const s of storesTable) {
     if (s.health.status === "healthy") healthyCount++;
     else if (s.health.status === "warning") warningCount++;
@@ -687,7 +957,7 @@ function computeStats(deals, storeMetadata) {
   };
 }
 
-/** ------------ Daily Deals (unchanged) ------------ **/
+/** ------------ Daily Deals (updated to allow range deals honestly) ------------ **/
 
 function seededRandom(seed) {
   const x = Math.sin(seed++) * 10000;
@@ -739,9 +1009,12 @@ function hasGoodImage(deal) {
   );
 }
 function isDiscountedDeal(deal) {
-  const salePrice = parseMoney(deal.salePrice);
-  const originalPrice = parseMoney(deal.originalPrice);
-  return Number.isFinite(salePrice) && Number.isFinite(originalPrice) && originalPrice > salePrice;
+  // qualifies if it has both sale+orig shapes and implies a discount
+  if (!hasSalePriceShape(deal) || !hasOriginalPriceShape(deal)) return false;
+
+  const saleLow = toNumber(deal.salePriceLow) ?? toNumber(deal.salePrice);
+  const origHigh = toNumber(deal.originalPriceHigh) ?? toNumber(deal.originalPrice);
+  return Number.isFinite(saleLow) && Number.isFinite(origHigh) && origHigh > saleLow;
 }
 function shuffleWithDateSeed(items, seedStr) {
   const dateStr = seedStr || getDateSeedStringUTC();
@@ -759,16 +1032,34 @@ function shuffleWithDateSeed(items, seedStr) {
   return arr;
 }
 function toDailyDealShape(deal) {
-  const salePrice = parseMoney(deal.salePrice);
-  const originalPrice = parseMoney(deal.originalPrice);
+  const saleLow = toNumber(deal.salePriceLow) ?? parseMoney(deal.salePrice);
+  const saleHigh = toNumber(deal.salePriceHigh);
+  const origLow = toNumber(deal.originalPriceLow) ?? parseMoney(deal.originalPrice);
+  const origHigh = toNumber(deal.originalPriceHigh);
+
+  const exact = toNumber(deal.discountPercent);
+  const upTo = toNumber(deal.discountPercentUpTo);
+  const effective = Number.isFinite(exact) ? exact : Number.isFinite(upTo) ? upTo : null;
 
   return {
     listingName: deal.listingName || "Running Shoe Deal",
     brand: deal.brand || "",
     model: deal.model || "",
-    salePrice: Number.isFinite(salePrice) ? salePrice : 0,
-    originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
-    discountPercent: Math.round(computeDiscountPercent(deal)),
+    salePrice: Number.isFinite(saleLow) ? saleLow : 0, // legacy anchor (low)
+    originalPrice: Number.isFinite(origLow) ? origLow : null, // legacy anchor (low)
+
+    // keep legacy exact-only:
+    discountPercent: Number.isFinite(exact) ? Math.round(exact) : null,
+    // add optional:
+    discountPercentUpTo: Number.isFinite(upTo) ? Math.round(upTo) : null,
+    discountEffective: Number.isFinite(effective) ? Math.round(effective) : null,
+
+    // include range fields for UI if you ever consume daily deals there too
+    salePriceLow: Number.isFinite(saleLow) ? saleLow : null,
+    salePriceHigh: Number.isFinite(saleHigh) ? saleHigh : null,
+    originalPriceLow: Number.isFinite(origLow) ? origLow : null,
+    originalPriceHigh: Number.isFinite(origHigh) ? origHigh : null,
+
     store: deal.store || "Store",
     listingURL: deal.listingURL || "#",
     imageURL: deal.imageURL || "",
@@ -779,12 +1070,9 @@ function toDailyDealShape(deal) {
 function computeTwelveDailyDeals(allDeals, seedStr) {
   const dateStr = seedStr || getDateSeedStringUTC();
 
-  const qualityDeals = (allDeals || []).filter(
-    (d) => hasGoodImage(d) && isDiscountedDeal(d) && d.originalPrice && d.salePrice
-  );
+  const qualityDeals = (allDeals || []).filter((d) => hasGoodImage(d) && isDiscountedDeal(d));
 
   const workingPool = qualityDeals.length >= 12 ? qualityDeals : (allDeals || []).filter(hasGoodImage);
-
   if (!workingPool.length) return [];
 
   if (workingPool.length < 12) {
@@ -792,9 +1080,13 @@ function computeTwelveDailyDeals(allDeals, seedStr) {
     return shuffleWithDateSeed(picked, dateStr).map(toDailyDealShape);
   }
 
-  const top20ByPercent = [...workingPool]
-    .sort((a, b) => computeDiscountPercent(b) - computeDiscountPercent(a))
-    .slice(0, Math.min(20, workingPool.length));
+  const discountForSort = (d) => {
+    const exact = toNumber(d.discountPercent);
+    const upTo = toNumber(d.discountPercentUpTo);
+    return Number.isFinite(exact) ? exact : Number.isFinite(upTo) ? upTo : 0;
+  };
+
+  const top20ByPercent = [...workingPool].sort((a, b) => discountForSort(b) - discountForSort(a)).slice(0, 20);
 
   const byPercent = getRandomSample(top20ByPercent, Math.min(4, top20ByPercent.length), dateStr);
   const pickedUrls = new Set(byPercent.map((d) => d.listingURL).filter(Boolean));
@@ -832,25 +1124,24 @@ function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
   const blobUrl = meta?.blobUrl || null;
 
   if (!perSourceOk) {
-    return [{
-      scraper: sourceName,
-      ok: false,
-      count: 0,
-      durationMs,
-      timestamp,
-      via,
-      blobUrl,
-      error: meta?.error || "Unknown error",
-    }];
+    return [
+      {
+        scraper: sourceName,
+        ok: false,
+        count: 0,
+        durationMs,
+        timestamp,
+        via,
+        blobUrl,
+        error: meta?.error || "Unknown error",
+      },
+    ];
   }
 
   if (payload && payload.scraperResults && typeof payload.scraperResults === "object") {
     const records = [];
     for (const [name, r] of Object.entries(payload.scraperResults)) {
-      const ok =
-        typeof r?.success === "boolean" ? r.success :
-        typeof r?.ok === "boolean" ? r.ok :
-        true;
+      const ok = typeof r?.success === "boolean" ? r.success : typeof r?.ok === "boolean" ? r.ok : true;
 
       const count = Number.isFinite(r?.count) ? r.count : 0;
       const dMs = parseDurationMs(r?.durationMs || r?.duration || null) ?? durationMs ?? null;
@@ -868,20 +1159,21 @@ function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
     if (records.length) return records;
   }
 
-  return [{
-    scraper: sourceName,
-    ok: true,
-    count: safeArray(meta?.deals).length,
-    durationMs,
-    timestamp,
-    via,
-    blobUrl,
-  }];
+  return [
+    {
+      scraper: sourceName,
+      ok: true,
+      count: safeArray(meta?.deals).length,
+      durationMs,
+      timestamp,
+      via,
+      blobUrl,
+    },
+  ];
 }
 
 function mergeRollingScraperHistory(existing, todayDayUTC, todayRecords, maxDays = 30) {
   const history = safeArray(existing?.days).filter(Boolean);
-
   const filtered = history.filter((d) => d?.dayUTC !== todayDayUTC);
 
   filtered.push({
@@ -891,7 +1183,6 @@ function mergeRollingScraperHistory(existing, todayDayUTC, todayRecords, maxDays
   });
 
   filtered.sort((a, b) => String(a.dayUTC).localeCompare(String(b.dayUTC)));
-
   const trimmed = filtered.slice(Math.max(0, filtered.length - maxDays));
 
   return {
@@ -911,24 +1202,24 @@ module.exports = async (req, res) => {
   const start = Date.now();
 
   // ============================================================================
-  // BLOB URLs (TRIMMED; blob-only mode)
+  // BLOB URLs (blob-only mode)
   // ============================================================================
   const CHEERIO_DEALS_BLOB_URL = String(process.env.CHEERIO_DEALS_BLOB_URL || "").trim();
-  const APIFY_DEALS_BLOB_URL   = String(process.env.APIFY_DEALS_BLOB_URL || "").trim();
+  const APIFY_DEALS_BLOB_URL = String(process.env.APIFY_DEALS_BLOB_URL || "").trim();
   const BROOKS_DEALS_BLOB_URL = String(process.env.BROOKS_DEALS_BLOB_URL || "").trim();
   const ROADRUNNER_DEALS_BLOB_URL = String(process.env.ROADRUNNER_DEALS_BLOB_URL || "").trim();
   const REI_DEALS_BLOB_URL = String(process.env.REI_DEALS_BLOB_URL || "").trim();
 
-  const HOLABIRD_MENS_ROAD_BLOB_URL     = String(process.env.HOLABIRD_MENS_ROAD_BLOB_URL || "").trim();
-  const HOLABIRD_WOMENS_ROAD_BLOB_URL   = String(process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "").trim();
-  const HOLABIRD_TRAIL_UNISEX_BLOB_URL  = String(process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "").trim();
+  const HOLABIRD_MENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_MENS_ROAD_BLOB_URL || "").trim();
+  const HOLABIRD_WOMENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "").trim();
+  const HOLABIRD_TRAIL_UNISEX_BLOB_URL = String(process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "").trim();
 
-  const ASICS_SALE_BLOB_URL             = String(process.env.ASICS_SALE_BLOB_URL || "").trim();
-  const ALS_SALE_BLOB_URL               = String(process.env.ALS_SALE_BLOB_URL || "").trim();
-  const SHOEBACCA_CLEARANCE_BLOB_URL    = String(process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "").trim();
-  const SNAILSPACE_SALE_BLOB_URL        = String(process.env.SNAILSPACE_SALE_BLOB_URL || "").trim();
+  const ASICS_SALE_BLOB_URL = String(process.env.ASICS_SALE_BLOB_URL || "").trim();
+  const ALS_SALE_BLOB_URL = String(process.env.ALS_SALE_BLOB_URL || "").trim();
+  const SHOEBACCA_CLEARANCE_BLOB_URL = String(process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "").trim();
+  const SNAILSPACE_SALE_BLOB_URL = String(process.env.SNAILSPACE_SALE_BLOB_URL || "").trim();
 
-  const SCRAPER_DATA_BLOB_URL           = String(process.env.SCRAPER_DATA_BLOB_URL || "").trim();
+  const SCRAPER_DATA_BLOB_URL = String(process.env.SCRAPER_DATA_BLOB_URL || "").trim();
 
   try {
     console.log("[MERGE] Starting merge:", new Date().toISOString());
@@ -945,7 +1236,7 @@ module.exports = async (req, res) => {
       { name: "Brooks", blobUrl: BROOKS_DEALS_BLOB_URL },
       { name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
       { name: "REI", blobUrl: REI_DEALS_BLOB_URL },
-      
+
       { name: "Holabird Mens Road", blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL },
       { name: "Holabird Womens Road", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
       { name: "Holabird Trail + Unisex", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
@@ -1007,12 +1298,20 @@ module.exports = async (req, res) => {
       deals: allDealsRaw,
     };
 
+    // Normalize + filter with honesty rules
     const normalized = allDealsRaw.map(normalizeDeal).filter(Boolean);
     const filtered = normalized.filter(isValidRunningShoe);
     const unique = dedupeDeals(filtered);
 
+    // Sort: effective discount (exact else up-to)
+    const discountForSort = (d) => {
+      const exact = toNumber(d.discountPercent);
+      const upTo = toNumber(d.discountPercentUpTo);
+      return Number.isFinite(exact) ? exact : Number.isFinite(upTo) ? upTo : 0;
+    };
+
     unique.sort(() => Math.random() - 0.5);
-    unique.sort((a, b) => computeDiscountPercent(b) - computeDiscountPercent(a));
+    unique.sort((a, b) => discountForSort(b) - discountForSort(a));
 
     const dealsByStore = {};
     for (const d of unique) {
