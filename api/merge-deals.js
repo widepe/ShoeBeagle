@@ -933,7 +933,8 @@ module.exports = async (req, res) => {
     const sources = [
       { name: "Cheerio (non-Holabird)", blobUrl: CHEERIO_DEALS_BLOB_URL },
       { name: "Apify (non-Holabird)", blobUrl: APIFY_DEALS_BLOB_URL },
-
+      { name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
+      
       { name: "Holabird Mens Road", blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL },
       { name: "Holabird Womens Road", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
       { name: "Holabird Trail + Unisex", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
