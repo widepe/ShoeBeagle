@@ -138,7 +138,7 @@ input[type="text"], input[type="search"]{
   background: #fafdf4;
 
   /* ✅ bigger input text */
-  font-size: 1.35rem;
+  font-size: 1.5rem;
   font-weight: 500;
 
   color: #444;
@@ -152,8 +152,8 @@ input::placeholder { color:#999; opacity:1; }
   right: 0.55rem;
   top:50%;
   transform: translateY(-50%);
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background:#999;
   color:#fff;
@@ -233,7 +233,13 @@ button{
   pointer-events: none;
 }
 
-.menu-icon{ font-size: 1.5rem; line-height: 1; }
+.menu-icon{
+  font-size: 1.75rem;          /* keep your current size */
+  line-height: 1;
+  display: inline-block;   /* required for transform */
+  transform: scaleX(2); /* ✅ wider without getting taller */
+}
+
 
 /* Menu dropdown anchored to the menu button wrapper */
 .button-wrapper{ position: relative; display:flex; align-items:center; justify-content:center; }
@@ -267,7 +273,7 @@ button{
 /* ---------- Status / filters ---------- */
 
 .status-message{
-  font-size: 1.35rem;          /* ✅ bigger */
+  font-size: 1.6rem;          /* ✅ bigger */
   font-weight: 700;            /* ✅ reads better */
   color:#2d3c22;
 
@@ -342,7 +348,7 @@ button{
 }
 
 .daily-deals-header{
-  font-size: 2.3rem;
+  font-size: 3rem;
   font-weight: 700;
   color: var(--sb-blue);
   margin-bottom: 1rem;
@@ -470,7 +476,7 @@ button{
 
 /* Footer */
 .disclaimer{
-  font-size: 1rem;
+  font-size: 1.5rem;
   color:#555;
   max-width: var(--maxw);
   margin: 0.15rem auto 0;
