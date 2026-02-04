@@ -243,7 +243,7 @@ const brandModels = window.brandModels || {};
 
     // --- Blob base (NO hardcoding) ---
     function getBlobBase() {
-const meta = document.querySelector('meta[name="shoebeagle-blob-base"]');
+      const meta = document.querySelector('meta[name="shoebeagle-blob-base"]');
       const fromMeta = meta ? String(meta.getAttribute("content") || "").trim() : "";
       const looksLikePlaceholder = fromMeta.includes("__BLOB_BASE_URL__");
       if (fromMeta && !looksLikePlaceholder) return fromMeta.replace(/\\/+$/, "");
