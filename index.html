@@ -633,7 +633,7 @@ function setPagerUI(total, shown){
 
   // show pager only if there are more than one page
   const pager = document.querySelector(".pager");
-  if (pager) pager.style.display = (total > PAGE_SIZE) ? "flex" : "none";
+  if (pager) pager.style.display = (pages > 1) ? "flex" : "none";
 }
     
   function renderFilteredResults(resetPage = true) {
