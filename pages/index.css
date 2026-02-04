@@ -9,7 +9,7 @@
   --input-h: 56px;
   --btn-h: 56px;
 
-  --gap: 10px;
+  --gap: 16px;
 
   /* buttons always equal width */
   --btn-eq-w: 78px;
@@ -483,7 +483,7 @@ button{
   padding: 0.75rem 1rem;
   background: rgba(244,237,227,0.97);
   border-top: 1px solid rgba(0,0,0,0.08);
-  font-size: 1rem;
+  font-size: 1.2rem;
   color:#444;
   text-align:center;
   width: 100%;
