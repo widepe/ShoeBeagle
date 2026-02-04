@@ -5,11 +5,11 @@
   --sb-blue: #214478ff;
   --bg: #f4ede3ff;
 
-  /* Taller controls */
+  /* Taller controls (NOT scaled by the knob) */
   --input-h: 56px;
   --btn-h: 56px;
 
-  /* General spacing (used in lots of places) */
+  /* General spacing (NOT scaled by the knob) */
   --gap: 16px;
 
   /* buttons always equal width */
@@ -18,23 +18,25 @@
   /* overall page max width */
   --maxw: 1600px;
 
+  /* page padding (NOT scaled by the knob) */
   --pad: 12px;
-  --grid-gap: 1.25rem;
 
   /* =========================
-     ONE KNOB: scale the entire grid/cards UI
-     (desktop/tablet only; mobile portrait overrides below)
-     Examples:
-       0.90 = smaller cards/text/padding
-       1.00 = default
-       1.10 = bigger
+     ONE KNOB (GRID + CARDS ONLY)
+     1.00 = default
+     0.90 = smaller
+     1.10 = bigger
   ========================== */
   --grid-scale: 0.5;
 
-  /* Base min card width that drives overall card size (because card uses aspect-ratio) */
-  --card-min: calc(260px * var(--grid-scale));
+  /* column count (changes in media queries below) */
+  --cols: 6;
+
+  /* MASTER card width drives total grid width */
+  --card-w: calc(260px * var(--grid-scale));
 
   /* Scaled card paddings/gaps/fonts/badges */
+  --grid-gap: calc(1.25rem * var(--grid-scale));
   --card-pad: calc(0.75rem * var(--grid-scale));
   --card-gap: calc(0.4rem * var(--grid-scale));
   --card-content-gap: calc(0.3rem * var(--grid-scale));
@@ -43,12 +45,18 @@
   --card-store-size: calc(1.05rem * var(--grid-scale));
   --card-price-size: calc(1.25rem * var(--grid-scale));
   --card-tag-size: calc(0.9rem * var(--grid-scale));
+
   --badge-font: calc(0.9rem * var(--grid-scale));
   --badge-pad-y: calc(0.15rem * var(--grid-scale));
   --badge-pad-x: calc(0.5rem * var(--grid-scale));
   --badge-offset: calc(0.35rem * var(--grid-scale));
 
   --img-radius: calc(0.6rem * var(--grid-scale));
+
+  /* scale borders/radii so EVERYTHING is proportional */
+  --card-border: calc(2px * var(--grid-scale));
+  --img-border: calc(1px * var(--grid-scale));
+  --card-radius: calc(0.75rem * var(--grid-scale));
 }
 
 /* ---------- Base layout ---------- */
@@ -93,8 +101,8 @@ body{
 }
 
 .top-left{
-  flex: 0 1 auto;               /* allow shrink if needed */
-  width: min(600px, 100%);      /* controls input stack width on desktop */
+  flex: 0 1 auto;
+  width: min(600px, 100%);
   min-width: 280px;
 
   display:flex;
@@ -116,7 +124,6 @@ body{
 /* ---------- Logo ---------- */
 
 .brand-logo{
-  /* height = (two rows + gap) scaled up proportionally */
   height: calc((max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * 1.2);
   max-height: calc((max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * 1.2);
 
@@ -132,7 +139,7 @@ body{
 /* ---------- Form rows ---------- */
 
 form#search-form{
-  width: 100%;                 /* fill top-left width */
+  width: 100%;
   max-width: 100%;
   display:flex;
   flex-direction: column;
@@ -143,7 +150,7 @@ form#search-form{
 .row{
   width:100%;
   display:flex;
-  gap: 16px;                   /* input <-> button spacing */
+  gap: 16px;
   align-items: center;
 }
 
@@ -243,7 +250,7 @@ button{
   justify-content:center;
   white-space: nowrap;
   gap: 8px;
-  font-size: 1.15rem;          /* Fetch bigger */
+  font-size: 1.15rem;
   font-weight: 700;
 }
 .btn-eq:hover{ background:#1a3661; }
@@ -258,7 +265,7 @@ button{
   font-size: 1.75rem;
   line-height: 1;
   display: inline-block;
-  transform: scaleX(2);        /* wider without taller */
+  transform: scaleX(2);
 }
 
 /* Menu dropdown anchored to the menu button wrapper */
@@ -376,32 +383,38 @@ button{
   text-align:center;
 }
 
+/* =========================
+   KEY CHANGE:
+   - grid width is FIT-CONTENT
+   - columns are FIXED width (--card-w)
+   => knob changes TOTAL GRID WIDTH
+========================== */
 .shoe-grid{
-  width:100%;
-  margin-top: 1.0rem;
   display:grid;
+  gap: var(--grid-gap);
 
-  gap: calc(var(--grid-gap) * var(--grid-scale)); /* scale gaps */
-  justify-content:center;
+  grid-template-columns: repeat(var(--cols), var(--card-w));
+
+  width: fit-content;     /* makes the grid shrink/grow overall */
+  max-width: 100%;
+  margin: 1.0rem auto 0;  /* center */
+  justify-content: center;
+
   padding: 0 var(--pad);
-
-  /* FIXED COLUMN COUNTS (default = desktop/tablet landscape) */
-  grid-template-columns: repeat(6, minmax(var(--card-min), 1fr));
 }
-
 
 /* ---------- Cards (DESKTOP/TABLET: fixed proportions) ---------- */
 
 .card{
   background:#d9e1ebff;
-  border:2px solid var(--sb-blue);
-  border-radius:0.75rem;
+  border: var(--card-border) solid var(--sb-blue);
+  border-radius: var(--card-radius);
   padding: var(--card-pad);
   display:flex;
   flex-direction:column;
   text-align:left;
   position:relative;
-  aspect-ratio: 3 / 4;         /* card is 3 wide by 4 tall */
+  aspect-ratio: 3 / 4;
 }
 
 .card-link{
@@ -417,15 +430,15 @@ button{
   position: relative;
   width: 100%;
   overflow: hidden;
-  aspect-ratio: 4 / 3;         /* image area is 4 wide by 3 tall */
+  aspect-ratio: 4 / 3;
 }
 
 .card img{
   width: 100%;
-  height: 100%;                /* fill the 4:3 wrapper */
+  height: 100%;
   object-fit: contain;
   background:#fff;
-  border:1px solid var(--sb-blue);
+  border: var(--img-border) solid var(--sb-blue);
   border-radius: var(--img-radius);
   display:block;
 }
@@ -487,12 +500,10 @@ button{
   min-height: calc(1.25em * 3);
 }
 
-.card-title strong{
-  font-size: 1.15em;
-}
+.card-title strong{ font-size: 1.15em; }
 
 .card-store{
-  margin-top: auto;            /* pushes store + price to bottom */
+  margin-top: auto;
   color:#49543a;
   font-size: var(--card-store-size);
 }
@@ -504,11 +515,12 @@ button{
   font-size: var(--card-price-size);
 }
 .price{ font-weight:700; color: var(--sb-blue); }
+
 .card-original-price{
   margin-left: calc(0.35rem * var(--grid-scale));
   color:#777;
   text-decoration: line-through;
-  font-size: calc(0.85em * 1); /* relative to card-price-row */
+  font-size: 0.85em;
 }
 
 /* Load more */
@@ -540,7 +552,7 @@ button{
 }
 
 .footer{
-  margin-top: auto;            /* sticky-to-bottom behavior */
+  margin-top: auto;
   padding: 0.75rem 1rem;
   background: rgba(244,237,227,0.97);
   border-top: 1px solid rgba(0,0,0,0.08);
@@ -565,45 +577,61 @@ button{
   opacity: 0.75;
 }
 
-/* ---------- RESPONSIVE GRID RULES ----------
-   Fixed columns per device/orientation
+/* ---------- RESPONSIVE COLUMN COUNTS ----------
+   Desktop: 6
+   Tablet landscape: 6
+   Tablet portrait: 4
+   Mobile landscape: 3
+   Mobile portrait: 1 (separate block below)
 ------------------------------------------ */
+
+/* Tablet landscape: 6 columns */
+@media (max-width: 1100px) and (orientation: landscape){
+  :root{ --cols: 6; }
+}
 
 /* Tablet portrait: 4 columns */
 @media (max-width: 900px) and (orientation: portrait){
-  .shoe-grid{ grid-template-columns: repeat(4, minmax(var(--card-min), 1fr)); }
+  :root{ --cols: 4; }
 }
 
 /* Mobile landscape: 3 columns */
 @media (max-width: 800px) and (orientation: landscape){
-  .shoe-grid{ grid-template-columns: repeat(3, minmax(var(--card-min), 1fr)); }
+  :root{ --cols: 3; }
 }
-
-/* Tablet landscape: 6 columns (explicit, but same as default) */
-@media (max-width: 1100px) and (orientation: landscape){
-  .shoe-grid{ grid-template-columns: repeat(6, minmax(var(--card-min), 1fr)); }
-}
-
 
 /* ---------- MOBILE PORTRAIT: do NOT scale; text to the side ---------- */
 @media (max-width: 560px){
 
   /* lock scaling on portrait mobile */
   :root{
+    --cols: 1;
+
     --grid-scale: 1;
-    --card-min: 1px;
+
+    /* in portrait mobile we switch layout anyway, so card width isn't used */
+    --card-w: 1px;
+
+    --grid-gap: 1.25rem;
     --card-pad: 0.75rem;
     --card-gap: 0.4rem;
     --card-content-gap: 0.3rem;
+
     --card-title-size: 1.25rem;
     --card-store-size: 1.05rem;
     --card-price-size: 1.25rem;
     --card-tag-size: 0.9rem;
+
     --badge-font: 0.9rem;
     --badge-pad-y: 0.15rem;
     --badge-pad-x: 0.5rem;
     --badge-offset: 0.35rem;
+
     --img-radius: 0.6rem;
+
+    --card-border: 2px;
+    --img-border: 1px;
+    --card-radius: 0.75rem;
   }
 
   .topbar{
@@ -629,7 +657,7 @@ button{
     max-width: 520px;
     margin: 0.75rem auto 0;
     padding: 0 var(--pad);
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr;   /* 1 column */
     justify-content: stretch;
     box-sizing: border-box;
     gap: var(--grid-gap);
@@ -638,11 +666,11 @@ button{
   .card{
     width: 100%;
     margin: 0;
-    aspect-ratio: auto;        /* stop forcing 3:4 on mobile portrait */
+    aspect-ratio: auto;
   }
 
   .card-link{
-    flex-direction: row;       /* image left, text right */
+    flex-direction: row;
     align-items: center;
     gap: 0.9rem;
   }
