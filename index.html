@@ -17,41 +17,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
-    .card { position: relative; }
-
-    .card-image-wrapper {
-      position: relative;
-      width: 100%;
+    :root{
+      --input-h: 48px;          /* requested */
+      --stack-gap: 10px;
+      --btn-w: 92px;            /* menu + fetch SAME width */
+      --page-pad: 12px;         /* phone padding */
     }
 
-    .discount-badge {
-      position: absolute;
-      top: 0.35rem;
-      left: 0.35rem;
-      padding: 0.15rem 0.5rem;
-      border-radius: 999px;
-      font-size: 0.7rem;
-      font-weight: 700;
-      background: rgba(220, 53, 69, 0.9);
-      color: #ffffff;
-      z-index: 3;
-    }
-
-    @media (max-width: 480px) {
-      .discount-badge {
-        top: 0.2rem;
-        left: 0.2rem;
-        padding: 0.1rem 0.3rem;
-        font-size: 0.55rem;
-      }
-    }
-
-    .card-original-price {
-      margin-left: 0.35rem;
-      font-size: 0.8rem;
-      color: #777;
-      text-decoration: line-through;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -63,11 +36,12 @@
       align-items: flex-start;
       padding: 6px 1rem;
       min-height: 100vh;
+      overflow-x: hidden; /* prevents accidental horizontal scroll */
     }
 
     .app {
       width: 100%;
-      max-width: 900px;
+      max-width: 1200px; /* gives 6-column desktop room */
       display: flex;
       flex-direction: column;
       gap: 0.65rem;
@@ -75,17 +49,9 @@
       padding-top: 0;
     }
 
-    :root{
-      --input-h: 44px;
-      --stack-gap: 10px;
-      --btn-w: 44px; /* menu button width */
-      --btn-wide: 90px; /* fetch button width */
-    }
-
-    /* --- TOP BAR (logo left, 2 stacked rows right) --- */
+    /* ---------- TOP AREA LAYOUT ---------- */
     .topbar{
       width: 100%;
-      max-width: 900px;
       display: flex;
       align-items: flex-start;
       gap: 14px;
@@ -93,26 +59,36 @@
 
     .brand{
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       flex: 0 0 auto;
     }
 
-    /* EXACT: same height as the two search bars (includes gap) */
-    .brand-logo{
-      height: calc(var(--input-h) * 2 + var(--stack-gap));
+    /* Desktop/tablet: logoV2 on the left of stacked inputs */
+    .brand-logo-v2{
+      height: calc(var(--input-h) * 2 + var(--stack-gap)); /* exact match to two inputs */
       width: auto;
-      max-width: 280px;
+      max-width: 300px;
       object-fit: contain;
       margin: 0;
       cursor: pointer;
       transition: opacity 0.2s ease;
     }
-    .brand-logo:hover { opacity: 0.9; }
+    .brand-logo-v2:hover { opacity: 0.9; }
+
+    /* Phone portrait: logo.svg above inputs */
+    .brand-logo-top{
+      display: none;
+      width: min(520px, 92vw);
+      height: auto;
+      cursor: pointer;
+      transition: opacity 0.2s ease;
+    }
+    .brand-logo-top:hover { opacity: 0.9; }
 
     form#search-form{
       flex: 1 1 auto;
       width: 100%;
-      max-width: 650px;
+      max-width: 760px;
       margin: 0;
       display: flex;
       flex-direction: column;
@@ -121,12 +97,12 @@
       align-items: stretch;
     }
 
-    /* Each row = input + button to the right */
-    .input-row{
+    .field-row{
       display: flex;
       align-items: stretch;
       gap: 10px;
       width: 100%;
+      min-width: 0; /* helps prevent overflow on small screens */
     }
 
     input[type="text"],
@@ -138,19 +114,18 @@
       border: 1px solid #214478ff;
       background: #fafdf4;
       font-size: 1rem;
-      box-sizing: border-box;
       transition: border-color 0.2s ease, background-color 0.2s ease;
       color: #444;
+      min-width: 0;
     }
+
+    input::placeholder { color: #999; opacity: 1; }
 
     .input-wrapper {
       position: relative;
       flex: 1 1 auto;
-      width: 100%;
-      max-width: none;
+      min-width: 0;
     }
-
-    input::placeholder { color: #999; opacity: 1; }
 
     .input-clear {
       position: absolute;
@@ -175,28 +150,40 @@
     .input-clear:hover { background: #666; }
     .input-wrapper:has(input:not(:placeholder-shown)) .input-clear { display: flex; }
 
-    /* MENU BUTTON (right of brand input) */
+    /* ---------- MENU + FETCH (SAME WIDTH) ---------- */
     .menu-wrapper {
       position: relative;
-      flex: 0 0 auto;
       display: flex;
-      align-items: center;
+      align-items: stretch;
+      flex: 0 0 auto;
     }
 
-    .menu-btn {
+    button{
+      border: none;
+      border-radius: 0.75rem;
+      background: #214478ff;
+      color: white;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+    }
+
+    .top-btn{
       height: var(--input-h);
-      width: var(--btn-w);
+      width: var(--btn-w);       /* SAME width */
       border-radius: 0.5rem;
       border: 1px solid #214478ff;
       background: #214478ff;
-      padding: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      cursor: pointer;
-      position: relative;
+      white-space: nowrap;
+      outline: none;
+      font-weight: 700;
+      padding: 0;
     }
-    .menu-btn:hover { background: #1a3661; }
+    .top-btn:hover { background: #1a3661; }
+
     .menu-icon { font-size: 1.2rem; }
 
     .menu-dropdown {
@@ -207,7 +194,7 @@
       border: 1px solid #214478ff;
       border-radius: 0.5rem;
       box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
-      min-width: 150px;
+      min-width: 160px;
       display: none;
       z-index: 100;
     }
@@ -223,29 +210,7 @@
     }
     .menu-dropdown a:hover { background: #e8f0ff; }
 
-    /* FETCH BUTTON (right of model input) */
-    .search-btn {
-      height: var(--input-h);
-      width: var(--btn-wide);
-      border-radius: 0.5rem;
-      border: 1px solid #214478ff;
-      background: #214478ff;
-      padding: 0 1rem;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      white-space: nowrap;
-      outline: none;
-      cursor: pointer;
-    }
-    .search-btn:hover { background: #1a3661; }
-
-    .search-btn:disabled {
-      opacity: 1;
-      cursor: pointer;
-      pointer-events: none;
-    }
-
+    /* ---------- SUGGESTIONS ---------- */
     .suggestions {
       position: absolute;
       top: calc(var(--input-h) + 4px);
@@ -272,16 +237,7 @@
     .suggestion-item:hover { background: #e8f0ff; }
     .suggestion-item.active { background: #e8f0ff; }
 
-    button {
-      border: none;
-      border-radius: 0.75rem;
-      background: #214478ff;
-      color: white;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: background 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-    }
-
+    /* ---------- STATUS + FILTERS ---------- */
     .status-message {
       font-size: 0.95rem;
       color: #2d3c22;
@@ -289,11 +245,12 @@
       text-align: center;
       width: 100%;
       min-height: 1.1rem;
+      padding: 0 8px;
     }
 
     .filters{
       width:100%;
-      max-width:650px;
+      max-width: 900px;
       display:flex;
       flex-direction:row;
       align-items:center;
@@ -301,6 +258,7 @@
       gap:1rem;
       margin-top: 0.1rem;
       flex-wrap:wrap;
+      padding: 0 8px;
     }
 
     .filter-row{
@@ -390,66 +348,41 @@
     }
     .chip:hover::before{ opacity: 1; }
 
-    .card-tags {
+    /* ---------- DEAL CARDS ---------- */
+    .card { position: relative; }
+
+    .card-image-wrapper {
+      position: relative;
+      width: 100%;
+    }
+
+    .discount-badge {
       position: absolute;
+      top: 0.35rem;
       left: 0.35rem;
-      right: 0.35rem;
-      bottom: 0.35rem;
-      display: flex;
-      gap: 0.35rem;
-      justify-content: space-between;
-      align-items: center;
-      z-index: 2;
-      pointer-events: none;
-    }
-
-    .card-tag {
-      font-size: 0.68rem;
-      font-weight: 600;
-      color: #214478ff;
-      line-height: 1.1;
-      white-space: nowrap;
-      text-shadow: 0 0 3px rgba(255,255,255,0.8), 0 0 5px rgba(255,255,255,0.6);
-    }
-
-    .daily-deals {
-      width: 100%;
-      max-width: 900px;
-      margin-top: 1.0rem;
-    }
-
-    .daily-deals-header {
-      font-size: 1.8rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
       font-weight: 700;
-      color: #214478ff;
-      margin-bottom: 1rem;
-      text-align: center;
-    }
-
-    .shoe-grid {
-      margin-top: 1.0rem;
-      display: grid;
-      gap: 1.25rem;
-      width: 100%;
-      justify-content: center;
-      max-width: 900px;
-      grid-template-columns: repeat(var(--grid-columns, auto-fit), minmax(min(100%, 180px), 1fr));
-    }
-
-    .shoe-grid .card {
-      max-width: 240px;
-      margin: 0 auto;
-      width: 100%;
+      background: rgba(220, 53, 69, 0.9);
+      color: #ffffff;
+      z-index: 3;
     }
 
     @media (max-width: 480px) {
-      .shoe-grid {
-        grid-template-columns: 1fr;
-        max-width: 100%;
+      .discount-badge {
+        top: 0.2rem;
+        left: 0.2rem;
+        padding: 0.1rem 0.3rem;
+        font-size: 0.55rem;
       }
-      .shoe-grid .card {
-        max-width: 100%;
-      }
+    }
+
+    .card-original-price {
+      margin-left: 0.35rem;
+      font-size: 0.8rem;
+      color: #777;
+      text-decoration: line-through;
     }
 
     .card {
@@ -460,7 +393,6 @@
       display: flex;
       flex-direction: column;
       text-align: left;
-      box-sizing: border-box;
     }
 
     .card-link {
@@ -472,12 +404,6 @@
       height: 100%;
     }
 
-    .card-image-wrapper {
-      width: 100%;
-      overflow: hidden;
-      position: relative;
-    }
-
     .card img {
       width: 100%;
       height: 150px;
@@ -485,7 +411,6 @@
       object-fit: contain;
       background: white;
       border: 1px solid #214478ff;
-      box-sizing: border-box;
     }
 
     .card-content {
@@ -493,6 +418,7 @@
       flex-direction: column;
       gap: 0.3rem;
       flex: 1;
+      min-width: 0;
     }
 
     .card-title {
@@ -523,80 +449,107 @@
       color: #214478ff;
     }
 
-    @media (max-width: 480px) {
-      .topbar{
-        flex-direction: column;
-        align-items: center;
-      }
-
-      .brand{
-        justify-content: center;
-      }
-
-      /* On mobile, keep it simple: logo above, inputs below */
-      .brand-logo{
-        height: 64px;
-        max-width: 280px;
-      }
-
-      form#search-form{
-        max-width: 100%;
-      }
-
-      .input-row{
-        gap: 10px;
-      }
-
-      .search-btn{
-        width: 100%;
-        max-width: 140px;
-      }
-
-      .card-link {
-        flex-direction: row;
-        gap: 0.75rem;
-        align-items: center;
-      }
-
-      .card-image-wrapper {
-        flex-shrink: 0;
-        width: 100px;
-        height: 80px;
-        overflow: hidden;
-      }
-
-      .card img {
-        height: 80px;
-        object-fit: cover;
-      }
-
-      .card-tags {
-        left: 0.25rem;
-        right: 0.25rem;
-        bottom: 0.25rem;
-      }
-
-      .card-tag {
-        font-size: 0.62rem;
-      }
-
-      .card-content {
-        justify-content: center;
-        min-width: 0;
-      }
-
-      .card-title {
-        -webkit-line-clamp: 2;
-        min-height: auto;
-      }
+    .card-tags {
+      position: absolute;
+      left: 0.35rem;
+      right: 0.35rem;
+      bottom: 0.35rem;
+      display: flex;
+      gap: 0.35rem;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 2;
+      pointer-events: none;
     }
 
-    @media (min-width: 481px) and (max-width: 900px) and (orientation: landscape) {
-      .shoe-grid {
-        grid-template-columns: repeat(var(--grid-columns, 3), minmax(min(100%, 180px), 1fr));
-      }
+    .card-tag {
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: #214478ff;
+      line-height: 1.1;
+      white-space: nowrap;
+      text-shadow: 0 0 3px rgba(255,255,255,0.8), 0 0 5px rgba(255,255,255,0.6);
     }
 
+    /* ---------- GRIDS (Daily deals + Search results) ---------- */
+    .daily-deals {
+      width: 100%;
+      max-width: 1200px;
+      margin-top: 1.0rem;
+    }
+
+    .daily-deals-header {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #214478ff;
+      margin-bottom: 1rem;
+      text-align: center;
+      padding: 0 8px;
+    }
+
+    .shoe-grid{
+      width: 100%;
+      max-width: 1200px;
+      display: grid;
+      gap: 1.0rem;
+      justify-content: center;
+      padding: 0 8px;           /* baseline padding so it never touches edge */
+      margin: 0 auto;
+      grid-template-columns: repeat(6, minmax(0, 1fr));  /* DESKTOP: 6 wide */
+    }
+
+    /* Remove old max-width behavior so grid can be true 6-wide */
+    .shoe-grid .card{
+      width: 100%;
+      max-width: none;
+      margin: 0;
+    }
+
+    /* Tablet portrait: 4 columns */
+    @media (max-width: 900px) and (min-width: 641px) and (orientation: portrait){
+      .shoe-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0 10px; }
+    }
+
+    /* Tablet landscape: 6 columns */
+    @media (max-width: 900px) and (min-width: 641px) and (orientation: landscape){
+      .shoe-grid{ grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 0 10px; }
+    }
+
+    /* Phone portrait: 1 column + padding */
+    @media (max-width: 640px) and (orientation: portrait){
+      body{ padding: 6px var(--page-pad); }
+      .shoe-grid{
+        grid-template-columns: 1fr;
+        padding: 0 var(--page-pad);
+        gap: 0.9rem;
+      }
+      .card-link{ flex-direction: row; gap: 0.75rem; align-items: center; }
+      .card-image-wrapper{ flex-shrink: 0; width: 100px; height: 80px; overflow: hidden; }
+      .card img{ height: 80px; object-fit: cover; }
+      .card-tags{ left: 0.25rem; right: 0.25rem; bottom: 0.25rem; }
+      .card-tag{ font-size: 0.62rem; }
+      .card-content{ justify-content: center; min-width: 0; }
+      .card-title{ -webkit-line-clamp: 2; min-height: auto; }
+
+      /* Phone portrait header behavior */
+      .topbar{ flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+      .brand-logo-v2{ display:none; }
+      .brand-logo-top{ display:block; }
+      form#search-form{ max-width: 100%; }
+    }
+
+    /* Phone landscape: 3 columns + padding */
+    @media (max-width: 640px) and (orientation: landscape){
+      body{ padding: 6px var(--page-pad); }
+      .shoe-grid{
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        padding: 0 var(--page-pad);
+      }
+      .topbar{ width: 100%; }
+      .shoe-grid .card img{ height: 130px; }
+    }
+
+    /* ---------- LOAD MORE + FOOTER ---------- */
     .load-more-wrap{
       width:100%;
       display:flex;
@@ -605,7 +558,7 @@
     }
 
     .load-more-btn{
-      height: 42px;
+      height: var(--input-h);
       padding: 0 1.25rem;
       border-radius: 0.75rem;
       border: 1px solid #214478ff;
@@ -618,9 +571,10 @@
     .disclaimer {
       font-size: 0.8rem;
       color: #555;
-      max-width: 900px;
+      max-width: 1200px;
       margin: 0.15rem auto 0;
       text-align: center;
+      padding: 0 10px;
     }
 
     .footer {
@@ -631,6 +585,7 @@
       font-size: 0.82rem;
       color: #444;
       text-align: center;
+      width: 100%;
     }
 
     .footer a {
@@ -647,8 +602,6 @@
   <!--
     IMPORTANT:
     Set this at deploy time to avoid hardcoding the blob store base.
-    Example value:
-      https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com
   -->
   <meta name="shoebeagle-blob-base" content="__BLOB_BASE_URL__">
 </head>
@@ -658,18 +611,18 @@
 
   <div class="app">
 
-    <!-- TOP BAR: logo (left) + 2 stacked rows (right)
-         Row 1: Brand input + Menu button
-         Row 2: Model input + Fetch button
-    -->
+    <!-- Phone portrait logo (logo.svg) above inputs -->
+    <img src="/images/logo.svg" class="brand-logo-top" alt="Shoe Beagle Logo" id="logoTopLink">
+
     <div class="topbar">
+      <!-- Desktop/tablet left logo (logoV2.svg) -->
       <div class="brand">
-        <img src="/images/logoV2.svg" class="brand-logo" alt="Shoe Beagle Logo" id="logoLink">
+        <img src="/images/logoV2.svg" class="brand-logo-v2" alt="Shoe Beagle Logo" id="logoLink">
       </div>
 
       <form id="search-form" method="POST">
-        <!-- Row 1 -->
-        <div class="input-row">
+        <!-- Row 1: Brand + Menu button (same width as Fetch) -->
+        <div class="field-row">
           <div class="input-wrapper">
             <input id="brand" type="text" placeholder="Enter Shoe Brand" autocomplete="off"/>
             <button type="button" class="input-clear" aria-label="Clear brand">&times;</button>
@@ -677,7 +630,7 @@
           </div>
 
           <div class="menu-wrapper">
-            <button id="menuBtn" type="button" class="menu-btn" aria-label="Menu">
+            <button id="menuBtn" type="button" class="top-btn" aria-label="Menu">
               <span class="menu-icon">☰</span>
             </button>
             <div id="menuDropdown" class="menu-dropdown">
@@ -687,15 +640,15 @@
           </div>
         </div>
 
-        <!-- Row 2 -->
-        <div class="input-row">
+        <!-- Row 2: Model + Fetch button (same width as Menu) -->
+        <div class="field-row">
           <div class="input-wrapper">
             <input id="model" type="text" placeholder="Enter Shoe Model" autocomplete="off"/>
             <button type="button" class="input-clear" aria-label="Clear model">&times;</button>
             <div id="modelSuggestions" class="suggestions"></div>
           </div>
 
-          <button id="fetchBtn" type="submit" class="search-btn">Fetch!</button>
+          <button id="fetchBtn" type="submit" class="top-btn">Fetch</button>
         </div>
       </form>
     </div>
@@ -762,6 +715,7 @@
     const brandSuggestions = document.getElementById("brandSuggestions");
     const modelSuggestions = document.getElementById("modelSuggestions");
     const logoLink = document.getElementById("logoLink");
+    const logoTopLink = document.getElementById("logoTopLink");
     const footerYear = document.getElementById("footerYear");
     const menuBtn = document.getElementById("menuBtn");
     const menuDropdown = document.getElementById("menuDropdown");
@@ -782,6 +736,7 @@
 
     if (footerYear) footerYear.textContent = new Date().getFullYear();
     if (logoLink) logoLink.addEventListener("click", () => location.reload());
+    if (logoTopLink) logoTopLink.addEventListener("click", () => location.reload());
 
     // --- Menu dropdown ---
     menuBtn.addEventListener("click", (e) => {
@@ -862,10 +817,8 @@
     function getBlobBase() {
       const meta = document.querySelector('meta[name="shoebeagle-blob-base"]');
       const fromMeta = meta ? String(meta.getAttribute("content") || "").trim() : "";
-
       const looksLikePlaceholder = fromMeta.includes("__BLOB_BASE_URL__");
       if (fromMeta && !looksLikePlaceholder) return fromMeta.replace(/\/+$/, "");
-
       return "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
     }
 
@@ -881,7 +834,6 @@
       return u.toString();
     }
 
-    // UPDATED: uses schema: salePrice, originalPrice, discountPercent
     function getDiscountInfo(item) {
       const current = Number(item.salePrice);
       const original = Number(item.originalPrice);
