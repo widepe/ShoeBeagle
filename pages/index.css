@@ -349,7 +349,8 @@ button{
   flex-direction:column;
   text-align:left;
   position:relative;
-}
+  aspect-ratio: 3 / 4;   /* ✅ 3 wide, 4 tall */}
+
 .card-link{
   display:flex;
   flex-direction:column;
@@ -358,12 +359,18 @@ button{
   color:inherit;
   height:100%;
 }
-.card-image-wrapper{ position:relative; width:100%; overflow:hidden; }
+.card-image-wrapper{
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+
+  aspect-ratio: 4 / 3;   /* ✅ 4 wide, 3 tall */
+}
+
 .card img{
-  width:100%;
-  height:150px;
-  border-radius:0.6rem;
-  object-fit:contain;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   background:#fff;
   border:1px solid var(--sb-blue);
   display:block;
