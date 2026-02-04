@@ -413,7 +413,13 @@ button{
   text-shadow: 0 0 3px rgba(255,255,255,0.8), 0 0 5px rgba(255,255,255,0.6);
 }
 
-.card-content{ display:flex; flex-direction:column; gap:0.3rem; flex:1; min-width:0; }
+.card-content{ 
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 0;
+}
 .card-title{
   font-size:0.92rem;
   font-weight:600;
@@ -424,7 +430,10 @@ button{
   text-overflow:ellipsis;
   min-height: calc(1.2em * 3);
 }
-.card-store{ font-size:0.82rem; color:#49543a; }
+.card-store{ 
+  margin-top: auto;   /* ✅ pushes store + price to bottom */
+  font-size:0.82rem; color:#49543a; }
+
 .card-price-row{ display:flex; align-items:baseline; gap:0.3rem; font-size:0.95rem; }
 .price{ font-weight:700; color: var(--sb-blue); }
 .card-original-price{ margin-left:0.35rem; font-size:0.8rem; color:#777; text-decoration: line-through; }
