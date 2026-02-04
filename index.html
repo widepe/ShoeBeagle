@@ -3,7 +3,6 @@
 <head>
   <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
-  <link rel="icon" type="image/png" href="/images/favicon.png">
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
@@ -889,8 +888,11 @@ const pages = totalPagesCount(filtered.length);
       }
 
       currentSearch = { brand: brandTyped, model: modelTyped };
-      const displayQuery = [brandTyped, modelTyped].filter(Boolean).join(" ");
-
+      const displayQuery = [brandTyped, modelTyped].filter(Boolean).join(" ").trim(); 
+      if (!displayQuery) {
+        statusMessageEl.textContent = "Please enter a brand and/or a model.";
+        return;
+      }
       statusMessageEl.textContent = "Searching deals…";
       resultsEl.innerHTML = "";
 const pager = document.querySelector(".pager");
