@@ -586,10 +586,15 @@ button{
 }
 .footer a:hover{ text-decoration: underline; }
 
-.footer .rights{
-  font-size: 0.70em;
+.footer-copy{
+  font-size: 0.85em;
   opacity: 0.75;
 }
+.footer-links{
+  font-size: 1.2rem;
+}
+
+
 
 .pager{
   width: 100%;
