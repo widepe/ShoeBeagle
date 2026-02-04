@@ -531,7 +531,7 @@ button{
 
 /* Footer + disclaimer */
 .disclaimer{
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   color:#555;
   max-width: var(--maxw);
   margin: 0.15rem auto 0;
