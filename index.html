@@ -626,7 +626,7 @@ function setPagerUI(total, shown){
   const pages = totalPagesCount(total);  // just for consistent math
   const current = Math.min(pageIndex + 1, pages);
 
-  if (pageLabelEl) pageLabelEl.textContent = `${current} / ${pages}`;
+  if (pageLabelEl) pageLabelEl.textContent = `${current} of ${pages}`;
 
   if (prevPageBtn) prevPageBtn.disabled = pageIndex <= 0;
   if (nextPageBtn) nextPageBtn.disabled = (pageIndex + 1) >= pages;
