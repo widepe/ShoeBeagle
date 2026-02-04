@@ -5,8 +5,10 @@
   --sb-blue: #214478ff;
   --bg: #f4ede3ff;
 
-  --input-h: 44px;
-  --btn-h: 44px;
+  /* ✅ Taller controls */
+  --input-h: 50px;
+  --btn-h: 50px;
+
   --gap: 10px;
 
   /* buttons always equal width */
@@ -31,6 +33,7 @@ body{
   padding: 6px var(--pad);
 }
 
+/* ✅ make the whole app column fill viewport so footer can stick */
 .app{
   width: 100%;
   max-width: var(--maxw);
@@ -38,9 +41,17 @@ body{
   flex-direction: column;
   align-items: center;
   gap: 0.75rem;
+
+  min-height: 100vh; /* ✅ critical for sticky footer */
 }
 
-/* ---------- Topbar (inputs left, logo right) ---------- */
+/* ✅ main content grows so footer can sit at bottom */
+#mainContent{
+  width: 100%;
+  flex: 1 0 auto;
+}
+
+/* ---------- Topbar (logo left, inputs right) ---------- */
 
 .topbar{
   width: 100%;
@@ -57,6 +68,8 @@ body{
   display:flex;
   flex-direction: column;
   align-items: center;
+
+  order: 0;
 }
 
 .top-right{
@@ -64,6 +77,8 @@ body{
   display:flex;
   align-items: flex-start;
   justify-content:center;
+
+  order: -1; /* ✅ logo on the left (desktop/tablet) */
 }
 
 /* logo: height matches 2 inputs + gap */
@@ -105,11 +120,15 @@ form#search-form{
 input[type="text"], input[type="search"]{
   width:100%;
   height: var(--input-h);
-  padding: 0 0.9rem;
+  padding: 0 1rem;
   border-radius: 0.5rem;
   border: 1px solid var(--sb-blue);
   background: #fafdf4;
-  font-size: 1.12rem; /* bumped up */
+
+  /* ✅ bigger input text */
+  font-size: 1.2rem;
+  font-weight: 600;
+
   color: #444;
   transition: border-color 0.2s ease, background-color 0.2s ease;
 }
@@ -321,10 +340,34 @@ button{
 }
 
 /* Cards */
-.card{ background:#d9e1ebff; border:2px solid var(--sb-blue); border-radius:0.75rem; padding:0.75rem; display:flex; flex-direction:column; text-align:left; position:relative; }
-.card-link{ display:flex; flex-direction:column; gap:0.4rem; text-decoration:none; color:inherit; height:100%; }
+.card{
+  background:#d9e1ebff;
+  border:2px solid var(--sb-blue);
+  border-radius:0.75rem;
+  padding:0.75rem;
+  display:flex;
+  flex-direction:column;
+  text-align:left;
+  position:relative;
+}
+.card-link{
+  display:flex;
+  flex-direction:column;
+  gap:0.4rem;
+  text-decoration:none;
+  color:inherit;
+  height:100%;
+}
 .card-image-wrapper{ position:relative; width:100%; overflow:hidden; }
-.card img{ width:100%; height:150px; border-radius:0.6rem; object-fit:contain; background:#fff; border:1px solid var(--sb-blue); display:block; }
+.card img{
+  width:100%;
+  height:150px;
+  border-radius:0.6rem;
+  object-fit:contain;
+  background:#fff;
+  border:1px solid var(--sb-blue);
+  display:block;
+}
 
 .discount-badge{
   position:absolute;
@@ -361,7 +404,16 @@ button{
 }
 
 .card-content{ display:flex; flex-direction:column; gap:0.3rem; flex:1; min-width:0; }
-.card-title{ font-size:0.92rem; font-weight:600; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; text-overflow:ellipsis; min-height: calc(1.2em * 3); }
+.card-title{
+  font-size:0.92rem;
+  font-weight:600;
+  display:-webkit-box;
+  -webkit-line-clamp:3;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  min-height: calc(1.2em * 3);
+}
 .card-store{ font-size:0.82rem; color:#49543a; }
 .card-price-row{ display:flex; align-items:baseline; gap:0.3rem; font-size:0.95rem; }
 .price{ font-weight:700; color: var(--sb-blue); }
@@ -389,8 +441,9 @@ button{
   text-align:center;
   padding: 0 var(--pad);
 }
+
 .footer{
-  margin-top: 2rem;
+  margin-top: auto; /* ✅ sticky-to-bottom behavior */
   padding: 0.75rem 1rem;
   background: rgba(244,237,227,0.97);
   border-top: 1px solid rgba(0,0,0,0.08);
@@ -399,7 +452,13 @@ button{
   text-align:center;
   width: 100%;
 }
-.footer a{ color: var(--sb-blue); text-decoration:none; font-weight:600; cursor:pointer; margin: 0 0.25rem; }
+.footer a{
+  color: var(--sb-blue);
+  text-decoration:none;
+  font-weight:600;
+  cursor:pointer;
+  margin: 0 0.25rem;
+}
 .footer a:hover{ text-decoration: underline; }
 
 /* ---------- RESPONSIVE GRID RULES ---------- */
@@ -414,16 +473,18 @@ button{
   .shoe-grid{ grid-template-columns: repeat(5, minmax(0,1fr)); }
 }
 
-/* Phone portrait: 1 column + swap logo to logo.svg and stack layout */
+/* Phone portrait: 1 column + use logoV3.svg and stack layout */
 @media (max-width: 560px){
   .topbar{ flex-direction: column; align-items:center; gap: 10px; }
   .top-right{ order: -1; } /* logo above inputs */
+
   .brand-logo{
-    content: url("/images/logo.svg");
+    content: url("/images/logoV3.svg"); /* ✅ mobile portrait logo */
     height: auto;
     width: min(520px, 100%);
     max-width: 100%;
   }
+
   .shoe-grid{
     grid-template-columns: 1fr;
     padding-left: var(--pad);
