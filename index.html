@@ -15,8 +15,9 @@
                  frame-src 'none';">
   <title>Shoe Beagle--The Running Shoe Deal Finder</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="stylesheet" href="/pages/index.css?v=1">
- 
+
+  <!-- CSS split -->
+  <link rel="stylesheet" href="/pages/index.css?v=2">
 
   <!--
     IMPORTANT:
@@ -28,59 +29,79 @@
 </head>
 
 <body>
+
   <div class="app">
-    <div class="brand">
-      <img src="/images/logo.svg" class="brand-logo" alt="Shoe Beagle Logo" id="logoLink">
-    </div>
 
-    <form id="search-form" method="POST">
-      <div class="input-wrapper">
-        <input id="brand" type="text" placeholder="Enter Shoe Brand" autocomplete="off"/>
-        <button type="button" class="input-clear" aria-label="Clear brand">&times;</button>
-        <div id="brandSuggestions" class="suggestions"></div>
-      </div>
+    <!-- TOP AREA: inputs left, logo right -->
+    <div class="topbar">
+      <div class="top-left">
+        <form id="search-form" method="POST" autocomplete="off">
+          <!-- BRAND ROW: input + menu -->
+          <div class="row">
+            <div class="input-wrapper">
+              <input id="brand" type="text" placeholder="Enter Shoe Brand" autocomplete="off"/>
+              <button type="button" class="input-clear" aria-label="Clear brand">&times;</button>
+              <div id="brandSuggestions" class="suggestions"></div>
+            </div>
 
-      <div class="input-wrapper">
-        <input id="model" type="text" placeholder="Enter Shoe Model" autocomplete="off"/>
-        <button type="button" class="input-clear" aria-label="Clear model">&times;</button>
-        <div id="modelSuggestions" class="suggestions"></div>
-      </div>
+            <div class="button-wrapper">
+              <button id="menuBtn" type="button" class="btn-eq" aria-label="Menu">
+                <span class="menu-icon">☰</span>
+              </button>
 
-      <div class="button-wrapper">
-        <button id="fetchBtn" type="submit" class="search-btn">Fetch!</button>
-      </div>
+              <div id="menuDropdown" class="menu-dropdown">
+                <a href="/pages/myalerts.html">My Alerts</a>
+                <a href="/pages/setalert.html">Set Alert</a>
+              </div>
+            </div>
+          </div>
 
-      <div class="menu-wrapper">
-        <button id="menuBtn" type="button" class="menu-btn" aria-label="Menu">
-          <span class="menu-icon">☰</span>
-        </button>
-        <div id="menuDropdown" class="menu-dropdown">
-          <a href="/pages/myalerts.html">My Alerts</a>
-          <a href="/pages/setalert.html">Set Alert</a>
+          <!-- MODEL ROW: input + fetch -->
+          <div class="row">
+            <div class="input-wrapper">
+              <input id="model" type="text" placeholder="Enter Shoe Model" autocomplete="off"/>
+              <button type="button" class="input-clear" aria-label="Clear model">&times;</button>
+              <div id="modelSuggestions" class="suggestions"></div>
+            </div>
+
+            <div class="button-wrapper">
+              <button id="fetchBtn" type="submit" class="btn-eq">Fetch</button>
+            </div>
+          </div>
+        </form>
+
+        <div class="status-message" id="statusMessage">Let's find your running shoes!</div>
+
+        <div class="filters" id="filters" style="display:none;">
+          <div class="filter-row">
+            <div class="filter-label">Gender:</div>
+            <div class="chip-group" id="genderChips">
+              <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
+              <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
+              <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <div class="filter-label">Shoe type:</div>
+            <div class="chip-group" id="typeChips">
+              <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
+              <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
+              <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
+              <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
+            </div>
+          </div>
         </div>
       </div>
-    </form>
 
-    <div class="status-message" id="statusMessage">Let's find your running shoes!</div>
-
-    <div class="filters" id="filters" style="display:none;">
-      <div class="filter-row">
-        <div class="filter-label">Gender:</div>
-        <div class="chip-group" id="genderChips">
-          <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
-          <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
-          <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
-        </div>
-      </div>
-
-      <div class="filter-row">
-        <div class="filter-label">Shoe type:</div>
-        <div class="chip-group" id="typeChips">
-          <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
-          <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
-          <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
-          <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
-        </div>
+      <!-- LOGO RIGHT -->
+      <div class="top-right">
+        <img
+          src="/images/logoV2.svg"
+          class="brand-logo"
+          alt="Shoe Beagle Logo"
+          id="logoLink"
+        >
       </div>
     </div>
 
@@ -110,6 +131,7 @@
   </div>
 
   <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
+
   <script>
     const form = document.getElementById("search-form");
 
@@ -144,35 +166,32 @@
     if (footerYear) footerYear.textContent = new Date().getFullYear();
     if (logoLink) logoLink.addEventListener("click", () => location.reload());
 
-    // --- Menu dropdown ---
+    // --- Menu dropdown (click + hover) ---
+    function openMenu(){ menuDropdown.classList.add("show"); }
+    function closeMenu(){ menuDropdown.classList.remove("show"); }
+
     menuBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       menuDropdown.classList.toggle("show");
     });
 
-    menuBtn.addEventListener("mouseenter", () => menuDropdown.classList.add("show"));
-    menuDropdown.addEventListener("mouseenter", () => menuDropdown.classList.add("show"));
+    menuBtn.addEventListener("mouseenter", openMenu);
+    menuDropdown.addEventListener("mouseenter", openMenu);
 
     menuBtn.addEventListener("mouseleave", () => {
       setTimeout(() => {
-        if (!menuDropdown.matches(':hover') && !menuBtn.matches(':hover')) {
-          menuDropdown.classList.remove("show");
-        }
-      }, 100);
+        if (!menuDropdown.matches(":hover") && !menuBtn.matches(":hover")) closeMenu();
+      }, 120);
     });
 
     menuDropdown.addEventListener("mouseleave", () => {
       setTimeout(() => {
-        if (!menuDropdown.matches(':hover') && !menuBtn.matches(':hover')) {
-          menuDropdown.classList.remove("show");
-        }
-      }, 100);
+        if (!menuDropdown.matches(":hover") && !menuBtn.matches(":hover")) closeMenu();
+      }, 120);
     });
 
     document.addEventListener("click", (e) => {
-      if (!menuBtn.contains(e.target) && !menuDropdown.contains(e.target)) {
-        menuDropdown.classList.remove("show");
-      }
+      if (!menuBtn.contains(e.target) && !menuDropdown.contains(e.target)) closeMenu();
     });
 
     // --- Helpers ---
@@ -184,7 +203,7 @@
         .replace(/[<>'"]/g, '')
         .replace(/script/gi, '')
         .replace(/javascript:/gi, '')
-        .replace(/on\w+=/gi, '')
+        .replace(/on\\w+=/gi, '')
         .trim()
         .slice(0, 100);
     }
@@ -223,19 +242,15 @@
     function getBlobBase() {
       const meta = document.querySelector('meta[name="shoebeagle-blob-base"]');
       const fromMeta = meta ? String(meta.getAttribute("content") || "").trim() : "";
-
-      // If you didn’t replace __BLOB_BASE_URL__, it’ll still be that placeholder.
       const looksLikePlaceholder = fromMeta.includes("__BLOB_BASE_URL__");
-      if (fromMeta && !looksLikePlaceholder) return fromMeta.replace(/\/+$/, "");
-
-      // Fallback (keeps your current behavior if you forget to set meta)
+      if (fromMeta && !looksLikePlaceholder) return fromMeta.replace(/\\/+$/, "");
       return "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
     }
 
     function blobUrl(path) {
       const base = getBlobBase();
-      const cleanPath = String(path || "").replace(/^\/+/, "");
-      return base.replace(/\/+$/, "") + "/" + cleanPath;
+      const cleanPath = String(path || "").replace(/^\\/+/, "");
+      return base.replace(/\\/+$/, "") + "/" + cleanPath;
     }
 
     function withCacheBust(url) {
@@ -244,7 +259,6 @@
       return u.toString();
     }
 
-    // UPDATED: uses schema: salePrice, originalPrice, discountPercent
     function getDiscountInfo(item) {
       const current = Number(item.salePrice);
       const original = Number(item.originalPrice);
@@ -322,9 +336,9 @@
       if (cl.includes(q)) score += 80;
       if (qSquash.length >= 3 && cSquash.includes(qSquash)) score += 110;
 
-      const qParts = q.split(/\s+/).filter(Boolean);
+      const qParts = q.split(/\\s+/).filter(Boolean);
       if (qParts.length >= 2) {
-        const cParts = cl.split(/\s+/);
+        const cParts = cl.split(/\\s+/);
         let tokenHits = 0;
         for (const qp of qParts) {
           if (cParts.some(cp => cp.startsWith(qp))) tokenHits++;
