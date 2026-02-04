@@ -1,4 +1,9 @@
  <style>
+/* index.css */
+* { box-sizing: border-box; }
+:root { --sb-blue: #214478ff; }
+
+
     .card { position: relative; }
 
     .card-image-wrapper {
