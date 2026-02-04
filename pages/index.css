@@ -66,7 +66,7 @@ body{
 
 .top-left{
   flex: 0 1 auto;                 /* ✅ allow shrink if needed */
-  width: min(800px, 100%);       /* ✅ lets inputs get wide */
+  width: min(600px, 100%);       /* ✅ lets inputs get wide */
   min-width: 280px;
 
   display:flex;
