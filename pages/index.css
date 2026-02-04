@@ -29,7 +29,7 @@
        1.00 = default
        1.10 = bigger
   ========================== */
-  --grid-scale: 0.7;
+  --grid-scale: 0.5;
 
   /* Base min card width that drives overall card size (because card uses aspect-ratio) */
   --card-min: calc(260px * var(--grid-scale));
