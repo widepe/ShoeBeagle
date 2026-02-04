@@ -57,7 +57,6 @@ body{
   width: 100%;
   display:flex;
   align-items:flex-start;
-  justify-content: flex-start;
   justify-content: center;   /* ✅ center the whole cluster */
   gap: var(--gap);
   margin-top: 2px;
@@ -82,7 +81,7 @@ body{
   justify-content:center;
 
   order: -1; /* ✅ logo on the left (desktop/tablet) */
-}
+  margin-right: 36px;   /* ✅ space AFTER the logo only */}
 
 /* logo: height matches 2 inputs + gap */
 .brand-logo{
