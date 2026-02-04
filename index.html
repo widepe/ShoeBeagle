@@ -194,7 +194,10 @@
       if (!menuBtn.contains(e.target) && !menuDropdown.contains(e.target)) closeMenu();
     });
 // make sure brandModels always exists
-const brandModels = window.brandModels || {};    // --- Helpers ---
+const brandModels = window.brandModels || {};
+
+// --- Helpers ---
+
     function normalizeStr(s) { return String(s || "").trim().toLowerCase(); }
     function normalizeEnum(s) { return String(s || "").trim().toLowerCase(); }
 
