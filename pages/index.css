@@ -88,10 +88,10 @@ body{
 .brand-logo{
   /* height = (two rows + gap) scaled up proportionally */
   height: calc(
-    (max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * 1.1
+    (max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * 1.2
   );
   max-height: calc(
-    (max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * 1.1
+    (max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * 1.2
   );
 
   width: auto;
@@ -267,13 +267,18 @@ button{
 /* ---------- Status / filters ---------- */
 
 .status-message{
-  font-size: 0.95rem;
+  font-size: 1.35rem;          /* ✅ bigger */
+  font-weight: 700;            /* ✅ reads better */
   color:#2d3c22;
-  margin-top: 0.1rem;
-  text-align:center;
-  width:100%;
-  min-height: 1.1rem;
+
+  margin: 0.35rem auto 0;      /* ✅ center the block itself */
+  text-align: center;
+
+  width: 100%;
+  max-width: var(--maxw);      /* ✅ center relative to the page, not the form */
+  min-height: 1.4em;
 }
+
 
 .filters{
   width:100%;
@@ -465,7 +470,7 @@ button{
 
 /* Footer */
 .disclaimer{
-  font-size: 0.8rem;
+  font-size: 1rem;
   color:#555;
   max-width: var(--maxw);
   margin: 0.15rem auto 0;
@@ -509,7 +514,7 @@ button{
    .topbar{
     flex-direction: row;      /* ✅ keep side-by-side */
     align-items: flex-start;
-    gap: 16px;   /* was 10px */
+    gap: 20px;  
   }
     .top-right{
     order: -1;
