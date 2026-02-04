@@ -162,9 +162,12 @@
     const typeChips = document.getElementById("typeChips");
 
     const PAGE_SIZE = 12;
-    let visibleCount = 0;
-    const loadMoreWrap = document.getElementById("loadMoreWrap");
-    const loadMoreBtn = document.getElementById("loadMoreBtn");
+let pageIndex = 0;
+
+const prevPageBtn = document.getElementById("prevPage");
+const nextPageBtn = document.getElementById("nextPage");
+const pageLabelEl = document.getElementById("pageLabel");
+
 
     let currentSearch = { brand: "", model: "" };
     let lastSearchResults = [];
@@ -616,38 +619,70 @@ const brandModels = window.brandModels || {};
       });
     }
 
-    function renderFilteredResults(resetPagination = true) {
-      const filtered = applyFilters(lastSearchResults);
+function totalPagesCount(total){
+  return Math.max(1, Math.ceil((Number(total) || 0) / PAGE_SIZE));
+}
 
-      if (resetPagination) visibleCount = PAGE_SIZE;
-      const shown = filtered.slice(0, visibleCount);
+function setPagerUI(total, shown){
+  const pages = totalPagesCount(total);  // just for consistent math
+  const current = Math.min(pageIndex + 1, pages);
 
-      resultsEl.innerHTML = "";
-      shown.forEach(item => resultsEl.appendChild(createDealCard(item)));
+  if (pageLabelEl) pageLabelEl.textContent = `${current} / ${pages}`;
 
-      const displayQuery = [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() || "all shoes";
+  if (prevPageBtn) prevPageBtn.disabled = pageIndex <= 0;
+  if (nextPageBtn) nextPageBtn.disabled = (pageIndex + 1) >= pages;
 
-      if (!filtered.length) {
-        statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
-        if (loadMoreWrap) loadMoreWrap.style.display = "none";
-        return;
-      }
+  // show pager only if there are more than one page
+  const pager = document.querySelector(".pager");
+  if (pager) pager.style.display = (total > PAGE_SIZE) ? "flex" : "none";
+}
+    
+  function renderFilteredResults(resetPage = true) {
+  const filtered = applyFilters(lastSearchResults);
 
-      statusMessageEl.textContent =
-        `Showing ${shown.length} of ${filtered.length} deal${filtered.length === 1 ? "" : "s"} for ${displayQuery}.`;
+  if (resetPage) pageIndex = 0;
 
-      if (loadMoreWrap) {
-        loadMoreWrap.style.display = (shown.length < filtered.length) ? "flex" : "none";
-      }
+  const start = pageIndex * PAGE_SIZE;
+  const shown = filtered.slice(start, start + PAGE_SIZE);
+
+  resultsEl.innerHTML = "";
+  shown.forEach(item => resultsEl.appendChild(createDealCard(item)));
+
+  const displayQuery =
+    [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() || "all shoes";
+
+  if (!filtered.length) {
+    statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
+    setPagerUI(0, 0);
+    return;
+  }
+  statusMessageEl.textContent =
+    `Showing ${start + shown.length} of ${filtered.length} deal${filtered.length === 1 ? "" : "s"} for ${displayQuery}.`;
+
+  setPagerUI(filtered.length, shown.length);
+}
+if (prevPageBtn) {
+  prevPageBtn.addEventListener("click", () => {
+    if (pageIndex > 0) {
+      pageIndex--;
+      renderFilteredResults(false);
+      resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+  });
+}
 
-    if (loadMoreBtn) {
-      loadMoreBtn.addEventListener("click", () => {
-        visibleCount += PAGE_SIZE;
-        renderFilteredResults(false);
-      });
+if (nextPageBtn) {
+  nextPageBtn.addEventListener("click", () => {
+    const filtered = applyFilters(lastSearchResults);
+const pages = totalPagesCount(filtered.length);
+
+    if (pageIndex < pages - 1) {
+      pageIndex++;
+      renderFilteredResults(false);
+      resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-
+  });
+}
     if (genderChips) {
       genderChips.addEventListener("click", (e) => {
         const btn = e.target.closest(".chip");
@@ -858,7 +893,8 @@ const brandModels = window.brandModels || {};
 
       statusMessageEl.textContent = "Searching deals…";
       resultsEl.innerHTML = "";
-      if (loadMoreWrap) loadMoreWrap.style.display = "none";
+const pager = document.querySelector(".pager");
+if (pager) pager.style.display = "none";
       dailyDeals.style.display = "none";
       if (filtersEl) filtersEl.style.display = "none";
 
@@ -884,7 +920,9 @@ const brandModels = window.brandModels || {};
       if (!results.length) {
         statusMessageEl.textContent = `No results found for ${displayQuery}.`;
         if (filtersEl) filtersEl.style.display = "none";
-        if (loadMoreWrap) loadMoreWrap.style.display = "none";
+        const pager = document.querySelector(".pager");
+if (pager) pager.style.display = "none";
+
         dailyDeals.style.display = "block";
         return;
       }
