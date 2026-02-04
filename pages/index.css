@@ -320,20 +320,26 @@ button{
 }
 
 .filters{
-  width:100%;
-  max-width:650px;
+  /* make the filters bar "shrink-wrap" like the grid, then center it */
+  width: fit-content;
+  max-width: 100%;
+  margin: 0.75rem auto 0.25rem;
+
   display:flex;
   flex-direction:row;
   align-items:center;
   justify-content:center;
-  gap:1rem;
-  margin-top: 0.1rem;
+  gap: calc(1rem * var(--top-scale));
   flex-wrap:wrap;
+
+  text-align:center;
 }
+
 
 .filter-row{
   display:flex;
   align-items:center;
+  justify-content:center;
   gap:0.5rem;
   flex-wrap:wrap;
 }
@@ -356,20 +362,26 @@ button{
   border:1px solid var(--sb-blue);
   background:#fafdf4;
   color: var(--sb-blue);
-  width: 27px;
-  height: 27px;
+
+  width: calc(22px * var(--top-scale));     /* was 27px */
+  height: calc(22px * var(--top-scale));    /* was 27px */
+
   border-radius: 999px;
   padding: 0;
+
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  font-size: 0.85rem;
+
+  font-size: calc(0.75rem * var(--top-scale));  /* was 0.85rem */
   font-weight: 800;
   line-height: 1;
+
   cursor:pointer;
   transition: background 0.2s ease, color 0.2s ease;
   position: relative;
 }
+
 .chip:hover{ background:#e8f0ff; }
 .chip.active{ background: var(--sb-blue); color:#fff; }
 
