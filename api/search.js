@@ -331,7 +331,7 @@ module.exports = async (req, res) => {
 
     // ✅ Return CANONICAL SCHEMA FIELDS that your UI expects
     const results = scored
-      .slice(0, 240)
+      .slice(0, 480)
       .map(({ deal /*, score*/ }) => ({
         listingName: deal.listingName || deal.title || deal.name || "Running Shoe Deal",
         brand: deal.brand || "Unknown",
