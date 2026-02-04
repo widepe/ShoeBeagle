@@ -57,10 +57,12 @@ body{
   width: 100%;
   display:flex;
   align-items:flex-start;
-  justify-content: flex-start; 
-  gap: var(--gap);             /* ✅ 10px */
+- justify-content: flex-start;
++ justify-content: center;   /* ✅ center the whole cluster */
+  gap: var(--gap);
   margin-top: 2px;
 }
+
 
 
 .top-left{
