@@ -86,9 +86,12 @@ body{
 
 /* logo: height matches 2 inputs + gap */
 .brand-logo{
-  height: calc(var(--input-h) * 2 + var(--gap));
-  width: auto;
-  max-width: 340px;
+  /* ✅ height matches two rows (each row is the taller of input/button) + the gap between rows */
+  height: calc(max(var(--input-h), var(--btn-h)) * 2 + var(--gap));
+  max-height: calc(max(var(--input-h), var(--btn-h)) * 2 + var(--gap));
+
+  width: auto;          /* keep aspect ratio */
+  max-width: none;      /* ✅ IMPORTANT: don't shrink it */
   object-fit: contain;
   cursor: pointer;
   transition: opacity 0.2s ease;
