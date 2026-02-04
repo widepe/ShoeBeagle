@@ -482,14 +482,20 @@ button{
 
 /* Phone portrait: 1 column + use logoV3.svg and stack layout */
 @media (max-width: 560px){
-  .topbar{ flex-direction: column; align-items:center; gap: 10px; }
-  .top-right{ order: -1; } /* logo above inputs */
+   .topbar{
+    flex-direction: row;      /* ✅ keep side-by-side */
+    align-items: flex-start;
+    gap: var(--gap);
+  }
+    .top-right{
+    order: -1;
+  }
 
   .brand-logo{
-    content: url("/images/logoV3.svg"); /* ✅ mobile portrait logo */
-    height: auto;
-    width: min(520px, 100%);
-    max-width: 100%;
+    content: url("/images/logoV3.svg");  /* still use your mobile logo */
+    height: calc(var(--input-h) * 2 + var(--gap));
+    width: auto;
+    max-width: 140px; /* optional safety so it doesn't dominate */
   }
 
   .shoe-grid{
