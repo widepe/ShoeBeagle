@@ -99,13 +99,14 @@ body{
 /* ---------- Form rows ---------- */
 
 form#search-form{
-  width: 100%;
-  max-width: 650px;
+  width: min(900px, 100%);   /* ✅ wider inputs on desktop */
+  max-width: 900px;
   display:flex;
   flex-direction: column;
   gap: var(--gap);
   margin: 0;
 }
+
 
 .row{
   width:100%;
@@ -567,24 +568,31 @@ button{
   .card-content{ justify-content:center; min-width:0; }
   .card-title{ -webkit-line-clamp: 2; min-height:auto; }
 }
-/* ---- Bigger typography inside cards ---- */
+/* ----------------------------
+   BIGGER card typography
+-----------------------------*/
 
 .card-title{
-  font-size: 1.05rem;   /* was 0.92rem */
+  font-size: 1.25rem;   /* was ~0.92rem */
+  line-height: 1.25;
+}
+
+.card-title strong{
+  font-size: 1.15em;   /* brand still slightly larger */
 }
 
 .card-store{
-  font-size: 0.95rem;   /* was 0.82rem */
+  font-size: 1.05rem;
 }
 
 .card-price-row{
-  font-size: 1.08rem;   /* was 0.95rem */
+  font-size: 1.25rem;
 }
 
 .card-tag{
-  font-size: 0.78rem;   /* was 0.68rem */
+  font-size: 0.9rem;
 }
 
 .discount-badge{
-  font-size: 0.8rem;    /* was 0.7rem */
+  font-size: 0.9rem;
 }
