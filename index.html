@@ -17,9 +17,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
-
-
-    
     .card { position: relative; }
 
     .card-image-wrapper {
@@ -79,10 +76,13 @@
     }
 
     :root{
-  --input-h: 42px;
-  --stack-gap: 10px;
-}
-    /* --- NEW TOP BAR LAYOUT (logo left, inputs stacked right) --- */
+      --input-h: 42px;
+      --stack-gap: 10px;
+      --btn-w: 42px; /* menu button width */
+      --btn-wide: 90px; /* fetch button width */
+    }
+
+    /* --- TOP BAR (logo left, 2 stacked rows right) --- */
     .topbar{
       width: 100%;
       max-width: 900px;
@@ -93,14 +93,15 @@
 
     .brand{
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       flex: 0 0 auto;
     }
 
+    /* EXACT: same height as the two search bars (includes gap) */
     .brand-logo{
-      height: 56px;
+      height: calc(var(--input-h) * 2 + var(--stack-gap));
       width: auto;
-      max-width: 260px;
+      max-width: 280px;
       object-fit: contain;
       margin: 0;
       cursor: pointer;
@@ -108,57 +109,30 @@
     }
     .brand-logo:hover { opacity: 0.9; }
 
-    /* Form now stacks inputs, and keeps Fetch + Menu on a single row */
     form#search-form{
       flex: 1 1 auto;
       width: 100%;
       max-width: 650px;
-      margin: 0 auto;
+      margin: 0;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: var(--stack-gap);
       justify-content: flex-start;
       align-items: stretch;
     }
 
-    .inputs-stack{
+    /* Each row = input + button to the right */
+    .input-row{
       display: flex;
-      flex-direction: column;
-gap: var(--stack-gap);
-      width: 100%;
-    }
-
-    .actions-row{
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
+      align-items: stretch;
       gap: 10px;
       width: 100%;
-    }
-
-    @media (max-width: 640px){
-      .topbar{
-        flex-direction: column;
-        align-items: center;
-      }
-      .brand-logo{
-       height: calc(var(--input-h) * 2 + var(--stack-gap));
-
-        max-width: 280px;
-      }
-      form#search-form{
-        max-width: 100%;
-      }
-      .actions-row{
-        justify-content: center;
-      }
     }
 
     input[type="text"],
     input[type="search"] {
       width: 100%;
       height: var(--input-h);
-
       padding: 0 0.75rem;
       border-radius: 0.5rem;
       border: 1px solid #214478ff;
@@ -171,9 +145,9 @@ gap: var(--stack-gap);
 
     .input-wrapper {
       position: relative;
+      flex: 1 1 auto;
       width: 100%;
       max-width: none;
-      flex: 0 0 auto;
     }
 
     input::placeholder { color: #999; opacity: 1; }
@@ -201,9 +175,17 @@ gap: var(--stack-gap);
     .input-clear:hover { background: #666; }
     .input-wrapper:has(input:not(:placeholder-shown)) .input-clear { display: flex; }
 
+    /* MENU BUTTON (right of brand input) */
+    .menu-wrapper {
+      position: relative;
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+    }
+
     .menu-btn {
-      height: 42px;
-      width: 42px;
+      height: var(--input-h);
+      width: var(--btn-w);
       border-radius: 0.5rem;
       border: 1px solid #214478ff;
       background: #214478ff;
@@ -241,15 +223,32 @@ gap: var(--stack-gap);
     }
     .menu-dropdown a:hover { background: #e8f0ff; }
 
-    .menu-wrapper {
-      position: relative;
-      display: flex;
+    /* FETCH BUTTON (right of model input) */
+    .search-btn {
+      height: var(--input-h);
+      width: var(--btn-wide);
+      border-radius: 0.5rem;
+      border: 1px solid #214478ff;
+      background: #214478ff;
+      padding: 0 1rem;
+      display: inline-flex;
       align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      outline: none;
+      cursor: pointer;
+    }
+    .search-btn:hover { background: #1a3661; }
+
+    .search-btn:disabled {
+      opacity: 1;
+      cursor: pointer;
+      pointer-events: none;
     }
 
     .suggestions {
       position: absolute;
-      top: 46px;
+      top: calc(var(--input-h) + 4px);
       left: 0;
       right: 0;
       background: #ffffff;
@@ -281,34 +280,6 @@ gap: var(--stack-gap);
       font-size: 1rem;
       cursor: pointer;
       transition: background 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-    }
-
-    .button-wrapper {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex: 0 0 auto;
-    }
-
-    .search-btn {
-      height: 42px;
-      border-radius: 0.5rem;
-      border: 1px solid #214478ff;
-      background: #214478ff;
-      padding: 0 1rem;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      white-space: nowrap;
-      outline: none;
-      min-width: 80px;
-    }
-    .search-btn:hover { background: #1a3661; }
-
-    .search-btn:disabled {
-      opacity: 1;
-      cursor: pointer;
-      pointer-events: none;
     }
 
     .status-message {
@@ -553,6 +524,34 @@ gap: var(--stack-gap);
     }
 
     @media (max-width: 480px) {
+      .topbar{
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .brand{
+        justify-content: center;
+      }
+
+      /* On mobile, keep it simple: logo above, inputs below */
+      .brand-logo{
+        height: 64px;
+        max-width: 280px;
+      }
+
+      form#search-form{
+        max-width: 100%;
+      }
+
+      .input-row{
+        gap: 10px;
+      }
+
+      .search-btn{
+        width: 100%;
+        max-width: 140px;
+      }
+
       .card-link {
         flex-direction: row;
         gap: 0.75rem;
@@ -659,30 +658,22 @@ gap: var(--stack-gap);
 
   <div class="app">
 
-    <!-- NEW: top bar wraps logo + stacked inputs -->
+    <!-- TOP BAR: logo (left) + 2 stacked rows (right)
+         Row 1: Brand input + Menu button
+         Row 2: Model input + Fetch button
+    -->
     <div class="topbar">
       <div class="brand">
         <img src="/images/logoV2.svg" class="brand-logo" alt="Shoe Beagle Logo" id="logoLink">
       </div>
 
       <form id="search-form" method="POST">
-        <div class="inputs-stack">
+        <!-- Row 1 -->
+        <div class="input-row">
           <div class="input-wrapper">
             <input id="brand" type="text" placeholder="Enter Shoe Brand" autocomplete="off"/>
             <button type="button" class="input-clear" aria-label="Clear brand">&times;</button>
             <div id="brandSuggestions" class="suggestions"></div>
-          </div>
-
-          <div class="input-wrapper">
-            <input id="model" type="text" placeholder="Enter Shoe Model" autocomplete="off"/>
-            <button type="button" class="input-clear" aria-label="Clear model">&times;</button>
-            <div id="modelSuggestions" class="suggestions"></div>
-          </div>
-        </div>
-
-        <div class="actions-row">
-          <div class="button-wrapper">
-            <button id="fetchBtn" type="submit" class="search-btn">Fetch!</button>
           </div>
 
           <div class="menu-wrapper">
@@ -694,6 +685,17 @@ gap: var(--stack-gap);
               <a href="/pages/setalert.html">Set Alert</a>
             </div>
           </div>
+        </div>
+
+        <!-- Row 2 -->
+        <div class="input-row">
+          <div class="input-wrapper">
+            <input id="model" type="text" placeholder="Enter Shoe Model" autocomplete="off"/>
+            <button type="button" class="input-clear" aria-label="Clear model">&times;</button>
+            <div id="modelSuggestions" class="suggestions"></div>
+          </div>
+
+          <button id="fetchBtn" type="submit" class="search-btn">Fetch!</button>
         </div>
       </form>
     </div>
@@ -861,11 +863,9 @@ gap: var(--stack-gap);
       const meta = document.querySelector('meta[name="shoebeagle-blob-base"]');
       const fromMeta = meta ? String(meta.getAttribute("content") || "").trim() : "";
 
-      // If you didn’t replace __BLOB_BASE_URL__, it’ll still be that placeholder.
       const looksLikePlaceholder = fromMeta.includes("__BLOB_BASE_URL__");
       if (fromMeta && !looksLikePlaceholder) return fromMeta.replace(/\/+$/, "");
 
-      // Fallback (keeps your current behavior if you forget to set meta)
       return "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
     }
 
