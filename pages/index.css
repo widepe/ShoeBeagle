@@ -5,31 +5,35 @@
   --sb-blue: #214478ff;
   --bg: #f4ede3ff;
 
-  /* Taller controls (NOT scaled by the knob) */
-  --input-h: 56px;
-  --btn-h: 56px;
-
-  /* General spacing (NOT scaled by the knob) */
-  --gap: 16px;
-
-  /* buttons always equal width */
-  --btn-eq-w: 78px;
-
   /* overall page max width */
   --maxw: 1600px;
 
-  /* page padding (NOT scaled by the knob) */
+  /* page padding (not tied to either knob) */
   --pad: 12px;
 
-  /* =========================
-     ONE KNOB (GRID + CARDS ONLY)
-     1.00 = default
-     0.90 = smaller
-     1.10 = bigger
-  ========================== */
-  --grid-scale: 0.5;
+  /* =========================================================
+     TWO KNOBS
+     - --top-scale controls: logo + inputs + buttons + their text
+     - --grid-scale controls: shoe grid width + cards + card internals
+     ========================================================= */
+  --top-scale: 0.70;
+  --grid-scale: 0.70;
 
-  /* column count (changes in media queries below) */
+  /* ---------- TOP UI (logo + inputs + buttons) ---------- */
+  --gap: calc(16px * var(--top-scale));
+
+  --input-h: calc(56px * var(--top-scale));
+  --btn-h:   calc(56px * var(--top-scale));
+  --btn-eq-w: calc(78px * var(--top-scale));
+
+  --input-font: calc(1.5rem * var(--top-scale));
+  --btn-font:   calc(1.15rem * var(--top-scale));
+  --menu-icon-size: calc(1.75rem * var(--top-scale));
+
+  /* logo height multiplier */
+  --logo-scale: calc(1.2 * var(--top-scale));
+
+  /* ---------- GRID + CARDS ---------- */
   --cols: 6;
 
   /* MASTER card width drives total grid width */
@@ -118,14 +122,14 @@ body{
   justify-content:center;
 
   order: -1;                    /* logo on the left (desktop/tablet) */
-  margin-right: 36px;           /* space AFTER the logo only */
+  margin-right: calc(36px * var(--top-scale));  /* scale this too */
 }
 
 /* ---------- Logo ---------- */
 
 .brand-logo{
-  height: calc((max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * 1.2);
-  max-height: calc((max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * 1.2);
+  height: calc((max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * var(--logo-scale));
+  max-height: calc((max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * var(--logo-scale));
 
   width: auto;
   max-width: none;
@@ -150,7 +154,7 @@ form#search-form{
 .row{
   width:100%;
   display:flex;
-  gap: 16px;
+  gap: var(--gap);              /* scale spacing between input + button */
   align-items: center;
 }
 
@@ -163,12 +167,12 @@ form#search-form{
 input[type="text"], input[type="search"]{
   width:100%;
   height: var(--input-h);
-  padding: 0 1rem;
-  border-radius: 0.5rem;
+  padding: 0 calc(1rem * var(--top-scale));
+  border-radius: calc(0.5rem * var(--top-scale));
   border: 1px solid var(--sb-blue);
   background: #fafdf4;
 
-  font-size: 1.5rem;
+  font-size: var(--input-font);
   font-weight: 500;
 
   color: #444;
@@ -178,11 +182,11 @@ input::placeholder { color:#999; opacity:1; }
 
 .input-clear{
   position:absolute;
-  right: 0.55rem;
+  right: calc(0.55rem * var(--top-scale));
   top:50%;
   transform: translateY(-50%);
-  width: 24px;
-  height: 24px;
+  width: calc(24px * var(--top-scale));
+  height: calc(24px * var(--top-scale));
   border-radius: 50%;
   background:#999;
   color:#fff;
@@ -191,7 +195,7 @@ input::placeholder { color:#999; opacity:1; }
   display:none;
   align-items:center;
   justify-content:center;
-  font-size:0.75rem;
+  font-size: calc(0.75rem * var(--top-scale));
   padding:0;
   line-height:1;
   z-index: 20;
@@ -208,20 +212,20 @@ input::placeholder { color:#999; opacity:1; }
   right:0;
   background:#fff;
   border:1px solid var(--sb-blue);
-  border-radius: 0.5rem;
-  margin-top: 0.15rem;
-  max-height: 180px;
+  border-radius: calc(0.5rem * var(--top-scale));
+  margin-top: calc(0.15rem * var(--top-scale));
+  max-height: calc(180px * var(--top-scale));
   overflow-y: auto;
   box-shadow: 0 6px 12px rgba(0,0,0,0.08);
   z-index: 30;
-  padding: 0.25rem 0;
+  padding: calc(0.25rem * var(--top-scale)) 0;
   display:none;
 }
 
 .suggestion-item{
-  padding: 0.25rem 0.75rem;
+  padding: calc(0.25rem * var(--top-scale)) calc(0.75rem * var(--top-scale));
   text-align:left;
-  font-size: 0.95rem;
+  font-size: calc(0.95rem * var(--top-scale));
   cursor:pointer;
 }
 .suggestion-item:hover{ background:#e8f0ff; }
@@ -231,7 +235,7 @@ input::placeholder { color:#999; opacity:1; }
 
 button{
   border:none;
-  border-radius: 0.5rem;
+  border-radius: calc(0.5rem * var(--top-scale));
   background: var(--sb-blue);
   color:#fff;
   cursor:pointer;
@@ -243,14 +247,14 @@ button{
   width: var(--btn-eq-w);
   min-width: var(--btn-eq-w);
   max-width: var(--btn-eq-w);
-  padding: 0 10px;
+  padding: 0 calc(10px * var(--top-scale));
   border: 1px solid var(--sb-blue);
   display:inline-flex;
   align-items:center;
   justify-content:center;
   white-space: nowrap;
-  gap: 8px;
-  font-size: 1.15rem;
+  gap: calc(8px * var(--top-scale));
+  font-size: var(--btn-font);
   font-weight: 700;
 }
 .btn-eq:hover{ background:#1a3661; }
@@ -262,7 +266,7 @@ button{
 }
 
 .menu-icon{
-  font-size: 1.75rem;
+  font-size: var(--menu-icon-size);
   line-height: 1;
   display: inline-block;
   transform: scaleX(2);
@@ -278,13 +282,13 @@ button{
 
 .menu-dropdown{
   position:absolute;
-  top: calc(100% + 0.25rem);
+  top: calc(100% + calc(0.25rem * var(--top-scale)));
   right: 0;
   background:#fff;
   border:1px solid var(--sb-blue);
-  border-radius: 0.5rem;
+  border-radius: calc(0.5rem * var(--top-scale));
   box-shadow: 0 6px 12px rgba(0,0,0,0.08);
-  min-width: 160px;
+  min-width: calc(160px * var(--top-scale));
   display:none;
   z-index: 100;
   overflow:hidden;
@@ -293,10 +297,10 @@ button{
 
 .menu-dropdown a{
   display:block;
-  padding: 0.65rem 1rem;
+  padding: calc(0.65rem * var(--top-scale)) calc(1rem * var(--top-scale));
   color: var(--sb-blue);
   text-decoration:none;
-  font-size: 0.95rem;
+  font-size: calc(0.95rem * var(--top-scale));
   transition: background 0.2s ease;
 }
 .menu-dropdown a:hover{ background:#e8f0ff; }
@@ -304,7 +308,7 @@ button{
 /* ---------- Status / filters ---------- */
 
 .status-message{
-  font-size: 1.6rem;
+  font-size: 1.6rem; /* keep independent; change if you want another knob */
   font-weight: 700;
   color:#2d3c22;
   margin: 0.35rem auto 0;
@@ -384,10 +388,7 @@ button{
 }
 
 /* =========================
-   KEY CHANGE:
-   - grid width is FIT-CONTENT
-   - columns are FIXED width (--card-w)
-   => knob changes TOTAL GRID WIDTH
+   GRID WIDTH IS CONTROLLED BY --grid-scale
 ========================== */
 .shoe-grid{
   display:grid;
@@ -395,9 +396,9 @@ button{
 
   grid-template-columns: repeat(var(--cols), var(--card-w));
 
-  width: fit-content;     /* makes the grid shrink/grow overall */
+  width: fit-content;
   max-width: 100%;
-  margin: 1.0rem auto 0;  /* center */
+  margin: 1.0rem auto 0;
   justify-content: center;
 
   padding: 0 var(--pad);
@@ -603,10 +604,13 @@ button{
 /* ---------- MOBILE PORTRAIT: do NOT scale; text to the side ---------- */
 @media (max-width: 560px){
 
-  /* lock scaling on portrait mobile */
   :root{
     --cols: 1;
 
+    /* Keep knobs independent:
+       - grid/cards locked for mobile portrait layout
+       - top UI can still be controlled by --top-scale (do NOT override it here)
+    */
     --grid-scale: 1;
 
     /* in portrait mobile we switch layout anyway, so card width isn't used */
@@ -637,7 +641,7 @@ button{
   .topbar{
     flex-direction: row;
     align-items: flex-start;
-    gap: 20px;
+    gap: var(--gap);
   }
 
   .top-right{
@@ -649,7 +653,7 @@ button{
     content: url("/images/logoV3.svg");
     height: calc(var(--input-h) * 2 + var(--gap));
     width: auto;
-    max-width: 140px;
+    max-width: calc(140px * var(--top-scale));
   }
 
   .shoe-grid{
@@ -657,7 +661,7 @@ button{
     max-width: 520px;
     margin: 0.75rem auto 0;
     padding: 0 var(--pad);
-    grid-template-columns: 1fr;   /* 1 column */
+    grid-template-columns: 1fr;
     justify-content: stretch;
     box-sizing: border-box;
     gap: var(--grid-gap);
