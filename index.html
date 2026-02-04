@@ -246,14 +246,14 @@ const brandModels = window.brandModels || {};
       const meta = document.querySelector('meta[name="shoebeagle-blob-base"]');
       const fromMeta = meta ? String(meta.getAttribute("content") || "").trim() : "";
       const looksLikePlaceholder = fromMeta.includes("__BLOB_BASE_URL__");
-      if (fromMeta && !looksLikePlaceholder) return fromMeta.replace(/\\/+$/, "");
+      if (fromMeta && !looksLikePlaceholder) return fromMeta.replace(/\/+$/, "");
       return "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
     }
 
     function blobUrl(path) {
       const base = getBlobBase();
-      const cleanPath = String(path || "").replace(/^\\/+/, "");
-      return base.replace(/\\/+$/, "") + "/" + cleanPath;
+      const cleanPath = String(path || "").replace(/^\/+/, "");
+      return base.replace(/\/+$/, "") + "/" + cleanPath;
     }
 
     function withCacheBust(url) {
