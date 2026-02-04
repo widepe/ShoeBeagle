@@ -502,9 +502,17 @@ button{
   }
 
   .shoe-grid{
+    width: 100%;
+    max-width: 520px;          /* ✅ prevents “too wide” on some phones */
+    margin: 0.75rem auto 0;    /* ✅ centers the whole grid */
+    padding: 0 var(--pad);     /* ✅ side padding so card doesn’t hit edges */
     grid-template-columns: 1fr;
-    padding-left: var(--pad);
-    padding-right: var(--pad);
+    justify-content: stretch;  /* ✅ no centering math that can overflow */
+    box-sizing: border-box;
+  }
+  .card{
+    width: 100%;
+    margin: 0;                 /* ✅ no accidental horizontal shift */
   }
 }
 
