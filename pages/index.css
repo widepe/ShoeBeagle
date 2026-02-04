@@ -31,7 +31,7 @@
   --menu-icon-size: calc(1.75rem * var(--top-scale));
 
   /* logo height multiplier */
-  --logo-scale: calc(1.2 * var(--top-scale));
+  --logo-scale: calc(1.4 * var(--top-scale));
 
   /* ---------- GRID + CARDS ---------- */
   --cols: 6;
@@ -195,7 +195,7 @@ input::placeholder { color:#999; opacity:1; }
   display:none;
   align-items:center;
   justify-content:center;
-  font-size: calc(0.75rem * var(--top-scale));
+  font-size: calc(1.05rem * var(--top-scale));
   padding:0;
   line-height:1;
   z-index: 20;
@@ -225,7 +225,7 @@ input::placeholder { color:#999; opacity:1; }
 .suggestion-item{
   padding: calc(0.25rem * var(--top-scale)) calc(0.75rem * var(--top-scale));
   text-align:left;
-  font-size: calc(0.95rem * var(--top-scale));
+  font-size: calc(1.1rem * var(--top-scale));
   cursor:pointer;
 }
 .suggestion-item:hover{ background:#e8f0ff; }
@@ -300,7 +300,7 @@ button{
   padding: calc(0.65rem * var(--top-scale)) calc(1rem * var(--top-scale));
   color: var(--sb-blue);
   text-decoration:none;
-  font-size: calc(0.95rem * var(--top-scale));
+  font-size: calc(1.1rem * var(--top-scale));
   transition: background 0.2s ease;
 }
 .menu-dropdown a:hover{ background:#e8f0ff; }
@@ -310,7 +310,8 @@ button{
 .status-message{
   font-size: 1.6rem; /* keep independent; change if you want another knob */
   font-weight: 700;
-  color:#2d3c22;
+  color: var(--sb-blue);
+
   margin: 0.35rem auto 0;
   text-align: center;
   width: 100%;
@@ -574,7 +575,7 @@ button{
 .footer a:hover{ text-decoration: underline; }
 
 .footer .rights{
-  font-size: 0.85em;
+  font-size: 0.70em;
   opacity: 0.75;
 }
 
