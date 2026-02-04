@@ -86,24 +86,29 @@ body{
 
 /* logo: height matches 2 inputs + gap */
 .brand-logo{
-  /* ✅ height matches two rows (each row is the taller of input/button) + the gap between rows */
-  height: calc(max(var(--input-h), var(--btn-h)) * 2 + var(--gap));
-  max-height: calc(max(var(--input-h), var(--btn-h)) * 2 + var(--gap));
+  /* height = (two rows + gap) scaled up proportionally */
+  height: calc(
+    (max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * 1.1
+  );
+  max-height: calc(
+    (max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * 1.1
+  );
 
-  width: auto;          /* keep aspect ratio */
-  max-width: none;      /* ✅ IMPORTANT: don't shrink it */
+  width: auto;
+  max-width: none;
   object-fit: contain;
   cursor: pointer;
   transition: opacity 0.2s ease;
   display:block;
 }
+
 .brand-logo:hover{ opacity: 0.9; }
 
 /* ---------- Form rows ---------- */
 
 form#search-form{
-  width: min(900px, 100%);   /* ✅ wider inputs on desktop */
-  max-width: 900px;
+  width: min(1100px, 100%);   /* ✅ wider inputs on desktop */
+  max-width: 1100px;
   display:flex;
   flex-direction: column;
   gap: var(--gap);
@@ -114,7 +119,7 @@ form#search-form{
 .row{
   width:100%;
   display:flex;
-  gap: 10px;
+  gap: 16px;
   align-items: center;
 }
 
@@ -216,7 +221,10 @@ button{
   justify-content:center;
   white-space: nowrap;
   gap: 8px;
+    font-size: 1.15rem;   /* ✅ makes "Fetch" bigger */
+  font-weight: 700;     /* ✅ optional, reads better */
 }
+
 .btn-eq:hover{ background:#1a3661; }
 
 .btn-eq:disabled{
@@ -225,7 +233,7 @@ button{
   pointer-events: none;
 }
 
-.menu-icon{ font-size: 1.2rem; line-height: 1; }
+.menu-icon{ font-size: 1.5rem; line-height: 1; }
 
 /* Menu dropdown anchored to the menu button wrapper */
 .button-wrapper{ position: relative; display:flex; align-items:center; justify-content:center; }
@@ -329,7 +337,7 @@ button{
 }
 
 .daily-deals-header{
-  font-size: 1.9rem;
+  font-size: 2.3rem;
   font-weight: 700;
   color: var(--sb-blue);
   margin-bottom: 1rem;
@@ -470,7 +478,7 @@ button{
   padding: 0.75rem 1rem;
   background: rgba(244,237,227,0.97);
   border-top: 1px solid rgba(0,0,0,0.08);
-  font-size: 0.82rem;
+  font-size: 1rem;
   color:#444;
   text-align:center;
   width: 100%;
@@ -480,7 +488,7 @@ button{
   text-decoration:none;
   font-weight:600;
   cursor:pointer;
-  margin: 0 0.25rem;
+  margin: 0 1.05rem;
 }
 .footer a:hover{ text-decoration: underline; }
 
@@ -501,7 +509,7 @@ button{
    .topbar{
     flex-direction: row;      /* ✅ keep side-by-side */
     align-items: flex-start;
-    gap: var(--gap);
+    gap: 16px;   /* was 10px */
   }
     .top-right{
     order: -1;
