@@ -6,8 +6,8 @@
   --bg: #f4ede3ff;
 
   /* ✅ Taller controls */
-  --input-h: 50px;
-  --btn-h: 50px;
+  --input-h: 56px;
+  --btn-h: 56px;
 
   --gap: 10px;
 
@@ -126,8 +126,8 @@ input[type="text"], input[type="search"]{
   background: #fafdf4;
 
   /* ✅ bigger input text */
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-size: 1.35rem;
+  font-weight: 500;
 
   color: #444;
   transition: border-color 0.2s ease, background-color 0.2s ease;
