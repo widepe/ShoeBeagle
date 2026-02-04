@@ -593,12 +593,13 @@ button{
 
 .pager{
   width: 100%;
-  display:flex;
+  display: none;          /* ← change this */
   justify-content:center;
   align-items:center;
   gap: 0.75rem;
   margin: 1rem 0 0.5rem;
 }
+
 
 .pager-btn{
   height: 42px;
