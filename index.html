@@ -131,7 +131,7 @@
   </div>
 
   <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
-
+<script src="/brandModels.js"></script>
   <script>
     const form = document.getElementById("search-form");
 
@@ -193,8 +193,8 @@
     document.addEventListener("click", (e) => {
       if (!menuBtn.contains(e.target) && !menuDropdown.contains(e.target)) closeMenu();
     });
-
-    // --- Helpers ---
+// make sure brandModels always exists
+const brandModels = window.brandModels || {};    // --- Helpers ---
     function normalizeStr(s) { return String(s || "").trim().toLowerCase(); }
     function normalizeEnum(s) { return String(s || "").trim().toLowerCase(); }
 
