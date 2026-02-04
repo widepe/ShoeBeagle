@@ -5,18 +5,20 @@
   --sb-blue: #214478ff;
   --bg: #f4ede3ff;
 
-  /* ✅ Taller controls */
+  /* Taller controls */
   --input-h: 56px;
   --btn-h: 56px;
 
+  /* General spacing (used in lots of places) */
   --gap: 16px;
 
   /* buttons always equal width */
   --btn-eq-w: 78px;
 
+  /* overall page max width */
   --maxw: 1600px;
-  --pad: 12px;
 
+  --pad: 12px;
   --grid-gap: 1.25rem;
 }
 
@@ -33,7 +35,7 @@ body{
   padding: 6px var(--pad);
 }
 
-/* ✅ make the whole app column fill viewport so footer can stick */
+/* Make the whole app column fill viewport so footer can stick */
 .app{
   width: 100%;
   max-width: var(--maxw);
@@ -41,11 +43,10 @@ body{
   flex-direction: column;
   align-items: center;
   gap: 0.75rem;
-
-  min-height: 100vh; /* ✅ critical for sticky footer */
+  min-height: 100vh;
 }
 
-/* ✅ main content grows so footer can sit at bottom */
+/* Main content grows so footer can sit at bottom */
 #mainContent{
   width: 100%;
   flex: 1 0 auto;
@@ -56,17 +57,15 @@ body{
 .topbar{
   width: 100%;
   display:flex;
-  align-items: flex-end;   /* ✅ align bottoms */
-  justify-content: center;   /* ✅ center the whole cluster */
+  align-items: flex-end;         /* align bottoms */
+  justify-content: center;       /* center the whole cluster */
   gap: var(--gap);
   margin-top: 2px;
 }
 
-
-
 .top-left{
-  flex: 0 1 auto;                 /* ✅ allow shrink if needed */
-  width: min(600px, 100%);       /* ✅ lets inputs get wide */
+  flex: 0 1 auto;               /* allow shrink if needed */
+  width: min(600px, 100%);      /* controls input stack width on desktop */
   min-width: 280px;
 
   display:flex;
@@ -75,26 +74,22 @@ body{
   order: 0;
 }
 
-
-
 .top-right{
   flex: 0 0 auto;
   display:flex;
   align-items: flex-start;
   justify-content:center;
 
-  order: -1; /* ✅ logo on the left (desktop/tablet) */
-  margin-right: 36px;   /* ✅ space AFTER the logo only */}
+  order: -1;                    /* logo on the left (desktop/tablet) */
+  margin-right: 36px;           /* space AFTER the logo only */
+}
 
-/* logo: height matches 2 inputs + gap */
+/* ---------- Logo ---------- */
+
 .brand-logo{
   /* height = (two rows + gap) scaled up proportionally */
-  height: calc(
-    (max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * 1.2
-  );
-  max-height: calc(
-    (max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * 1.2
-  );
+  height: calc((max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * 1.2);
+  max-height: calc((max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * 1.2);
 
   width: auto;
   max-width: none;
@@ -103,25 +98,23 @@ body{
   transition: opacity 0.2s ease;
   display:block;
 }
-
 .brand-logo:hover{ opacity: 0.9; }
 
 /* ---------- Form rows ---------- */
 
 form#search-form{
-  width: min(1100px, 100%);   /* ✅ wider inputs on desktop */
-  max-width: 1100px;
+  width: 100%;                 /* fill top-left width */
+  max-width: 100%;
   display:flex;
   flex-direction: column;
   gap: var(--gap);
   margin: 0;
 }
 
-
 .row{
   width:100%;
   display:flex;
-  gap: 16px;
+  gap: 16px;                   /* input <-> button spacing */
   align-items: center;
 }
 
@@ -139,14 +132,12 @@ input[type="text"], input[type="search"]{
   border: 1px solid var(--sb-blue);
   background: #fafdf4;
 
-  /* ✅ bigger input text */
   font-size: 1.5rem;
   font-weight: 500;
 
   color: #444;
   transition: border-color 0.2s ease, background-color 0.2s ease;
 }
-
 input::placeholder { color:#999; opacity:1; }
 
 .input-clear{
@@ -200,7 +191,7 @@ input::placeholder { color:#999; opacity:1; }
 .suggestion-item:hover{ background:#e8f0ff; }
 .suggestion-item.active{ background:#e8f0ff; }
 
-/* ---------- Equal-width buttons ---------- */
+/* ---------- Buttons ---------- */
 
 button{
   border:none;
@@ -223,10 +214,9 @@ button{
   justify-content:center;
   white-space: nowrap;
   gap: 8px;
-    font-size: 1.15rem;   /* ✅ makes "Fetch" bigger */
-  font-weight: 700;     /* ✅ optional, reads better */
+  font-size: 1.15rem;          /* Fetch bigger */
+  font-weight: 700;
 }
-
 .btn-eq:hover{ background:#1a3661; }
 
 .btn-eq:disabled{
@@ -236,15 +226,19 @@ button{
 }
 
 .menu-icon{
-  font-size: 1.75rem;          /* keep your current size */
+  font-size: 1.75rem;
   line-height: 1;
-  display: inline-block;   /* required for transform */
-  transform: scaleX(2); /* ✅ wider without getting taller */
+  display: inline-block;
+  transform: scaleX(2);        /* wider without taller */
 }
 
-
 /* Menu dropdown anchored to the menu button wrapper */
-.button-wrapper{ position: relative; display:flex; align-items:center; justify-content:center; }
+.button-wrapper{
+  position: relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
 
 .menu-dropdown{
   position:absolute;
@@ -259,7 +253,6 @@ button{
   z-index: 100;
   overflow:hidden;
 }
-
 .menu-dropdown.show{ display:block; }
 
 .menu-dropdown a{
@@ -275,18 +268,15 @@ button{
 /* ---------- Status / filters ---------- */
 
 .status-message{
-  font-size: 1.6rem;          /* ✅ bigger */
-  font-weight: 700;            /* ✅ reads better */
+  font-size: 1.6rem;
+  font-weight: 700;
   color:#2d3c22;
-
-  margin: 0.35rem auto 0;      /* ✅ center the block itself */
+  margin: 0.35rem auto 0;
   text-align: center;
-
   width: 100%;
-  max-width: var(--maxw);      /* ✅ center relative to the page, not the form */
+  max-width: var(--maxw);
   min-height: 1.4em;
 }
-
 
 .filters{
   width:100%;
@@ -367,7 +357,8 @@ button{
   grid-template-columns: repeat(6, minmax(0, 1fr)); /* desktop default */
 }
 
-/* Cards */
+/* ---------- Cards (DESKTOP/TABLET: fixed proportions) ---------- */
+
 .card{
   background:#d9e1ebff;
   border:2px solid var(--sb-blue);
@@ -377,7 +368,9 @@ button{
   flex-direction:column;
   text-align:left;
   position:relative;
-  aspect-ratio: 3 / 4;   /* ✅ 3 wide, 4 tall */}
+
+  aspect-ratio: 3 / 4;         /* card is 3 wide by 4 tall */
+}
 
 .card-link{
   display:flex;
@@ -387,30 +380,31 @@ button{
   color:inherit;
   height:100%;
 }
+
 .card-image-wrapper{
   position: relative;
   width: 100%;
   overflow: hidden;
-
-  aspect-ratio: 4 / 3;   /* ✅ 4 wide, 3 tall */
+  aspect-ratio: 4 / 3;         /* image area is 4 wide by 3 tall */
 }
 
 .card img{
   width: 100%;
-  height: 100%;
+  height: 100%;                /* fill the 4:3 wrapper */
   object-fit: contain;
   background:#fff;
   border:1px solid var(--sb-blue);
+  border-radius:0.6rem;
   display:block;
 }
 
+/* Discount + tags */
 .discount-badge{
   position:absolute;
   top: 0.35rem;
   left: 0.35rem;
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
-  font-size: 0.7rem;
   font-weight:700;
   background: rgba(220,53,69,0.9);
   color:#fff;
@@ -429,8 +423,8 @@ button{
   z-index:2;
   pointer-events:none;
 }
+
 .card-tag{
-  font-size: 0.68rem;
   font-weight: 600;
   color: var(--sb-blue);
   line-height: 1.1;
@@ -438,15 +432,16 @@ button{
   text-shadow: 0 0 3px rgba(255,255,255,0.8), 0 0 5px rgba(255,255,255,0.6);
 }
 
-.card-content{ 
+/* Content column */
+.card-content{
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
   flex: 1;
   min-width: 0;
 }
+
 .card-title{
-  font-size:0.92rem;
   font-weight:600;
   display:-webkit-box;
   -webkit-line-clamp:3;
@@ -455,16 +450,31 @@ button{
   text-overflow:ellipsis;
   min-height: calc(1.2em * 3);
 }
-.card-store{ 
-  margin-top: auto;   /* ✅ pushes store + price to bottom */
-  font-size:0.82rem; color:#49543a; }
 
-.card-price-row{ display:flex; align-items:baseline; gap:0.3rem; font-size:0.95rem; }
+.card-store{
+  margin-top: auto;            /* pushes store + price to bottom */
+  color:#49543a;
+}
+
+.card-price-row{
+  display:flex;
+  align-items:baseline;
+  gap:0.3rem;
+}
 .price{ font-weight:700; color: var(--sb-blue); }
-.card-original-price{ margin-left:0.35rem; font-size:0.8rem; color:#777; text-decoration: line-through; }
+.card-original-price{
+  margin-left:0.35rem;
+  color:#777;
+  text-decoration: line-through;
+}
 
 /* Load more */
-.load-more-wrap{ width:100%; display:flex; justify-content:center; margin: 1rem 0 0.5rem; }
+.load-more-wrap{
+  width:100%;
+  display:flex;
+  justify-content:center;
+  margin: 1rem 0 0.5rem;
+}
 .load-more-btn{
   height: 42px;
   padding: 0 1.25rem;
@@ -476,7 +486,7 @@ button{
 }
 .load-more-btn:hover{ background:#1a3661; }
 
-/* Footer */
+/* Footer + disclaimer */
 .disclaimer{
   font-size: 1.5rem;
   color:#555;
@@ -487,7 +497,7 @@ button{
 }
 
 .footer{
-  margin-top: auto; /* ✅ sticky-to-bottom behavior */
+  margin-top: auto;            /* sticky-to-bottom behavior */
   padding: 0.75rem 1rem;
   background: rgba(244,237,227,0.97);
   border-top: 1px solid rgba(0,0,0,0.08);
@@ -496,13 +506,14 @@ button{
   text-align:center;
   width: 100%;
 }
+
 .footer a{
   color: var(--sb-blue);
   text-decoration:none;
   font-weight:600;
   cursor:pointer;
   margin: 0 1.05rem;
-  font-size: 1.2rem;   /* ✅ bigger footer links */
+  font-size: 1.2rem;
 }
 .footer a:hover{ text-decoration: underline; }
 
@@ -518,92 +529,85 @@ button{
   .shoe-grid{ grid-template-columns: repeat(5, minmax(0,1fr)); }
 }
 
-/* Phone portrait: 1 column + use logoV3.svg and stack layout */
-@media (max-width: 560px){
-   .topbar{
-    flex-direction: row;      /* ✅ keep side-by-side */
-    align-items: flex-start;
-    gap: 20px;  
-  }
-    .top-right{
-    order: -1;
-  }
-
-  .brand-logo{
-    content: url("/images/logoV3.svg");  /* still use your mobile logo */
-    height: calc(var(--input-h) * 2 + var(--gap));
-    width: auto;
-    max-width: 140px; /* optional safety so it doesn't dominate */
-  }
-
-  .shoe-grid{
-    width: 100%;
-    max-width: 520px;          /* ✅ prevents “too wide” on some phones */
-    margin: 0.75rem auto 0;    /* ✅ centers the whole grid */
-    padding: 0 var(--pad);     /* ✅ side padding so card doesn’t hit edges */
-    grid-template-columns: 1fr;
-    justify-content: stretch;  /* ✅ no centering math that can overflow */
-    box-sizing: border-box;
-  }
-  .card{
-    width: 100%;
-    margin: 0;                 /* ✅ no accidental horizontal shift */
-  }
-}
-
 /* Phone landscape: 3 columns */
 @media (max-width: 800px) and (orientation: landscape){
   .shoe-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); }
 }
 
-/* Small card tweaks */
-@media (max-width: 480px) {
-  .discount-badge{
-    top: 0.2rem;
-    left: 0.2rem;
-    padding: 0.1rem 0.3rem;
-    font-size: 0.55rem;
+/* ---------- MOBILE PORTRAIT: text to the side (override 3:4 card ratio) ---------- */
+@media (max-width: 560px){
+
+  /* Keep logo + inputs side-by-side on mobile if you want that */
+  .topbar{
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 20px;
+  }
+
+  .top-right{
+    order: -1;
+    margin-right: 0;           /* optional on mobile */
+  }
+
+  .brand-logo{
+    content: url("/images/logoV3.svg");
+    height: calc(var(--input-h) * 2 + var(--gap));
+    width: auto;
+    max-width: 140px;          /* safety so it doesn't dominate */
+  }
+
+  .shoe-grid{
+    width: 100%;
+    max-width: 520px;          /* prevents “too wide” on some phones */
+    margin: 0.75rem auto 0;
+    padding: 0 var(--pad);
+    grid-template-columns: 1fr;
+    justify-content: stretch;
+    box-sizing: border-box;
+  }
+
+  .card{
+    width: 100%;
+    margin: 0;
+    aspect-ratio: auto;        /* key: stop forcing 3:4 on mobile portrait */
   }
 
   .card-link{
-    flex-direction: row;
-    gap: 0.75rem;
+    flex-direction: row;       /* image left, text right */
     align-items: center;
+    gap: 0.9rem;
   }
 
   .card-image-wrapper{
-    flex-shrink: 0;
-    width: 100px;
-    height: 80px;
-    overflow: hidden;
+    flex: 0 0 42%;
+    width: auto;
+    aspect-ratio: 4 / 3;       /* keep image proportional */
   }
 
   .card img{
-    height: 80px;
-    object-fit: cover;
+    height: 100%;
+    object-fit: cover;         /* looks better in side-by-side */
   }
 
-  .card-tags{
-    left: 0.25rem;
-    right: 0.25rem;
-    bottom: 0.25rem;
+  .card-content{
+    flex: 1 1 auto;
   }
 
-  .card-tag{ font-size: 0.62rem; }
-  .card-content{ justify-content:center; min-width:0; }
-  .card-title{ -webkit-line-clamp: 2; min-height:auto; }
+  .card-title{
+    -webkit-line-clamp: 2;
+    min-height: auto;
+  }
 }
-/* ----------------------------
-   BIGGER card typography
------------------------------*/
+
+/* ---------- Typography overrides (cards) ---------- */
 
 .card-title{
-  font-size: 1.25rem;   /* was ~0.92rem */
+  font-size: 1.25rem;
   line-height: 1.25;
 }
 
 .card-title strong{
-  font-size: 1.15em;   /* brand still slightly larger */
+  font-size: 1.15em;
 }
 
 .card-store{
