@@ -1,0 +1,742 @@
+/* =========================================================
+   Shoe Beagle — index.css
+   Purpose: Keep responsive behavior easy to edit by device.
+   Sections:
+   1) Tokens (CSS variables)
+   2) Base / page layout
+   3) Topbar (logo + inputs + buttons)
+   4) Suggestions + dropdown
+   5) Filters (chips)
+   6) Grids + cards
+   7) Footer
+   8) Responsive breakpoints (Desktop / Tablet / Phone)
+   ========================================================= */
+
+
+/* =========================
+   1) TOKENS (EDIT THESE)
+   ========================= */
+:root{
+  /* sizing */
+  --input-h: 50px;
+  --btn-h: 50px;
+  --stack-gap: 10px;
+
+  /* spacing */
+  --page-pad: 12px;
+  --phone-pad: 12px;
+
+  /* widths */
+  --btn-minw: 86px;         /* both Menu + Fetch share this */
+  --brand-max: 900px;
+
+  /* type */
+  --input-font: 1.08rem;
+  --btn-font: 1.02rem;
+
+  /* colors */
+  --bg: #f4ede3ff;
+  --text: #2d2d2d;
+  --blue: #214478ff;
+  --blue-dark: #1a3661;
+  --paper: #fafdf4;
+  --card: #d9e1ebff;
+}
+
+
+/* =========================
+   2) BASE / PAGE LAYOUT
+   ========================= */
+*{ box-sizing: border-box; }
+
+body{
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+
+  /* page padding */
+  padding: 6px var(--page-pad);
+}
+
+.app{
+  width: 100%;
+  max-width: var(--brand-max);
+
+  /* pushes footer to bottom when content is short */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  gap: 0.65rem;
+}
+
+/* main content grows so footer can sit at bottom */
+#mainContent{
+  width: 100%;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+
+/* =========================
+   3) TOPBAR (logo + inputs)
+   ========================= */
+.topbar{
+  width: 100%;
+  max-width: var(--brand-max);
+
+  display: flex;
+  justify-content: center; /* centers logo+form cluster */
+  align-items: flex-start;
+  gap: 14px;
+
+  margin-top: 4px;
+}
+
+.brand{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+/* desktop/tablet: logo height equals 2 stacked inputs + gap */
+.brand-logo{
+  height: calc(var(--input-h) * 2 + var(--stack-gap));
+  width: auto;
+  max-width: 320px;
+  object-fit: contain;
+  margin: 0;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  display: block;
+}
+.brand-logo:hover{ opacity: 0.9; }
+
+form#search-form{
+  flex: 0 1 520px;
+  width: 100%;
+  max-width: 520px;
+  margin: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack-gap);
+  align-items: stretch;
+}
+
+.inputs-stack{
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack-gap);
+  width: 100%;
+}
+
+/* each row: input + right-side button */
+.row{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.input-wrapper{
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+input[type="text"],
+input[type="search"]{
+  width: 100%;
+  height: var(--input-h);
+  padding: 0 0.85rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--blue);
+  background: var(--paper);
+  font-size: var(--input-font);
+  color: #444;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+input::placeholder{ color:#999; opacity:1; }
+
+/* clear button */
+.input-clear{
+  position: absolute;
+  right: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #999;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  padding: 0;
+  line-height: 1;
+  z-index: 20;
+}
+.input-clear:hover{ background:#666; }
+.input-wrapper:has(input:not(:placeholder-shown)) .input-clear{ display:flex; }
+
+
+/* =========================
+   3b) BUTTONS (equal sizing)
+   ========================= */
+button{
+  border: none;
+  border-radius: 0.5rem;
+  background: var(--blue);
+  color: #fff;
+  font-size: var(--btn-font);
+  cursor: pointer;
+  transition: background 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+/* shared class for Menu + Fetch (same width always) */
+.btn-eq{
+  height: var(--btn-h);
+  min-width: var(--btn-minw);
+  padding: 0 14px;
+  border: 1px solid var(--blue);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.btn-eq:hover{ background: var(--blue-dark); }
+.btn-eq:disabled{
+  opacity: 1;
+  cursor: pointer;
+  pointer-events: none;
+}
+
+.menu-icon{
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+
+/* =========================
+   4) DROPDOWN + SUGGESTIONS
+   ========================= */
+.menu-wrapper{
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.menu-dropdown{
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  background: #fff;
+  border: 1px solid var(--blue);
+  border-radius: 0.5rem;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+  min-width: 170px;
+  display: none;
+  z-index: 100;
+
+  /* key fix: hover highlight won’t clip corners */
+  overflow: hidden;
+}
+.menu-dropdown.show{ display:block; }
+
+.menu-dropdown a{
+  display: block;
+  padding: 0.65rem 1rem;
+  color: var(--blue);
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: background 0.2s ease;
+}
+.menu-dropdown a:hover{ background:#e8f0ff; }
+
+/* autocomplete suggestions */
+.suggestions{
+  position: absolute;
+  top: calc(var(--input-h) + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid var(--blue);
+  border-radius: 0.5rem;
+  margin-top: 0.15rem;
+  max-height: 180px;
+  overflow-y: auto;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+  z-index: 30;
+  padding: 0.25rem 0;
+  display: none;
+}
+
+.suggestion-item{
+  padding: 0.25rem 0.75rem;
+  text-align: left;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.suggestion-item:hover{ background:#e8f0ff; }
+.suggestion-item.active{ background:#e8f0ff; }
+
+
+/* =========================
+   5) STATUS + FILTERS
+   ========================= */
+.status-message{
+  font-size: 0.95rem;
+  color: #2d3c22;
+  margin-top: 0.1rem;
+  text-align: center;
+  width: 100%;
+  min-height: 1.1rem;
+}
+
+.filters{
+  width: 100%;
+  max-width: 650px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 0.1rem;
+  flex-wrap: wrap;
+}
+
+.filter-row{
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-label{
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--blue);
+  white-space: nowrap;
+}
+
+.chip-group{
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.chip{
+  border: 1px solid var(--blue);
+  background: var(--paper);
+  color: var(--blue);
+  width: 27px;
+  height: 27px;
+  border-radius: 999px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.05s ease, box-shadow 0.2s ease;
+  position: relative;
+}
+.chip:hover{ background:#e8f0ff; }
+.chip.active{
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(33,68,120,0.25);
+}
+.chip:active{ transform: scale(0.98); }
+
+/* chip tooltip */
+.chip[aria-label]::after{
+  content: attr(aria-label);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.82);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 6px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  z-index: 50;
+}
+.chip[aria-label]::before{
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: rgba(0,0,0,0.82);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 50;
+}
+.chip:hover::after{
+  opacity: 1;
+  transform: translateX(-50%) translateY(-2px);
+}
+.chip:hover::before{ opacity: 1; }
+
+
+/* =========================
+   6) GRIDS + CARDS
+   ========================= */
+.daily-deals{
+  width: 100%;
+  max-width: var(--brand-max);
+  margin-top: 1rem;
+  padding: 0 var(--page-pad);
+}
+
+.daily-deals-header{
+  font-size: 2.0rem;
+  font-weight: 700;
+  color: var(--blue);
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.shoe-grid{
+  width: 100%;
+  max-width: var(--brand-max);
+
+  display: grid;
+  gap: 1.25rem;
+  justify-content: center;
+
+  /* DESKTOP DEFAULT: 6 columns */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+
+  /* padding prevents edge-to-edge stretch */
+  padding: 0 var(--page-pad);
+  margin: 1rem auto 0;
+}
+
+/* card */
+.card{
+  background: var(--card);
+  border: 2px solid var(--blue);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+
+  width: 100%;
+  max-width: 240px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.card-link{
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  text-decoration: none;
+  color: inherit;
+  height: 100%;
+}
+
+.card-image-wrapper{
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.card img{
+  width: 100%;
+  height: 150px;
+  border-radius: 0.6rem;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--blue);
+  display: block;
+}
+
+.discount-badge{
+  position: absolute;
+  top: 0.35rem;
+  left: 0.35rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(220,53,69,0.9);
+  color: #fff;
+  z-index: 3;
+}
+
+.card-tags{
+  position: absolute;
+  left: 0.35rem;
+  right: 0.35rem;
+  bottom: 0.35rem;
+  display: flex;
+  gap: 0.35rem;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.card-tag{
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--blue);
+  line-height: 1.1;
+  white-space: nowrap;
+  text-shadow: 0 0 3px rgba(255,255,255,0.8), 0 0 5px rgba(255,255,255,0.6);
+}
+
+.card-content{
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.card-title{
+  font-size: 0.92rem;
+  font-weight: 600;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: calc(1.2em * 3);
+}
+
+.card-store{
+  font-size: 0.82rem;
+  color: #49543a;
+}
+
+.card-price-row{
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  font-size: 0.95rem;
+}
+
+.price{
+  font-weight: 700;
+  color: var(--blue);
+}
+
+.card-original-price{
+  margin-left: 0.35rem;
+  font-size: 0.8rem;
+  color: #777;
+  text-decoration: line-through;
+}
+
+.load-more-wrap{
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin: 1rem 0 0.5rem;
+}
+
+.load-more-btn{
+  height: var(--btn-h);
+  min-width: 160px;
+  padding: 0 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--blue);
+  background: var(--blue);
+  color: #fff;
+  font-weight: 700;
+}
+.load-more-btn:hover{ background: var(--blue-dark); }
+
+.disclaimer{
+  font-size: 0.8rem;
+  color: #555;
+  max-width: var(--brand-max);
+  margin: 0.15rem auto 0;
+  text-align: center;
+  padding: 0 var(--page-pad);
+}
+
+
+/* =========================
+   7) FOOTER
+   ========================= */
+.footer{
+  width: 100%;
+  margin-top: 1.2rem;
+  padding: 0.75rem 1rem;
+  background: rgba(244,237,227,0.97);
+  border-top: 1px solid rgba(0,0,0,0.08);
+  font-size: 0.82rem;
+  color: #444;
+  text-align: center;
+}
+
+.footer a{
+  color: var(--blue);
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+  margin: 0 0.25rem;
+}
+.footer a:hover{ text-decoration: underline; }
+
+
+/* =========================================================
+   8) RESPONSIVE BREAKPOINTS (EDIT THESE BY DEVICE)
+   ========================================================= */
+
+/* -------------------------
+   TABLET (portrait-ish)
+   <= 900px => 4 columns
+   ------------------------- */
+@media (max-width: 900px){
+  .shoe-grid{
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* -------------------------
+   DESKTOP (wide)
+   >= 901px => 6 columns
+   ------------------------- */
+@media (min-width: 901px){
+  .shoe-grid{
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+/* -------------------------
+   PHONE PORTRAIT
+   <= 560px => 1 column + logo.svg above inputs
+   ------------------------- */
+@media (max-width: 560px){
+  body{
+    padding-left: var(--phone-pad);
+    padding-right: var(--phone-pad);
+  }
+
+  .topbar{
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* swap image file on portrait phone */
+  .brand-logo{
+    content: url("/images/logo.svg");
+    height: auto;
+    width: min(520px, 100%);
+    max-width: 100%;
+  }
+
+  form#search-form{
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .shoe-grid{
+    grid-template-columns: 1fr;
+    padding-left: var(--phone-pad);
+    padding-right: var(--phone-pad);
+    justify-items: center;
+  }
+
+  .card{
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .daily-deals,
+  .disclaimer{
+    padding-left: var(--phone-pad);
+    padding-right: var(--phone-pad);
+  }
+}
+
+/* -------------------------
+   PHONE LANDSCAPE
+   <= 800px landscape => 3 columns
+   ------------------------- */
+@media (max-width: 800px) and (orientation: landscape){
+  .shoe-grid{
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-left: var(--phone-pad);
+    padding-right: var(--phone-pad);
+  }
+}
+
+/* -------------------------
+   VERY SMALL PHONE TWEAKS
+   <= 480px => compact card layout
+   ------------------------- */
+@media (max-width: 480px){
+  .discount-badge{
+    top: 0.2rem;
+    left: 0.2rem;
+    padding: 0.1rem 0.3rem;
+    font-size: 0.55rem;
+  }
+
+  .card-link{
+    flex-direction: row;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .card-image-wrapper{
+    flex-shrink: 0;
+    width: 100px;
+    height: 80px;
+    overflow: hidden;
+  }
+
+  .card img{
+    height: 80px;
+    object-fit: cover;
+  }
+
+  .card-tags{
+    left: 0.25rem;
+    right: 0.25rem;
+    bottom: 0.25rem;
+  }
+
+  .card-tag{ font-size: 0.62rem; }
+  .card-content{ justify-content: center; min-width: 0; }
+  .card-title{ -webkit-line-clamp: 2; min-height: auto; }
+}
