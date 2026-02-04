@@ -71,26 +71,7 @@
         </form>
 
 
-        <div class="filters" id="filters" style="display:none;">
-          <div class="filter-row">
-            <div class="filter-label">Gender:</div>
-            <div class="chip-group" id="genderChips">
-              <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
-              <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
-              <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
-            </div>
-          </div>
-
-          <div class="filter-row">
-            <div class="filter-label">Shoe type:</div>
-            <div class="chip-group" id="typeChips">
-              <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
-              <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
-              <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
-              <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
-            </div>
-          </div>
-        </div>
+     
       </div>
 
       <!-- LOGO RIGHT -->
@@ -109,8 +90,26 @@
         <div class="daily-deals-header">Marty's Daily Deals</div>
         <div class="shoe-grid" id="dailyDealsGrid"></div>
       </div>
+   <div class="filters" id="filters" style="display:none;">
+          <div class="filter-row">
+            <div class="filter-label">Gender:</div>
+            <div class="chip-group" id="genderChips">
+              <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
+              <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
+              <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
+            </div>
+          </div>
 
-      <div class="shoe-grid" id="results"></div>
+          <div class="filter-row">
+            <div class="filter-label">Shoe type:</div>
+            <div class="chip-group" id="typeChips">
+              <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
+              <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
+              <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
+              <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
+            </div>
+          </div>
+        </div>      <div class="shoe-grid" id="results"></div>
 
       <div class="load-more-wrap" id="loadMoreWrap" style="display:none;">
         <button type="button" class="load-more-btn" id="loadMoreBtn">Load More…</button>
@@ -127,9 +126,11 @@
     <a href="/pages/terms.html">Terms</a>
   </div>
 
-  <div class="footer-copy">
-    © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
-  </div>
+<div class="footer-copy">
+  © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
+</div>
+
+
 </div>
 
   </div>
