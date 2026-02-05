@@ -718,10 +718,17 @@
     // - Store dropdowns + health use ACTUAL stores found in blob data
     // - 30-day history hides: "Cheerio (non-Holabird)" and "Apify (non-Holabird)"
     // - 30-day history marks scrapers with * (Apify) and † (Cheerio), notes at bottom
+    // - Health card shows Source Blob; Zappos is forced to use the current blob URL
     // ============================================================
 
     // One base blob URL everywhere (prevents "wrong blob" drift)
     const BLOB_BASE = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
+
+    // Stores where you want to enforce a specific "current blob" as the source of truth.
+    // Dashboard will flag CRITICAL if merge-deals is using a different blob (or blobUrl is missing).
+    const EXPECTED_STORE_BLOBS = {
+      "Zappos": `${BLOB_BASE}/apify-zappos.json`,
+    };
 
     // Show JS parse/runtime errors on the page (prevents silent "Loading..." forever)
     window.addEventListener("error", (e) => {
@@ -735,10 +742,10 @@
     });
 
     // Store scraper URL mapping (used for "Scraped URL" links in health cards)
+    // NOTE: Removed Brooks mapping so it doesn't show up anywhere as a "scraped URL".
     const SCRAPER_URLS = {
       'ALS': 'https://www.als.com/',
       'ASICS': 'https://www.asics.com/us/en-us/sale/mens-running-shoes/c/aa10107020/',
-      'Brooks Running': 'https://www.brooksrunning.com/en_us/mens-sale-running-shoes/c/301/',
       'Fleet Feet': 'https://www.fleetfeet.com/collections/mens-running-shoes-on-sale',
       'Holabird Sports': 'https://www.holabirdsports.com',
       'REI Outlet': 'https://www.rei.com/rei-garage',
@@ -753,6 +760,8 @@
       'rei': 'REI Outlet',
       'rei outlet': 'REI Outlet',
     };
+
+    // You previously excluded A Snail's Pace. Keep it here so it never appears.
     const EXCLUDED_STORES = new Set(["A Snail's Pace"]);
 
     // NOTE: made dynamic (not const) so we can rebuild after blob loads
@@ -846,28 +855,28 @@
       const fromDeals = getStoresFromDeals(ALL_DEALS);
       const fromUnaltered = getStoresFromDeals(UNALTERED_DEALS);
 
-CANONICAL_STORES = Array.from(new Set([...fromUrls, ...fromDeals, ...fromUnaltered]))
-  .filter(s => s && s !== "Unknown" && !EXCLUDED_STORES.has(s))
-  .sort((a,b)=>a.localeCompare(b));
-
+      CANONICAL_STORES = Array.from(new Set([...fromUrls, ...fromDeals, ...fromUnaltered]))
+        .filter(s => s && s !== "Unknown" && !EXCLUDED_STORES.has(s))
+        .sort((a,b)=>a.localeCompare(b));
     }
+
     function getLastUpdatedInfo(dealsJsonRaw, mergeData) {
-  // Prefer deals.json object's own lastUpdated (if present),
-  // otherwise fall back to merge-deals timestamp.
-  const dealsObj =
-    (!Array.isArray(dealsJsonRaw) && dealsJsonRaw && typeof dealsJsonRaw === "object")
-      ? dealsJsonRaw
-      : null;
+      // Prefer deals.json object's own lastUpdated (if present),
+      // otherwise fall back to merge-deals timestamp.
+      const dealsObj =
+        (!Array.isArray(dealsJsonRaw) && dealsJsonRaw && typeof dealsJsonRaw === "object")
+          ? dealsJsonRaw
+          : null;
 
-  const lastUpdated = dealsObj?.lastUpdated || mergeData?.timestamp || mergeData?.lastUpdated || null;
+      const lastUpdated = dealsObj?.lastUpdated || mergeData?.timestamp || mergeData?.lastUpdated || null;
 
-  if (!lastUpdated) return { raw: null, display: "Not Available" };
+      if (!lastUpdated) return { raw: null, display: "Not Available" };
 
-  const d = new Date(lastUpdated);
-  const ts = d.getTime();
-  const display = Number.isFinite(ts) ? d.toLocaleString() : String(lastUpdated);
-  return { raw: lastUpdated, display };
-}
+      const d = new Date(lastUpdated);
+      const ts = d.getTime();
+      const display = Number.isFinite(ts) ? d.toLocaleString() : String(lastUpdated);
+      return { raw: lastUpdated, display };
+    }
 
     // ------------------------------------------------------------
     // Scraper History
@@ -921,7 +930,6 @@ CANONICAL_STORES = Array.from(new Set([...fromUrls, ...fromDeals, ...fromUnalter
       // Required by you:
       // - Apify scrapers: add *
       // - Cheerio scrapers: add †
-      // (We use different symbols so the notes are unambiguous.)
       const v = String(via || "").toLowerCase();
       if (v === "apify") return `${name}*`;
       if (v === "cheerio") return `${name}†`;
@@ -937,12 +945,12 @@ CANONICAL_STORES = Array.from(new Set([...fromUrls, ...fromDeals, ...fromUnalter
       }
 
       // Remove these from the history list per your request
-const HIDE_FROM_HISTORY = new Set([
-  "Cheerio (non-Holabird)",
-  "Apify (non-Holabird)",
-  "Brooks Running",
-  "Brooks Sale",
-]);
+      const HIDE_FROM_HISTORY = new Set([
+        "Cheerio (non-Holabird)",
+        "Apify (non-Holabird)",
+        "Brooks Running",
+        "Brooks Sale",
+      ]);
 
       // Collect scraper names
       const allScrapers = new Set();
@@ -1175,17 +1183,19 @@ const HIDE_FROM_HISTORY = new Set([
 
         const mergedDealsUrl = `${BLOB_BASE}/deals.json`;
         const lastUpdatedInfo = getLastUpdatedInfo(dealsJson, mergeData);
-        
+
         let debugHTML = `
           <strong>BLOB_BASE:</strong> ${BLOB_BASE}<br>
           <strong>Merged Deals:</strong> <a href="${mergedDealsUrl}" target="_blank" style="color:#214478ff; word-break: break-all;">${mergedDealsUrl}</a><br>
-          <strong>Last Updated:</strong> ${lastUpdatedInfo.display}<br><br>          <strong>Total deals in array:</strong> ${deals.length}<br>
+          <strong>Last Updated:</strong> ${lastUpdatedInfo.display}<br><br>
+         _toggle_
+          <strong>Total deals in array:</strong> ${deals.length}<br>
           <strong>Unaltered deals loaded:</strong> ${unalteredDeals.length}<br>
           <strong>Unknown brands:</strong> ${unknownBrands} (${deals.length ? ((unknownBrands / deals.length) * 100).toFixed(1) : '0.0'}%)<br>
           <strong>Unique stores found (${uniqueStores.length}):</strong> ${uniqueStores.join(', ')}<br>
           <strong>Canonical store list (${CANONICAL_STORES.length}):</strong> ${CANONICAL_STORES.join(', ')}<br>
           <strong>Shoe brands found (${uniqueBrands.length}):</strong> ${uniqueBrands.join(', ')}<br><br>
-        `;
+        `.replace("_toggle_", "");
 
         if (mergeData && mergeData.storeMetadata) {
           debugHTML += `<strong>Scraper Blob URLs (from /api/merge-deals):</strong><br>`;
@@ -1197,6 +1207,16 @@ const HIDE_FROM_HISTORY = new Set([
             }
           });
         }
+
+        // Always show expected store blob(s) so we can verify merge is sourcing correctly.
+        debugHTML += `<br><strong>Expected Store Input Blobs:</strong><br>`;
+        Object.entries(EXPECTED_STORE_BLOBS).forEach(([store, url]) => {
+          debugHTML += `<div style="margin-left: 10px; margin-top: 4px;">
+            <strong>${store}:</strong>
+            <a href="${url}" target="_blank" style="color:#214478ff; word-break: break-all;">${url}</a>
+          </div>`;
+        });
+        debugHTML += `<br>`;
 
         debugContent.innerHTML = debugHTML;
         debugInfo.style.display = 'block';
@@ -1516,7 +1536,7 @@ const HIDE_FROM_HISTORY = new Set([
     }
 
     // ------------------------------------------------------------
-    // Health Status (schema-correct + fixed store alignment)
+    // Health Status (schema-correct + blob source enforcement)
     // ------------------------------------------------------------
     function displayHealthStatus(deals, stats, mergeData) {
       const healthPanel = document.getElementById('healthPanel');
@@ -1526,6 +1546,7 @@ const HIDE_FROM_HISTORY = new Set([
       if (!healthPanel || !healthGrid || !healthSummary) return;
 
       const storeMetadata = mergeData?.storeMetadata || {};
+      const mergeMissing = !mergeData || !mergeData.storeMetadata;
 
       const storeHealth = {};
       let healthyCount = 0;
@@ -1544,20 +1565,42 @@ const HIDE_FROM_HISTORY = new Set([
           scrapedUrl: SCRAPER_URLS[storeName] || null
         };
 
+        // If you care about verifying Zappos blob source, merge metadata MUST load.
+        if (storeName === "Zappos" && mergeMissing) {
+          health.issues.push({ type: 'critical', message: '🚨 Cannot verify Zappos blob source (merge metadata missing)' });
+          health.status = 'critical';
+        }
+
         // Best-effort metadata: if /api/merge-deals has a matching key, use it.
-        // (If your storeMetadata keys are different, the debug panel shows them.)
         if (storeMetadata[storeName]) {
           const m = storeMetadata[storeName];
           health.metadata = {
             timestamp: m.timestamp || null,
-            duration: m.duration != null ? String(m.duration) : null
+            duration: m.duration != null ? String(m.duration) : null,
+            blobUrl: m.blobUrl || null,
           };
+
+          // Enforce: certain stores must come from a specific current blob.
+          // If merge-deals uses an old blob (or doesn't report blobUrl), flag CRITICAL.
+          const expectedBlob = EXPECTED_STORE_BLOBS[storeName] || null;
+          const actualBlob = health.metadata?.blobUrl || null;
+
+          if (expectedBlob) {
+            if (!actualBlob) {
+              health.issues.push({ type: 'critical', message: `🚨 Missing blobUrl in merge metadata (expected current blob)` });
+              health.status = 'critical';
+            } else if (actualBlob !== expectedBlob) {
+              health.issues.push({ type: 'critical', message: `🚨 Wrong blob used (expected current blob)` });
+              health.status = 'critical';
+            }
+          }
         } else {
           // If there's a single overall merge timestamp, fall back to it
           if (mergeData?.timestamp) {
             health.metadata = {
               timestamp: mergeData.timestamp,
-              duration: null
+              duration: null,
+              blobUrl: null,
             };
           }
         }
@@ -1683,6 +1726,9 @@ const HIDE_FROM_HISTORY = new Set([
 
         const scrapedUrlStr = health.scrapedUrl || 'Not Available';
 
+        // Prefer actual blobUrl; fall back to expected blob (for enforced stores like Zappos)
+        const sourceBlob = health.metadata?.blobUrl || EXPECTED_STORE_BLOBS[health.store] || null;
+
         const storeDeals = ALL_DEALS.filter(d => normalizeStore(d.store) === health.store);
         const genderStats = calculateGenderStats(storeDeals);
 
@@ -1701,6 +1747,14 @@ const HIDE_FROM_HISTORY = new Set([
               <strong>Scraped URL:</strong> ${scrapedUrlStr !== 'Not Available'
                 ? `<a href="${scrapedUrlStr}" target="_blank" rel="noopener noreferrer">${scrapedUrlStr}</a>`
                 : scrapedUrlStr}
+            </div>
+
+            <div class="scraped-url">
+              <strong>Source Blob:</strong> ${
+                sourceBlob
+                  ? `<a href="${sourceBlob}" target="_blank" rel="noopener noreferrer">${sourceBlob}</a>`
+                  : `Not Available`
+              }
             </div>
 
             <div class="health-metrics">
