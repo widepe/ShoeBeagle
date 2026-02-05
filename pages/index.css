@@ -41,6 +41,11 @@
 
   /* Scaled card paddings/gaps/fonts/badges */
   --grid-gap: calc(1.25rem * var(--grid-scale));
+    /* computed grid width = cols*card + gaps (no padding) */
+  --grid-w: calc(
+    (var(--cols) * var(--card-w)) +
+    ((var(--cols) - 1) * var(--grid-gap))
+  );
   --card-pad: calc(0.75rem * var(--grid-scale));
   --card-gap: calc(0.4rem * var(--grid-scale));
   --card-content-gap: calc(0.3rem * var(--grid-scale));
@@ -570,13 +575,17 @@ button{
 /* Footer + disclaimer */
 .disclaimer{
   width: 100%;
-  max-width: var(--maxw);
+  max-width: min(var(--grid-w), 100%);
   margin: 0.15rem auto 0;
   padding: 0 var(--pad);
   text-align: center;
   font-size: 1.0rem;
   color:#555;
+
+  /* helps wrapping behave nicely */
+  overflow-wrap: anywhere;
 }
+
 
 
 .footer{
@@ -656,9 +665,10 @@ button{
 ------------------------------------------ */
 
 /* Tablet landscape: 5 columns */
-@media (max-width: 1100px) and (orientation: landscape){
+@media (min-width: 820px) and (max-width: 1366px) and (orientation: landscape){
   :root{ --cols: 5; }
 }
+
 
 /* Tablet portrait: 4 columns */
 @media (max-width: 900px) and (orientation: portrait){
