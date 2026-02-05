@@ -569,13 +569,15 @@ button{
 
 /* Footer + disclaimer */
 .disclaimer{
-  font-size: 1.0rem;
-  color:#555;
+  width: 100%;
   max-width: var(--maxw);
   margin: 0.15rem auto 0;
-  text-align:center;
   padding: 0 var(--pad);
+  text-align: center;
+  font-size: 1.0rem;
+  color:#555;
 }
+
 
 .footer{
   margin-top: auto;
@@ -591,7 +593,7 @@ button{
 .footer a{
   color: var(--sb-blue);
   text-decoration:none;
-  font-weight:400;
+  font-weight:500;
   cursor:pointer;
   margin: 0 1.05rem;
   font-size: 1.0rem;
