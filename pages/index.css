@@ -241,7 +241,12 @@ button{
   cursor:pointer;
   transition: background 0.2s ease;
 }
-
+.btn-icon{
+  height: 60%;
+  width: auto;
+  display: block;
+  pointer-events: none; /* clicks still hit the button */
+}
 .btn-eq{
   height: var(--btn-h);
   width: var(--btn-eq-w);
