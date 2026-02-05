@@ -745,16 +745,11 @@
       'Road Runner Sports': 'https://www.roadrunnersports.com/rrs/mens/shoes/sale/_/N-u5Z1z141i0',
       'Running Warehouse': 'https://www.runningwarehouse.com/',
       'Shoebacca': 'https://www.shoebacca.com/collections/clearance-athletic',
-      "A Snail's Pace": 'https://shop.asnailspace.net/',
       'Zappos': 'https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso',
     };
 
     const STORE_ALIASES = {
       'als': 'ALS',
-      'a snail’s pace': "A Snail's Pace",
-      "a snail's pace": "A Snail's Pace",
-      'snails pace': "A Snail's Pace",
-      'snail pace': "A Snail's Pace",
       'rei': 'REI Outlet',
       'rei outlet': 'REI Outlet',
     };
@@ -850,10 +845,28 @@
       const fromDeals = getStoresFromDeals(ALL_DEALS);
       const fromUnaltered = getStoresFromDeals(UNALTERED_DEALS);
 
-      CANONICAL_STORES = Array.from(new Set([...fromUrls, ...fromDeals, ...fromUnaltered]))
-        .filter(s => s && s !== "Unknown")
-        .sort((a,b)=>a.localeCompare(b));
+CANONICAL_STORES = Array.from(new Set([...fromUrls, ...fromDeals, ...fromUnaltered]))
+  .filter(s => s && s !== "Unknown" && !EXCLUDED_STORES.has(s))
+  .sort((a,b)=>a.localeCompare(b));
+
     }
+    function getLastUpdatedInfo(dealsJsonRaw, mergeData) {
+  // Prefer deals.json object's own lastUpdated (if present),
+  // otherwise fall back to merge-deals timestamp.
+  const dealsObj =
+    (!Array.isArray(dealsJsonRaw) && dealsJsonRaw && typeof dealsJsonRaw === "object")
+      ? dealsJsonRaw
+      : null;
+
+  const lastUpdated = dealsObj?.lastUpdated || mergeData?.timestamp || mergeData?.lastUpdated || null;
+
+  if (!lastUpdated) return { raw: null, display: "Not Available" };
+
+  const d = new Date(lastUpdated);
+  const ts = d.getTime();
+  const display = Number.isFinite(ts) ? d.toLocaleString() : String(lastUpdated);
+  return { raw: lastUpdated, display };
+}
 
     // ------------------------------------------------------------
     // Scraper History
@@ -923,7 +936,12 @@
       }
 
       // Remove these from the history list per your request
-      const HIDE_FROM_HISTORY = new Set(["Cheerio (non-Holabird)", "Apify (non-Holabird)"]);
+const HIDE_FROM_HISTORY = new Set([
+  "Cheerio (non-Holabird)",
+  "Apify (non-Holabird)",
+  "Brooks Running",
+  "Brooks Sale",
+]);
 
       // Collect scraper names
       const allScrapers = new Set();
@@ -1154,9 +1172,13 @@
           .filter(b => b && b !== 'Unknown')
           .sort((a,b)=>a.localeCompare(b));
 
+        const mergedDealsUrl = `${BLOB_BASE}/deals.json`;
+        const lastUpdatedInfo = getLastUpdatedInfo(dealsJson, mergeData);
+        
         let debugHTML = `
           <strong>BLOB_BASE:</strong> ${BLOB_BASE}<br>
-          <strong>Total deals in array:</strong> ${deals.length}<br>
+          <strong>Merged Deals:</strong> <a href="${mergedDealsUrl}" target="_blank" style="color:#214478ff; word-break: break-all;">${mergedDealsUrl}</a><br>
+          <strong>Last Updated:</strong> ${lastUpdatedInfo.display}<br><br>          <strong>Total deals in array:</strong> ${deals.length}<br>
           <strong>Unaltered deals loaded:</strong> ${unalteredDeals.length}<br>
           <strong>Unknown brands:</strong> ${unknownBrands} (${deals.length ? ((unknownBrands / deals.length) * 100).toFixed(1) : '0.0'}%)<br>
           <strong>Unique stores found (${uniqueStores.length}):</strong> ${uniqueStores.join(', ')}<br>
