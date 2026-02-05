@@ -678,6 +678,28 @@ button{
 /* Mobile landscape: 3 columns */
 @media (max-width:800px) and (orientation:landscape){
   :root{ --cols:3; }
+  /* make sure layout is side-by-side */
+  .topbar{
+    flex-direction: row;
+    align-items: flex-end;
+  }
+
+  /* logo first (left) */
+  .top-right{
+    order: -1;
+    margin-right: calc(36px * var(--top-scale));
+  }
+
+  /* inputs + buttons to the right */
+  .top-left{
+    order: 0;
+    min-width: 0;
+  }
+
+  /* swap the logo file */
+  .brand-logo{
+    content: url("/images/logoV2.svg");
+  }
 }
 
 /* ---------- MOBILE PORTRAIT ----------
@@ -734,13 +756,18 @@ button{
     min-width: 0;               /* critical: prevents overflow */
   }
 
-.brand-logo{
-  content: url("/images/logoV3.svg");
-  height: calc(var(--input-h) * 2 + var(--gap));
-  width: auto;
-  max-width: none;   /* ← THIS was stopping it */
-  display: block;
+  .brand-logo{
+    content: url("/images/logoV3.svg");
+
+    height: calc(var(--input-h) * 2 + var(--gap));
+    max-height: calc(var(--input-h) * 2 + var(--gap)); /* ← IMPORTANT */
+
+    width: auto;
+    max-width: none; /* or max-width: 40vw; if you want a safety cap */
+    display: block;
+  }
 }
+
 
 
   /* make sure rows can shrink and never push past viewport */
