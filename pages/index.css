@@ -244,9 +244,11 @@ button{
 .btn-icon{
   height: 60%;
   width: auto;
+  max-height: 100%;
   display: block;
-  pointer-events: none; /* clicks still hit the button */
+  pointer-events: none;
 }
+
 .btn-eq{
   height: var(--btn-h);
   width: var(--btn-eq-w);
