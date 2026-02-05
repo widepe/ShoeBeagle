@@ -879,6 +879,11 @@ button{
     pointer-events: none;
   }
 */
+    /* mobile portrait only – fetch button icon */
+  #fetchBtn .btn-icon{
+    content: url("/images/fetch_vert.svg");
+    height: 60%;
+  }
   .card-tags{
     position: absolute;
     left: 0.35rem;
