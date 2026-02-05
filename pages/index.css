@@ -911,8 +911,10 @@ button{
   .daily-deals-header{ font-size: 1.5rem; }
   .status-message{ font-size: 0.9rem; }
 }
-
-
+  /* swap fetch button icon only for mobile portrait */
+  #fetchBtn .btn-icon{
+    content: url("/images/fetch_vert.svg");
+  }
 
 /* ---------------- Pager transition (RESULTS ONLY) ---------------- */
 #results{
