@@ -170,7 +170,28 @@ let pageIndex = 0;
 const prevPageBtn = document.getElementById("prevPage");
 const nextPageBtn = document.getElementById("nextPage");
 const pageLabelEl = document.getElementById("pageLabel");
+function isMobilePortrait(){
+  return window.matchMedia("(max-width: 768px) and (orientation: portrait)").matches;
+}
 
+function runPagerTransitionThen(fn){
+  // No animation on mobile portrait
+  if (isMobilePortrait()) {
+    fn();
+    return;
+  }
+
+  // Animate OUT
+  resultsEl.classList.add("is-switching");
+
+  // Wait for fade-out, then render, then fade-in
+  setTimeout(() => {
+    fn();
+    requestAnimationFrame(() => {
+      resultsEl.classList.remove("is-switching");
+    });
+  }, 160); // must match the CSS duration
+}
 
     let currentSearch = { brand: "", model: "" };
     let lastSearchResults = [];
@@ -666,26 +687,33 @@ function setPagerUI(total, shown){
 }
 if (prevPageBtn) {
   prevPageBtn.addEventListener("click", () => {
-    if (pageIndex > 0) {
+    const filtered = applyFilters(lastSearchResults);
+    if (pageIndex <= 0) return;
+
+    runPagerTransitionThen(() => {
       pageIndex--;
       renderFilteredResults(false);
       resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    });
   });
 }
+
 
 if (nextPageBtn) {
   nextPageBtn.addEventListener("click", () => {
     const filtered = applyFilters(lastSearchResults);
-const pages = totalPagesCount(filtered.length);
+    const pages = totalPagesCount(filtered.length);
 
-    if (pageIndex < pages - 1) {
+    if (pageIndex >= pages - 1) return;
+
+    runPagerTransitionThen(() => {
       pageIndex++;
       renderFilteredResults(false);
       resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    });
   });
 }
+
     if (genderChips) {
       genderChips.addEventListener("click", (e) => {
         const btn = e.target.closest(".chip");
