@@ -249,6 +249,11 @@ button{
   pointer-events: none;
 }
 
+  #fetchBtn .btn-icon{
+  height: 48%;
+}
+
+
 .btn-eq{
   height: var(--btn-h);
   width: var(--btn-eq-w);
