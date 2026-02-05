@@ -766,3 +766,23 @@ button{
     min-height: auto;
   }
 }
+/* ---------------- Pager transition (RESULTS ONLY) ---------------- */
+#results{
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+#results.is-switching{
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+/* Disable the transition on MOBILE PORTRAIT */
+@media (max-width: 768px) and (orientation: portrait){
+  #results{
+    transition: none !important;
+  }
+  #results.is-switching{
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
