@@ -882,7 +882,7 @@ button{
     /* mobile portrait only – fetch button icon */
   #fetchBtn .btn-icon{
     content: url("/images/fetch_vert.svg");
-    height: 60%;
+    height: 70%;
   }
   .card-tags{
     position: absolute;
