@@ -557,7 +557,7 @@ button{
 
 /* Footer + disclaimer */
 .disclaimer{
-  font-size: 1.2rem;
+  font-size: 1.0rem;
   color:#555;
   max-width: var(--maxw);
   margin: 0.15rem auto 0;
@@ -587,11 +587,11 @@ button{
 .footer a:hover{ text-decoration: underline; }
 
 .footer-copy{
-  font-size: 0.85em;
+  font-size: 0.75em;
   opacity: 0.75;
 }
 .footer-links{
-  font-size: 1.2rem;
+  font-size: 1.1rem;
 }
 
 
