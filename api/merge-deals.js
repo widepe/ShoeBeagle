@@ -86,6 +86,33 @@ function parseDurationMs(dur) {
   return Number.isFinite(n) ? Math.round(n) : null;
 }
 
+/** ------------ Freshness helpers ------------ **/
+
+function parseTimestampMs(ts) {
+  if (!ts) return null;
+  const d = new Date(ts);
+  const ms = d.getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function ageMsFromTimestamp(ts, nowMs = Date.now()) {
+  const ms = parseTimestampMs(ts);
+  if (ms == null) return null;
+  return nowMs - ms;
+}
+
+function isOlderThanDays(ts, days, nowMs = Date.now()) {
+  const age = ageMsFromTimestamp(ts, nowMs);
+  if (age == null) return false; // unknown age => do NOT exclude by default
+  return age > days * 24 * 60 * 60 * 1000;
+}
+
+function formatAgeDays(ts, nowMs = Date.now()) {
+  const age = ageMsFromTimestamp(ts, nowMs);
+  if (age == null) return null;
+  return Math.round((age / (24 * 60 * 60 * 1000)) * 10) / 10; // 1 decimal
+}
+
 /** ------------ Price range helpers ------------ **/
 
 /**
@@ -1202,6 +1229,7 @@ module.exports = async (req, res) => {
   }
 
   const start = Date.now();
+  const nowMs = Date.now();
 
   // ============================================================================
   // BLOB URLs (blob-only mode)
@@ -1221,7 +1249,30 @@ module.exports = async (req, res) => {
   const SHOEBACCA_CLEARANCE_BLOB_URL = String(process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "").trim();
   const SNAILSPACE_SALE_BLOB_URL = String(process.env.SNAILSPACE_SALE_BLOB_URL || "").trim();
 
+  // --------------------------------------------------------------------------
+  // Zappos (NEW)
+  // Update: Zappos source uses the new blob address.
+  // Prefer env var if set, otherwise fall back to the new known blob.
+  // --------------------------------------------------------------------------
+  const ZAPPOS_DEALS_BLOB_URL = String(
+    process.env.ZAPPOS_DEALS_BLOB_URL ||
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-zappos.json"
+  ).trim();
+
   const SCRAPER_DATA_BLOB_URL = String(process.env.SCRAPER_DATA_BLOB_URL || "").trim();
+
+  // --------------------------------------------------------------------------
+  // Freshness policy (your requirement):
+  //
+  // - If a scraper's last successful data is not from the last 24 hours:
+  //     we STILL merge it (that's fine).
+  // - BUT if the source timestamp is OLDER THAN 7 DAYS:
+  //     we DO NOT add ANY deals from that source to the merged deals.
+  //     That store should show 0 deals.
+  //
+  // This ensures very stale stores don't keep showing old inventory.
+  // --------------------------------------------------------------------------
+  const MAX_STORE_DATA_AGE_DAYS = 7;
 
   try {
     console.log("[MERGE] Starting merge:", new Date().toISOString());
@@ -1231,6 +1282,7 @@ module.exports = async (req, res) => {
     console.log("[MERGE] BROOKS_DEALS_BLOB_URL set?", !!BROOKS_DEALS_BLOB_URL);
     console.log("[MERGE] ROADRUNNER_DEALS_BLOB_URL set?", !!ROADRUNNER_DEALS_BLOB_URL);
     console.log("[MERGE] REI_DEALS_BLOB_URL set?", !!REI_DEALS_BLOB_URL);
+    console.log("[MERGE] ZAPPOS_DEALS_BLOB_URL set?", !!ZAPPOS_DEALS_BLOB_URL);
 
     const sources = [
       { name: "Cheerio (non-Holabird)", blobUrl: CHEERIO_DEALS_BLOB_URL },
@@ -1238,6 +1290,9 @@ module.exports = async (req, res) => {
       { name: "Brooks", blobUrl: BROOKS_DEALS_BLOB_URL },
       { name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
       { name: "REI", blobUrl: REI_DEALS_BLOB_URL },
+
+      // Zappos (NEW source)
+      { name: "Zappos", blobUrl: ZAPPOS_DEALS_BLOB_URL },
 
       { name: "Holabird Mens Road", blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL },
       { name: "Holabird Womens Road", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
@@ -1269,17 +1324,45 @@ module.exports = async (req, res) => {
           continue;
         }
 
-        perSource[name] = { ok: true, via: source, count: safeArray(deals).length };
+        // Determine staleness (7-day exclusion rule).
+        const isTooOld = isOlderThanDays(timestamp, MAX_STORE_DATA_AGE_DAYS, nowMs);
+        const ageDays = formatAgeDays(timestamp, nowMs);
 
+        // Record metadata (always)
         storeMetadata[name] = {
           blobUrl: blobUrl || null,
           timestamp: timestamp || null,
           duration: duration || null,
           count: safeArray(deals).length,
+
+          // Helpful flags for dashboard/health:
+          ageDays: ageDays != null ? ageDays : null,
+          staleExcluded: !!isTooOld,
+          staleThresholdDays: MAX_STORE_DATA_AGE_DAYS,
         };
 
         perSourceMeta[name] = { name, source, deals, blobUrl, timestamp, duration, payloadMeta };
 
+        if (isTooOld) {
+          // IMPORTANT: Per your requirement, data older than 7 days is NOT merged.
+          // This will cause the store to show 0 deals in merged output.
+          perSource[name] = {
+            ok: true,
+            via: source,
+            count: 0,
+            staleExcluded: true,
+            ageDays: ageDays != null ? ageDays : null,
+            note: `Excluded: source data older than ${MAX_STORE_DATA_AGE_DAYS} days`,
+          };
+
+          console.log(
+            `[MERGE] EXCLUDING SOURCE (too old): ${name} | ageDays=${ageDays ?? "unknown"} | ts=${timestamp ?? "none"}`
+          );
+          continue;
+        }
+
+        // Normal include (even if older than 24h): last successful scraped data is still merged unless >7d old.
+        perSource[name] = { ok: true, via: source, count: safeArray(deals).length };
         allDealsRaw.push(...safeArray(deals));
       } else {
         const msg = settled[i].reason?.message || String(settled[i].reason);
@@ -1290,7 +1373,7 @@ module.exports = async (req, res) => {
     }
 
     console.log("[MERGE] Source counts:", perSource);
-    console.log("[MERGE] Total raw deals:", allDealsRaw.length);
+    console.log("[MERGE] Total raw deals (after staleness exclusion):", allDealsRaw.length);
 
     const unalteredPayload = {
       lastUpdated: new Date().toISOString(),
@@ -1305,22 +1388,21 @@ module.exports = async (req, res) => {
     const filtered = normalized.filter(isValidRunningShoe);
     const unique = dedupeDeals(filtered);
 
-// --- SCHEMA CHECK (non-fatal) ---
-let schemaWarnings = 0;
-for (const d of unique) {
-  const errs = assertDealSchema(d);
-  if (errs.length) {
-    schemaWarnings++;
-    console.log("[SCHEMA WARNING]", errs.join("; "), {
-      store: d.store,
-      listingURL: d.listingURL,
-    });
-  }
-}
-console.log(`[SCHEMA] warnings: ${schemaWarnings}`);
-// --- END SCHEMA CHECK ---
+    // --- SCHEMA CHECK (non-fatal) ---
+    let schemaWarnings = 0;
+    for (const d of unique) {
+      const errs = assertDealSchema(d);
+      if (errs.length) {
+        schemaWarnings++;
+        console.log("[SCHEMA WARNING]", errs.join("; "), {
+          store: d.store,
+          listingURL: d.listingURL,
+        });
+      }
+    }
+    console.log(`[SCHEMA] warnings: ${schemaWarnings}`);
+    // --- END SCHEMA CHECK ---
 
-    
     // Sort: effective discount (exact else up-to)
     const discountForSort = (d) => {
       const exact = toNumber(d.discountPercent);
