@@ -591,10 +591,10 @@ button{
 .footer a{
   color: var(--sb-blue);
   text-decoration:none;
-  font-weight:600;
+  font-weight:400;
   cursor:pointer;
   margin: 0 1.05rem;
-  font-size: 1.2rem;
+  font-size: 1.0rem;
 }
 .footer a:hover{ text-decoration: underline; }
 
@@ -603,7 +603,7 @@ button{
   opacity: 0.75;
 }
 .footer-links{
-  font-size: 0.9rem;
+  font-size: 0.7rem;
 }
 
 
@@ -647,15 +647,15 @@ button{
 
 /* ---------- RESPONSIVE COLUMN COUNTS ----------
    Desktop: 6
-   Tablet landscape: 6
+   Tablet landscape: 5
    Tablet portrait: 4
    Mobile landscape: 3
    Mobile portrait: 1 (separate block below)
 ------------------------------------------ */
 
-/* Tablet landscape: 6 columns */
+/* Tablet landscape: 5 columns */
 @media (max-width: 1100px) and (orientation: landscape){
-  :root{ --cols: 6; }
+  :root{ --cols: 5; }
 }
 
 /* Tablet portrait: 4 columns */
