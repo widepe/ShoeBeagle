@@ -340,7 +340,7 @@ button{
 /* ---------- Status / filters ---------- */
 
 .status-message{
-  font-size:1.5rem;
+  font-size:1rem;
   font-weight:500;
   color:var(--sb-blue);
   margin:0.35rem auto 0;
@@ -424,7 +424,7 @@ button{
 }
 
 .daily-deals-header{
-  font-size:3rem;
+  font-size:2.5rem;
   font-weight:700;
   color:var(--sb-blue);
   margin-bottom:1rem;
@@ -670,37 +670,79 @@ button{
   :root{ --cols:5; }
 }
 
-/* Tablet portrait: 4 columns */
+/* Tablet portrait: 4 columns (logo left, inputs right, logo height = 2 inputs + gap) */
 @media (max-width:900px) and (orientation:portrait){
   :root{ --cols:4; }
+
+  /* FORCE side-by-side (prevent wrapping from base .topbar { flex-wrap: wrap; }) */
+  .topbar{
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+  }
+
+  /* logo on the left */
+  .top-right{
+    order: -1;
+    flex: 0 0 auto;
+    margin-right: calc(36px * var(--top-scale));
+    min-width: 0;
+  }
+
+  /* inputs + buttons on the right (shrink-friendly) */
+  .top-left{
+    order: 0;
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+  }
+
+  /* use logoV2 and match height to stacked inputs + gap */
+  .brand-logo{
+    content: url("/images/logoV2.svg");
+    height: calc(var(--input-h) * 2 + var(--gap));
+    max-height: calc(var(--input-h) * 2 + var(--gap));
+    width: auto;
+  }
 }
+
 
 /* Mobile landscape: 3 columns */
 @media (max-width:800px) and (orientation:landscape){
   :root{ --cols:3; }
-  /* make sure layout is side-by-side */
+
+  /* FORCE side-by-side: prevent wrap from base .topbar { flex-wrap: wrap; } */
   .topbar{
     flex-direction: row;
+    flex-wrap: nowrap;              /* key fix: stops logo jumping on top */
     align-items: flex-end;
   }
 
   /* logo first (left) */
   .top-right{
     order: -1;
+    flex: 0 0 auto;
     margin-right: calc(36px * var(--top-scale));
-  }
-
-  /* inputs + buttons to the right */
-  .top-left{
-    order: 0;
     min-width: 0;
   }
 
-  /* swap the logo file */
+  /* inputs + buttons to the right (shrink-friendly) */
+  .top-left{
+    order: 0;
+    flex: 1 1 0;                    /* key fix: overrides base flex: 1 1 520px */
+    width: auto;
+    min-width: 0;
+  }
+
+  /* swap the logo file + match height to stacked inputs + gap */
   .brand-logo{
     content: url("/images/logoV2.svg");
+    height: calc(var(--input-h) * 2 + var(--gap));
+    max-height: calc(var(--input-h) * 2 + var(--gap));
+    width: auto;
   }
 }
+
 
 /* ---------- MOBILE PORTRAIT ----------
    Fix overflow + add padding + skinny buttons (width = 2/3 height)
@@ -866,8 +908,8 @@ button{
   .card-store{ font-size: 0.95rem; }
   .card-price-row{ font-size: 1.05rem; }
 
-  .daily-deals-header{ font-size: 2.0rem; }
-  .status-message{ font-size: 1.05rem; }
+  .daily-deals-header{ font-size: 1.5rem; }
+  .status-message{ font-size: 0.9rem; }
 }
 
 
