@@ -737,7 +737,7 @@ button{
     flex-wrap: nowrap;          /* keep logo + inputs on one line */
     gap: var(--gap);
     padding: 0 max(10px, var(--pad));
-    max-width: calc(var(--grid-w) + (var(--pad) * 2));
+    width: 100%;
   }
 
   .top-right{
