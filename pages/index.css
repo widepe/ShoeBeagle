@@ -723,6 +723,11 @@ button{
 
     --card-w: 1px;
     --grid-gap: calc(1.0rem * var(--grid-scale));
+    /* make badges smaller in mobile portrait */
+    --badge-font:  calc(0.7rem * var(--grid-scale));
+    --badge-pad-y: calc(0.10rem * var(--grid-scale));
+    --badge-pad-x: calc(0.35rem * var(--grid-scale));
+    --badge-offset: calc(0.20rem * var(--grid-scale));    
   }
 
   .topbar{
@@ -816,7 +821,7 @@ button{
     border-radius: 0.6rem;
     display: block;
   }
-
+/*   Delete if badges work in mobile and everywhere else
   .discount-badge{
     position: absolute;
     top: 0.35rem;
@@ -831,7 +836,7 @@ button{
     color: #fff;
     pointer-events: none;
   }
-
+*/
   .card-tags{
     position: absolute;
     left: 0.35rem;
