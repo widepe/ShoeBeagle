@@ -683,9 +683,7 @@ button{
 /* ---------- MOBILE PORTRAIT ----------
    Fix overflow + add padding + skinny buttons (width = 2/3 height)
    + remove hard max widths/heights so cards scale naturally
--------------------------------------- */
-/* ---------- MOBILE PORTRAIT (FIXED): logo inline left, cards boxed, badges visible,
-   and ALL fonts ~1/3 smaller
+
 -------------------------------------- */
 @media (max-width:560px){
 
@@ -699,11 +697,11 @@ button{
 
     /* shorter controls */
     --gap: calc(12px * var(--top-scale));
-    --input-h: calc(52px * var(--top-scale));
-    --btn-h:   calc(46px * var(--top-scale));
+    --input-h: calc(64px * var(--top-scale));
+    --btn-h:   calc(64px * var(--top-scale));
 
     /* MENU + FETCH: width = 2/3 height */
-    --btn-eq-w: calc(var(--btn-h) * 0.6667);
+    --btn-eq-w: calc(var(--btn-h) * 0.8);
 
     /* in portrait mobile we use 1fr grid; card-w not used */
     --card-w: 1px;
@@ -736,13 +734,14 @@ button{
     min-width: 0;               /* critical: prevents overflow */
   }
 
-  .brand-logo{
-    content: url("/images/logoV3.svg");
-    height: calc(var(--input-h) * 2 + var(--gap));
-    width: auto;
-    max-width: 140px;           /* keep it from pushing layout wide */
-    display: block;
-  }
+.brand-logo{
+  content: url("/images/logoV3.svg");
+  height: calc(var(--input-h) * 2 + var(--gap));
+  width: auto;
+  max-width: none;   /* ← THIS was stopping it */
+  display: block;
+}
+
 
   /* make sure rows can shrink and never push past viewport */
   .row{ min-width: 0; }
