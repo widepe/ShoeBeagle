@@ -147,7 +147,7 @@ body{
 /* ---------- Logo ---------- */
 
 .brand-logo{
-  content: url("/images/logoV3.svg");
+  content: url("/images/logo.svg");
 
   /* EXACT height of the two stacked buttons + the gap between them */
   height: calc(var(--btn-h) * 2 + var(--gap));
@@ -737,7 +737,7 @@ button{
     flex-wrap: nowrap;          /* keep logo + inputs on one line */
     gap: var(--gap);
     padding: 0 max(10px, var(--pad));
-    width: 100%;
+    max-width: calc(var(--grid-w) + (var(--pad) * 2));
   }
 
   .top-right{
