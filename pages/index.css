@@ -1,9 +1,19 @@
 /* /pages/index.css */
+
+/* =========================================================
+   GLOBAL RESET + SAFETY
+========================================================= */
 *{ box-sizing:border-box; }
 
-/* Prevent any accidental sideways scroll from a single oversized child */
+/* Prevent accidental sideways scroll */
 html, body{ max-width:100%; overflow-x:hidden; }
 
+/* iOS Safari: prevent weird tap highlight & improve stability */
+html{ -webkit-text-size-adjust:100%; }
+
+/* =========================================================
+   DESIGN TOKENS
+========================================================= */
 :root{
   --sb-blue:#214478ff;
   --bg:#f4ede3ff;
@@ -22,7 +32,7 @@ html, body{ max-width:100%; overflow-x:hidden; }
   --top-scale:0.70;
   --grid-scale:0.70;
 
-  /* ---------- TOP UI (logo + inputs + buttons) ---------- */
+  /* ---------- TOP UI ---------- */
   --gap:calc(16px * var(--top-scale));
 
   --input-h:calc(56px * var(--top-scale));
@@ -39,10 +49,7 @@ html, body{ max-width:100%; overflow-x:hidden; }
   /* ---------- GRID + CARDS ---------- */
   --cols:6;
 
-  /* MASTER card width drives total grid width */
   --card-w:calc(260px * var(--grid-scale));
-
-  /* Scaled card paddings/gaps/fonts/badges */
   --grid-gap:calc(1.25rem * var(--grid-scale));
 
   /* computed grid width = cols*card + gaps (no padding) */
@@ -67,14 +74,14 @@ html, body{ max-width:100%; overflow-x:hidden; }
 
   --img-radius:calc(0.6rem * var(--grid-scale));
 
-  /* scale borders/radii so EVERYTHING is proportional */
   --card-border:calc(2px * var(--grid-scale));
   --img-border:calc(1px * var(--grid-scale));
   --card-radius:calc(0.75rem * var(--grid-scale));
 }
 
-/* ---------- Base layout ---------- */
-
+/* =========================================================
+   BASE LAYOUT
+========================================================= */
 body{
   margin:0;
   font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
@@ -84,12 +91,10 @@ body{
   display:flex;
   justify-content:center;
 
-  /* give the viewport real breathing room (also helps mobile portrait) */
   padding: max(8px, env(safe-area-inset-top)) max(var(--pad), env(safe-area-inset-right))
            max(8px, env(safe-area-inset-bottom)) max(var(--pad), env(safe-area-inset-left));
 }
 
-/* Make the whole app column fill viewport so footer can stick */
 .app{
   width:100%;
   max-width:var(--maxw);
@@ -98,38 +103,39 @@ body{
   align-items:center;
   gap:0.75rem;
   min-height:100vh;
-
-  /* extra safety against any overflow-x from children */
   overflow-x:clip;
 }
 
-/* Main content grows so footer can sit at bottom */
 #mainContent{
   width:100%;
   flex:1 0 auto;
 }
-/* For image at very top of Mobile Portrait mode */
-    .mobile-top-banner{
-    display:block;
-    width:80%;
-    height:auto;
-    object-fit:cover;
-    margin:0;             /* ensure no default gap */
-    padding:0;    margin-left:auto;
-    margin-right:auto;
-  }
-/* ---------- Topbar (logo left, inputs right) ---------- */
 
+/* =========================================================
+   MOBILE TOP BANNER (MOBILE PORTRAIT ONLY)
+   - Hidden everywhere by default
+========================================================= */
+.mobile-top-banner{
+  display:none;              /* ✅ fixes desktop showing */
+  width:80%;
+  height:auto;
+  object-fit:cover;
+  margin:0 auto;
+  padding:0;
+}
+
+/* =========================================================
+   TOPBAR (inputs + logo)
+========================================================= */
 .topbar{
   width:100%;
   display:flex;
-  align-items:flex-end; /* align bottoms */
-  justify-content:center; /* center the whole cluster */
+  align-items:flex-end;
+  justify-content:center;
   gap:var(--gap);
-  margin-top:2px;      
-  padding-top:0;  
+  margin-top:2px;
   flex-wrap:wrap;
-  padding: 0 var(--pad);
+  padding:0 var(--pad);
 }
 
 .top-left{
@@ -147,13 +153,14 @@ body{
   display:flex;
   align-items:flex-start;
   justify-content:center;
-  order:-1; /* logo on the left (desktop/tablet) */
+  order:-1;
   margin-right:calc(36px * var(--top-scale));
   min-width:0;
 }
 
-/* ---------- Logo ---------- */
-
+/* =========================================================
+   LOGO
+========================================================= */
 .brand-logo{
   height:calc((max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * var(--logo-scale));
   max-height:calc((max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * var(--logo-scale));
@@ -166,8 +173,9 @@ body{
 }
 .brand-logo:hover{ opacity:0.9; }
 
-/* ---------- Form rows ---------- */
-
+/* =========================================================
+   FORM ROWS
+========================================================= */
 form#search-form{
   width:100%;
   max-width:100%;
@@ -191,6 +199,9 @@ form#search-form{
   min-width:0;
 }
 
+/* IMPORTANT:
+   iOS can zoom on focus if font-size < 16px.
+   We'll enforce a minimum in MOBILE PORTRAIT later. */
 input[type="text"], input[type="search"]{
   width:100%;
   height:var(--input-h);
@@ -204,7 +215,6 @@ input[type="text"], input[type="search"]{
 
   color:#444;
   transition:border-color 0.2s ease, background-color 0.2s ease;
-
   min-width:0;
 }
 input::placeholder{ color:#999; opacity:1; }
@@ -232,8 +242,9 @@ input::placeholder{ color:#999; opacity:1; }
 .input-clear:hover{ background:#666; }
 .input-wrapper:has(input:not(:placeholder-shown)) .input-clear{ display:flex; }
 
-/* ---------- Suggestions ---------- */
-
+/* =========================================================
+   SUGGESTIONS
+========================================================= */
 .suggestions{
   position:absolute;
   top:calc(var(--input-h) + 4px);
@@ -260,8 +271,9 @@ input::placeholder{ color:#999; opacity:1; }
 .suggestion-item:hover{ background:#e8f0ff; }
 .suggestion-item.active{ background:#e8f0ff; }
 
-/* ---------- Buttons ---------- */
-
+/* =========================================================
+   BUTTONS
+========================================================= */
 button{
   border:none;
   border-radius:calc(0.5rem * var(--top-scale));
@@ -305,14 +317,7 @@ button{
   pointer-events:none;
 }
 
-.menu-icon{
-  font-size:var(--menu-icon-size);
-  line-height:1;
-  display:inline-block;
-  transform:scaleX(2);
-}
-
-/* Menu dropdown anchored to the menu button wrapper */
+/* wrapper stays */
 .button-wrapper{
   position:relative;
   display:flex;
@@ -321,111 +326,96 @@ button{
   flex:0 0 auto;
 }
 
-.menu-dropdown{
-  position:absolute;
-  top:calc(100% + calc(0.25rem * var(--top-scale)));
-  right:0;
-  background:#fff;
-  border:1px solid var(--sb-blue);
-  border-radius:calc(0.5rem * var(--top-scale));
-  box-shadow:0 6px 12px rgba(0,0,0,0.08);
-  min-width:calc(160px * var(--top-scale));
-  display:none;
-  z-index:100;
-  overflow:hidden;
-}
-.menu-dropdown.show{ display:block; }
-
-.menu-dropdown a{
-  display:block;
-  padding:calc(0.65rem * var(--top-scale)) calc(1rem * var(--top-scale));
-  color:var(--sb-blue);
-  text-decoration:none;
-  font-size:calc(1.25rem * var(--top-scale));
-  transition:background 0.2s ease;
-}
-.menu-dropdown a:hover{ background:#e8f0ff; }
-
 /* =========================================================
-   Links ribbon — MATCHES shoe cards exactly
-   ========================================================= */
-
+   LINKS RIBBON (TWO LINES + LINKS BETWEEN)
+   This replaces the "blue box ribbon" look.
+========================================================= */
 .links-ribbon{
-  /* same outer width behavior as the grid cluster */
-  width: min(var(--grid-w), 100%);
-  margin: 10px auto 0;
-  padding: 0;
+  width:100%;
+  max-width:min(calc(var(--grid-w) + (2 * var(--pad))), 100%);
+  margin:0.35rem auto 0;
+  padding:0 var(--pad);
 
-  /* EXACT match to .card */
-  background: #d9e1ebff;
-  border: var(--card-border) solid var(--sb-blue);
-  border-radius: var(--card-radius);
+  /* ✅ remove blue box styling */
+  background:transparent;
+  border:none;
+  border-radius:0;
 }
 
 .links-ribbon-inner{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: calc(0.4rem * var(--grid-scale));
-  padding: calc(0.75rem * var(--grid-scale));
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:0.75rem;
+  padding:0.35rem 0;
+
+  /* no background / border here either */
+  background:transparent;
+  border:none;
+  border-radius:0;
 }
 
+/* top & bottom lines */
+.links-ribbon-inner::before,
+.links-ribbon-inner::after{
+  content:"";
+  display:block;
+  width:100%;
+  height:1px;
+  background:rgba(33,68,120,0.25);
+}
+
+/* center row content */
 .links-ribbon-left{
-  display: flex;
-  align-items: center;
-  gap: calc(0.4rem * var(--grid-scale));
-  flex-wrap: wrap;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:0.9rem;
+  flex-wrap:wrap;
+  white-space:nowrap;
 }
 
 .links-ribbon-title{
-  font-weight: 700;
-  color: var(--sb-blue);
+  display:none; /* you wanted just lines + links; hide title */
 }
 
 .links-ribbon-links{
-  display: flex;
-  gap: calc(0.4rem * var(--grid-scale));
-  flex-wrap: wrap;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:0.9rem;
+  flex-wrap:wrap;
 }
 
 .links-ribbon-links a{
-  color: var(--sb-blue);
-  text-decoration: none;
-  font-weight: 600;
-  font-size: var(--card-store-size);
+  color:var(--sb-blue);
+  text-decoration:none;
+  font-weight:700;
+  font-size:1rem;
 }
+.links-ribbon-links a:hover{ text-decoration:underline; }
 
-.links-ribbon-links a:hover{
-  text-decoration: underline;
-}
-
+/* close button optional; keep it, but subtle */
 .links-ribbon .chip-close{
-  margin-left: auto;
-
-  width: calc(22px * var(--top-scale));
-  height: calc(22px * var(--top-scale));
-
-  border-radius: 999px;
-  border: 1px solid var(--sb-blue);
-  background: #fafdf4;
-  color: var(--sb-blue);
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  font-size: calc(0.75rem * var(--top-scale));
-  font-weight: 800;
-  line-height: 1;
-  cursor: pointer;
+  width:26px;
+  height:26px;
+  border-radius:999px;
+  border:1px solid rgba(33,68,120,0.35);
+  background:transparent;
+  color:var(--sb-blue);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:1.1rem;
+  line-height:1;
+  cursor:pointer;
 }
+.links-ribbon .chip-close:hover{ background:rgba(33,68,120,0.08); }
 
-.links-ribbon .chip-close:hover{
-  background: #e8f0ff;
-}
-
-/* ---------- Status / filters ---------- */
-
+/* =========================================================
+   STATUS / FILTERS
+========================================================= */
 .status-message{
   font-size:1rem;
   font-weight:500;
@@ -435,23 +425,21 @@ button{
   width:100%;
   max-width:var(--maxw);
   min-height:1.4em;
-  padding: 0 var(--pad);
+  padding:0 var(--pad);
 }
 
 .filters{
   width:fit-content;
   max-width:100%;
   margin:0.75rem auto 0.25rem;
-
   display:flex;
   flex-direction:row;
   align-items:center;
   justify-content:center;
   gap:calc(1rem * var(--top-scale));
   flex-wrap:wrap;
-
   text-align:center;
-  padding: 0 var(--pad);
+  padding:0 var(--pad);
 }
 
 .filter-row{
@@ -480,21 +468,16 @@ button{
   border:1px solid var(--sb-blue);
   background:#fafdf4;
   color:var(--sb-blue);
-
   width:calc(22px * var(--top-scale));
   height:calc(22px * var(--top-scale));
-
   border-radius:999px;
   padding:0;
-
   display:inline-flex;
   align-items:center;
   justify-content:center;
-
   font-size:calc(0.75rem * var(--top-scale));
   font-weight:800;
   line-height:1;
-
   cursor:pointer;
   transition:background 0.2s ease, color 0.2s ease;
   position:relative;
@@ -503,12 +486,10 @@ button{
 .chip:hover{ background:#e8f0ff; }
 .chip.active{ background:var(--sb-blue); color:#fff; }
 
-/* ---------- Grids ---------- */
-
-.daily-deals{
-  width:100%;
-  margin-top:1.0rem;
-}
+/* =========================================================
+   GRIDS
+========================================================= */
+.daily-deals{ width:100%; margin-top:1.0rem; }
 
 .daily-deals-header{
   font-size:2rem;
@@ -516,28 +497,23 @@ button{
   color:var(--sb-blue);
   margin-bottom:1rem;
   text-align:center;
-  padding: 0 var(--pad);
+  padding:0 var(--pad);
 }
 
-/* =========================
-   GRID WIDTH IS CONTROLLED BY --grid-scale
-========================== */
 .shoe-grid{
   display:grid;
   gap:var(--grid-gap);
-
   grid-template-columns:repeat(var(--cols), var(--card-w));
-
   width:fit-content;
   max-width:100%;
   margin:1.0rem auto 0;
   justify-content:center;
-
   padding:0 var(--pad);
 }
 
-/* ---------- Cards (DESKTOP/TABLET: fixed proportions) ---------- */
-
+/* =========================================================
+   CARDS
+========================================================= */
 .card{
   background:#d9e1ebff;
   border:var(--card-border) solid var(--sb-blue);
@@ -565,7 +541,7 @@ button{
   position:relative;
   width:100%;
   overflow:hidden;
-  aspect-ratio:1 / 1; /* square */
+  aspect-ratio:1 / 1; /* ✅ square images */
 }
 
 .card img{
@@ -634,7 +610,6 @@ button{
   text-overflow:ellipsis;
   min-height:calc(1.25em * 3);
 }
-
 .card-title strong{ font-size:1.15em; }
 
 .card-store{
@@ -658,25 +633,9 @@ button{
   font-size:0.85em;
 }
 
-/* Load more */
-.load-more-wrap{
-  width:100%;
-  display:flex;
-  justify-content:center;
-  margin:1rem 0 0.5rem;
-}
-.load-more-btn{
-  height:42px;
-  padding:0 1.25rem;
-  border-radius:0.75rem;
-  border:1px solid var(--sb-blue);
-  background:var(--sb-blue);
-  color:#fff;
-  font-weight:700;
-}
-.load-more-btn:hover{ background:#1a3661; }
-
-/* Footer + disclaimer */
+/* =========================================================
+   DISCLAIMER (fix 1-char vertical wrap)
+========================================================= */
 .disclaimer{
   width:100%;
   max-width:min(var(--grid-w), 100%);
@@ -686,12 +645,14 @@ button{
   font-size:1.0rem;
   color:#555;
 
-  /* wrap normally (no 1-character vertical line) */
   white-space:normal;
   overflow-wrap:break-word;
   word-break:normal;
 }
 
+/* =========================================================
+   FOOTER
+========================================================= */
 .footer{
   margin-top:auto;
   padding:0.75rem 1rem;
@@ -713,12 +674,12 @@ button{
 }
 .footer a:hover{ text-decoration:underline; }
 
-.footer-copy{
-  font-size:0.75em;
-  opacity:0.75;
-}
+.footer-copy{ font-size:0.75em; opacity:0.75; }
 .footer-links{ font-size:0.7rem; }
 
+/* =========================================================
+   PAGER
+========================================================= */
 .pager{
   width:100%;
   display:none;
@@ -754,13 +715,16 @@ button{
   text-align:center;
 }
 
-/* ---------- RESPONSIVE COLUMN COUNTS ---------- */
+/* =========================================================
+   RESPONSIVE VIEWS
+========================================================= */
 
-/* Tablet landscape: 5 columns (top UI constrained to grid width + input wrapper capped) */
+/* =========================
+   TABLET LANDSCAPE VIEW
+========================== */
 @media (min-width:820px) and (max-width:1366px) and (orientation:landscape){
   :root{ --cols:5; }
 
-  /* constrain top UI to grid width + keep everything on one line */
   .topbar{
     width:100%;
     max-width:min(var(--grid-w), 100%);
@@ -768,7 +732,6 @@ button{
     margin-right:auto;
     padding-left:0;
     padding-right:0;
-
     flex-wrap:nowrap;
     align-items:flex-end;
   }
@@ -778,7 +741,6 @@ button{
     min-width:0;
   }
 
-  /* align status / filters / header to grid width */
   .status-message,
   .filters,
   .daily-deals-header{
@@ -787,7 +749,6 @@ button{
     margin-right:auto;
   }
 
-  /* cap input VISUAL width without creating a huge gap */
   .row .input-wrapper{
     flex:0 1 35ch;
     max-width:35ch;
@@ -798,7 +759,9 @@ button{
   }
 }
 
-/* Tablet portrait: 4 columns (logo left, inputs right, logo height = 2 inputs + gap) */
+/* =========================
+   TABLET PORTRAIT VIEW
+========================== */
 @media (max-width:900px) and (orientation:portrait){
   :root{ --cols:4; }
 
@@ -830,7 +793,9 @@ button{
   }
 }
 
-/* Mobile landscape: 3 columns */
+/* =========================
+   MOBILE LANDSCAPE VIEW
+========================== */
 @media (max-width:800px) and (orientation:landscape){
   :root{ --cols:3; }
 
@@ -862,11 +827,13 @@ button{
   }
 }
 
-/* ---------- MOBILE PORTRAIT ---------- */
+/* =========================
+   MOBILE PORTRAIT VIEW
+========================== */
 @media (max-width:560px){
   :root{
     --cols:1;
-    --pad:6px;            /* tighter outside margins only on mobile portrait */
+    --pad:6px;
 
     --top-scale:0.47;
     --grid-scale:0.47;
@@ -874,21 +841,31 @@ button{
     --gap:calc(12px * var(--top-scale));
     --input-h:calc(64px * var(--top-scale));
     --btn-h:calc(64px * var(--top-scale));
-
     --btn-eq-w:calc(var(--btn-h) * 0.8);
 
     --card-w:1px;
     --grid-gap:calc(1.0rem * var(--grid-scale));
 
-    /* badge tuning (mobile portrait) */
     --badge-font:calc(0.9rem * var(--grid-scale));
     --badge-pad-y:calc(0.19rem * var(--grid-scale));
     --badge-pad-x:calc(0.5rem * var(--grid-scale));
     --badge-offset:calc(0.34rem * var(--grid-scale));
   }
-  .app{
-    gap:0.25rem;          /* was 0.75rem globally */
-  }  .topbar{
+
+  /* ✅ show banner only here */
+  .mobile-top-banner{ display:block; }
+
+  .app{ gap:0.25rem; }
+
+  /* iOS fix: prevent focus-zoom + layout jump */
+  input[type="text"], input[type="search"]{
+    font-size:16px; /* critical for iOS */
+  }
+
+  /* extra: prevent rows from pushing offscreen */
+  .row{ min-width:0; }
+  .input-wrapper{ min-width:0; }
+  .topbar{
     flex-direction:row;
     align-items:flex-start;
     justify-content:center;
@@ -896,6 +873,7 @@ button{
     gap:var(--gap);
     padding:0 max(10px, var(--pad));
     width:100%;
+    margin-top:0;
   }
 
   .top-right{
@@ -919,9 +897,6 @@ button{
     max-width:none;
     display:block;
   }
-
-  .row{ min-width:0; }
-  .input-wrapper{ min-width:0; }
 
   .btn-eq{
     height:var(--btn-h);
@@ -961,10 +936,9 @@ button{
   }
 
   .card-image-wrapper{
-    position:relative;
     flex:0 0 42%;
     width:auto;
-    aspect-ratio:1 / 1; /* square */
+    aspect-ratio:1 / 1;
     overflow:hidden;
     border-radius:0.6rem;
   }
@@ -979,7 +953,6 @@ button{
     display:block;
   }
 
-  /* mobile portrait ONLY: fetch icon swap + bigger */
   #fetchBtn .btn-icon{
     content:url("/images/fetch_vert.svg");
     height:80%;
@@ -999,48 +972,36 @@ button{
 
   .card-tag{
     font-weight:800;
-    font-size:0.65rem; /* Gender + Shoe Type */
+    font-size:0.65rem;
     color:var(--sb-blue);
     white-space:nowrap;
     text-shadow:0 0 3px rgba(255,255,255,0.85), 0 0 5px rgba(255,255,255,0.65);
     display:inline-block;
   }
 
-  .card-title{
-    font-size:0.92rem;
-    -webkit-line-clamp:2;
-    min-height:auto;
-  }
+  .card-title{ font-size:0.92rem; -webkit-line-clamp:2; min-height:auto; }
   .card-store{ font-size:0.82rem; }
   .card-price-row{ font-size:0.9rem; }
 
   .daily-deals-header{ font-size:1.2rem; }
   .status-message{ font-size:0.9rem; }
 
-  /* Mobile portrait: grid is full width, so disclaimer should be full width too */
   .disclaimer{
     max-width:none;
     width:100%;
     padding:0 max(10px, var(--pad));
   }
 
-  /* Ribbon should also follow the mobile grid width rules */
   .links-ribbon{
+    max-width:none;
     width:100%;
-    margin: 10px auto 0;
-    padding: 0 max(10px, var(--pad));
-    background: transparent; /* keep outer padding from changing look */
-    border: none;
-  }
-  .links-ribbon-inner{
-    background:#d9e1ebff;
-    border: var(--card-border) solid var(--sb-blue);
-    border-radius: var(--card-radius);
-    padding: calc(0.75rem * var(--grid-scale));
+    padding:0 max(10px, var(--pad));
   }
 }
 
-/* ---------------- Pager transition (RESULTS ONLY) ---------------- */
+/* =========================================================
+   RESULTS TRANSITION (disabled on mobile portrait)
+========================================================= */
 #results{
   transition: opacity 160ms ease, transform 160ms ease;
 }
@@ -1049,7 +1010,6 @@ button{
   transform:translateY(6px);
 }
 
-/* Disable the transition on MOBILE PORTRAIT */
 @media (max-width:768px) and (orientation:portrait){
   #results{ transition:none !important; }
   #results.is-switching{
@@ -1058,18 +1018,18 @@ button{
   }
 }
 
-/* Desktop / computer: keep top area the same width as the shoe grid + input wrapper capped */
+/* =========================================================
+   DESKTOP VIEW (align top cluster to grid outer width)
+========================================================= */
 @media (min-width:901px){
   .top-left{ max-width:520px; }
 
-  /* match the top cluster width to the grid’s OUTER width (grid + its left/right padding) */
   .topbar{
     max-width:min(calc(var(--grid-w) + (2 * var(--pad))), 100%);
     margin-left:auto;
     margin-right:auto;
   }
 
-  /* keep these aligned to the same width too */
   .status-message,
   .filters,
   .daily-deals-header,
@@ -1079,7 +1039,6 @@ button{
     margin-right:auto;
   }
 
-  /* cap input VISUAL width without creating a huge gap */
   .row .input-wrapper{
     flex:0 1 35ch;
     max-width:35ch;
@@ -1089,131 +1048,9 @@ button{
     max-width:100%;
   }
 
-  /* Ribbon should align to the same outer grid width */
   .links-ribbon{
     max-width:min(calc(var(--grid-w) + (2 * var(--pad))), 100%);
     margin-left:auto;
     margin-right:auto;
-  }
-}
-/* ---- menu ribbon (menu button dropdown) ---- */
-/* two horizontal lines, links in a horizontal row between */
-
-.menu-dropdown{
-  background:transparent;
-  border:none;
-  box-shadow:none;
-  border-radius:0;
-  padding:0.35rem 0;
-
-  display:flex;
-  flex-direction:column;          /* stack: top line, links row, bottom line */
-  align-items:center;
-  gap:0.35rem;
-
-  min-width:unset;
-}
-
-/* top and bottom horizontal lines */
-.menu-dropdown::before,
-.menu-dropdown::after{
-  content:"";
-  display:block;
-  width:100%;
-  height:1px;
-  background:rgba(33,68,120,0.25);
-}
-
-/* links stay in one horizontal row */
-.menu-dropdown a{
-  padding:0;
-  background:transparent;
-  white-space:nowrap;
-}
-
-/* force links into a horizontal row without changing HTML */
-.menu-dropdown{
-  flex-wrap:nowrap;
-}
-
-/* make anchors participate inline in the middle row */
-.menu-dropdown a{
-  display:inline-block;
-}
-/* =========================================================
-   MENU "LINKS" RIBBON (dropdown from menu button)
-   - Hidden by default
-   - Shows only when .show is added
-   - Mobile portrait: spans under logo + inputs
-========================================================= */
-
-/* Keep it hidden until .show is applied */
-.menu-dropdown{
-  display:none;               /* IMPORTANT: prevents always-visible ribbon */
-  background:transparent;
-  border:none;
-  box-shadow:none;
-  border-radius:0;
-  padding:0.35rem 0;
-  overflow:visible;
-}
-
-/* When opened */
-.menu-dropdown.show{
-  display:flex;               /* was display:block before — now flex */
-  flex-direction:column;      /* top line, links row, bottom line */
-  align-items:center;
-  gap:0.35rem;
-}
-
-/* The two horizontal lines */
-.menu-dropdown::before,
-.menu-dropdown::after{
-  content:"";
-  display:block;
-  width:100%;
-  height:1px;
-  background:rgba(33,68,120,0.25);
-}
-
-/* Links look like plain text */
-.menu-dropdown a{
-  background:transparent;
-  padding:0;
-  white-space:nowrap;
-}
-
-/* ---------- Mobile portrait: position the ribbon under the whole top area ---------- */
-@media (max-width:560px){
-  .menu-dropdown{
-    position:fixed; /* span the page, not just the tiny button wrapper */
-    left:max(10px, var(--pad));
-    right:max(10px, var(--pad));
-
-    /* place it below the topbar cluster (logo height ~= 2 inputs + gap) */
-    top:calc(
-      max(8px, env(safe-area-inset-top)) +
-      (var(--input-h) * 2) +
-      var(--gap) +
-      10px
-    );
-
-    z-index:1000;
-  }
-
-  /* keep the lines aligned to the same width as the ribbon */
-  .menu-dropdown::before,
-  .menu-dropdown::after{
-    width:100%;
-  }
-
-  /* make the links sit in one horizontal row between the lines */
-  .menu-dropdown.show{
-    flex-direction:column;
-  }
-
-  .menu-dropdown a{
-    display:inline-block;
-    margin:0 0.7rem; /* spacing between links */
   }
 }
