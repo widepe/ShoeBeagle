@@ -1096,3 +1096,47 @@ button{
     margin-right:auto;
   }
 }
+/* ---- menu ribbon (menu button dropdown) ---- */
+/* two horizontal lines, links in a horizontal row between */
+
+.menu-dropdown{
+  background:transparent;
+  border:none;
+  box-shadow:none;
+  border-radius:0;
+  padding:0.35rem 0;
+
+  display:flex;
+  flex-direction:column;          /* stack: top line, links row, bottom line */
+  align-items:center;
+  gap:0.35rem;
+
+  min-width:unset;
+}
+
+/* top and bottom horizontal lines */
+.menu-dropdown::before,
+.menu-dropdown::after{
+  content:"";
+  display:block;
+  width:100%;
+  height:1px;
+  background:rgba(33,68,120,0.25);
+}
+
+/* links stay in one horizontal row */
+.menu-dropdown a{
+  padding:0;
+  background:transparent;
+  white-space:nowrap;
+}
+
+/* force links into a horizontal row without changing HTML */
+.menu-dropdown{
+  flex-wrap:nowrap;
+}
+
+/* make anchors participate inline in the middle row */
+.menu-dropdown a{
+  display:inline-block;
+}
