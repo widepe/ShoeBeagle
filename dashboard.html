@@ -719,6 +719,7 @@
     // - 30-day history hides: "Cheerio (non-Holabird)" and "Apify (non-Holabird)"
     // - 30-day history marks scrapers with * (Apify) and † (Cheerio), notes at bottom
     // - Health card shows Source Blob; Zappos is forced to use the current blob URL
+    // - NEW: Foot Locker added (store URL + expected blob)
     // ============================================================
 
     // One base blob URL everywhere (prevents "wrong blob" drift)
@@ -728,6 +729,7 @@
     // Dashboard will flag CRITICAL if merge-deals is using a different blob (or blobUrl is missing).
     const EXPECTED_STORE_BLOBS = {
       "Zappos": `${BLOB_BASE}/apify-zappos.json`,
+      "Foot Locker": `${BLOB_BASE}/apify-footlocker.json`,  // ✅ ADDED
     };
 
     // Show JS parse/runtime errors on the page (prevents silent "Loading..." forever)
@@ -753,12 +755,19 @@
       'Running Warehouse': 'https://www.runningwarehouse.com/',
       'Shoebacca': 'https://www.shoebacca.com/collections/clearance-athletic',
       'Zappos': 'https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso',
+
+      // ✅ ADDED: Foot Locker store page (put your real category URL here if you have one)
+      'Foot Locker': 'https://www.footlocker.com/category/mens/shoes/running.html',
     };
 
     const STORE_ALIASES = {
       'als': 'ALS',
       'rei': 'REI Outlet',
       'rei outlet': 'REI Outlet',
+
+      // ✅ Optional aliases (helps if scraper outputs slightly different casing)
+      'footlocker': 'Foot Locker',
+      'foot locker': 'Foot Locker',
     };
 
     // You previously excluded A Snail's Pace. Keep it here so it never appears.
@@ -1173,7 +1182,7 @@
           deals: UNALTERED_DEALS,
         });
 
-        // Debug panel (helps catch mismatched store names and blob drift)
+        // Debug panel
         const unknownBrands = deals.filter(d => (normalizeStr(d.brand) === 'Unknown' || !normalizeStr(d.brand))).length;
 
         const uniqueStores = [...new Set(deals.map(d => normalizeStore(d.store)))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
@@ -1188,14 +1197,13 @@
           <strong>BLOB_BASE:</strong> ${BLOB_BASE}<br>
           <strong>Merged Deals:</strong> <a href="${mergedDealsUrl}" target="_blank" style="color:#214478ff; word-break: break-all;">${mergedDealsUrl}</a><br>
           <strong>Last Updated:</strong> ${lastUpdatedInfo.display}<br><br>
-         _toggle_
           <strong>Total deals in array:</strong> ${deals.length}<br>
           <strong>Unaltered deals loaded:</strong> ${unalteredDeals.length}<br>
           <strong>Unknown brands:</strong> ${unknownBrands} (${deals.length ? ((unknownBrands / deals.length) * 100).toFixed(1) : '0.0'}%)<br>
           <strong>Unique stores found (${uniqueStores.length}):</strong> ${uniqueStores.join(', ')}<br>
           <strong>Canonical store list (${CANONICAL_STORES.length}):</strong> ${CANONICAL_STORES.join(', ')}<br>
           <strong>Shoe brands found (${uniqueBrands.length}):</strong> ${uniqueBrands.join(', ')}<br><br>
-        `.replace("_toggle_", "");
+        `;
 
         if (mergeData && mergeData.storeMetadata) {
           debugHTML += `<strong>Scraper Blob URLs (from /api/merge-deals):</strong><br>`;
@@ -1247,9 +1255,7 @@
       const staleBanner = document.getElementById('staleBanner');
       if (!el) return;
 
-      // lastUpdated might exist in object-style deals.json; otherwise use merge timestamp
       const dealsObj = (!Array.isArray(dealsJsonRaw) && dealsJsonRaw && typeof dealsJsonRaw === "object") ? dealsJsonRaw : null;
-
       let lastUpdated = dealsObj?.lastUpdated || mergeData?.timestamp || mergeData?.lastUpdated || null;
 
       let lastUpdatedStr = 'Not Available';
@@ -1279,7 +1285,7 @@
     }
 
     // ------------------------------------------------------------
-    // Stats (schema-correct: salePrice + originalPrice + discountPercent)
+    // Stats
     // ------------------------------------------------------------
     function calculateStats(deals) {
       const stats = {
@@ -1326,7 +1332,7 @@
     }
 
     // ------------------------------------------------------------
-    // Data Quality (schema-correct fields)
+    // Data Quality
     // ------------------------------------------------------------
     function displayDataQuality(deals, stats) {
       const tbody = document.getElementById('dataQualityTableBody');
@@ -1506,7 +1512,6 @@
         return CURRENT_STORE_SORT.direction === 'asc' ? comparison : -comparison;
       });
 
-      // Update header classes (only within Store Breakdown table)
       const storeTable = document.querySelectorAll('.stores-table')[1]; // 0 = data quality, 1 = store breakdown
       if (storeTable) {
         storeTable.querySelectorAll('th').forEach(th => th.classList.remove('sorted-asc', 'sorted-desc'));
@@ -1565,9 +1570,10 @@
           scrapedUrl: SCRAPER_URLS[storeName] || null
         };
 
-        // If you care about verifying Zappos blob source, merge metadata MUST load.
-        if (storeName === "Zappos" && mergeMissing) {
-          health.issues.push({ type: 'critical', message: '🚨 Cannot verify Zappos blob source (merge metadata missing)' });
+        // For enforced stores (Zappos + Foot Locker), we want merge metadata to validate blob drift.
+        const enforcedBlob = EXPECTED_STORE_BLOBS[storeName] || null;
+        if (enforcedBlob && mergeMissing) {
+          health.issues.push({ type: 'critical', message: `🚨 Cannot verify source blob (merge metadata missing)` });
           health.status = 'critical';
         }
 
@@ -1581,7 +1587,6 @@
           };
 
           // Enforce: certain stores must come from a specific current blob.
-          // If merge-deals uses an old blob (or doesn't report blobUrl), flag CRITICAL.
           const expectedBlob = EXPECTED_STORE_BLOBS[storeName] || null;
           const actualBlob = health.metadata?.blobUrl || null;
 
@@ -1595,7 +1600,6 @@
             }
           }
         } else {
-          // If there's a single overall merge timestamp, fall back to it
           if (mergeData?.timestamp) {
             health.metadata = {
               timestamp: mergeData.timestamp,
@@ -1607,13 +1611,11 @@
 
         const storeDeals = deals.filter(d => normalizeStore(d.store) === storeName);
 
-        // Zero results is critical
         if (health.dealCount === 0) {
           health.issues.push({ type: 'critical', message: '🚨 ZERO RESULTS - scraper/store mapping broken or scraper failed' });
           health.status = 'critical';
         }
 
-        // Unknown brands %
         const unknownBrands = storeDeals.filter(d => (normalizeStr(d.brand) === 'Unknown' || !normalizeStr(d.brand))).length;
         const unknownPercent = health.dealCount > 0 ? (unknownBrands / health.dealCount) * 100 : 0;
 
@@ -1625,7 +1627,6 @@
           if (health.status !== 'critical') health.status = 'warning';
         }
 
-        // Missing images %
         const missingImages = storeDeals.filter(d => {
           const img = normalizeStr(d.imageURL);
           return !img || img.includes('placehold.co');
@@ -1637,7 +1638,6 @@
           if (health.status !== 'critical') health.status = 'warning';
         }
 
-        // Missing URLs %
         const missingUrls = storeDeals.filter(d => {
           const url = normalizeStr(d.listingURL);
           return !url || url === '#';
@@ -1649,14 +1649,12 @@
           if (health.status !== 'critical') health.status = 'warning';
         }
 
-        // Missing sale prices count
         const missingSalePrices = storeDeals.filter(d => !Number.isFinite(Number(d.salePrice)) || Number(d.salePrice) === 0).length;
         if (missingSalePrices > 0) {
           health.issues.push({ type: 'warning', message: `⚠️ ${missingSalePrices} Missing Sale Prices` });
           if (health.status !== 'critical') health.status = 'warning';
         }
 
-        // Missing models %
         const missingModels = storeDeals.filter(d => !normalizeStr(d.model)).length;
         const missingModelsPercent = health.dealCount > 0 ? (missingModels / health.dealCount) * 100 : 0;
 
@@ -1665,7 +1663,6 @@
           if (health.status !== 'critical') health.status = 'warning';
         }
 
-        // Very low counts warning (but don't double-warn if already critical)
         if (health.dealCount > 0 && health.dealCount < 5) {
           health.issues.push({ type: 'warning', message: `⚠️ Low Deal Count (${health.dealCount})` });
           if (health.status !== 'critical') health.status = 'warning';
@@ -1726,7 +1723,6 @@
 
         const scrapedUrlStr = health.scrapedUrl || 'Not Available';
 
-        // Prefer actual blobUrl; fall back to expected blob (for enforced stores like Zappos)
         const sourceBlob = health.metadata?.blobUrl || EXPECTED_STORE_BLOBS[health.store] || null;
 
         const storeDeals = ALL_DEALS.filter(d => normalizeStore(d.store) === health.store);
@@ -1816,7 +1812,7 @@
     }
 
     // ------------------------------------------------------------
-    // Deals browser by store (schema-correct)
+    // Deals browser by store
     // ------------------------------------------------------------
     function buildStoreDropdown(deals, selectId) {
       const select = document.getElementById(selectId);
@@ -1824,7 +1820,6 @@
 
       select.innerHTML = `<option value="__none__" selected>Select store or Close</option>`;
 
-      // Use current canonical store list (rebuilt from blob + urls)
       CANONICAL_STORES.forEach(store => {
         const opt = document.createElement("option");
         opt.value = store;
@@ -1832,7 +1827,6 @@
         select.appendChild(opt);
       });
 
-      // Prevent stacking event listeners if refresh is clicked often
       select.onchange = () => renderDealsForSelectedStore({
         selectId,
         tableWrapId: selectId === "unalteredStoreSelect" ? "unalteredDealsTableWrap" : "storeDealsTableWrap",
@@ -1884,64 +1878,13 @@
       }
 
       const columns = [
-        {
-          key: "listingName",
-          label: "Listing",
-          subLabel: "listingName",
-          getValue: (d) => normalizeStr(d.listingName),
-          isMissing: (d) => !isPresentText(d.listingName),
-        },
-        {
-          key: "brand",
-          label: "Brand",
-          subLabel: "brand",
-          getValue: (d) => normalizeStr(d.brand) || "Unknown",
-          isMissing: (d) => !isPresentText(d.brand),
-        },
-        {
-          key: "model",
-          label: "Model",
-          subLabel: "model",
-          getValue: (d) => normalizeStr(d.model),
-          isMissing: (d) => !isPresentText(d.model),
-        },
-        {
-          key: "salePrice",
-          label: "Sale price",
-          subLabel: "salePrice",
-          getValue: (d) => {
-            const val = Number(d.salePrice);
-            return Number.isFinite(val) && val > 0 ? formatMoney(val) : "—";
-          },
-          isMissing: (d) => !(Number.isFinite(Number(d.salePrice)) && Number(d.salePrice) > 0),
-        },
-        {
-          key: "originalPrice",
-          label: "Original price",
-          subLabel: "originalPrice",
-          getValue: (d) => {
-            const val = Number(d.originalPrice);
-            return Number.isFinite(val) && val > 0 ? formatMoney(val) : "—";
-          },
-          isMissing: (d) => !(Number.isFinite(Number(d.originalPrice)) && Number(d.originalPrice) > 0),
-        },
-        {
-          key: "discountPercent",
-          label: "Discount %",
-          subLabel: "discountPercent",
-          getValue: (d) => {
-            const val = Number(d.discountPercent);
-            return Number.isFinite(val) && val > 0 ? `${val.toFixed(0)}%` : "—";
-          },
-          isMissing: (d) => !Number.isFinite(Number(d.discountPercent)),
-        },
-        {
-          key: "store",
-          label: "Store",
-          subLabel: "store",
-          getValue: (d) => normalizeStore(d.store),
-          isMissing: (d) => !isPresentText(d.store),
-        },
+        { key: "listingName", label: "Listing", subLabel: "listingName", getValue: (d) => normalizeStr(d.listingName), isMissing: (d) => !isPresentText(d.listingName) },
+        { key: "brand", label: "Brand", subLabel: "brand", getValue: (d) => normalizeStr(d.brand) || "Unknown", isMissing: (d) => !isPresentText(d.brand) },
+        { key: "model", label: "Model", subLabel: "model", getValue: (d) => normalizeStr(d.model), isMissing: (d) => !isPresentText(d.model) },
+        { key: "salePrice", label: "Sale price", subLabel: "salePrice", getValue: (d) => { const val = Number(d.salePrice); return Number.isFinite(val) && val > 0 ? formatMoney(val) : "—"; }, isMissing: (d) => !(Number.isFinite(Number(d.salePrice)) && Number(d.salePrice) > 0) },
+        { key: "originalPrice", label: "Original price", subLabel: "originalPrice", getValue: (d) => { const val = Number(d.originalPrice); return Number.isFinite(val) && val > 0 ? formatMoney(val) : "—"; }, isMissing: (d) => !(Number.isFinite(Number(d.originalPrice)) && Number(d.originalPrice) > 0) },
+        { key: "discountPercent", label: "Discount %", subLabel: "discountPercent", getValue: (d) => { const val = Number(d.discountPercent); return Number.isFinite(val) && val > 0 ? `${val.toFixed(0)}%` : "—"; }, isMissing: (d) => !Number.isFinite(Number(d.discountPercent)) },
+        { key: "store", label: "Store", subLabel: "store", getValue: (d) => normalizeStore(d.store), isMissing: (d) => !isPresentText(d.store) },
         {
           key: "listingURL",
           label: "URL",
@@ -1952,27 +1895,9 @@
             return !url || url === "#";
           },
         },
-        {
-          key: "imageURL",
-          label: "Image",
-          subLabel: "imageURL",
-          getValue: (d) => normalizeStr(d.imageURL),
-          isMissing: (d) => !hasValidImage(d),
-        },
-        {
-          key: "gender",
-          label: "Gender",
-          subLabel: "gender",
-          getValue: (d) => normalizeStr(d.gender),
-          isMissing: (d) => !isPresentText(d.gender),
-        },
-        {
-          key: "shoeType",
-          label: "Shoe type",
-          subLabel: "shoeType",
-          getValue: (d) => normalizeStr(d.shoeType),
-          isMissing: (d) => !isPresentText(d.shoeType),
-        },
+        { key: "imageURL", label: "Image", subLabel: "imageURL", getValue: (d) => normalizeStr(d.imageURL), isMissing: (d) => !hasValidImage(d) },
+        { key: "gender", label: "Gender", subLabel: "gender", getValue: (d) => normalizeStr(d.gender), isMissing: (d) => !isPresentText(d.gender) },
+        { key: "shoeType", label: "Shoe type", subLabel: "shoeType", getValue: (d) => normalizeStr(d.shoeType), isMissing: (d) => !isPresentText(d.shoeType) },
       ];
 
       const completeness = columns.map((col) => {
