@@ -536,6 +536,7 @@ function isValidRunningShoe(deal) {
     "out of stock",
     "kids",
     "kid",
+    "leggings",
     "youth",
     "junior",
     "juniors",
