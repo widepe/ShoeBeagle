@@ -334,22 +334,20 @@ function absolutizeUrl(u, base) {
 function storeBaseUrl(store) {
   const s = String(store || "").toLowerCase();
 
-  if (s.includes("holabird")) return "https://www.holabirdsports.com";
+  if (s === "als") return "https://www.als.com";  if (s.includes("holabird")) return "https://www.holabirdsports.com";
   if (s.includes("asics")) return "https://www.asics.com";
   if (s.includes("brooks")) return "https://www.brooksrunning.com";
   if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
   if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
+  if (s.includes("foot locker") || s.includes("footlocker")) return "https://www.footlocker.com";
   if (s.includes("luke")) return "https://lukeslocker.com";
   if (s.includes("marathon sports")) return "https://www.marathonsports.com";
   if (s.includes("rei outlet")) return "https://www.rei.com/rei-garage";
   if (s === "rei") return "https://www.rei.com";
   if (s.includes("rei")) return "https://www.rei.com";
-  if (s.includes("zappos")) return "https://www.zappos.com";
   if (s.includes("road runner")) return "https://www.roadrunnersports.com";
   if (s.includes("shoebacca")) return "https://www.shoebacca.com";
-  if (s.includes("snail")) return "https://shop.asnailspace.net";
-  if (s === "als") return "https://www.als.com";
-
+  if (s.includes("zappos")) return "https://www.zappos.com";
   return "https://example.com";
 }
 
@@ -1258,8 +1256,10 @@ module.exports = async (req, res) => {
     process.env.ZAPPOS_DEALS_BLOB_URL ||
       "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-zappos.json"
   ).trim();
-
-  const SCRAPER_DATA_BLOB_URL = String(process.env.SCRAPER_DATA_BLOB_URL || "").trim();
+  const FOOTLOCKER_DEALS_BLOB_URL = String(
+    process.env.FOOTLOCKER_DEALS_BLOB_URL ||
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-footlocker.json"
+  ).trim();  const SCRAPER_DATA_BLOB_URL = String(process.env.SCRAPER_DATA_BLOB_URL || "").trim();
 
   // --------------------------------------------------------------------------
   // Freshness policy (your requirement):
@@ -1280,14 +1280,19 @@ module.exports = async (req, res) => {
     console.log("[MERGE] CHEERIO_DEALS_BLOB_URL set?", !!CHEERIO_DEALS_BLOB_URL);
     console.log("[MERGE] APIFY_DEALS_BLOB_URL set?", !!APIFY_DEALS_BLOB_URL);
     console.log("[MERGE] BROOKS_DEALS_BLOB_URL set?", !!BROOKS_DEALS_BLOB_URL);
+    console.log("[MERGE] FOOTLOCKER_DEALS_BLOB_URL set?", !!FOOTLOCKER_DEALS_BLOB_URL);
     console.log("[MERGE] ROADRUNNER_DEALS_BLOB_URL set?", !!ROADRUNNER_DEALS_BLOB_URL);
     console.log("[MERGE] REI_DEALS_BLOB_URL set?", !!REI_DEALS_BLOB_URL);
     console.log("[MERGE] ZAPPOS_DEALS_BLOB_URL set?", !!ZAPPOS_DEALS_BLOB_URL);
 
     const sources = [
       { name: "Cheerio (non-Holabird)", blobUrl: CHEERIO_DEALS_BLOB_URL },
+      
+      { name: "ASICS Sale", blobUrl: ASICS_SALE_BLOB_URL },
+      { name: "ALS Sale", blobUrl: ALS_SALE_BLOB_URL },      
       { name: "Apify (non-Holabird)", blobUrl: APIFY_DEALS_BLOB_URL },
       { name: "Brooks", blobUrl: BROOKS_DEALS_BLOB_URL },
+      { name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },      
       { name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
       { name: "REI", blobUrl: REI_DEALS_BLOB_URL },
 
@@ -1298,10 +1303,8 @@ module.exports = async (req, res) => {
       { name: "Holabird Womens Road", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
       { name: "Holabird Trail + Unisex", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
 
-      { name: "ASICS Sale", blobUrl: ASICS_SALE_BLOB_URL },
-      { name: "ALS Sale", blobUrl: ALS_SALE_BLOB_URL },
+
       { name: "Shoebacca Clearance", blobUrl: SHOEBACCA_CLEARANCE_BLOB_URL },
-      { name: "A Snail's Pace Sale", blobUrl: SNAILSPACE_SALE_BLOB_URL },
     ];
 
     const settled = await Promise.allSettled(sources.map((s) => loadDealsFromBlobOnly(s)));
