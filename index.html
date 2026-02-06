@@ -88,10 +88,17 @@
         >
       </div>
     </div>
-        <div class="status-message" id="statusMessage">Let's find your running shoes!</div>
-    <div id="mainContent">
-      <div class="daily-deals" id="dailyDeals">
-        <div class="daily-deals-header">Marty's Daily Deals</div>
+
+   <div id="mainContent">
+
+  <div class="daily-deals" id="dailyDeals">
+    <div class="daily-deals-header status-message" id="statusMessage">
+      Marty’s Daily Deals
+    </div>
+
+    <div class="shoe-grid" id="dailyDealsGrid"></div>
+  </div>
+
         <div class="shoe-grid" id="dailyDealsGrid"></div>
       </div>
    <div class="filters" id="filters" style="display:none;">
@@ -881,29 +888,13 @@ const t = (tRaw && tRaw !== "unknown") ? tRaw : "";
         deals.forEach(item => dailyDealsGrid.appendChild(createDealCard(item)));
 
         dailyDeals.style.display = "block";
-        dailyDealCount();
       } catch (err) {
         console.error("Error loading daily deals:", err);
         dailyDeals.style.display = "none";
       }
     }
 
-    async function dailyDealCount() {
-      try {
-        const url = withCacheBust(blobUrl("deals.json"));
-        const res = await fetch(url);
-        if (!res.ok) return;
-
-        const data = await res.json();
-        const totalDeals = data.totalDeals || 0;
-
-        if (statusMessageEl && totalDeals > 0) {
-          statusMessageEl.textContent = `There are ${totalDeals.toLocaleString()} deals today, let's find yours!`;
-        }
-      } catch (err) {
-        console.error("Error loading total deals count:", err);
-      }
-    }
+    
 
     loadDailyDeals();
 
