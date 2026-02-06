@@ -108,7 +108,16 @@ body{
   width:100%;
   flex:1 0 auto;
 }
+/* For image at very top of Mobile Portrait mode */
+    .mobile-top-banner{
+    display:block;
+    width:80%;
+    height:auto;
+    object-fit:cover;
 
+    margin-left:auto;
+    margin-right:auto;
+  }
 /* ---------- Topbar (logo left, inputs right) ---------- */
 
 .topbar{
