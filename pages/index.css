@@ -338,25 +338,37 @@ button{
 }
 .menu-dropdown a:hover{ background:#e8f0ff; }
 
-/* Links ribbon: centered and same width as grid */
-.links-ribbon{
-  width: min(100%, var(--grid-w));
-  margin: 10px auto 0 auto;
-  padding: 0 var(--pad);
+/* If your cards already use vars like these, the ribbon will match automatically.
+   If not, these fallbacks are used. */
+:root{
+  --card-bg: #d9e1ebff;         /* light blue background (fallback) */
+  --card-border: rgba(0,0,0,.12);/* border color (fallback) */
+  --card-border-w: 1px;         /* border thickness (fallback) */
+  --card-radius: 18px;          /* rounded corners (fallback) */
 }
 
+/* Ribbon container */
+.links-ribbon{
+  /* same width behavior as the grid container, centered */
+  width: min(var(--grid-w, 100%), calc(var(--maxw, 1600px) - (var(--pad, 12px) * 2)));
+  margin: 10px auto 0;
+  padding: 0;
+
+  background: var(--card-bg);
+  border: var(--card-border-w) solid var(--card-border);
+  border-radius: var(--card-radius);
+}
+
+/* Inner layout */
 .links-ribbon-inner{
   display: flex;
   align-items: center;
   justify-content: space-between;
-
-  padding: 10px 12px;
-  border-radius: 14px;
-
-  background: #d9e1ebff;
-  border: 1px solid rgba(0,0,0,0.08);
+  gap: 12px;
+  padding: 10px 12px; /* "a little padding" */
 }
 
+/* Left side */
 .links-ribbon-left{
   display: flex;
   align-items: center;
@@ -366,11 +378,13 @@ button{
 
 .links-ribbon-title{
   font-weight: 700;
+  letter-spacing: 0.2px;
 }
 
+/* Links */
 .links-ribbon-links{
   display: flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
@@ -379,6 +393,10 @@ button{
   font-weight: 600;
 }
 
+/* Close chip on the far right */
+.links-ribbon .chip-close{
+  margin-left: auto;
+}
 /* Close chip on the right */
 .chip-close{
   width: 34px;
