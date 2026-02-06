@@ -338,79 +338,83 @@ button{
 }
 .menu-dropdown a:hover{ background:#e8f0ff; }
 
-/* If your cards already use vars like these, the ribbon will match automatically.
-   If not, these fallbacks are used. */
-:root{
-  --card-bg: #d9e1ebff;         /* light blue background (fallback) */
-  --card-border: rgba(0,0,0,.12);/* border color (fallback) */
-  --card-border-w: 1px;         /* border thickness (fallback) */
-  --card-radius: 18px;          /* rounded corners (fallback) */
-}
+/* =========================================================
+   Links ribbon — MATCHES shoe cards exactly
+   ========================================================= */
 
-/* Ribbon container */
 .links-ribbon{
-  /* same width behavior as the grid container, centered */
-  width: min(var(--grid-w, 100%), calc(var(--maxw, 1600px) - (var(--pad, 12px) * 2)));
+  /* same outer width behavior as the grid cluster */
+  width: min(var(--grid-w), 100%);
   margin: 10px auto 0;
   padding: 0;
 
-  background: var(--card-bg);
-  border: var(--card-border-w) solid var(--card-border);
+  /* EXACT match to .card */
+  background: #d9e1ebff;
+  border: var(--card-border) solid var(--sb-blue);
   border-radius: var(--card-radius);
 }
 
-/* Inner layout */
 .links-ribbon-inner{
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px; /* "a little padding" */
+  gap: calc(0.4rem * var(--grid-scale));
+  padding: calc(0.75rem * var(--grid-scale));
 }
 
-/* Left side */
 .links-ribbon-left{
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: calc(0.4rem * var(--grid-scale));
   flex-wrap: wrap;
 }
 
 .links-ribbon-title{
   font-weight: 700;
-  letter-spacing: 0.2px;
+  color: var(--sb-blue);
 }
 
-/* Links */
 .links-ribbon-links{
   display: flex;
-  gap: 10px;
+  gap: calc(0.4rem * var(--grid-scale));
   flex-wrap: wrap;
 }
 
 .links-ribbon-links a{
+  color: var(--sb-blue);
   text-decoration: none;
   font-weight: 600;
+  font-size: var(--card-store-size);
 }
 
-/* Close chip on the far right */
+.links-ribbon-links a:hover{
+  text-decoration: underline;
+}
+
 .links-ribbon .chip-close{
   margin-left: auto;
-}
-/* Close chip on the right */
-.chip-close{
-  width: 34px;
-  height: 34px;
-  line-height: 34px;
-  padding: 0;
+
+  width: calc(22px * var(--top-scale));
+  height: calc(22px * var(--top-scale));
+
+  border-radius: 999px;
+  border: 1px solid var(--sb-blue);
+  background: #fafdf4;
+  color: var(--sb-blue);
+
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  font-size: 18px;
+
+  font-size: calc(0.75rem * var(--top-scale));
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
 }
 
-
+.links-ribbon .chip-close:hover{
+  background: #e8f0ff;
+}
 
 /* ---------- Status / filters ---------- */
 
@@ -1010,6 +1014,21 @@ button{
     width:100%;
     padding:0 max(10px, var(--pad));
   }
+
+  /* Ribbon should also follow the mobile grid width rules */
+  .links-ribbon{
+    width:100%;
+    margin: 10px auto 0;
+    padding: 0 max(10px, var(--pad));
+    background: transparent; /* keep outer padding from changing look */
+    border: none;
+  }
+  .links-ribbon-inner{
+    background:#d9e1ebff;
+    border: var(--card-border) solid var(--sb-blue);
+    border-radius: var(--card-radius);
+    padding: calc(0.75rem * var(--grid-scale));
+  }
 }
 
 /* ---------------- Pager transition (RESULTS ONLY) ---------------- */
@@ -1059,5 +1078,12 @@ button{
   .row .input-wrapper input[type="text"],
   .row .input-wrapper input[type="search"]{
     max-width:100%;
+  }
+
+  /* Ribbon should align to the same outer grid width */
+  .links-ribbon{
+    max-width:min(calc(var(--grid-w) + (2 * var(--pad))), 100%);
+    margin-left:auto;
+    margin-right:auto;
   }
 }
