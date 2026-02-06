@@ -91,14 +91,7 @@
 
 <div id="mainContent">
 
-  <div class="daily-deals" id="dailyDeals">
-    <div class="daily-deals-header status-message" id="statusMessage">
-      Marty’s Daily Deals
-    </div>
-
-    <div class="shoe-grid" id="dailyDealsGrid"></div>
-  </div>
-
+  <!-- Filters should be ABOVE the status line -->
   <div class="filters" id="filters" style="display:none;">
     <div class="filter-row">
       <div class="filter-label">Gender:</div>
@@ -118,6 +111,16 @@
         <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
       </div>
     </div>
+  </div>
+
+  <!-- One line that is ALWAYS visible -->
+  <div class="daily-deals-header status-message" id="statusMessage">
+    Marty’s Daily Deals
+  </div>
+
+  <!-- Daily deals block (can be hidden during search) -->
+  <div class="daily-deals" id="dailyDeals">
+    <div class="shoe-grid" id="dailyDealsGrid"></div>
   </div>
 
   <div class="shoe-grid" id="results"></div>
