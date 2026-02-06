@@ -16,8 +16,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- CSS split -->
-  <link rel="stylesheet" href="/pages/index.css?v=58
-    ">
+  <link rel="stylesheet" href="/pages/index.css?v=58">
 
   <!--
     IMPORTANT:
@@ -29,13 +28,13 @@
 </head>
 
 <body>
-
   <div class="app">
 
     <!-- TOP AREA: inputs left, logo right -->
     <div class="topbar">
       <div class="top-left">
         <form id="search-form" method="POST" autocomplete="off">
+
           <!-- BRAND ROW: input + menu -->
           <div class="row">
             <div class="input-wrapper">
@@ -45,17 +44,15 @@
             </div>
 
             <div class="button-wrapper">
-            <button id="menuBtn" type="button" class="btn-eq" aria-label="Menu">
-  <img src="/images/menu.svg" class="btn-icon" alt="Menu">
-</button>
-
+              <button id="menuBtn" type="button" class="btn-eq" aria-label="Menu">
+                <img src="/images/menu.svg" class="btn-icon" alt="Menu">
+              </button>
 
               <div id="menuDropdown" class="menu-dropdown">
-  <a href="/pages/myalerts.html">My Alerts</a>
-  <a href="/pages/setalert.html">Set Alert</a>
-  <a href="#" id="linksMenuItem">Links</a>
-</div>
-
+                <a href="/pages/myalerts.html">My Alerts</a>
+                <a href="/pages/setalert.html">Set Alert</a>
+                <a href="#" id="linksMenuItem">Links</a>
+              </div>
             </div>
           </div>
 
@@ -69,15 +66,12 @@
 
             <div class="button-wrapper">
               <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
-  <img src="/images/fetch.svg" class="btn-icon" alt="Fetch">
-</button>
-
+                <img src="/images/fetch.svg" class="btn-icon" alt="Fetch">
+              </button>
             </div>
           </div>
+
         </form>
-
-
-     
       </div>
 
       <!-- LOGO RIGHT -->
@@ -87,10 +81,11 @@
           class="brand-logo"
           alt="Shoe Beagle Logo"
           id="logoLink"
-          >
+        >
       </div>
     </div>
- <!-- Links ribbon (hidden by default) -->
+
+    <!-- Links ribbon (hidden by default) -->
     <div id="linksRibbon" class="links-ribbon" style="display:none;">
       <div class="links-ribbon-inner">
         <div class="links-ribbon-left">
@@ -111,76 +106,76 @@
         </button>
       </div>
     </div>
-    
+
     <div id="mainContent">
 
-  <!-- Filters should be ABOVE the status line -->
-  <div class="filters" id="filters" style="display:none;">
-    <div class="filter-row">
-      <div class="filter-label">Gender:</div>
-      <div class="chip-group" id="genderChips">
-        <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
-        <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
-        <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
+      <!-- Filters should be ABOVE the status line -->
+      <div class="filters" id="filters" style="display:none;">
+        <div class="filter-row">
+          <div class="filter-label">Gender:</div>
+          <div class="chip-group" id="genderChips">
+            <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
+            <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
+            <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
+          </div>
+        </div>
+
+        <div class="filter-row">
+          <div class="filter-label">Shoe type:</div>
+          <div class="chip-group" id="typeChips">
+            <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
+            <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
+            <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
+            <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- One line that is ALWAYS visible -->
+      <div class="daily-deals-header status-message" id="statusMessage">
+        Marty’s Daily Deals
+      </div>
+
+      <!-- Daily deals block (can be hidden during search) -->
+      <div class="daily-deals" id="dailyDeals">
+        <div class="shoe-grid" id="dailyDealsGrid"></div>
+      </div>
+
+      <div class="shoe-grid" id="results"></div>
+
+      <div class="pager">
+        <button id="prevPage" class="pager-btn" aria-label="Previous page">◀</button>
+        <div id="pageLabel" class="page-label">1 / 1</div>
+        <button id="nextPage" class="pager-btn" aria-label="Next page">▶</button>
+      </div>
+
+      <p class="disclaimer">
+        Shoe Beagle may earn commissions through our affiliate program at no cost to you.
+        We do not sell products directly and are not responsible for changes in price, availability,
+        or shipping terms on retailer sites.
+      </p>
+
+    </div>
+
+    <div class="footer">
+      <div class="footer-links">
+        <a href="/pages/about.html">About</a> |
+        <a href="/pages/contact.html">Contact</a> |
+        <a href="/pages/privacy.html">Privacy</a> |
+        <a href="/pages/terms.html">Terms</a>
+      </div>
+
+      <div class="footer-copy">
+        © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
       </div>
     </div>
 
-    <div class="filter-row">
-      <div class="filter-label">Shoe type:</div>
-      <div class="chip-group" id="typeChips">
-        <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
-        <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
-        <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
-        <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
-      </div>
-    </div>
   </div>
 
-  <!-- One line that is ALWAYS visible -->
-  <div class="daily-deals-header status-message" id="statusMessage">
-    Marty’s Daily Deals
-  </div>
+  <script src="./brandModels.js"></script>
 
-  <!-- Daily deals block (can be hidden during search) -->
-  <div class="daily-deals" id="dailyDeals">
-    <div class="shoe-grid" id="dailyDealsGrid"></div>
-  </div>
-
-  <div class="shoe-grid" id="results"></div>
-
-  <div class="pager">
-    <button id="prevPage" class="pager-btn" aria-label="Previous page">◀</button>
-    <div id="pageLabel" class="page-label">1 / 1</div>
-    <button id="nextPage" class="pager-btn" aria-label="Next page">▶</button>
-  </div>
-
-  <p class="disclaimer">
-    Shoe Beagle may earn commissions through our affiliate program at no cost to you. We do not sell products directly and are not responsible for changes in price, availability, or shipping terms on retailer sites.
-  </p>
-
-</div>
-
-
-   <div class="footer">
-  <div class="footer-links">
-    <a href="/pages/about.html">About</a> |
-    <a href="/pages/contact.html">Contact</a> |
-    <a href="/pages/privacy.html">Privacy</a> |
-    <a href="/pages/terms.html">Terms</a>
-  </div>
-
-<div class="footer-copy">
-  © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
-</div>
-
-
-</div>
-
-  </div>
-
-<script src="./brandModels.js"></script>
-  
   <script>
+  (() => {
     const form = document.getElementById("search-form");
 
     const statusMessageEl = document.getElementById("statusMessage");
@@ -197,79 +192,36 @@
     const menuBtn = document.getElementById("menuBtn");
     const menuDropdown = document.getElementById("menuDropdown");
 
-function openLinksRibbon(){
-  if (!linksRibbon) return;
-  linksRibbon.style.display = "block";
-}
-
-const menuBtn = document.getElementById("menuBtn");
-const menuDropdown = document.getElementById("menuDropdown");
-
-const linksMenuItem = document.getElementById("linksMenuItem");
-const linksRibbon = document.getElementById("linksRibbon");
-const linksRibbonClose = document.getElementById("linksRibbonClose");
-function openLinksRibbon(){
-  if (!linksRibbon) return;
-  linksRibbon.style.display = "block";
-}
-
-function closeLinksRibbon(){
-  if (!linksRibbon) return;
-  linksRibbon.style.display = "none";
-}
-
-function toggleLinksRibbon(){
-  if (!linksRibbon) return;
-  const isOpen = linksRibbon.style.display !== "none";
-  linksRibbon.style.display = isOpen ? "none" : "block";
-}
-
-if (linksMenuItem) {
-  linksMenuItem.addEventListener("click", (e) => {
-    e.preventDefault();
-    toggleLinksRibbon();
-    closeMenu(); // closes dropdown
-  });
-}
-
-if (linksRibbonClose) {
-  linksRibbonClose.addEventListener("click", () => {
-    closeLinksRibbon();
-  });
-}
+    // ✅ Links ribbon grabs MUST be before any usage
+    const linksMenuItem = document.getElementById("linksMenuItem");
+    const linksRibbon = document.getElementById("linksRibbon");
+    const linksRibbonClose = document.getElementById("linksRibbonClose");
 
     const filtersEl = document.getElementById("filters");
     const genderChips = document.getElementById("genderChips");
     const typeChips = document.getElementById("typeChips");
 
     const PAGE_SIZE = 12;
-let pageIndex = 0;
+    let pageIndex = 0;
 
-const prevPageBtn = document.getElementById("prevPage");
-const nextPageBtn = document.getElementById("nextPage");
-const pageLabelEl = document.getElementById("pageLabel");
-function isMobilePortrait(){
-  return window.matchMedia("(max-width: 768px) and (orientation: portrait)").matches;
-}
+    const prevPageBtn = document.getElementById("prevPage");
+    const nextPageBtn = document.getElementById("nextPage");
+    const pageLabelEl = document.getElementById("pageLabel");
 
-function runPagerTransitionThen(fn){
-  // No animation on mobile portrait
-  if (isMobilePortrait()) {
-    fn();
-    return;
-  }
+    function isMobilePortrait(){
+      return window.matchMedia("(max-width: 768px) and (orientation: portrait)").matches;
+    }
 
-  // Animate OUT
-  resultsEl.classList.add("is-switching");
-
-  // Wait for fade-out, then render, then fade-in
-  setTimeout(() => {
-    fn();
-    requestAnimationFrame(() => {
-      resultsEl.classList.remove("is-switching");
-    });
-  }, 160); // must match the CSS duration
-}
+    function runPagerTransitionThen(fn){
+      if (isMobilePortrait()) { fn(); return; }
+      resultsEl.classList.add("is-switching");
+      setTimeout(() => {
+        fn();
+        requestAnimationFrame(() => {
+          resultsEl.classList.remove("is-switching");
+        });
+      }, 160);
+    }
 
     let currentSearch = { brand: "", model: "" };
     let lastSearchResults = [];
@@ -280,37 +232,69 @@ function runPagerTransitionThen(fn){
     if (logoLink) logoLink.addEventListener("click", () => location.reload());
 
     // --- Menu dropdown (click + hover) ---
-    function openMenu(){ menuDropdown.classList.add("show"); }
-    function closeMenu(){ menuDropdown.classList.remove("show"); }
+    function openMenu(){ if (menuDropdown) menuDropdown.classList.add("show"); }
+    function closeMenu(){ if (menuDropdown) menuDropdown.classList.remove("show"); }
 
-    menuBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      menuDropdown.classList.toggle("show");
-    });
+    if (menuBtn) {
+      menuBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (menuDropdown) menuDropdown.classList.toggle("show");
+      });
 
-    menuBtn.addEventListener("mouseenter", openMenu);
-    menuDropdown.addEventListener("mouseenter", openMenu);
+      menuBtn.addEventListener("mouseenter", openMenu);
+      menuBtn.addEventListener("mouseleave", () => {
+        setTimeout(() => {
+          if (!menuDropdown) return;
+          if (!menuDropdown.matches(":hover") && !menuBtn.matches(":hover")) closeMenu();
+        }, 120);
+      });
+    }
 
-    menuBtn.addEventListener("mouseleave", () => {
-      setTimeout(() => {
-        if (!menuDropdown.matches(":hover") && !menuBtn.matches(":hover")) closeMenu();
-      }, 120);
-    });
-
-    menuDropdown.addEventListener("mouseleave", () => {
-      setTimeout(() => {
-        if (!menuDropdown.matches(":hover") && !menuBtn.matches(":hover")) closeMenu();
-      }, 120);
-    });
+    if (menuDropdown) {
+      menuDropdown.addEventListener("mouseenter", openMenu);
+      menuDropdown.addEventListener("mouseleave", () => {
+        setTimeout(() => {
+          if (!menuDropdown) return;
+          if (!menuDropdown.matches(":hover") && !(menuBtn && menuBtn.matches(":hover"))) closeMenu();
+        }, 120);
+      });
+    }
 
     document.addEventListener("click", (e) => {
+      if (!menuBtn || !menuDropdown) return;
       if (!menuBtn.contains(e.target) && !menuDropdown.contains(e.target)) closeMenu();
     });
-// make sure brandModels always exists
-const brandModels = window.brandModels || {};
 
-// --- Helpers ---
+    // --- Links ribbon ---
+    function closeLinksRibbon(){
+      if (!linksRibbon) return;
+      linksRibbon.style.display = "none";
+    }
 
+    function toggleLinksRibbon(){
+      if (!linksRibbon) return;
+      const isOpen = linksRibbon.style.display !== "none";
+      linksRibbon.style.display = isOpen ? "none" : "block";
+    }
+
+    if (linksMenuItem) {
+      linksMenuItem.addEventListener("click", (e) => {
+        e.preventDefault();
+        toggleLinksRibbon();
+        closeMenu();
+      });
+    }
+
+    if (linksRibbonClose) {
+      linksRibbonClose.addEventListener("click", () => {
+        closeLinksRibbon();
+      });
+    }
+
+    // make sure brandModels always exists
+    const brandModels = window.brandModels || {};
+
+    // --- Helpers ---
     function normalizeStr(s) { return String(s || "").trim().toLowerCase(); }
     function normalizeEnum(s) { return String(s || "").trim().toLowerCase(); }
 
@@ -319,14 +303,14 @@ const brandModels = window.brandModels || {};
         .replace(/[<>'"]/g, '')
         .replace(/script/gi, '')
         .replace(/javascript:/gi, '')
-        .replace(/on\\w+=/gi, '')
+        .replace(/on\w+=/gi, '')
         .trim()
         .slice(0, 100);
     }
 
     function updateFetchReady() {
-      const hasAny = !!(brandInput.value.trim() || modelInput.value.trim());
-      fetchBtn.disabled = !hasAny;
+      const hasAny = !!((brandInput && brandInput.value.trim()) || (modelInput && modelInput.value.trim()));
+      if (fetchBtn) fetchBtn.disabled = !hasAny;
     }
     updateFetchReady();
 
@@ -414,9 +398,9 @@ const brandModels = window.brandModels || {};
       if (cl.includes(q)) score += 80;
       if (qSquash.length >= 3 && cSquash.includes(qSquash)) score += 110;
 
-      const qParts = q.split(/\\s+/).filter(Boolean);
+      const qParts = q.split(/\s+/).filter(Boolean);
       if (qParts.length >= 2) {
-        const cParts = cl.split(/\\s+/);
+        const cParts = cl.split(/\s+/);
         let tokenHits = 0;
         for (const qp of qParts) {
           if (cParts.some(cp => cp.startsWith(qp))) tokenHits++;
@@ -721,76 +705,74 @@ const brandModels = window.brandModels || {};
       });
     }
 
-function totalPagesCount(total){
-  return Math.max(1, Math.ceil((Number(total) || 0) / PAGE_SIZE));
-}
+    function totalPagesCount(total){
+      return Math.max(1, Math.ceil((Number(total) || 0) / PAGE_SIZE));
+    }
 
-function setPagerUI(total, shown){
-  const pages = totalPagesCount(total);  // just for consistent math
-  const current = Math.min(pageIndex + 1, pages);
+    function setPagerUI(total){
+      const pages = totalPagesCount(total);
+      const current = Math.min(pageIndex + 1, pages);
 
-  if (pageLabelEl) pageLabelEl.textContent = `${current} of ${pages}`;
+      if (pageLabelEl) pageLabelEl.textContent = `${current} of ${pages}`;
+      if (prevPageBtn) prevPageBtn.disabled = pageIndex <= 0;
+      if (nextPageBtn) nextPageBtn.disabled = (pageIndex + 1) >= pages;
 
-  if (prevPageBtn) prevPageBtn.disabled = pageIndex <= 0;
-  if (nextPageBtn) nextPageBtn.disabled = (pageIndex + 1) >= pages;
+      const pager = document.querySelector(".pager");
+      if (pager) pager.style.display = (pages > 1) ? "flex" : "none";
+    }
 
-  // show pager only if there are more than one page
-  const pager = document.querySelector(".pager");
-  if (pager) pager.style.display = (pages > 1) ? "flex" : "none";
-}
-    
-  function renderFilteredResults(resetPage = true) {
-  const filtered = applyFilters(lastSearchResults);
+    function renderFilteredResults(resetPage = true) {
+      const filtered = applyFilters(lastSearchResults);
 
-  if (resetPage) pageIndex = 0;
+      if (resetPage) pageIndex = 0;
 
-  const start = pageIndex * PAGE_SIZE;
-  const shown = filtered.slice(start, start + PAGE_SIZE);
+      const start = pageIndex * PAGE_SIZE;
+      const shown = filtered.slice(start, start + PAGE_SIZE);
 
-  resultsEl.innerHTML = "";
-  shown.forEach(item => resultsEl.appendChild(createDealCard(item)));
+      resultsEl.innerHTML = "";
+      shown.forEach(item => resultsEl.appendChild(createDealCard(item)));
 
-  const displayQuery =
-    [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() || "all shoes";
+      const displayQuery =
+        [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() || "all shoes";
 
-  if (!filtered.length) {
-    statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
-    setPagerUI(0, 0);
-    return;
-  }
-  statusMessageEl.textContent =
-  `We found ${filtered.length} deal${filtered.length === 1 ? "" : "s"} on ${displayQuery} shoes.`;
+      if (!filtered.length) {
+        statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
+        setPagerUI(0);
+        return;
+      }
 
-  setPagerUI(filtered.length, shown.length);
-}
-if (prevPageBtn) {
-  prevPageBtn.addEventListener("click", () => {
-    const filtered = applyFilters(lastSearchResults);
-    if (pageIndex <= 0) return;
+      statusMessageEl.textContent =
+        `We found ${filtered.length} deal${filtered.length === 1 ? "" : "s"} on ${displayQuery} shoes.`;
 
-    runPagerTransitionThen(() => {
-      pageIndex--;
-      renderFilteredResults(false);
-      resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-}
+      setPagerUI(filtered.length);
+    }
 
+    if (prevPageBtn) {
+      prevPageBtn.addEventListener("click", () => {
+        const filtered = applyFilters(lastSearchResults);
+        if (pageIndex <= 0) return;
 
-if (nextPageBtn) {
-  nextPageBtn.addEventListener("click", () => {
-    const filtered = applyFilters(lastSearchResults);
-    const pages = totalPagesCount(filtered.length);
+        runPagerTransitionThen(() => {
+          pageIndex--;
+          renderFilteredResults(false);
+          resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      });
+    }
 
-    if (pageIndex >= pages - 1) return;
+    if (nextPageBtn) {
+      nextPageBtn.addEventListener("click", () => {
+        const filtered = applyFilters(lastSearchResults);
+        const pages = totalPagesCount(filtered.length);
+        if (pageIndex >= pages - 1) return;
 
-    runPagerTransitionThen(() => {
-      pageIndex++;
-      renderFilteredResults(false);
-      resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-}
+        runPagerTransitionThen(() => {
+          pageIndex++;
+          renderFilteredResults(false);
+          resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      });
+    }
 
     if (genderChips) {
       genderChips.addEventListener("click", (e) => {
@@ -844,12 +826,11 @@ if (nextPageBtn) {
         imgWrapper.appendChild(badge);
       }
 
-const gRaw = normalizeEnum(item.gender);
-const tRaw = normalizeEnum(item.shoeType);
+      const gRaw = normalizeEnum(item.gender);
+      const tRaw = normalizeEnum(item.shoeType);
 
-const g = (gRaw && gRaw !== "unknown") ? gRaw : "";
-const t = (tRaw && tRaw !== "unknown") ? tRaw : "";
-
+      const g = (gRaw && gRaw !== "unknown") ? gRaw : "";
+      const t = (tRaw && tRaw !== "unknown") ? tRaw : "";
 
       const tagWrap = document.createElement("div");
       tagWrap.className = "card-tags";
@@ -941,30 +922,28 @@ const t = (tRaw && tRaw !== "unknown") ? tRaw : "";
 
         if (!res.ok) {
           console.error("Failed to fetch daily deals:", res.status, res.statusText);
-          dailyDeals.style.display = "none";
+          if (dailyDeals) dailyDeals.style.display = "none";
           return;
         }
 
         const data = await res.json();
         const deals = Array.isArray(data.deals) ? data.deals : [];
 
-        dailyDealsGrid.innerHTML = "";
+        if (dailyDealsGrid) dailyDealsGrid.innerHTML = "";
 
         if (!deals.length) {
-          dailyDeals.style.display = "none";
+          if (dailyDeals) dailyDeals.style.display = "none";
           return;
         }
 
         deals.forEach(item => dailyDealsGrid.appendChild(createDealCard(item)));
 
-        dailyDeals.style.display = "block";
+        if (dailyDeals) dailyDeals.style.display = "block";
       } catch (err) {
         console.error("Error loading daily deals:", err);
-        dailyDeals.style.display = "none";
+        if (dailyDeals) dailyDeals.style.display = "none";
       }
     }
-
-    
 
     loadDailyDeals();
 
@@ -986,16 +965,19 @@ const t = (tRaw && tRaw !== "unknown") ? tRaw : "";
       }
 
       currentSearch = { brand: brandTyped, model: modelTyped };
-      const displayQuery = [brandTyped, modelTyped].filter(Boolean).join(" ").trim(); 
+      const displayQuery = [brandTyped, modelTyped].filter(Boolean).join(" ").trim();
       if (!displayQuery) {
         statusMessageEl.textContent = "Please enter a brand and/or a model.";
         return;
       }
+
       statusMessageEl.textContent = "Searching deals…";
       resultsEl.innerHTML = "";
-const pager = document.querySelector(".pager");
-if (pager) pager.style.display = "none";
-      dailyDeals.style.display = "none";
+
+      const pager = document.querySelector(".pager");
+      if (pager) pager.style.display = "none";
+
+      if (dailyDeals) dailyDeals.style.display = "none";
       if (filtersEl) filtersEl.style.display = "none";
 
       let data;
@@ -1005,7 +987,7 @@ if (pager) pager.style.display = "none";
       } catch (err) {
         console.error("Search error:", err);
         statusMessageEl.textContent = "Search failed. Please try again.";
-        dailyDeals.style.display = "block";
+        if (dailyDeals) dailyDeals.style.display = "block";
         return;
       }
 
@@ -1020,10 +1002,8 @@ if (pager) pager.style.display = "none";
       if (!results.length) {
         statusMessageEl.textContent = `No results found for ${displayQuery}.`;
         if (filtersEl) filtersEl.style.display = "none";
-        const pager = document.querySelector(".pager");
-if (pager) pager.style.display = "none";
-
-        dailyDeals.style.display = "block";
+        if (pager) pager.style.display = "none";
+        if (dailyDeals) dailyDeals.style.display = "block";
         return;
       }
 
@@ -1051,6 +1031,7 @@ if (pager) pager.style.display = "none";
 
     brandInput.addEventListener("input", updateFetchReady);
     modelInput.addEventListener("input", updateFetchReady);
+  })();
   </script>
 </body>
 </html>
