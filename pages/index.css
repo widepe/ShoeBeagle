@@ -903,7 +903,7 @@ button{
   }
 
   .brand-logo{
-    content:url("/images/logoV3.svg");
+    content:url("/images/logoV2.svg");
     height:calc(var(--input-h) * 2 + var(--gap));
     max-height:calc(var(--input-h) * 2 + var(--gap));
     width:auto;
