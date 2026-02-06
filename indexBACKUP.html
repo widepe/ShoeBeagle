@@ -88,42 +88,55 @@
         >
       </div>
     </div>
-        <div class="status-message" id="statusMessage">Let's find your running shoes!</div>
-    <div id="mainContent">
-      <div class="daily-deals" id="dailyDeals">
-        <div class="daily-deals-header">Marty's Daily Deals</div>
-        <div class="shoe-grid" id="dailyDealsGrid"></div>
-      </div>
-   <div class="filters" id="filters" style="display:none;">
-          <div class="filter-row">
-            <div class="filter-label">Gender:</div>
-            <div class="chip-group" id="genderChips">
-              <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
-              <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
-              <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
-            </div>
-          </div>
 
-          <div class="filter-row">
-            <div class="filter-label">Shoe type:</div>
-            <div class="chip-group" id="typeChips">
-              <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
-              <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
-              <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
-              <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
-            </div>
-          </div>
-        </div>      <div class="shoe-grid" id="results"></div>
+<div id="mainContent">
+
+  <!-- Filters should be ABOVE the status line -->
+  <div class="filters" id="filters" style="display:none;">
+    <div class="filter-row">
+      <div class="filter-label">Gender:</div>
+      <div class="chip-group" id="genderChips">
+        <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
+        <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
+        <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
+      </div>
+    </div>
+
+    <div class="filter-row">
+      <div class="filter-label">Shoe type:</div>
+      <div class="chip-group" id="typeChips">
+        <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
+        <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
+        <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
+        <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- One line that is ALWAYS visible -->
+  <div class="daily-deals-header status-message" id="statusMessage">
+    Marty’s Daily Deals
+  </div>
+
+  <!-- Daily deals block (can be hidden during search) -->
+  <div class="daily-deals" id="dailyDeals">
+    <div class="shoe-grid" id="dailyDealsGrid"></div>
+  </div>
+
+  <div class="shoe-grid" id="results"></div>
 
   <div class="pager">
-  <button id="prevPage" class="pager-btn" aria-label="Previous page">◀</button>
-  <div id="pageLabel" class="page-label">1 / 1</div>
-  <button id="nextPage" class="pager-btn" aria-label="Next page">▶</button>
+    <button id="prevPage" class="pager-btn" aria-label="Previous page">◀</button>
+    <div id="pageLabel" class="page-label">1 / 1</div>
+    <button id="nextPage" class="pager-btn" aria-label="Next page">▶</button>
+  </div>
+
+  <p class="disclaimer">
+    Shoe Beagle may earn commissions through our affiliate program at no cost to you. We do not sell products directly and are not responsible for changes in price, availability, or shipping terms on retailer sites.
+  </p>
+
 </div>
 
-
-      <p class="disclaimer">Shoe Beagle may earn commissions through our affiliate program at no cost to you. We do not sell products directly and are not responsible for changes in price, availability, or shipping terms on retailer sites.</p>
-    </div>
 
    <div class="footer">
   <div class="footer-links">
@@ -682,7 +695,7 @@ function setPagerUI(total, shown){
     return;
   }
   statusMessageEl.textContent =
-    `Showing ${start + shown.length} of ${filtered.length} deal${filtered.length === 1 ? "" : "s"} for ${displayQuery}.`;
+  `We found ${filtered.length} deal${filtered.length === 1 ? "" : "s"} on ${displayQuery} shoes.`;
 
   setPagerUI(filtered.length, shown.length);
 }
@@ -881,29 +894,13 @@ const t = (tRaw && tRaw !== "unknown") ? tRaw : "";
         deals.forEach(item => dailyDealsGrid.appendChild(createDealCard(item)));
 
         dailyDeals.style.display = "block";
-        dailyDealCount();
       } catch (err) {
         console.error("Error loading daily deals:", err);
         dailyDeals.style.display = "none";
       }
     }
 
-    async function dailyDealCount() {
-      try {
-        const url = withCacheBust(blobUrl("deals.json"));
-        const res = await fetch(url);
-        if (!res.ok) return;
-
-        const data = await res.json();
-        const totalDeals = data.totalDeals || 0;
-
-        if (statusMessageEl && totalDeals > 0) {
-          statusMessageEl.textContent = `There are ${totalDeals.toLocaleString()} deals today, let's find yours!`;
-        }
-      } catch (err) {
-        console.error("Error loading total deals count:", err);
-      }
-    }
+    
 
     loadDailyDeals();
 
