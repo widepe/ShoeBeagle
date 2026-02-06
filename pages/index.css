@@ -768,7 +768,7 @@ button{
  --badge-font:   calc(0.9rem * var(--grid-scale));
 --badge-pad-y:  calc(0.19rem * var(--grid-scale));
 --badge-pad-x:  calc(0.5rem * var(--grid-scale));
---badge-offset: calc(0.31rem * var(--grid-scale));  
+--badge-offset: calc(0.34rem * var(--grid-scale));  
   }
 
   .topbar{
@@ -832,15 +832,15 @@ button{
     background:#d9e1ebff;
     border: 2px solid var(--sb-blue);
     border-radius: 0.75rem;
-    padding: 0.75rem;
+    padding: 0.6rem;
     position: relative;
     overflow: visible;
   }
 
   .card-link{
     flex-direction: row;
-    align-items: center;
-    gap: 0.75rem;
+    align-items: stretch;
+    gap: 0.6rem;
     height: auto;
   }
 
@@ -896,7 +896,7 @@ button{
 
   .card-tag{
     font-weight: 800;
-    font-size: 0.7rem; /* Gender and Shoe Type
+    font-size: 0.65rem; /* Gender and Shoe Type */
     color: var(--sb-blue);
     white-space: nowrap;
     text-shadow: 0 0 3px rgba(255,255,255,0.85), 0 0 5px rgba(255,255,255,0.65);
