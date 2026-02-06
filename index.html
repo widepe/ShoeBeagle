@@ -16,8 +16,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- CSS split -->
-  <link rel="stylesheet" href="/pages/index.css?v=62
-    ">
+  <link rel="stylesheet" href="/pages/index.css?v=62">
 
   <!--
     IMPORTANT:
@@ -30,13 +29,14 @@
 
 <body>
   <div class="app">
-<img class="mobile-top-banner" src="/images/logo_heading.svg" alt="">
+    <img class="mobile-top-banner" src="/images/logo_heading.svg" alt="">
+
     <!-- TOP AREA: inputs left, logo right -->
     <div class="topbar">
       <div class="top-left">
         <form id="search-form" method="POST" autocomplete="off">
 
-          <!-- BRAND ROW: input + menu -->
+          <!-- BRAND ROW: input + links toggle button -->
           <div class="row">
             <div class="input-wrapper">
               <input id="brand" type="text" placeholder="Enter Shoe Brand" autocomplete="off"/>
@@ -45,15 +45,15 @@
             </div>
 
             <div class="button-wrapper">
-              <button id="menuBtn" type="button" class="btn-eq" aria-label="Menu">
-                <img src="/images/menu.svg" class="btn-icon" alt="Menu">
+              <!-- This is now ONLY a links toggle button -->
+              <button id="menuBtn"
+                      type="button"
+                      class="btn-eq"
+                      aria-label="Links"
+                      aria-expanded="false"
+                      aria-controls="linksRibbon">
+                <img src="/images/menu.svg" class="btn-icon" alt="Links">
               </button>
-
-              <div id="menuDropdown" class="menu-dropdown">
-                <a href="/pages/myalerts.html">My Alerts</a>
-                <a href="/pages/setalert.html">Set Alert</a>
-                <a href="#" id="linksMenuItem">Links</a>
-              </div>
             </div>
           </div>
 
@@ -86,12 +86,14 @@
       </div>
     </div>
 
-    <!-- Links ribbon (hidden by default) -->
+    <!-- Links ribbon (hidden by default; toggled by the button above) -->
     <div id="linksRibbon" class="links-ribbon" style="display:none;">
       <div class="links-ribbon-inner">
         <div class="links-ribbon-left">
           <span class="links-ribbon-title">Links</span>
           <span class="links-ribbon-links">
+            <a href="/pages/myalerts.html">My Alerts</a>
+            <a href="/pages/setalert.html">Set Alert</a>
             <a href="/pages/about.html">About</a>
             <a href="/pages/contact.html">Contact</a>
             <a href="/pages/privacy.html">Privacy</a>
@@ -190,11 +192,9 @@
     const modelSuggestions = document.getElementById("modelSuggestions");
     const logoLink = document.getElementById("logoLink");
     const footerYear = document.getElementById("footerYear");
-    const menuBtn = document.getElementById("menuBtn");
-    const menuDropdown = document.getElementById("menuDropdown");
 
-    // ✅ Links ribbon grabs MUST be before any usage
-    const linksMenuItem = document.getElementById("linksMenuItem");
+    // Links toggle button + ribbon (this replaces the old hover menu)
+    const menuBtn = document.getElementById("menuBtn");
     const linksRibbon = document.getElementById("linksRibbon");
     const linksRibbonClose = document.getElementById("linksRibbonClose");
 
@@ -232,63 +232,63 @@
     if (footerYear) footerYear.textContent = new Date().getFullYear();
     if (logoLink) logoLink.addEventListener("click", () => location.reload());
 
-    // --- Menu dropdown (click + hover) ---
-    function openMenu(){ if (menuDropdown) menuDropdown.classList.add("show"); }
-    function closeMenu(){ if (menuDropdown) menuDropdown.classList.remove("show"); }
-
-    if (menuBtn) {
-      menuBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (menuDropdown) menuDropdown.classList.toggle("show");
-      });
-
-      menuBtn.addEventListener("mouseenter", openMenu);
-      menuBtn.addEventListener("mouseleave", () => {
-        setTimeout(() => {
-          if (!menuDropdown) return;
-          if (!menuDropdown.matches(":hover") && !menuBtn.matches(":hover")) closeMenu();
-        }, 120);
-      });
+    // --- Links ribbon toggle (NO HOVER MENU) ---
+    function isRibbonOpen(){
+      return !!(linksRibbon && linksRibbon.style.display !== "none");
     }
 
-    if (menuDropdown) {
-      menuDropdown.addEventListener("mouseenter", openMenu);
-      menuDropdown.addEventListener("mouseleave", () => {
-        setTimeout(() => {
-          if (!menuDropdown) return;
-          if (!menuDropdown.matches(":hover") && !(menuBtn && menuBtn.matches(":hover"))) closeMenu();
-        }, 120);
-      });
+    function openRibbon(){
+      if (!linksRibbon) return;
+      linksRibbon.style.display = "block";
+      if (menuBtn) menuBtn.setAttribute("aria-expanded", "true");
     }
 
-    document.addEventListener("click", (e) => {
-      if (!menuBtn || !menuDropdown) return;
-      if (!menuBtn.contains(e.target) && !menuDropdown.contains(e.target)) closeMenu();
-    });
-
-    // --- Links ribbon ---
-    function closeLinksRibbon(){
+    function closeRibbon(){
       if (!linksRibbon) return;
       linksRibbon.style.display = "none";
+      if (menuBtn) menuBtn.setAttribute("aria-expanded", "false");
     }
 
-    function toggleLinksRibbon(){
+    function toggleRibbon(){
       if (!linksRibbon) return;
-      const isOpen = linksRibbon.style.display !== "none";
-      linksRibbon.style.display = isOpen ? "none" : "block";
+      if (isRibbonOpen()) closeRibbon();
+      else openRibbon();
     }
 
-    if (linksMenuItem) {
-      linksMenuItem.addEventListener("click", (e) => {
+    if (menuBtn) {
+      // click toggles open/close
+      menuBtn.addEventListener("click", (e) => {
         e.preventDefault();
-        toggleLinksRibbon();
-        closeMenu();
+        e.stopPropagation();
+        toggleRibbon();
       });
     }
 
     if (linksRibbonClose) {
-      linksRibbonClose.addEventListener("click", () => {
-        closeLinksRibbon();
+      linksRibbonClose.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeRibbon();
+      });
+    }
+
+    // clicking anywhere outside closes the ribbon
+    document.addEventListener("click", (e) => {
+      if (!linksRibbon || linksRibbon.style.display === "none") return;
+      const clickedInsideRibbon = linksRibbon.contains(e.target);
+      const clickedButton = menuBtn && menuBtn.contains(e.target);
+      if (!clickedInsideRibbon && !clickedButton) closeRibbon();
+    });
+
+    // Esc closes
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeRibbon();
+    });
+
+    // Optional: clicking a ribbon link closes it
+    if (linksRibbon) {
+      linksRibbon.addEventListener("click", (e) => {
+        const a = e.target.closest("a");
+        if (a) closeRibbon();
       });
     }
 
