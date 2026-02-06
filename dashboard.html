@@ -720,6 +720,7 @@
     // - 30-day history marks scrapers with * (Apify) and † (Cheerio), notes at bottom
     // - Health card shows Source Blob; Zappos is forced to use the current blob URL
     // - NEW: Foot Locker added (store URL + expected blob)
+    // - NEW (YOUR REQUEST): Health card is CRITICAL if Men's OR Women's returns 0 deals
     // ============================================================
 
     // One base blob URL everywhere (prevents "wrong blob" drift)
@@ -729,7 +730,7 @@
     // Dashboard will flag CRITICAL if merge-deals is using a different blob (or blobUrl is missing).
     const EXPECTED_STORE_BLOBS = {
       "Zappos": `${BLOB_BASE}/apify-zappos.json`,
-      "Foot Locker": `${BLOB_BASE}/apify-footlocker.json`,  // ✅ ADDED
+      "Foot Locker": `${BLOB_BASE}/apify-footlocker.json`,
     };
 
     // Show JS parse/runtime errors on the page (prevents silent "Loading..." forever)
@@ -755,8 +756,6 @@
       'Running Warehouse': 'https://www.runningwarehouse.com/',
       'Shoebacca': 'https://www.shoebacca.com/collections/clearance-athletic',
       'Zappos': 'https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso',
-
-      // ✅ ADDED: Foot Locker store page (put your real category URL here if you have one)
       'Foot Locker': 'https://www.footlocker.com/category/mens/shoes/running.html',
     };
 
@@ -764,8 +763,6 @@
       'als': 'ALS',
       'rei': 'REI Outlet',
       'rei outlet': 'REI Outlet',
-
-      // ✅ Optional aliases (helps if scraper outputs slightly different casing)
       'footlocker': 'Foot Locker',
       'foot locker': 'Foot Locker',
     };
@@ -1567,7 +1564,8 @@
           issues: [],
           status: 'healthy',
           metadata: null,
-          scrapedUrl: SCRAPER_URLS[storeName] || null
+          scrapedUrl: SCRAPER_URLS[storeName] || null,
+          genderStats: { mens: 0, womens: 0, unisex: 0, unknown: 0 }
         };
 
         // For enforced stores (Zappos + Foot Locker), we want merge metadata to validate blob drift.
@@ -1610,6 +1608,22 @@
         }
 
         const storeDeals = deals.filter(d => normalizeStore(d.store) === storeName);
+
+        // ---- YOUR REQUEST: CRITICAL if Men's OR Women's = 0 (even if total > 0) ----
+        const genderStats = calculateGenderStats(storeDeals);
+        health.genderStats = genderStats;
+
+        if (genderStats.mens === 0 || genderStats.womens === 0) {
+          const parts = [];
+          if (genderStats.mens === 0) parts.push("Men's=0");
+          if (genderStats.womens === 0) parts.push("Women's=0");
+          health.issues.push({
+            type: 'critical',
+            message: `🚨 Gender returned 0 results (${parts.join(", ")})`
+          });
+          health.status = 'critical';
+        }
+        // ---------------------------------------------------------------------------
 
         if (health.dealCount === 0) {
           health.issues.push({ type: 'critical', message: '🚨 ZERO RESULTS - scraper/store mapping broken or scraper failed' });
@@ -1689,7 +1703,7 @@
         if (criticalStores.length > 0) {
           healthIssuesList.innerHTML = `
             <div class="health-issues-list-title">🚨 Critical Issues</div>
-            <div>Stores with zero results or severe data quality problems:</div>
+            <div>Stores with zero results, missing gender (Men/Women = 0), or severe data quality problems:</div>
             <ul>${criticalStores.map(store => `<li>${store}</li>`).join('')}</ul>
           `;
           healthIssuesList.classList.remove('hidden');
@@ -1725,8 +1739,7 @@
 
         const sourceBlob = health.metadata?.blobUrl || EXPECTED_STORE_BLOBS[health.store] || null;
 
-        const storeDeals = ALL_DEALS.filter(d => normalizeStore(d.store) === health.store);
-        const genderStats = calculateGenderStats(storeDeals);
+        const genderStats = health.genderStats;
 
         const totalDealsStr = (health.dealCount || 0).toLocaleString();
 
