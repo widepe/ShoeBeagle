@@ -127,7 +127,7 @@ body{
 .top-left{
   flex:1 1 520px;
   width:min(600px, 100%);
-  min-width:0;              /* IMPORTANT: was 280px -> caused overflow on small screens */
+  min-width:0;
   display:flex;
   flex-direction:column;
   align-items:flex-start;
@@ -150,7 +150,7 @@ body{
   height:calc((max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * var(--logo-scale));
   max-height:calc((max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * var(--logo-scale));
   width:auto;
-  max-width:100%;           /* IMPORTANT: never exceed container */
+  max-width:100%;
   object-fit:contain;
   cursor:pointer;
   transition:opacity 0.2s ease;
@@ -180,7 +180,7 @@ form#search-form{
 .input-wrapper{
   position:relative;
   flex:1 1 auto;
-  min-width:0; /* allow input to shrink instead of pushing layout wider */
+  min-width:0;
 }
 
 input[type="text"], input[type="search"]{
@@ -271,6 +271,7 @@ button{
   pointer-events:none;
 }
 
+/* default fetch icon size (desktop/tablet) */
 #fetchBtn .btn-icon{ height:30%; }
 
 .btn-eq{
@@ -665,267 +666,266 @@ button{
 
 /* ---------- RESPONSIVE COLUMN COUNTS ---------- */
 
-/* Tablet landscape: 5 columns */
-/* Tablet landscape: 5 columns (top UI constrained to grid width) */
+/* Tablet landscape: 5 columns (top UI constrained to grid width + input wrapper capped) */
 @media (min-width:820px) and (max-width:1366px) and (orientation:landscape){
   :root{ --cols:5; }
 
-  /* Make the top cluster match the shoe-grid width */
+  /* constrain top UI to grid width + keep everything on one line */
   .topbar{
-    width: 100%;
-    max-width: min(var(--grid-w), 100%);
-    margin-left: auto;
-    margin-right: auto;
-    padding-left: 0;
-    padding-right: 0;
+    width:100%;
+    max-width:min(var(--grid-w), 100%);
+    margin-left:auto;
+    margin-right:auto;
+    padding-left:0;
+    padding-right:0;
+
+    flex-wrap:nowrap;
+    align-items:flex-end;
   }
 
-  /* Optional but usually desired: keep the “status/filters/header” aligned too */
+  .top-left{
+    flex:1 1 0;
+    min-width:0;
+  }
+
+  /* align status / filters / header to grid width */
   .status-message,
   .filters,
   .daily-deals-header{
-    max-width: min(var(--grid-w), 100%);
-    margin-left: auto;
-    margin-right: auto;
+    max-width:min(var(--grid-w), 100%);
+    margin-left:auto;
+    margin-right:auto;
   }
-    input[type="text"],
-  input[type="search"]{
-    max-width: 35ch;
+
+  /* cap input VISUAL width without creating a huge gap */
+  .row .input-wrapper{
+    flex:0 1 35ch;
+    max-width:35ch;
+  }
+  .row .input-wrapper input[type="text"],
+  .row .input-wrapper input[type="search"]{
+    max-width:100%;
   }
 }
-
 
 /* Tablet portrait: 4 columns (logo left, inputs right, logo height = 2 inputs + gap) */
 @media (max-width:900px) and (orientation:portrait){
   :root{ --cols:4; }
 
-  /* FORCE side-by-side (prevent wrapping from base .topbar { flex-wrap: wrap; }) */
   .topbar{
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-items: flex-end;
+    flex-direction:row;
+    flex-wrap:nowrap;
+    align-items:flex-end;
   }
 
-  /* logo on the left */
   .top-right{
-    order: -1;
-    flex: 0 0 auto;
-    margin-right: calc(36px * var(--top-scale));
-    min-width: 0;
+    order:-1;
+    flex:0 0 auto;
+    margin-right:calc(36px * var(--top-scale));
+    min-width:0;
   }
 
-  /* inputs + buttons on the right (shrink-friendly) */
   .top-left{
-    order: 0;
-    flex: 1 1 0;
-    width: auto;
-    min-width: 0;
+    order:0;
+    flex:1 1 0;
+    width:auto;
+    min-width:0;
   }
 
-  /* use logoV2 and match height to stacked inputs + gap */
   .brand-logo{
-    content: url("/images/logoV2.svg");
-    height: calc(var(--input-h) * 2 + var(--gap));
-    max-height: calc(var(--input-h) * 2 + var(--gap));
-    width: auto;
+    content:url("/images/logoV2.svg");
+    height:calc(var(--input-h) * 2 + var(--gap));
+    max-height:calc(var(--input-h) * 2 + var(--gap));
+    width:auto;
   }
 }
-
 
 /* Mobile landscape: 3 columns */
 @media (max-width:800px) and (orientation:landscape){
   :root{ --cols:3; }
 
-  /* FORCE side-by-side: prevent wrap from base .topbar { flex-wrap: wrap; } */
   .topbar{
-    flex-direction: row;
-    flex-wrap: nowrap;              /* key fix: stops logo jumping on top */
-    align-items: flex-end;
+    flex-direction:row;
+    flex-wrap:nowrap;
+    align-items:flex-end;
   }
 
-  /* logo first (left) */
   .top-right{
-    order: -1;
-    flex: 0 0 auto;
-    margin-right: calc(36px * var(--top-scale));
-    min-width: 0;
+    order:-1;
+    flex:0 0 auto;
+    margin-right:calc(36px * var(--top-scale));
+    min-width:0;
   }
 
-  /* inputs + buttons to the right (shrink-friendly) */
   .top-left{
-    order: 0;
-    flex: 1 1 0;                    /* key fix: overrides base flex: 1 1 520px */
-    width: auto;
-    min-width: 0;
+    order:0;
+    flex:1 1 0;
+    width:auto;
+    min-width:0;
   }
 
-  /* swap the logo file + match height to stacked inputs + gap */
   .brand-logo{
-    content: url("/images/logoV2.svg");
-    height: calc(var(--input-h) * 2 + var(--gap));
-    max-height: calc(var(--input-h) * 2 + var(--gap));
-    width: auto;
+    content:url("/images/logoV2.svg");
+    height:calc(var(--input-h) * 2 + var(--gap));
+    max-height:calc(var(--input-h) * 2 + var(--gap));
+    width:auto;
   }
 }
 
-
-/* ---------- MOBILE PORTRAIT ----------
-   Fix overflow + add padding + skinny buttons (width = 2/3 height)
-   + remove hard max widths/heights so cards scale naturally
-
--------------------------------------- */
+/* ---------- MOBILE PORTRAIT ---------- */
 @media (max-width:560px){
-
   :root{
-    --cols: 1;
-    --pad: 6px;   /* <- tighter outside margins only on mobile portrait */    --top-scale: 0.47;
-    --grid-scale: 0.47;
+    --cols:1;
+    --pad:6px;            /* tighter outside margins only on mobile portrait */
 
-    --gap: calc(12px * var(--top-scale));
-    --input-h: calc(64px * var(--top-scale));
-    --btn-h:   calc(64px * var(--top-scale));
+    --top-scale:0.47;
+    --grid-scale:0.47;
 
-    --btn-eq-w: calc(var(--btn-h) * 0.8);
+    --gap:calc(12px * var(--top-scale));
+    --input-h:calc(64px * var(--top-scale));
+    --btn-h:calc(64px * var(--top-scale));
 
-    --card-w: 1px;
-    --grid-gap: calc(1.0rem * var(--grid-scale));
-    /* make badges smaller or bigger mobile portrait */
- --badge-font:   calc(0.9rem * var(--grid-scale));
---badge-pad-y:  calc(0.19rem * var(--grid-scale));
---badge-pad-x:  calc(0.5rem * var(--grid-scale));
---badge-offset: calc(0.34rem * var(--grid-scale));  
+    --btn-eq-w:calc(var(--btn-h) * 0.8);
+
+    --card-w:1px;
+    --grid-gap:calc(1.0rem * var(--grid-scale));
+
+    /* badge tuning (mobile portrait) */
+    --badge-font:calc(0.9rem * var(--grid-scale));
+    --badge-pad-y:calc(0.19rem * var(--grid-scale));
+    --badge-pad-x:calc(0.5rem * var(--grid-scale));
+    --badge-offset:calc(0.34rem * var(--grid-scale));
   }
 
   .topbar{
-    flex-direction: row;
-    align-items: flex-start;
-    justify-content: center;
-    flex-wrap: nowrap;
-    gap: var(--gap);
-    padding: 0 max(10px, var(--pad));
-    width: 100%;
+    flex-direction:row;
+    align-items:flex-start;
+    justify-content:center;
+    flex-wrap:nowrap;
+    gap:var(--gap);
+    padding:0 max(10px, var(--pad));
+    width:100%;
   }
 
   .top-right{
-    order: 0;
-    margin-right: 0;
-    flex: 0 0 auto;
+    order:0;
+    margin-right:0;
+    flex:0 0 auto;
   }
 
   .top-left{
-    order: 1;
-    flex: 1 1 auto;
-    width: auto;
-    min-width: 0;
+    order:1;
+    flex:1 1 auto;
+    width:auto;
+    min-width:0;
   }
 
   .brand-logo{
-    content: url("/images/logoV3.svg");
-    height: calc(var(--input-h) * 2 + var(--gap));
-    max-height: calc(var(--input-h) * 2 + var(--gap));
-    width: auto;
-    max-width: none; /* or max-width: 40vw; */
-    display: block;
+    content:url("/images/logoV3.svg");
+    height:calc(var(--input-h) * 2 + var(--gap));
+    max-height:calc(var(--input-h) * 2 + var(--gap));
+    width:auto;
+    max-width:none;
+    display:block;
   }
 
-  .row{ min-width: 0; }
-  .input-wrapper{ min-width: 0; }
+  .row{ min-width:0; }
+  .input-wrapper{ min-width:0; }
 
   .btn-eq{
-    height: var(--btn-h);
-    width: var(--btn-eq-w);
-    min-width: var(--btn-eq-w);
-    max-width: var(--btn-eq-w);
-    padding: 0;
-    gap: 0;
+    height:var(--btn-h);
+    width:var(--btn-eq-w);
+    min-width:var(--btn-eq-w);
+    max-width:var(--btn-eq-w);
+    padding:0;
+    gap:0;
   }
 
   .shoe-grid{
-    width: 100%;
-    max-width: none;
-    margin: 0.75rem auto 0;
-    padding: 0 max(10px, var(--pad));
-    grid-template-columns: 1fr;
-    justify-content: stretch;
-    gap: var(--grid-gap);
+    width:100%;
+    max-width:none;
+    margin:0.75rem auto 0;
+    padding:0 max(10px, var(--pad));
+    grid-template-columns:1fr;
+    justify-content:stretch;
+    gap:var(--grid-gap);
   }
 
   .card{
-    width: 100%;
-    margin: 0;
-    aspect-ratio: auto;
-    background:#d9e1ebff;
-    border: 2px solid var(--sb-blue);
-    border-radius: 0.75rem;
-    padding: 0.6rem;
-    position: relative;
-    overflow: visible;
+    width:100%;
+    margin:0;
+    aspect-ratio:auto;
+    border:2px solid var(--sb-blue);
+    border-radius:0.75rem;
+    padding:0.6rem;
+    position:relative;
+    overflow:visible;
   }
 
   .card-link{
-    flex-direction: row;
-    align-items: stretch;
-    gap: 0.6rem;
-    height: auto;
+    flex-direction:row;
+    align-items:stretch;
+    gap:0.6rem;
+    height:auto;
   }
 
   .card-image-wrapper{
-    position: relative;
-    flex: 0 0 42%;
-    width: auto;
-    aspect-ratio: 4 / 3;
-    overflow: hidden;
-    border-radius: 0.6rem;
+    position:relative;
+    flex:0 0 42%;
+    width:auto;
+    aspect-ratio:4 / 3;
+    overflow:hidden;
+    border-radius:0.6rem;
   }
 
   .card img{
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    background: #fff;
-    border: 1px solid var(--sb-blue);
-    border-radius: 0.6rem;
-    display: block;
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    background:#fff;
+    border:1px solid var(--sb-blue);
+    border-radius:0.6rem;
+    display:block;
   }
 
-    #fetchBtn .btn-icon{
-    content: url("/images/fetch_vert.svg");
-    height: 80%;
+  /* mobile portrait ONLY: fetch icon swap + bigger */
+  #fetchBtn .btn-icon{
+    content:url("/images/fetch_vert.svg");
+    height:80%;
   }
-}  .card-tags{
-    position: absolute;
-    left: 0.35rem;
-    right: 0.35rem;
-    bottom: 0.35rem;
-    z-index: 40;
-    display: flex;
-    justify-content: space-between;
-    gap: 0.35rem;
-    pointer-events: none;
+
+  .card-tags{
+    position:absolute;
+    left:0.35rem;
+    right:0.35rem;
+    bottom:0.35rem;
+    z-index:40;
+    display:flex;
+    justify-content:space-between;
+    gap:0.35rem;
+    pointer-events:none;
   }
 
   .card-tag{
-    font-weight: 800;
-    font-size: 0.65rem; /* Gender and Shoe Type */
-    color: var(--sb-blue);
-    white-space: nowrap;
-    text-shadow: 0 0 3px rgba(255,255,255,0.85), 0 0 5px rgba(255,255,255,0.65);
-    display: inline-block;
+    font-weight:800;
+    font-size:0.65rem; /* Gender + Shoe Type */
+    color:var(--sb-blue);
+    white-space:nowrap;
+    text-shadow:0 0 3px rgba(255,255,255,0.85), 0 0 5px rgba(255,255,255,0.65);
+    display:inline-block;
   }
 
   .card-title{
-    font-size: 0.92rem;
-    -webkit-line-clamp: 2;
-    min-height: auto;
+    font-size:0.92rem;
+    -webkit-line-clamp:2;
+    min-height:auto;
   }
-  .card-store{ font-size: 0.82rem; }
-  .card-price-row{ font-size: 0.9rem; }
+  .card-store{ font-size:0.82rem; }
+  .card-price-row{ font-size:0.9rem; }
 
-  .daily-deals-header{ font-size: 1.5rem; }
-  .status-message{ font-size: 0.9rem; }
+  .daily-deals-header{ font-size:1.5rem; }
+  .status-message{ font-size:0.9rem; }
 }
-  /* swap fetch button icon only for mobile portrait */
-
 
 /* ---------------- Pager transition (RESULTS ONLY) ---------------- */
 #results{
@@ -943,33 +943,36 @@ button{
     opacity:1 !important;
     transform:none !important;
   }
-  /* setting width of input bars home computer display version */
 }
-/* Desktop / computer: keep top area the same width as the shoe grid */
+
+/* Desktop / computer: keep top area the same width as the shoe grid + input wrapper capped */
 @media (min-width:901px){
   .top-left{ max-width:520px; }
 
-  input[type="text"],
-  input[type="search"]{
-    max-width: 35ch;
-  }
-}
-
-
   /* match the top cluster width to the grid’s OUTER width (grid + its left/right padding) */
   .topbar{
-    max-width: min(calc(var(--grid-w) + (2 * var(--pad))), 100%);
-    margin-left: auto;
-    margin-right: auto;
+    max-width:min(calc(var(--grid-w) + (2 * var(--pad))), 100%);
+    margin-left:auto;
+    margin-right:auto;
   }
 
-  /* optional but usually desired: keep these aligned to the same width too */
+  /* keep these aligned to the same width too */
   .status-message,
   .filters,
   .daily-deals-header,
   .disclaimer{
-    max-width: min(calc(var(--grid-w) + (2 * var(--pad))), 100%);
-    margin-left: auto;
-    margin-right: auto;
+    max-width:min(calc(var(--grid-w) + (2 * var(--pad))), 100%);
+    margin-left:auto;
+    margin-right:auto;
+  }
+
+  /* cap input VISUAL width without creating a huge gap */
+  .row .input-wrapper{
+    flex:0 1 35ch;
+    max-width:35ch;
+  }
+  .row .input-wrapper input[type="text"],
+  .row .input-wrapper input[type="search"]{
+    max-width:100%;
   }
 }
