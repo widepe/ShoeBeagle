@@ -114,8 +114,8 @@ body{
     width:80%;
     height:auto;
     object-fit:cover;
-
-    margin-left:auto;
+    margin:0;             /* ensure no default gap */
+    padding:0;    margin-left:auto;
     margin-right:auto;
   }
 /* ---------- Topbar (logo left, inputs right) ---------- */
@@ -127,8 +127,8 @@ body{
   justify-content:center; /* center the whole cluster */
   gap:var(--gap);
   margin-top:2px;
-
-  /* allow wrapping on narrow screens so nothing forces overflow */
+    margin-top:0;         /* was 2px */
+    padding-top:0;  /* allow wrapping on narrow screens so nothing forces overflow */
   flex-wrap:wrap;
   padding: 0 var(--pad);
 }
@@ -887,8 +887,9 @@ button{
     --badge-pad-x:calc(0.5rem * var(--grid-scale));
     --badge-offset:calc(0.34rem * var(--grid-scale));
   }
-
-  .topbar{
+  .app{
+    gap:0.25rem;          /* was 0.75rem globally */
+  }  .topbar{
     flex-direction:row;
     align-items:flex-start;
     justify-content:center;
@@ -1139,4 +1140,81 @@ button{
 /* make anchors participate inline in the middle row */
 .menu-dropdown a{
   display:inline-block;
+}
+/* =========================================================
+   MENU "LINKS" RIBBON (dropdown from menu button)
+   - Hidden by default
+   - Shows only when .show is added
+   - Mobile portrait: spans under logo + inputs
+========================================================= */
+
+/* Keep it hidden until .show is applied */
+.menu-dropdown{
+  display:none;               /* IMPORTANT: prevents always-visible ribbon */
+  background:transparent;
+  border:none;
+  box-shadow:none;
+  border-radius:0;
+  padding:0.35rem 0;
+  overflow:visible;
+}
+
+/* When opened */
+.menu-dropdown.show{
+  display:flex;               /* was display:block before — now flex */
+  flex-direction:column;      /* top line, links row, bottom line */
+  align-items:center;
+  gap:0.35rem;
+}
+
+/* The two horizontal lines */
+.menu-dropdown::before,
+.menu-dropdown::after{
+  content:"";
+  display:block;
+  width:100%;
+  height:1px;
+  background:rgba(33,68,120,0.25);
+}
+
+/* Links look like plain text */
+.menu-dropdown a{
+  background:transparent;
+  padding:0;
+  white-space:nowrap;
+}
+
+/* ---------- Mobile portrait: position the ribbon under the whole top area ---------- */
+@media (max-width:560px){
+  .menu-dropdown{
+    position:fixed; /* span the page, not just the tiny button wrapper */
+    left:max(10px, var(--pad));
+    right:max(10px, var(--pad));
+
+    /* place it below the topbar cluster (logo height ~= 2 inputs + gap) */
+    top:calc(
+      max(8px, env(safe-area-inset-top)) +
+      (var(--input-h) * 2) +
+      var(--gap) +
+      10px
+    );
+
+    z-index:1000;
+  }
+
+  /* keep the lines aligned to the same width as the ribbon */
+  .menu-dropdown::before,
+  .menu-dropdown::after{
+    width:100%;
+  }
+
+  /* make the links sit in one horizontal row between the lines */
+  .menu-dropdown.show{
+    flex-direction:column;
+  }
+
+  .menu-dropdown a{
+    display:inline-block;
+    margin:0 0.7rem; /* spacing between links */
+  }
 }
