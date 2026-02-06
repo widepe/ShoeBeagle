@@ -695,7 +695,7 @@ function setPagerUI(total, shown){
     return;
   }
   statusMessageEl.textContent =
-    `Showing ${start + shown.length} of ${filtered.length} deal${filtered.length === 1 ? "" : "s"} for ${displayQuery}.`;
+  `We found ${filtered.length} deal${filtered.length === 1 ? "" : "s"} on ${displayQuery} shoes.`;
 
   setPagerUI(filtered.length, shown.length);
 }
