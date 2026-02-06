@@ -753,8 +753,7 @@ button{
 
   :root{
     --cols: 1;
-
-    --top-scale: 0.47;
+    --pad: 6px;   /* <- tighter outside margins only on mobile portrait */    --top-scale: 0.47;
     --grid-scale: 0.47;
 
     --gap: calc(12px * var(--top-scale));
