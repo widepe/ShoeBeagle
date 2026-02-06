@@ -881,7 +881,7 @@ button{
 */
     #fetchBtn .btn-icon{
     content: url("/images/fetch_vert.svg");
-    height: 70%;
+    height: 80%;
   }
 }  .card-tags{
     position: absolute;
