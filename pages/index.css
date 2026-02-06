@@ -479,7 +479,7 @@ button{
   position:relative;
   width:100%;
   overflow:hidden;
-  aspect-ratio:4 / 3;
+  aspect-ratio:1 / 1; /* square */
 }
 
 .card img{
@@ -599,7 +599,11 @@ button{
   text-align:center;
   font-size:1.0rem;
   color:#555;
-  overflow-wrap:anywhere;
+
+  /* wrap normally (no 1-character vertical line) */
+  white-space:normal;
+  overflow-wrap:break-word;
+  word-break:normal;
 }
 
 .footer{
@@ -873,7 +877,7 @@ button{
     position:relative;
     flex:0 0 42%;
     width:auto;
-    aspect-ratio:4 / 3;
+    aspect-ratio:1 / 1; /* square */
     overflow:hidden;
     border-radius:0.6rem;
   }
@@ -925,6 +929,13 @@ button{
 
   .daily-deals-header{ font-size:1.5rem; }
   .status-message{ font-size:0.9rem; }
+
+  /* Mobile portrait: grid is full width, so disclaimer should be full width too */
+  .disclaimer{
+    max-width:none;
+    width:100%;
+    padding:0 max(10px, var(--pad));
+  }
 }
 
 /* ---------------- Pager transition (RESULTS ONLY) ---------------- */
