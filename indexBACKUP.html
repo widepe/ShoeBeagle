@@ -3,7 +3,6 @@
 <head>
   <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
-  <link rel="icon" type="image/png" href="/images/favicon.png">
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
@@ -16,582 +15,9 @@
   <title>Shoe Beagle--The Running Shoe Deal Finder</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <style>
-    .card { position: relative; }
-
-    .card-image-wrapper {
-      position: relative;
-      width: 100%;
-    }
-
-    .discount-badge {
-      position: absolute;
-      top: 0.35rem;
-      left: 0.35rem;
-      padding: 0.15rem 0.5rem;
-      border-radius: 999px;
-      font-size: 0.7rem;
-      font-weight: 700;
-      background: rgba(220, 53, 69, 0.9);
-      color: #ffffff;
-      z-index: 3;
-    }
-
-    @media (max-width: 480px) {
-      .discount-badge {
-        top: 0.2rem;
-        left: 0.2rem;
-        padding: 0.1rem 0.3rem;
-        font-size: 0.55rem;
-      }
-    }
-
-    .card-original-price {
-      margin-left: 0.35rem;
-      font-size: 0.8rem;
-      color: #777;
-      text-decoration: line-through;
-    }
-
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #f4ede3ff;
-      color: #2d2d2d;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      padding: 6px 1rem;
-      min-height: 100vh;
-    }
-
-    .app {
-      width: 100%;
-      max-width: 900px;
-      display: flex;
-      flex-direction: column;
-      gap: 0.65rem;
-      align-items: center;
-      padding-top: 0;
-    }
-
-    .brand {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .brand-logo {
-      width: 600px;
-      height: auto;
-      object-fit: contain;
-      margin-bottom: 0.5rem;
-      max-width: 100%;
-      cursor: pointer;
-      transition: opacity 0.2s ease;
-    }
-    .brand-logo:hover { opacity: 0.9; }
-
-    input[type="text"],
-    input[type="search"] {
-      width: 100%;
-      height: 42px;
-      padding: 0 0.75rem;
-      border-radius: 0.5rem;
-      border: 1px solid #214478ff;
-      background: #fafdf4;
-      font-size: 1rem;
-      box-sizing: border-box;
-      transition: border-color 0.2s ease, background-color 0.2s ease;
-      color: #444;
-    }
-
-    form {
-      display: flex;
-      justify-content: center;
-      align-items: stretch;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      width: 100%;
-      max-width: 650px;
-      margin: 0 auto;
-    }
-
-    .input-wrapper {
-      position: relative;
-      width: 100%;
-      max-width: 220px;
-      flex: 1 1 200px;
-    }
-
-    input::placeholder { color: #999; opacity: 1; }
-
-    .input-clear {
-      position: absolute;
-      right: 0.5rem;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: #999;
-      color: white;
-      border: none;
-      cursor: pointer;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.75rem;
-      padding: 0;
-      line-height: 1;
-      z-index: 20;
-    }
-    .input-clear:hover { background: #666; }
-    .input-wrapper:has(input:not(:placeholder-shown)) .input-clear { display: flex; }
-
-    .menu-btn {
-      height: 42px;
-      width: 42px;
-      border-radius: 0.5rem;
-      border: 1px solid #214478ff;
-      background: #214478ff;
-      padding: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      position: relative;
-    }
-    .menu-btn:hover { background: #1a3661; }
-    .menu-icon { font-size: 1.2rem; }
-
-    .menu-dropdown {
-      position: absolute;
-      top: calc(100% + 0.25rem);
-      right: 0;
-      background: #ffffff;
-      border: 1px solid #214478ff;
-      border-radius: 0.5rem;
-      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
-      min-width: 150px;
-      display: none;
-      z-index: 100;
-    }
-    .menu-dropdown.show { display: block; }
-
-    .menu-dropdown a {
-      display: block;
-      padding: 0.65rem 1rem;
-      color: #214478ff;
-      text-decoration: none;
-      font-size: 0.95rem;
-      transition: background 0.2s ease;
-    }
-    .menu-dropdown a:hover { background: #e8f0ff; }
-
-    .menu-wrapper {
-      position: relative;
-      display: flex;
-      align-items: center;
-    }
-
-    .suggestions {
-      position: absolute;
-      top: 46px;
-      left: 0;
-      right: 0;
-      background: #ffffff;
-      border: 1px solid #214478ff;
-      border-radius: 0.5rem;
-      margin-top: 0.15rem;
-      max-height: 180px;
-      overflow-y: auto;
-      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
-      z-index: 30;
-      padding: 0.25rem 0;
-      display: none;
-    }
-
-    .suggestion-item {
-      padding: 0.25rem 0.75rem;
-      text-align: left;
-      font-size: 0.9rem;
-      cursor: pointer;
-    }
-    .suggestion-item:hover { background: #e8f0ff; }
-    .suggestion-item.active { background: #e8f0ff; }
-
-    button {
-      border: none;
-      border-radius: 0.75rem;
-      background: #214478ff;
-      color: white;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: background 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-    }
-
-    .button-wrapper {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex: 0 0 auto;
-    }
-
-    .search-btn {
-      height: 42px;
-      border-radius: 0.5rem;
-      border: 1px solid #214478ff;
-      background: #214478ff;
-      padding: 0 1rem;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      white-space: nowrap;
-      outline: none;
-      min-width: 80px;
-    }
-    .search-btn:hover { background: #1a3661; }
-
-    .search-btn:disabled {
-      opacity: 1;
-      cursor: pointer;
-      pointer-events: none;
-    }
-
-    .status-message {
-      font-size: 0.95rem;
-      color: #2d3c22;
-      margin-top: 0.05rem;
-      text-align: center;
-      width: 100%;
-      min-height: 1.1rem;
-    }
-
-    .filters{
-      width:100%;
-      max-width:650px;
-      display:flex;
-      flex-direction:row;
-      align-items:center;
-      justify-content:center;
-      gap:1rem;
-      margin-top: 0.1rem;
-      flex-wrap:wrap;
-    }
-
-    .filter-row{
-      display:flex;
-      align-items:center;
-      gap:0.5rem;
-      flex-wrap:wrap;
-    }
-
-    .filter-label{
-      font-size:0.9rem;
-      font-weight:700;
-      color:#214478ff;
-      white-space:nowrap;
-    }
-
-    .chip-group{
-      display:flex;
-      align-items:center;
-      gap:0.4rem;
-      flex-wrap:wrap;
-    }
-
-    .chip{
-      border:1px solid #214478ff;
-      background:#fafdf4;
-      color:#214478ff;
-      width: 27px;
-      height: 27px;
-      border-radius: 999px;
-      padding: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.85rem;
-      font-weight: 800;
-      line-height: 1;
-      cursor:pointer;
-      transition: background 0.2s ease, color 0.2s ease, transform 0.05s ease, box-shadow 0.2s ease;
-      position: relative;
-    }
-
-    .chip:hover{ background:#e8f0ff; }
-    .chip.active{
-      background:#214478ff;
-      color:#ffffff;
-      box-shadow: 0 2px 6px rgba(33, 68, 120, 0.25);
-    }
-    .chip:active{ transform: scale(0.98); }
-
-    .chip[aria-label]::after{
-      content: attr(aria-label);
-      position: absolute;
-      left: 50%;
-      bottom: calc(100% + 8px);
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.82);
-      color: #fff;
-      font-size: 0.72rem;
-      font-weight: 700;
-      padding: 6px 8px;
-      border-radius: 8px;
-      white-space: nowrap;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.12s ease, transform 0.12s ease;
-      z-index: 50;
-    }
-
-    .chip[aria-label]::before{
-      content: "";
-      position: absolute;
-      left: 50%;
-      bottom: calc(100% + 2px);
-      transform: translateX(-50%);
-      border: 6px solid transparent;
-      border-top-color: rgba(0,0,0,0.82);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.12s ease;
-      z-index: 50;
-    }
-
-    .chip:hover::after{
-      opacity: 1;
-      transform: translateX(-50%) translateY(-2px);
-    }
-    .chip:hover::before{ opacity: 1; }
-
-    .card-tags {
-      position: absolute;
-      left: 0.35rem;
-      right: 0.35rem;
-      bottom: 0.35rem;
-      display: flex;
-      gap: 0.35rem;
-      justify-content: space-between;
-      align-items: center;
-      z-index: 2;
-      pointer-events: none;
-    }
-
-    .card-tag {
-      font-size: 0.68rem;
-      font-weight: 600;
-      color: #214478ff;
-      line-height: 1.1;
-      white-space: nowrap;
-      text-shadow: 0 0 3px rgba(255,255,255,0.8), 0 0 5px rgba(255,255,255,0.6);
-    }
-
-    .daily-deals {
-      width: 100%;
-      max-width: 900px;
-      margin-top: 1.0rem;
-    }
-
-    .daily-deals-header {
-      font-size: 1.8rem;
-      font-weight: 700;
-      color: #214478ff;
-      margin-bottom: 1rem;
-      text-align: center;
-    }
-
-    .shoe-grid {
-      margin-top: 1.0rem;
-      display: grid;
-      gap: 1.25rem;
-      width: 100%;
-      justify-content: center;
-      max-width: 900px;
-      grid-template-columns: repeat(var(--grid-columns, auto-fit), minmax(min(100%, 180px), 1fr));
-    }
-
-    .shoe-grid .card {
-      max-width: 240px;
-      margin: 0 auto;
-      width: 100%;
-    }
-
-    @media (max-width: 480px) {
-      .shoe-grid {
-        grid-template-columns: 1fr;
-        max-width: 100%;
-      }
-      .shoe-grid .card {
-        max-width: 100%;
-      }
-    }
-
-    .card {
-      background: #d9e1ebff;
-      border: 2px solid #214478ff;
-      border-radius: 0.75rem;
-      padding: 0.75rem;
-      display: flex;
-      flex-direction: column;
-      text-align: left;
-      box-sizing: border-box;
-    }
-
-    .card-link {
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-      text-decoration: none;
-      color: inherit;
-      height: 100%;
-    }
-
-    .card-image-wrapper {
-      width: 100%;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .card img {
-      width: 100%;
-      height: 150px;
-      border-radius: 0.6rem;
-      object-fit: contain;
-      background: white;
-      border: 1px solid #214478ff;
-      box-sizing: border-box;
-    }
-
-    .card-content {
-      display: flex;
-      flex-direction: column;
-      gap: 0.3rem;
-      flex: 1;
-    }
-
-    .card-title {
-      font-size: 0.92rem;
-      font-weight: 600;
-      display: -webkit-box;
-      -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      min-height: calc(1.2em * 3);
-    }
-
-    .card-store {
-      font-size: 0.82rem;
-      color: #49543a;
-    }
-
-    .card-price-row {
-      display: flex;
-      align-items: baseline;
-      gap: 0.3rem;
-      font-size: 0.95rem;
-    }
-
-    .price {
-      font-weight: 700;
-      color: #214478ff;
-    }
-
-    @media (max-width: 480px) {
-      .card-link {
-        flex-direction: row;
-        gap: 0.75rem;
-        align-items: center;
-      }
-
-      .card-image-wrapper {
-        flex-shrink: 0;
-        width: 100px;
-        height: 80px;
-        overflow: hidden;
-      }
-
-      .card img {
-        height: 80px;
-        object-fit: cover;
-      }
-
-      .card-tags {
-        left: 0.25rem;
-        right: 0.25rem;
-        bottom: 0.25rem;
-      }
-
-      .card-tag {
-        font-size: 0.62rem;
-      }
-
-      .card-content {
-        justify-content: center;
-        min-width: 0;
-      }
-
-      .card-title {
-        -webkit-line-clamp: 2;
-        min-height: auto;
-      }
-    }
-
-    @media (min-width: 481px) and (max-width: 900px) and (orientation: landscape) {
-      .shoe-grid {
-        grid-template-columns: repeat(var(--grid-columns, 3), minmax(min(100%, 180px), 1fr));
-      }
-    }
-
-    .load-more-wrap{
-      width:100%;
-      display:flex;
-      justify-content:center;
-      margin: 1rem 0 0.5rem;
-    }
-
-    .load-more-btn{
-      height: 42px;
-      padding: 0 1.25rem;
-      border-radius: 0.75rem;
-      border: 1px solid #214478ff;
-      background: #214478ff;
-      color:#fff;
-      font-weight:700;
-    }
-    .load-more-btn:hover{ background:#1a3661; }
-
-    .disclaimer {
-      font-size: 0.8rem;
-      color: #555;
-      max-width: 900px;
-      margin: 0.15rem auto 0;
-      text-align: center;
-    }
-
-    .footer {
-      margin-top: 2rem;
-      padding: 0.75rem 1rem;
-      background: rgba(244, 237, 227, 0.97);
-      border-top: 1px solid rgba(0, 0, 0, 0.08);
-      font-size: 0.82rem;
-      color: #444;
-      text-align: center;
-    }
-
-    .footer a {
-      color: #214478ff;
-      text-decoration: none;
-      font-weight: 600;
-      cursor: pointer;
-      margin: 0 0.25rem;
-    }
-
-    .footer a:hover { text-decoration: underline; }
-  </style>
+  <!-- CSS split -->
+  <link rel="stylesheet" href="/pages/index.css?v=58
+    ">
 
   <!--
     IMPORTANT:
@@ -603,90 +29,121 @@
 </head>
 
 <body>
-  <div style="display:none;">Impact-Site-Verification: 484b0fd5-0544-4654-b916-4e921a2e5077</div>
 
   <div class="app">
-    <div class="brand">
-      <img src="/images/logo.svg" class="brand-logo" alt="Shoe Beagle Logo" id="logoLink">
+
+    <!-- TOP AREA: inputs left, logo right -->
+    <div class="topbar">
+      <div class="top-left">
+        <form id="search-form" method="POST" autocomplete="off">
+          <!-- BRAND ROW: input + menu -->
+          <div class="row">
+            <div class="input-wrapper">
+              <input id="brand" type="text" placeholder="Enter Shoe Brand" autocomplete="off"/>
+              <button type="button" class="input-clear" aria-label="Clear brand">&times;</button>
+              <div id="brandSuggestions" class="suggestions"></div>
+            </div>
+
+            <div class="button-wrapper">
+            <button id="menuBtn" type="button" class="btn-eq" aria-label="Menu">
+  <img src="/images/menu.svg" class="btn-icon" alt="Menu">
+</button>
+
+
+              <div id="menuDropdown" class="menu-dropdown">
+                <a href="/pages/myalerts.html">My Alerts</a>
+                <a href="/pages/setalert.html">Set Alert</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODEL ROW: input + fetch -->
+          <div class="row">
+            <div class="input-wrapper">
+              <input id="model" type="text" placeholder="Enter Shoe Model" autocomplete="off"/>
+              <button type="button" class="input-clear" aria-label="Clear model">&times;</button>
+              <div id="modelSuggestions" class="suggestions"></div>
+            </div>
+
+            <div class="button-wrapper">
+              <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
+  <img src="/images/fetch.svg" class="btn-icon" alt="Fetch">
+</button>
+
+            </div>
+          </div>
+        </form>
+
+
+     
+      </div>
+
+      <!-- LOGO RIGHT -->
+      <div class="top-right">
+        <img
+          src="/images/logo.svg"
+          class="brand-logo"
+          alt="Shoe Beagle Logo"
+          id="logoLink"
+        >
+      </div>
     </div>
-
-    <form id="search-form" method="POST">
-      <div class="input-wrapper">
-        <input id="brand" type="text" placeholder="Enter Shoe Brand" autocomplete="off"/>
-        <button type="button" class="input-clear" aria-label="Clear brand">&times;</button>
-        <div id="brandSuggestions" class="suggestions"></div>
-      </div>
-
-      <div class="input-wrapper">
-        <input id="model" type="text" placeholder="Enter Shoe Model" autocomplete="off"/>
-        <button type="button" class="input-clear" aria-label="Clear model">&times;</button>
-        <div id="modelSuggestions" class="suggestions"></div>
-      </div>
-
-      <div class="button-wrapper">
-        <button id="fetchBtn" type="submit" class="search-btn">Fetch!</button>
-      </div>
-
-      <div class="menu-wrapper">
-        <button id="menuBtn" type="button" class="menu-btn" aria-label="Menu">
-          <span class="menu-icon">☰</span>
-        </button>
-        <div id="menuDropdown" class="menu-dropdown">
-          <a href="/pages/myalerts.html">My Alerts</a>
-          <a href="/pages/setalert.html">Set Alert</a>
-        </div>
-      </div>
-    </form>
-
-    <div class="status-message" id="statusMessage">Let's find your running shoes!</div>
-
-    <div class="filters" id="filters" style="display:none;">
-      <div class="filter-row">
-        <div class="filter-label">Gender:</div>
-        <div class="chip-group" id="genderChips">
-          <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
-          <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
-          <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
-        </div>
-      </div>
-
-      <div class="filter-row">
-        <div class="filter-label">Shoe type:</div>
-        <div class="chip-group" id="typeChips">
-          <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
-          <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
-          <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
-          <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
-        </div>
-      </div>
-    </div>
-
+        <div class="status-message" id="statusMessage">Let's find your running shoes!</div>
     <div id="mainContent">
       <div class="daily-deals" id="dailyDeals">
         <div class="daily-deals-header">Marty's Daily Deals</div>
         <div class="shoe-grid" id="dailyDealsGrid"></div>
       </div>
+   <div class="filters" id="filters" style="display:none;">
+          <div class="filter-row">
+            <div class="filter-label">Gender:</div>
+            <div class="chip-group" id="genderChips">
+              <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
+              <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
+              <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
+            </div>
+          </div>
 
-      <div class="shoe-grid" id="results"></div>
+          <div class="filter-row">
+            <div class="filter-label">Shoe type:</div>
+            <div class="chip-group" id="typeChips">
+              <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
+              <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
+              <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
+              <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
+            </div>
+          </div>
+        </div>      <div class="shoe-grid" id="results"></div>
 
-      <div class="load-more-wrap" id="loadMoreWrap" style="display:none;">
-        <button type="button" class="load-more-btn" id="loadMoreBtn">Load More…</button>
-      </div>
+  <div class="pager">
+  <button id="prevPage" class="pager-btn" aria-label="Previous page">◀</button>
+  <div id="pageLabel" class="page-label">1 / 1</div>
+  <button id="nextPage" class="pager-btn" aria-label="Next page">▶</button>
+</div>
 
-      <p class="disclaimer">Shoe Beagle does not sell products directly and is not responsible for changes in price, availability, or shipping terms on retailer sites.</p>
+
+      <p class="disclaimer">Shoe Beagle may earn commissions through our affiliate program at no cost to you. We do not sell products directly and are not responsible for changes in price, availability, or shipping terms on retailer sites.</p>
     </div>
 
-    <div class="footer">
-      <a href="/pages/about.html">About</a> |
-      <a href="/pages/contact.html">Contact</a> |
-      <a href="/pages/privacy.html">Privacy</a> |
-      <a href="/pages/terms.html">Terms</a> |
-      <br>
-      © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
-    </div>
+   <div class="footer">
+  <div class="footer-links">
+    <a href="/pages/about.html">About</a> |
+    <a href="/pages/contact.html">Contact</a> |
+    <a href="/pages/privacy.html">Privacy</a> |
+    <a href="/pages/terms.html">Terms</a>
   </div>
 
-  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
+<div class="footer-copy">
+  © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
+</div>
+
+
+</div>
+
+  </div>
+
+<script src="./brandModels.js"></script>
+  
   <script>
     const form = document.getElementById("search-form");
 
@@ -709,9 +166,33 @@
     const typeChips = document.getElementById("typeChips");
 
     const PAGE_SIZE = 12;
-    let visibleCount = 0;
-    const loadMoreWrap = document.getElementById("loadMoreWrap");
-    const loadMoreBtn = document.getElementById("loadMoreBtn");
+let pageIndex = 0;
+
+const prevPageBtn = document.getElementById("prevPage");
+const nextPageBtn = document.getElementById("nextPage");
+const pageLabelEl = document.getElementById("pageLabel");
+function isMobilePortrait(){
+  return window.matchMedia("(max-width: 768px) and (orientation: portrait)").matches;
+}
+
+function runPagerTransitionThen(fn){
+  // No animation on mobile portrait
+  if (isMobilePortrait()) {
+    fn();
+    return;
+  }
+
+  // Animate OUT
+  resultsEl.classList.add("is-switching");
+
+  // Wait for fade-out, then render, then fade-in
+  setTimeout(() => {
+    fn();
+    requestAnimationFrame(() => {
+      resultsEl.classList.remove("is-switching");
+    });
+  }, 160); // must match the CSS duration
+}
 
     let currentSearch = { brand: "", model: "" };
     let lastSearchResults = [];
@@ -721,38 +202,38 @@
     if (footerYear) footerYear.textContent = new Date().getFullYear();
     if (logoLink) logoLink.addEventListener("click", () => location.reload());
 
-    // --- Menu dropdown ---
+    // --- Menu dropdown (click + hover) ---
+    function openMenu(){ menuDropdown.classList.add("show"); }
+    function closeMenu(){ menuDropdown.classList.remove("show"); }
+
     menuBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       menuDropdown.classList.toggle("show");
     });
 
-    menuBtn.addEventListener("mouseenter", () => menuDropdown.classList.add("show"));
-    menuDropdown.addEventListener("mouseenter", () => menuDropdown.classList.add("show"));
+    menuBtn.addEventListener("mouseenter", openMenu);
+    menuDropdown.addEventListener("mouseenter", openMenu);
 
     menuBtn.addEventListener("mouseleave", () => {
       setTimeout(() => {
-        if (!menuDropdown.matches(':hover') && !menuBtn.matches(':hover')) {
-          menuDropdown.classList.remove("show");
-        }
-      }, 100);
+        if (!menuDropdown.matches(":hover") && !menuBtn.matches(":hover")) closeMenu();
+      }, 120);
     });
 
     menuDropdown.addEventListener("mouseleave", () => {
       setTimeout(() => {
-        if (!menuDropdown.matches(':hover') && !menuBtn.matches(':hover')) {
-          menuDropdown.classList.remove("show");
-        }
-      }, 100);
+        if (!menuDropdown.matches(":hover") && !menuBtn.matches(":hover")) closeMenu();
+      }, 120);
     });
 
     document.addEventListener("click", (e) => {
-      if (!menuBtn.contains(e.target) && !menuDropdown.contains(e.target)) {
-        menuDropdown.classList.remove("show");
-      }
+      if (!menuBtn.contains(e.target) && !menuDropdown.contains(e.target)) closeMenu();
     });
+// make sure brandModels always exists
+const brandModels = window.brandModels || {};
 
-    // --- Helpers ---
+// --- Helpers ---
+
     function normalizeStr(s) { return String(s || "").trim().toLowerCase(); }
     function normalizeEnum(s) { return String(s || "").trim().toLowerCase(); }
 
@@ -761,7 +242,7 @@
         .replace(/[<>'"]/g, '')
         .replace(/script/gi, '')
         .replace(/javascript:/gi, '')
-        .replace(/on\w+=/gi, '')
+        .replace(/on\\w+=/gi, '')
         .trim()
         .slice(0, 100);
     }
@@ -800,12 +281,8 @@
     function getBlobBase() {
       const meta = document.querySelector('meta[name="shoebeagle-blob-base"]');
       const fromMeta = meta ? String(meta.getAttribute("content") || "").trim() : "";
-
-      // If you didn’t replace __BLOB_BASE_URL__, it’ll still be that placeholder.
       const looksLikePlaceholder = fromMeta.includes("__BLOB_BASE_URL__");
       if (fromMeta && !looksLikePlaceholder) return fromMeta.replace(/\/+$/, "");
-
-      // Fallback (keeps your current behavior if you forget to set meta)
       return "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
     }
 
@@ -821,7 +298,6 @@
       return u.toString();
     }
 
-    // UPDATED: uses schema: salePrice, originalPrice, discountPercent
     function getDiscountInfo(item) {
       const current = Number(item.salePrice);
       const original = Number(item.originalPrice);
@@ -843,44 +319,6 @@
       return { hasDiscount: false };
     }
 
-    // --- Brand + model dictionary ---
-    const brandModels = {
-      "361°": ["Spire","Fury","Strata","Flame"],
-      "Adidas": ["Adizero Adios","Adizero Boston","Adizero Takumi Sen","Supernova","Ultraboost Light"],
-      "Allbirds": ["Tree Dasher","Tree Flyer","Trail Runner SWT","Tree Dashers Relay"],
-      "Altra": ["Escalante","Torin","Lone Peak","Paradigm","Provision"],
-      "Asics": ["Novablast","Gel-Kayano","Gel-Nimbus","Gel-Cumulus","Metaspeed Sky"],
-      "Atreyu": ["Base Model","Artist","Race Model","Daily Trainer"],
-      "Brooks": ["Ghost","Glycerin","Adrenaline GTS","Launch","Hyperion"],
-      "Craft": ["CTM Ultra","CTM Ultra Carbon","Pro Endur","Nordlite"],
-      "Decathlon Kiprun": ["KD900","KS900","Ultralight","Race Light"],
-      "Diadora": ["Mythos Blushield","Equilibrium","Elite Volo"],
-      "Hoka": ["Clifton","Bondi","Mach","Rincon","Arahi","Carbon X"],
-      "Inov-8": ["Roadfly","Trailfly","Roclite","Mudtalon","X-Talon"],
-      "Joe Nimble": ["Addict","Trail Addict","Ultreya","WanderToes"],
-      "Karhu": ["Fusion","Ikoni","Synchron"],
-      "La Sportiva": ["Jackal","Akasha","Karacal","Mutant","Kaptiva"],
-      "Lems": ["Primal","Primal 2","Trailhead","Mesa"],
-      "Merrell": ["Vapor Glove","Trail Glove","Agility Peak","Long Sky","Morphlite"],
-      "Mizuno": ["Wave Rider","Wave Inspire","Wave Rebellion","Wave Sky"],
-      "New Balance": ["Fresh Foam 1080","FuelCell Rebel","Fresh Foam X 880","Fresh Foam More","RC Elite"],
-      "Newton": ["Gravity","Distance","Motion","Fate","Kismet"],
-      "Nike": ["Pegasus","ZoomX Vaporfly","Alphafly","Infinity Run","Structure"],
-      "Norda": ["001","002","003"],
-      "On": ["Cloudsurfer","Cloudmonster","Cloudflow","Cloudstratus","Cloudboom Echo"],
-      "Pearl Izumi": ["Flow","Floatride","Trail N2","Road N1"],
-      "Puma": ["Deviate Nitro","Velocity Nitro","Magnify Nitro"],
-      "Reebok": ["Floatride Energy","Floatride Run Fast"],
-      "Salomon": ["S/Lab Pulsar","Sense Ride","Ultra Glide"],
-      "Saucony": ["Ride","Endorphin Speed","Endorphin Pro","Kinvara","Triumph","Guide"],
-      "Skechers": ["GOrun Ride","GOrun Razor","MaxRoad"],
-      "Topo Athletic": ["Ultrafly","Phantom","Fly Lite"],
-      "Under Armour": ["HOVR Machina","HOVR Infinite","Charged Assert"],
-      "Vibram FiveFingers": ["V-Run","V-Trail","V-Alpha","KSO EVO","V-Trek"],
-      "Vivobarefoot": ["Primus Lite","Primus Trail","Geo Racer","Stealth","Addis"],
-      "Xero Shoes": ["HFS","Prio","Speed Force","Mesa Trail","Zelen"]
-    };
-
     const brands = Object.keys(brandModels).sort((a,b) => a.localeCompare(b));
 
     function squashStr(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
@@ -899,9 +337,9 @@
       if (cl.includes(q)) score += 80;
       if (qSquash.length >= 3 && cSquash.includes(qSquash)) score += 110;
 
-      const qParts = q.split(/\s+/).filter(Boolean);
+      const qParts = q.split(/\\s+/).filter(Boolean);
       if (qParts.length >= 2) {
-        const cParts = cl.split(/\s+/);
+        const cParts = cl.split(/\\s+/);
         let tokenHits = 0;
         for (const qp of qParts) {
           if (cParts.some(cp => cp.startsWith(qp))) tokenHits++;
@@ -1206,37 +644,76 @@
       });
     }
 
-    function renderFilteredResults(resetPagination = true) {
-      const filtered = applyFilters(lastSearchResults);
+function totalPagesCount(total){
+  return Math.max(1, Math.ceil((Number(total) || 0) / PAGE_SIZE));
+}
 
-      if (resetPagination) visibleCount = PAGE_SIZE;
-      const shown = filtered.slice(0, visibleCount);
+function setPagerUI(total, shown){
+  const pages = totalPagesCount(total);  // just for consistent math
+  const current = Math.min(pageIndex + 1, pages);
 
-      resultsEl.innerHTML = "";
-      shown.forEach(item => resultsEl.appendChild(createDealCard(item)));
+  if (pageLabelEl) pageLabelEl.textContent = `${current} of ${pages}`;
 
-      const displayQuery = [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() || "all shoes";
+  if (prevPageBtn) prevPageBtn.disabled = pageIndex <= 0;
+  if (nextPageBtn) nextPageBtn.disabled = (pageIndex + 1) >= pages;
 
-      if (!filtered.length) {
-        statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
-        if (loadMoreWrap) loadMoreWrap.style.display = "none";
-        return;
-      }
+  // show pager only if there are more than one page
+  const pager = document.querySelector(".pager");
+  if (pager) pager.style.display = (pages > 1) ? "flex" : "none";
+}
+    
+  function renderFilteredResults(resetPage = true) {
+  const filtered = applyFilters(lastSearchResults);
 
-      statusMessageEl.textContent =
-        `Showing ${shown.length} of ${filtered.length} deal${filtered.length === 1 ? "" : "s"} for ${displayQuery}.`;
+  if (resetPage) pageIndex = 0;
 
-      if (loadMoreWrap) {
-        loadMoreWrap.style.display = (shown.length < filtered.length) ? "flex" : "none";
-      }
-    }
+  const start = pageIndex * PAGE_SIZE;
+  const shown = filtered.slice(start, start + PAGE_SIZE);
 
-    if (loadMoreBtn) {
-      loadMoreBtn.addEventListener("click", () => {
-        visibleCount += PAGE_SIZE;
-        renderFilteredResults(false);
-      });
-    }
+  resultsEl.innerHTML = "";
+  shown.forEach(item => resultsEl.appendChild(createDealCard(item)));
+
+  const displayQuery =
+    [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() || "all shoes";
+
+  if (!filtered.length) {
+    statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
+    setPagerUI(0, 0);
+    return;
+  }
+  statusMessageEl.textContent =
+    `Showing ${start + shown.length} of ${filtered.length} deal${filtered.length === 1 ? "" : "s"} for ${displayQuery}.`;
+
+  setPagerUI(filtered.length, shown.length);
+}
+if (prevPageBtn) {
+  prevPageBtn.addEventListener("click", () => {
+    const filtered = applyFilters(lastSearchResults);
+    if (pageIndex <= 0) return;
+
+    runPagerTransitionThen(() => {
+      pageIndex--;
+      renderFilteredResults(false);
+      resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
+
+
+if (nextPageBtn) {
+  nextPageBtn.addEventListener("click", () => {
+    const filtered = applyFilters(lastSearchResults);
+    const pages = totalPagesCount(filtered.length);
+
+    if (pageIndex >= pages - 1) return;
+
+    runPagerTransitionThen(() => {
+      pageIndex++;
+      renderFilteredResults(false);
+      resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
 
     if (genderChips) {
       genderChips.addEventListener("click", (e) => {
@@ -1290,8 +767,12 @@
         imgWrapper.appendChild(badge);
       }
 
-      const g = normalizeEnum(item.gender);
-      const t = normalizeEnum(item.shoeType);
+const gRaw = normalizeEnum(item.gender);
+const tRaw = normalizeEnum(item.shoeType);
+
+const g = (gRaw && gRaw !== "unknown") ? gRaw : "";
+const t = (tRaw && tRaw !== "unknown") ? tRaw : "";
+
 
       const tagWrap = document.createElement("div");
       tagWrap.className = "card-tags";
@@ -1444,11 +925,15 @@
       }
 
       currentSearch = { brand: brandTyped, model: modelTyped };
-      const displayQuery = [brandTyped, modelTyped].filter(Boolean).join(" ");
-
+      const displayQuery = [brandTyped, modelTyped].filter(Boolean).join(" ").trim(); 
+      if (!displayQuery) {
+        statusMessageEl.textContent = "Please enter a brand and/or a model.";
+        return;
+      }
       statusMessageEl.textContent = "Searching deals…";
       resultsEl.innerHTML = "";
-      if (loadMoreWrap) loadMoreWrap.style.display = "none";
+const pager = document.querySelector(".pager");
+if (pager) pager.style.display = "none";
       dailyDeals.style.display = "none";
       if (filtersEl) filtersEl.style.display = "none";
 
@@ -1474,7 +959,9 @@
       if (!results.length) {
         statusMessageEl.textContent = `No results found for ${displayQuery}.`;
         if (filtersEl) filtersEl.style.display = "none";
-        if (loadMoreWrap) loadMoreWrap.style.display = "none";
+        const pager = document.querySelector(".pager");
+if (pager) pager.style.display = "none";
+
         dailyDeals.style.display = "block";
         return;
       }
