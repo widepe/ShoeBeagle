@@ -338,6 +338,62 @@ button{
 }
 .menu-dropdown a:hover{ background:#e8f0ff; }
 
+/* Links ribbon: centered and same width as grid */
+.links-ribbon{
+  width: min(100%, var(--grid-w));
+  margin: 10px auto 0 auto;
+  padding: 0 var(--pad);
+}
+
+.links-ribbon-inner{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 10px 12px;
+  border-radius: 14px;
+
+  background: #d9e1ebff;
+  border: 1px solid rgba(0,0,0,0.08);
+}
+
+.links-ribbon-left{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.links-ribbon-title{
+  font-weight: 700;
+}
+
+.links-ribbon-links{
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.links-ribbon-links a{
+  text-decoration: none;
+  font-weight: 600;
+}
+
+/* Close chip on the right */
+.chip-close{
+  width: 34px;
+  height: 34px;
+  line-height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 18px;
+}
+
+
+
 /* ---------- Status / filters ---------- */
 
 .status-message{
