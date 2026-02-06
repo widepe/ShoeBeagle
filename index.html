@@ -51,9 +51,11 @@
 
 
               <div id="menuDropdown" class="menu-dropdown">
-                <a href="/pages/myalerts.html">My Alerts</a>
-                <a href="/pages/setalert.html">Set Alert</a>
-              </div>
+  <a href="/pages/myalerts.html">My Alerts</a>
+  <a href="/pages/setalert.html">Set Alert</a>
+  <a href="#" id="linksMenuItem">Links</a>
+</div>
+
             </div>
           </div>
 
@@ -85,11 +87,30 @@
           class="brand-logo"
           alt="Shoe Beagle Logo"
           id="logoLink"
-        >
+          >
       </div>
     </div>
+ <!-- Links ribbon (hidden by default) -->
+    <div id="linksRibbon" class="links-ribbon" style="display:none;">
+      <div class="links-ribbon-inner">
+        <div class="links-ribbon-left">
+          <span class="links-ribbon-title">Links</span>
+          <span class="links-ribbon-links">
+            <a href="/pages/about.html">About</a>
+            <a href="/pages/contact.html">Contact</a>
+            <a href="/pages/privacy.html">Privacy</a>
+            <a href="/pages/terms.html">Terms</a>
+          </span>
+        </div>
 
-<div id="mainContent">
+        <button id="linksRibbonClose"
+                type="button"
+                class="chip chip-close"
+                aria-label="Close links ribbon">
+          &times;
+        </button>
+      </div>
+    </div><div id="mainContent">
 
   <!-- Filters should be ABOVE the status line -->
   <div class="filters" id="filters" style="display:none;">
@@ -173,6 +194,40 @@
     const footerYear = document.getElementById("footerYear");
     const menuBtn = document.getElementById("menuBtn");
     const menuDropdown = document.getElementById("menuDropdown");
+
+function openLinksRibbon(){
+  if (!linksRibbon) return;
+  linksRibbon.style.display = "block";
+}
+
+function closeLinksRibbon(){
+  if (!linksRibbon) return;
+  linksRibbon.style.display = "none";
+}
+
+function toggleLinksRibbon(){
+  if (!linksRibbon) return;
+  const isOpen = linksRibbon.style.display !== "none";
+  linksRibbon.style.display = isOpen ? "none" : "block";
+}
+
+if (linksMenuItem) {
+  linksMenuItem.addEventListener("click", (e) => {
+    e.preventDefault();
+    toggleLinksRibbon();
+    closeMenu(); // closes dropdown
+  });
+}
+
+if (linksRibbonClose) {
+  linksRibbonClose.addEventListener("click", () => {
+    closeLinksRibbon();
+  });
+}
+    
+    const linksMenuItem = document.getElementById("linksMenuItem");
+    const linksRibbon = document.getElementById("linksRibbon");
+    const linksRibbonClose = document.getElementById("linksRibbonClose");
 
     const filtersEl = document.getElementById("filters");
     const genderChips = document.getElementById("genderChips");
