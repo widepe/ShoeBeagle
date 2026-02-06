@@ -767,8 +767,12 @@ if (nextPageBtn) {
         imgWrapper.appendChild(badge);
       }
 
-      const g = normalizeEnum(item.gender);
-      const t = normalizeEnum(item.shoeType);
+const gRaw = normalizeEnum(item.gender);
+const tRaw = normalizeEnum(item.shoeType);
+
+const g = (gRaw && gRaw !== "unknown") ? gRaw : "";
+const t = (tRaw && tRaw !== "unknown") ? tRaw : "";
+
 
       const tagWrap = document.createElement("div");
       tagWrap.className = "card-tags";
