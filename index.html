@@ -89,7 +89,7 @@
       </div>
     </div>
 
-   <div id="mainContent">
+<div id="mainContent">
 
   <div class="daily-deals" id="dailyDeals">
     <div class="daily-deals-header status-message" id="statusMessage">
@@ -99,38 +99,41 @@
     <div class="shoe-grid" id="dailyDealsGrid"></div>
   </div>
 
-        <div class="shoe-grid" id="dailyDealsGrid"></div>
+  <div class="filters" id="filters" style="display:none;">
+    <div class="filter-row">
+      <div class="filter-label">Gender:</div>
+      <div class="chip-group" id="genderChips">
+        <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
+        <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
+        <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
       </div>
-   <div class="filters" id="filters" style="display:none;">
-          <div class="filter-row">
-            <div class="filter-label">Gender:</div>
-            <div class="chip-group" id="genderChips">
-              <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
-              <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
-              <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
-            </div>
-          </div>
+    </div>
 
-          <div class="filter-row">
-            <div class="filter-label">Shoe type:</div>
-            <div class="chip-group" id="typeChips">
-              <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
-              <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
-              <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
-              <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
-            </div>
-          </div>
-        </div>      <div class="shoe-grid" id="results"></div>
+    <div class="filter-row">
+      <div class="filter-label">Shoe type:</div>
+      <div class="chip-group" id="typeChips">
+        <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
+        <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
+        <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
+        <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="shoe-grid" id="results"></div>
 
   <div class="pager">
-  <button id="prevPage" class="pager-btn" aria-label="Previous page">◀</button>
-  <div id="pageLabel" class="page-label">1 / 1</div>
-  <button id="nextPage" class="pager-btn" aria-label="Next page">▶</button>
+    <button id="prevPage" class="pager-btn" aria-label="Previous page">◀</button>
+    <div id="pageLabel" class="page-label">1 / 1</div>
+    <button id="nextPage" class="pager-btn" aria-label="Next page">▶</button>
+  </div>
+
+  <p class="disclaimer">
+    Shoe Beagle may earn commissions through our affiliate program at no cost to you. We do not sell products directly and are not responsible for changes in price, availability, or shipping terms on retailer sites.
+  </p>
+
 </div>
 
-
-      <p class="disclaimer">Shoe Beagle may earn commissions through our affiliate program at no cost to you. We do not sell products directly and are not responsible for changes in price, availability, or shipping terms on retailer sites.</p>
-    </div>
 
    <div class="footer">
   <div class="footer-links">
