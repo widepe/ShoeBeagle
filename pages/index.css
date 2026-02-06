@@ -666,9 +666,34 @@ button{
 /* ---------- RESPONSIVE COLUMN COUNTS ---------- */
 
 /* Tablet landscape: 5 columns */
+/* Tablet landscape: 5 columns (top UI constrained to grid width) */
 @media (min-width:820px) and (max-width:1366px) and (orientation:landscape){
   :root{ --cols:5; }
+
+  /* Make the top cluster match the shoe-grid width */
+  .topbar{
+    width: 100%;
+    max-width: min(var(--grid-w), 100%);
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* Optional but usually desired: keep the “status/filters/header” aligned too */
+  .status-message,
+  .filters,
+  .daily-deals-header{
+    max-width: min(var(--grid-w), 100%);
+    margin-left: auto;
+    margin-right: auto;
+  }
+    input[type="text"],
+  input[type="search"]{
+    max-width: 35ch;
+  }
 }
+
 
 /* Tablet portrait: 4 columns (logo left, inputs right, logo height = 2 inputs + gap) */
 @media (max-width:900px) and (orientation:portrait){
@@ -862,22 +887,7 @@ button{
     border-radius: 0.6rem;
     display: block;
   }
-/*   Delete if badges work in mobile and everywhere else
-  .discount-badge{
-    position: absolute;
-    top: 0.35rem;
-    left: 0.35rem;
-    z-index: 50;
-    display: inline-block;
-    padding: 0.15rem 0.5rem;
-    border-radius: 999px;
-    font-weight: 800;
-    font-size: 0.85rem;
-    background: rgba(220,53,69,0.92);
-    color: #fff;
-    pointer-events: none;
-  }
-*/
+
     #fetchBtn .btn-icon{
     content: url("/images/fetch_vert.svg");
     height: 80%;
@@ -904,12 +914,12 @@ button{
   }
 
   .card-title{
-    font-size: 1.05rem;
+    font-size: 0.92rem;
     -webkit-line-clamp: 2;
     min-height: auto;
   }
-  .card-store{ font-size: 0.95rem; }
-  .card-price-row{ font-size: 1.05rem; }
+  .card-store{ font-size: 0.82rem; }
+  .card-price-row{ font-size: 0.9rem; }
 
   .daily-deals-header{ font-size: 1.5rem; }
   .status-message{ font-size: 0.9rem; }
@@ -935,6 +945,31 @@ button{
   }
   /* setting width of input bars home computer display version */
 }
+/* Desktop / computer: keep top area the same width as the shoe grid */
 @media (min-width:901px){
   .top-left{ max-width:520px; }
+
+  input[type="text"],
+  input[type="search"]{
+    max-width: 35ch;
+  }
+}
+
+
+  /* match the top cluster width to the grid’s OUTER width (grid + its left/right padding) */
+  .topbar{
+    max-width: min(calc(var(--grid-w) + (2 * var(--pad))), 100%);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* optional but usually desired: keep these aligned to the same width too */
+  .status-message,
+  .filters,
+  .daily-deals-header,
+  .disclaimer{
+    max-width: min(calc(var(--grid-w) + (2 * var(--pad))), 100%);
+    margin-left: auto;
+    margin-right: auto;
+  }
 }
