@@ -112,11 +112,11 @@ body{
 }
 
 /* =========================================================
-   MOBILE TOP BANNER (MOBILE PORTRAIT ONLY)
-   - Hidden everywhere by default
+   MOBILE TOP BANNER
+   - Permanently hidden everywhere (including mobile portrait)
 ========================================================= */
 .mobile-top-banner{
-  display:none;              /* ✅ fixes desktop showing */
+  display:none !important;
   width:80%;
   height:auto;
   object-fit:cover;
@@ -328,7 +328,7 @@ button{
 
 /* =========================================================
    LINKS RIBBON (TWO LINES + LINKS BETWEEN)
-   This replaces the "blue box ribbon" look.
+   - Links are forced side-by-side (no stacking)
 ========================================================= */
 .links-ribbon{
   width:100%;
@@ -372,7 +372,7 @@ button{
   align-items:center;
   justify-content:center;
   gap:0.9rem;
-  flex-wrap:wrap;
+  flex-wrap:nowrap;          /* ✅ no stacking */
   white-space:nowrap;
 }
 
@@ -385,7 +385,8 @@ button{
   align-items:center;
   justify-content:center;
   gap:0.9rem;
-  flex-wrap:wrap;
+  flex-wrap:nowrap;          /* ✅ no stacking */
+  white-space:nowrap;
 }
 
 .links-ribbon-links a{
@@ -852,8 +853,8 @@ button{
     --badge-offset:calc(0.34rem * var(--grid-scale));
   }
 
-  /* ✅ show banner only here */
-  .mobile-top-banner{ display:block; }
+  /* ✅ banner removed permanently (kept explicit here too) */
+  .mobile-top-banner{ display:none !important; }
 
   .app{ gap:0.25rem; }
 
@@ -890,7 +891,7 @@ button{
   }
 
   .brand-logo{
-    content:url("/images/logoV3.svg");
+    content:url("/images/logoV2.svg");
     height:calc(var(--input-h) * 2 + var(--gap));
     max-height:calc(var(--input-h) * 2 + var(--gap));
     width:auto;
