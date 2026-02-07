@@ -125,13 +125,13 @@ body{
 }
 
 /* =========================================================
-   SCROLL TO TOP (mobile portrait only; shown by adding .is-visible)
+   BACK TO TOP (base)
+   - Hidden by default everywhere (JS adds .is-visible, media enables display)
 ========================================================= */
 .to-top{
   position:fixed;
   right:max(12px, env(safe-area-inset-right));
   bottom:max(12px, env(safe-area-inset-bottom));
-  z-index:200;
 
   width:44px;
   height:44px;
@@ -141,25 +141,23 @@ body{
   background:rgba(33,68,120,0.92);
   color:#fff;
 
-  display:none;                /* hidden by default */
+  display:none; /* hidden unless mobile portrait + .is-visible */
   align-items:center;
   justify-content:center;
 
-  font-size:18px;
+  font-size:20px;
   font-weight:900;
   line-height:1;
 
   box-shadow:0 8px 18px rgba(0,0,0,0.18);
   cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
 
   opacity:0;
   transform:translateY(8px);
   transition:opacity 160ms ease, transform 160ms ease;
-}
-.to-top.is-visible{
-  display:flex;
-  opacity:1;
-  transform:none;
+
+  z-index:2000;
 }
 
 /* =========================================================
@@ -237,9 +235,6 @@ form#search-form{
   min-width:0;
 }
 
-/* IMPORTANT:
-   iOS can zoom on focus if font-size < 16px.
-   We'll enforce a minimum in MOBILE PORTRAIT later. */
 input[type="text"], input[type="search"]{
   width:100%;
   height:var(--input-h);
@@ -373,8 +368,6 @@ button{
   max-width:min(calc(var(--grid-w) + (2 * var(--pad))), 100%);
   margin:0.35rem auto 0;
   padding:0 var(--pad);
-
-  /* ✅ remove blue box styling */
   background:transparent;
   border:none;
   border-radius:0;
@@ -387,8 +380,6 @@ button{
   justify-content:center;
   gap:0.75rem;
   padding:0.35rem 0;
-
-  /* no background / border here either */
   background:transparent;
   border:none;
   border-radius:0;
@@ -410,12 +401,12 @@ button{
   align-items:center;
   justify-content:center;
   gap:0.9rem;
-  flex-wrap:nowrap;          /* ✅ no stacking */
+  flex-wrap:nowrap;
   white-space:nowrap;
 }
 
 .links-ribbon-title{
-  display:none; /* you wanted just lines + links; hide title */
+  display:none;
 }
 
 .links-ribbon-links{
@@ -423,7 +414,7 @@ button{
   align-items:center;
   justify-content:center;
   gap:0.9rem;
-  flex-wrap:nowrap;          /* ✅ no stacking */
+  flex-wrap:nowrap;
   white-space:nowrap;
 }
 
@@ -435,7 +426,7 @@ button{
 }
 .links-ribbon-links a:hover{ text-decoration:underline; }
 
-/* close button optional; keep it, but subtle */
+/* close button */
 .links-ribbon .chip-close{
   width:26px;
   height:26px;
@@ -580,7 +571,7 @@ button{
   position:relative;
   width:100%;
   overflow:hidden;
-  aspect-ratio:1 / 1; /* ✅ square images */
+  aspect-ratio:1 / 1;
 }
 
 .card img{
@@ -673,7 +664,7 @@ button{
 }
 
 /* =========================================================
-   DISCLAIMER (fix 1-char vertical wrap)
+   DISCLAIMER
 ========================================================= */
 .disclaimer{
   width:100%;
@@ -891,27 +882,22 @@ button{
     --badge-offset:calc(0.36rem * var(--grid-scale));
   }
 
-  /* ✅ banner removed permanently (kept explicit here too) */
   .mobile-top-banner{ display:none !important; }
-
-  /* ✅ ONLY mobile portrait can ever show the to-top button */
-  .to-top{ display:none; }
-  .to-top.is-visible{ display:flex; }
 
   .app{ gap:0.25rem; }
 
   /* iOS fix: prevent focus-zoom + layout jump */
   input[type="text"], input[type="search"]{
-    font-size:16px; /* critical for iOS */
+    font-size:16px;
   }
 
-  /* extra: prevent rows from pushing offscreen */
+  /* Bigger dropdown suggestions on mobile portrait */
+  .suggestion-item{ font-size:18px; }
+
+  /* prevent rows from pushing offscreen */
   .row{ min-width:0; }
   .input-wrapper{ min-width:0; }
-/* Bigger dropdown suggestions on mobile portrait */
-.suggestion-item{
-  font-size:18px;
-}   
+
   .topbar{
     flex-direction:row;
     align-items:flex-start;
@@ -1100,60 +1086,69 @@ button{
     margin-right:auto;
   }
 }
-/* Back-to-top arrow (mobile portrait only) */
-.to-top{
-  position:fixed;
-  right: max(12px, env(safe-area-inset-right));
-  bottom: max(16px, env(safe-area-inset-bottom));
-  width:44px;
-  height:44px;
-  border-radius:999px;
-  border:1px solid rgba(33,68,120,0.45);
-  background:rgba(244,237,227,0.92);
-  color: var(--sb-blue);
-  font-weight:900;
-  font-size:20px;
-  line-height:1;
-  display:none;              /* hidden by default */
-  align-items:center;
-  justify-content:center;
-  z-index:9999;
-  cursor:pointer;
-  -webkit-tap-highlight-color: transparent;
-}
 
+/* =========================================================
+   MOBILE PORTRAIT: LOAD MORE BAR + BACK TO TOP VISIBILITY
+   - This fixes your missing braces + arrow disappearing
+========================================================= */
 @media (max-width:560px){
-  .to-top.is-visible{ display:flex; }
-}
-@media (max-width:560px){
+  /* Fixed Load More bar */
   .load-more-fixed{
     position:fixed;
     left:0;
     right:0;
     bottom:0;
+
     display:flex;
     justify-content:center;
+
     padding:10px 12px;
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
-    background: rgba(244,237,227,0.96);
-    border-top: 1px solid rgba(0,0,0,0.08);
-    z-index: 999;
+    padding-bottom:calc(10px + env(safe-area-inset-bottom));
+
+    background:rgba(244,237,227,0.96);
+    border-top:1px solid rgba(0,0,0,0.08);
+
+    z-index:999;
   }
 
-  /* give scroll content room so it doesn't hide behind the fixed button */
+  /* Give page room so content doesn't hide behind the fixed bar */
   #mainContent{
-    padding-bottom: 90px;
+    padding-bottom:90px;
   }
 
+  /* Make Load More look like the main home buttons */
   .load-more-btn{
-    width: min(320px, 92vw);
-    height: 46px;
-    border-radius: 0.85rem;
-    border: 1px solid var(--sb-blue);
-    background: var(--sb-blue);
+    height:var(--btn-h);
+    min-height:var(--btn-h);
+
+    padding:0 calc(10px * var(--top-scale));
+    border-radius:calc(0.5rem * var(--top-scale));
+    border:1px solid var(--sb-blue);
+
+    background:var(--sb-blue);
     color:#fff;
-    font-weight:900;
-    font-size:1.05rem;
+
+    font-size:var(--btn-font);
+    font-weight:700;
+
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+
     cursor:pointer;
+    white-space:nowrap;
+  }
+  .load-more-btn:hover{ background:#1a3661; }
+
+  /* Show the back-to-top ONLY on mobile portrait when JS adds .is-visible */
+  .to-top.is-visible{
+    display:flex;
+    opacity:1;
+    transform:none;
+  }
+
+  /* Put arrow ABOVE the fixed bar */
+  .to-top{
+    bottom:calc(max(16px, env(safe-area-inset-bottom)) + 78px);
   }
 }
