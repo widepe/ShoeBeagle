@@ -91,8 +91,11 @@ body{
   display:flex;
   justify-content:center;
 
-  padding: max(8px, env(safe-area-inset-top)) max(var(--pad), env(safe-area-inset-right))
-           max(8px, env(safe-area-inset-bottom)) max(var(--pad), env(safe-area-inset-left));
+  padding:
+    max(8px, env(safe-area-inset-top))
+    max(var(--pad), env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom))
+    max(var(--pad), env(safe-area-inset-left));
 }
 
 .app{
@@ -126,7 +129,8 @@ body{
 
 /* =========================================================
    BACK TO TOP (base)
-   - Hidden by default everywhere (JS adds .is-visible, media enables display)
+   - Hidden by default everywhere
+   - Only mobile portrait shows when JS adds .is-visible
 ========================================================= */
 .to-top{
   position:fixed;
@@ -141,7 +145,7 @@ body{
   background:rgba(33,68,120,0.92);
   color:#fff;
 
-  display:none; /* hidden unless mobile portrait + .is-visible */
+  display:none;
   align-items:center;
   justify-content:center;
 
@@ -361,7 +365,6 @@ button{
 
 /* =========================================================
    LINKS RIBBON (TWO LINES + LINKS BETWEEN)
-   - Links are forced side-by-side (no stacking)
 ========================================================= */
 .links-ribbon{
   width:100%;
@@ -405,9 +408,7 @@ button{
   white-space:nowrap;
 }
 
-.links-ribbon-title{
-  display:none;
-}
+.links-ribbon-title{ display:none; }
 
 .links-ribbon-links{
   display:flex;
@@ -1089,7 +1090,6 @@ button{
 
 /* =========================================================
    MOBILE PORTRAIT: LOAD MORE BAR + BACK TO TOP VISIBILITY
-   - This fixes your missing braces + arrow disappearing
 ========================================================= */
 @media (max-width:560px){
   /* Fixed Load More bar */
@@ -1101,9 +1101,10 @@ button{
 
     display:flex;
     justify-content:center;
+    align-items:center;
 
-    padding:10px 12px;
-    padding-bottom:calc(10px + env(safe-area-inset-bottom));
+    padding:12px 12px;
+    padding-bottom:calc(12px + env(safe-area-inset-bottom));
 
     background:rgba(244,237,227,0.96);
     border-top:1px solid rgba(0,0,0,0.08);
@@ -1113,15 +1114,18 @@ button{
 
   /* Give page room so content doesn't hide behind the fixed bar */
   #mainContent{
-    padding-bottom:90px;
+    padding-bottom:calc(120px + env(safe-area-inset-bottom));
   }
 
-  /* Make Load More look like the main home buttons */
+  /* Make Load More look like the main home buttons, AND keep it centered */
   .load-more-btn{
     height:var(--btn-h);
     min-height:var(--btn-h);
 
-    padding:0 calc(10px * var(--top-scale));
+    width:min(92vw, 420px);
+    max-width:420px;
+
+    padding:0 calc(14px * var(--top-scale));
     border-radius:calc(0.5rem * var(--top-scale));
     border:1px solid var(--sb-blue);
 
@@ -1149,6 +1153,7 @@ button{
 
   /* Put arrow ABOVE the fixed bar */
   .to-top{
-    bottom:calc(max(16px, env(safe-area-inset-bottom)) + 78px);
+    bottom:calc(max(16px, env(safe-area-inset-bottom)) + 92px);
+    z-index:2000;
   }
 }
