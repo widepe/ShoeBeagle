@@ -355,7 +355,7 @@ button{
 }
 
 /* wrapper stays */
-.button-wrapper{
+.-wrapper{
   position:relative;
   display:flex;
   align-items:center;
@@ -700,7 +700,7 @@ button{
   text-decoration:none;
   font-weight:500;
   cursor:pointer;
-  margin:0 1.05rem;
+  margin:0 0.35rem;
   font-size:0.8rem;
 }
 .footer a:hover{ text-decoration:underline; }
@@ -872,7 +872,7 @@ button{
     --gap:calc(12px * var(--top-scale));
     --input-h:calc(64px * var(--top-scale));
     --btn-h:calc(64px * var(--top-scale));
-    --btn-eq-w:calc(var(--btn-h) * 0.8);
+    --btn-eq-w:calc(var(--btn-h) * 1.2);   /* Button width */
 
     --card-w:1px;
     --grid-gap:calc(1.0rem * var(--grid-scale));
