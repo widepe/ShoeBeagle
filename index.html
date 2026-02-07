@@ -175,7 +175,7 @@
         © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
       </div>
     </div>
-
+<button class="to-top" id="toTopBtn" type="button" aria-label="Back to top">↑</button>
   </div>
 
   <script src="./brandModels.js"></script>
@@ -215,9 +215,9 @@
     // ✅ Load more elements
     const loadMoreWrap = document.getElementById("loadMoreWrap");
     const loadMoreBtn = document.getElementById("loadMoreBtn");
-
+const toTopBtn = document.getElementById("toTopBtn");
     function isMobilePortrait(){
-      return window.matchMedia("(max-width: 560px)").matches;
+        return window.matchMedia("(max-width: 560px) and (orientation: portrait)").matches;
     }
 
     function runPagerTransitionThen(fn){
@@ -981,7 +981,30 @@
     }
 
     loadDailyDeals();
+// --- Back to top (mobile portrait only) ---
+function updateToTopVisibility(){
+  if (!toTopBtn) return;
 
+  if (!isMobilePortrait()){
+    toTopBtn.classList.remove("is-visible");
+    return;
+  }
+
+  if (window.scrollY > 250)
+    toTopBtn.classList.add("is-visible");
+  else
+    toTopBtn.classList.remove("is-visible");
+}
+
+window.addEventListener("scroll", updateToTopVisibility, { passive: true });
+window.addEventListener("resize", updateToTopVisibility);
+updateToTopVisibility();
+
+if (toTopBtn){
+  toTopBtn.addEventListener("click", () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+}
     // --- Submit search ---
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
