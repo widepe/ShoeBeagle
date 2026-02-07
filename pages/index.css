@@ -354,7 +354,7 @@ button{
   pointer-events:none;
 }
 
-/* wrapper stays */
+/* wrapper stays (kept as-is) */
 .-wrapper{
   position:relative;
   display:flex;
@@ -892,8 +892,10 @@ button{
   /* iOS fix: prevent focus-zoom + layout jump */
   input[type="text"], input[type="search"]{ font-size:16px; }
 
+  /* Bigger dropdown suggestions on mobile portrait */
   .suggestion-item{ font-size:18px; }
 
+  /* prevent rows from pushing offscreen */
   .row{ min-width:0; }
   .input-wrapper{ min-width:0; }
 
@@ -925,15 +927,15 @@ button{
     will-change: max-width, opacity, transform;
   }
 
-  /* --- INPUTS LANE --- */
+  /* --- INPUTS LANE (default state: unchanged) --- */
   .top-left{
     order:1;
     flex:1 1 auto;
     width:auto;
     min-width:0;
-      margin-left:0;
-     
-    /* default: same starting width you currently see */
+    margin-left:0;
+
+    /* default: leave space for logo lane */
     max-width:calc(100% - var(--logo-lane));
     transform:translateX(0);
 
@@ -942,7 +944,7 @@ button{
 
   /* =========================================================
      MOBILE PORTRAIT: INPUT EXPAND ANIMATION
-     - Inputs grow into the logo lane (left -> right feel)
+     - Right edge stays anchored; inputs gain width leftward
   ========================================================= */
   .app.inputs-expanded .topbar{
     justify-content:flex-start;
@@ -955,13 +957,12 @@ button{
     pointer-events:none;
   }
 
-.app.inputs-expanded .top-left{
-  max-width:100%;
-  margin-left:auto;   /* keeps the right edge anchored */
-}
+  .app.inputs-expanded .top-left{
+    max-width:100%;
+    margin-left:auto;            /* keeps the RIGHT edge anchored */
+  }
 
-}
-
+  /* --- MOBILE PORTRAIT LOGO ASSET + SIZING --- */
   .brand-logo{
     content:url("/images/logoV2.svg");
     height:calc(var(--input-h) * 2 + var(--gap));
@@ -1069,6 +1070,65 @@ button{
     width:100%;
     padding:0 max(10px, var(--pad));
   }
+
+  /* =========================================================
+     MOBILE PORTRAIT: LOAD MORE BAR
+  ========================================================= */
+  .load-more-wrap{
+    position:static;
+    width:100%;
+    display:flex;
+    justify-content:center;
+    margin-top:1rem;
+    padding:0;
+    background:none;
+    border:none;
+  }
+
+  /* Keep centered + match main buttons */
+  .load-more-btn{
+    height:var(--btn-h);
+    min-height:var(--btn-h);
+
+    width:auto;
+    padding:0 calc(22px * var(--top-scale));
+
+    border-radius:calc(0.5rem * var(--top-scale));
+    border:1px solid var(--sb-blue);
+
+    background:var(--sb-blue);
+    color:#fff;
+
+    font-size:calc(var(--btn-font) * 1.35);
+    font-weight:700;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    white-space:nowrap;
+    cursor:pointer;
+  }
+  .load-more-btn:hover{ background:#1a3661; }
+
+  /* =========================================================
+     MOBILE PORTRAIT: BACK TO TOP VISIBILITY
+     - JS toggles .is-visible
+  ========================================================= */
+  .to-top.is-visible{
+    display:flex;
+    opacity:1;
+    transform:none;
+  }
+
+  /* Put arrow ABOVE the load-more area */
+  .to-top{
+    bottom:calc(max(16px, env(safe-area-inset-bottom)) + 92px);
+    z-index:2000;
+  }
+
+  /* If you were padding mainContent before, keep it neutral here */
+  #mainContent{ padding-bottom:0; }
 }
 
 /* =========================================================
@@ -1124,70 +1184,5 @@ button{
     max-width:min(calc(var(--grid-w) + (2 * var(--pad))), 100%);
     margin-left:auto;
     margin-right:auto;
-  }
-}
-
-/* =========================================================
-   MOBILE PORTRAIT: LOAD MORE BAR + BACK TO TOP VISIBILITY
-========================================================= */
-@media (max-width:560px){
- /* Load More wrapper (mobile portrait only) */
-.load-more-wrap{
-  position:static;     /* back into normal flow */
-  width:100%;
-  display:flex;
-  justify-content:center;
-  margin-top:1rem;     /* space from last card */
-  padding:0;           /* no bar padding */
-  background:none;
-  border:none;
-}
-
-#mainContent{
-  padding-bottom:0;
-}
-
-  /* Make Load More look like the main home buttons, AND keep it centered */
-.load-more-btn{
-  height:var(--btn-h);
-  min-height:var(--btn-h);
-
-  width:auto;              /* ← let text define width */
-
-  padding:
-    0
-    calc(22px * var(--top-scale));  /* horizontal breathing room */
-
-  border-radius:calc(0.5rem * var(--top-scale));
-  border:1px solid var(--sb-blue);
-
-  background:var(--sb-blue);
-  color:#fff;
-
-  font-size:calc(var(--btn-font) * 1.35);
-  font-weight:700;
-
-  display:flex;
-  align-items:center;
-  justify-content:center;
-
-  white-space:nowrap;
-  cursor:pointer;
-}
-
-
-  .load-more-btn:hover{ background:#1a3661; }
-
-  /* Show the back-to-top ONLY on mobile portrait when JS adds .is-visible */
-  .to-top.is-visible{
-    display:flex;
-    opacity:1;
-    transform:none;
-  }
-
-  /* Put arrow ABOVE the fixed bar */
-  .to-top{
-    bottom:calc(max(16px, env(safe-area-inset-bottom)) + 92px);
-    z-index:2000;
   }
 }
