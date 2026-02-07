@@ -922,7 +922,44 @@ button{
     width:auto;
     min-width:0;
   }
+/* =========================================================
+   MOBILE PORTRAIT: INPUT EXPAND ANIMATION
+   - When .app has .inputs-expanded:
+     - logo slides off left
+     - inputs get more horizontal room
+========================================================= */
+@media (max-width:560px){
 
+  /* Smooth animations */
+  .top-left{
+    transition: max-width 240ms ease, flex 240ms ease;
+    max-width: calc(100% - 120px); /* default: leave room for logo */
+  }
+
+  .top-right{
+    transition: transform 240ms ease, opacity 240ms ease;
+    will-change: transform, opacity;
+  }
+
+  /* Expanded mode */
+  .app.inputs-expanded .top-left{
+    max-width: 100%;
+  }
+
+  .app.inputs-expanded .top-right{
+    transform: translateX(-140%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Optional: give a little extra input padding when expanded */
+  .app.inputs-expanded input[type="text"],
+  .app.inputs-expanded input[type="search"]{
+    padding-left: calc(1.1rem * var(--top-scale));
+    padding-right: calc(1.1rem * var(--top-scale));
+    transition: padding 240ms ease;
+  }
+}
   .brand-logo{
     content:url("/images/logoV2.svg");
     height:calc(var(--input-h) * 2 + var(--gap));
