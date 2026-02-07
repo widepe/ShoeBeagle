@@ -1119,34 +1119,31 @@ button{
   }
 
   /* Make Load More look like the main home buttons, AND keep it centered */
-  .load-more-btn{
-    margin-left:auto;
-    margin-right:auto;
-    display:block;    
-     height:var(--btn-h);
-    min-height:var(--btn-h);
+ .load-more-btn{
+  height:var(--btn-h);
+  min-height:var(--btn-h);
 
- width:min(78vw, 340px);   /* load more button */
-max-width:340px;
+  width:min(78vw, 340px);
+  max-width:340px;
 
+  padding:0 calc(14px * var(--top-scale));
+  border-radius:calc(0.5rem * var(--top-scale));
+  border:1px solid var(--sb-blue);
 
-    padding:0 calc(14px * var(--top-scale));
-    border-radius:calc(0.5rem * var(--top-scale));
-    border:1px solid var(--sb-blue);
+  background:var(--sb-blue);
+  color:#fff;
 
-    background:var(--sb-blue);
-    color:#fff;
+  font-size:calc(var(--btn-font) * 2);  /* font size in load more button */
+  font-weight:700;
 
-    font-size:var(--btn-font);
-    font-weight:700;
+  display:flex;
+  align-items:center;
+  justify-content:center;
 
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
+  cursor:pointer;
+  white-space:nowrap;
+}
 
-    cursor:pointer;
-    white-space:nowrap;
-  }
   .load-more-btn:hover{ background:#1a3661; }
 
   /* Show the back-to-top ONLY on mobile portrait when JS adds .is-visible */
