@@ -94,10 +94,7 @@
           <span class="links-ribbon-links">
             <a href="/pages/myalerts.html">My Alerts</a>
             <a href="/pages/setalert.html">Set Alert</a>
-            <a href="/pages/about.html">About</a>
-            <a href="/pages/contact.html">Contact</a>
-            <a href="/pages/privacy.html">Privacy</a>
-            <a href="/pages/terms.html">Terms</a>
+            <a href="#" aria-disabled="true" tabindex="0">Favorites</a>
           </span>
         </div>
 
@@ -146,6 +143,12 @@
 
       <div class="shoe-grid" id="results"></div>
 
+      <!-- ✅ Mobile portrait: load more (appends next 12) -->
+      <div class="load-more-wrap" id="loadMoreWrap" style="display:none;">
+        <button id="loadMoreBtn" class="load-more-btn" type="button">Load more</button>
+      </div>
+
+      <!-- ✅ Desktop/tablet: pager (prev/next) -->
       <div class="pager">
         <button id="prevPage" class="pager-btn" aria-label="Previous page">◀</button>
         <div id="pageLabel" class="page-label">1 / 1</div>
@@ -175,11 +178,6 @@
 
   </div>
 
-  <!-- ✅ Back-to-top arrow (shows ONLY on mobile portrait after scrolling) -->
-  <button id="toTopBtn" class="to-top" type="button" aria-label="Back to top" title="Back to top">
-    ▲
-  </button>
-
   <script src="./brandModels.js"></script>
 
   <script>
@@ -198,7 +196,7 @@
     const logoLink = document.getElementById("logoLink");
     const footerYear = document.getElementById("footerYear");
 
-    // Links toggle button + ribbon (this replaces the old hover menu)
+    // Links toggle button + ribbon
     const menuBtn = document.getElementById("menuBtn");
     const linksRibbon = document.getElementById("linksRibbon");
     const linksRibbonClose = document.getElementById("linksRibbonClose");
@@ -214,8 +212,11 @@
     const nextPageBtn = document.getElementById("nextPage");
     const pageLabelEl = document.getElementById("pageLabel");
 
+    // ✅ Load more elements
+    const loadMoreWrap = document.getElementById("loadMoreWrap");
+    const loadMoreBtn = document.getElementById("loadMoreBtn");
+
     function isMobilePortrait(){
-      // NOTE: your CSS mobile portrait breakpoint is 560px
       return window.matchMedia("(max-width: 560px)").matches;
     }
 
@@ -238,7 +239,7 @@
     if (footerYear) footerYear.textContent = new Date().getFullYear();
     if (logoLink) logoLink.addEventListener("click", () => location.reload());
 
-    // --- Links ribbon toggle (NO HOVER MENU) ---
+    // --- Links ribbon toggle ---
     function isRibbonOpen(){
       return !!(linksRibbon && linksRibbon.style.display !== "none");
     }
@@ -262,7 +263,6 @@
     }
 
     if (menuBtn) {
-      // click toggles open/close
       menuBtn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -277,7 +277,6 @@
       });
     }
 
-    // clicking anywhere outside closes the ribbon
     document.addEventListener("click", (e) => {
       if (!linksRibbon || linksRibbon.style.display === "none") return;
       const clickedInsideRibbon = linksRibbon.contains(e.target);
@@ -285,12 +284,10 @@
       if (!clickedInsideRibbon && !clickedButton) closeRibbon();
     });
 
-    // Esc closes
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeRibbon();
     });
 
-    // Optional: clicking a ribbon link closes it
     if (linksRibbon) {
       linksRibbon.addEventListener("click", (e) => {
         const a = e.target.closest("a");
@@ -345,7 +342,7 @@
       }
     }
 
-    // --- Blob base (NO hardcoding) ---
+    // --- Blob base ---
     function getBlobBase() {
       const meta = document.querySelector('meta[name="shoebeagle-blob-base"]');
       const fromMeta = meta ? String(meta.getAttribute("content") || "").trim() : "";
@@ -716,44 +713,75 @@
       return Math.max(1, Math.ceil((Number(total) || 0) / PAGE_SIZE));
     }
 
-    function setPagerUI(total){
-      const pages = totalPagesCount(total);
+    // ✅ One place to control pager vs load-more
+    function updateNavUI(totalFiltered){
+      const pager = document.querySelector(".pager");
+
+      if (isMobilePortrait()){
+        // Hide desktop pager on mobile portrait
+        if (pager) pager.style.display = "none";
+
+        const hasMore = ((pageIndex + 1) * PAGE_SIZE) < (Number(totalFiltered) || 0);
+        if (loadMoreWrap) loadMoreWrap.style.display = hasMore ? "flex" : "none";
+        return;
+      }
+
+      // Desktop/tablet: show pager if > 1 page
+      if (loadMoreWrap) loadMoreWrap.style.display = "none";
+
+      const pages = totalPagesCount(totalFiltered);
       const current = Math.min(pageIndex + 1, pages);
 
       if (pageLabelEl) pageLabelEl.textContent = `${current} of ${pages}`;
       if (prevPageBtn) prevPageBtn.disabled = pageIndex <= 0;
       if (nextPageBtn) nextPageBtn.disabled = (pageIndex + 1) >= pages;
 
-      const pager = document.querySelector(".pager");
       if (pager) pager.style.display = (pages > 1) ? "flex" : "none";
     }
 
-    function renderFilteredResults(resetPage = true) {
+    // ✅ render results with optional append (for mobile “Load more”)
+    function renderFilteredResults({ resetPage = true, append = false } = {}) {
       const filtered = applyFilters(lastSearchResults);
 
       if (resetPage) pageIndex = 0;
 
       const start = pageIndex * PAGE_SIZE;
-      const shown = filtered.slice(start, start + PAGE_SIZE);
+      const slice = filtered.slice(start, start + PAGE_SIZE);
 
-      resultsEl.innerHTML = "";
-      shown.forEach(item => resultsEl.appendChild(createDealCard(item)));
+      if (!append) resultsEl.innerHTML = "";
+      slice.forEach(item => resultsEl.appendChild(createDealCard(item)));
 
       const displayQuery =
         [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() || "all shoes";
 
       if (!filtered.length) {
         statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
-        setPagerUI(0);
+        updateNavUI(0);
         return;
       }
 
       statusMessageEl.textContent =
         `We found ${filtered.length} deal${filtered.length === 1 ? "" : "s"} on ${displayQuery} shoes.`;
 
-      setPagerUI(filtered.length);
+      updateNavUI(filtered.length);
     }
 
+    // ✅ Mobile Load More handler
+    if (loadMoreBtn) {
+      loadMoreBtn.addEventListener("click", () => {
+        const filtered = applyFilters(lastSearchResults);
+        const total = filtered.length;
+
+        const hasMore = ((pageIndex + 1) * PAGE_SIZE) < total;
+        if (!hasMore) return;
+
+        pageIndex++;
+        // append the next page
+        renderFilteredResults({ resetPage: false, append: true });
+      });
+    }
+
+    // Desktop pager buttons (unchanged behavior)
     if (prevPageBtn) {
       prevPageBtn.addEventListener("click", () => {
         const filtered = applyFilters(lastSearchResults);
@@ -761,7 +789,7 @@
 
         runPagerTransitionThen(() => {
           pageIndex--;
-          renderFilteredResults(false);
+          renderFilteredResults({ resetPage: false, append: false });
           resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
         });
       });
@@ -775,7 +803,7 @@
 
         runPagerTransitionThen(() => {
           pageIndex++;
-          renderFilteredResults(false);
+          renderFilteredResults({ resetPage: false, append: false });
           resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
         });
       });
@@ -787,7 +815,7 @@
         if (!btn) return;
         selectedGender = normalizeEnum(btn.dataset.gender);
         setActiveChip(genderChips, btn);
-        renderFilteredResults(true);
+        renderFilteredResults({ resetPage: true, append: false });
       });
     }
 
@@ -797,7 +825,7 @@
         if (!btn) return;
         selectedShoeType = normalizeEnum(btn.dataset.type);
         setActiveChip(typeChips, btn);
-        renderFilteredResults(true);
+        renderFilteredResults({ resetPage: true, append: false });
       });
     }
 
@@ -983,6 +1011,7 @@
 
       const pager = document.querySelector(".pager");
       if (pager) pager.style.display = "none";
+      if (loadMoreWrap) loadMoreWrap.style.display = "none";
 
       if (dailyDeals) dailyDeals.style.display = "none";
       if (filtersEl) filtersEl.style.display = "none";
@@ -1010,6 +1039,7 @@
         statusMessageEl.textContent = `No results found for ${displayQuery}.`;
         if (filtersEl) filtersEl.style.display = "none";
         if (pager) pager.style.display = "none";
+        if (loadMoreWrap) loadMoreWrap.style.display = "none";
         if (dailyDeals) dailyDeals.style.display = "block";
         return;
       }
@@ -1033,43 +1063,13 @@
       }
 
       if (filtersEl) filtersEl.style.display = "flex";
-      renderFilteredResults(true);
+
+      // ✅ show first 12; nav UI will decide pager vs load-more
+      renderFilteredResults({ resetPage: true, append: false });
     });
 
     brandInput.addEventListener("input", updateFetchReady);
     modelInput.addEventListener("input", updateFetchReady);
-
-    /* =========================================================
-       ✅ Back-to-top arrow logic (ONLY mobile portrait)
-    ========================================================= */
-    const toTopBtn = document.getElementById("toTopBtn");
-    const mqMobilePortrait = window.matchMedia("(max-width: 560px)");
-
-    function updateToTopVisibility(){
-      if (!toTopBtn) return;
-
-      // Only show on mobile portrait breakpoint
-      if (!mqMobilePortrait.matches) {
-        toTopBtn.classList.remove("is-visible");
-        return;
-      }
-
-      const y = window.scrollY || document.documentElement.scrollTop || 0;
-      toTopBtn.classList.toggle("is-visible", y > 350);
-    }
-
-    if (toTopBtn) {
-      window.addEventListener("scroll", updateToTopVisibility, { passive: true });
-      window.addEventListener("resize", updateToTopVisibility);
-      mqMobilePortrait.addEventListener?.("change", updateToTopVisibility);
-
-      toTopBtn.addEventListener("click", () => {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      });
-
-      // initial state
-      updateToTopVisibility();
-    }
   })();
   </script>
 </body>
