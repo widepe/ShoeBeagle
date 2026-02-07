@@ -1093,30 +1093,19 @@ button{
 ========================================================= */
 @media (max-width:560px){
   /* Fixed Load More bar */
-  .load-more-fixed{
-    position:fixed;
-    left:0;
-    right:0;
-    bottom:0;
-       padding:16px 12px;
-  padding-bottom:calc(16px + env(safe-area-inset-bottom));
+    .load-more-fixed{
+    position:static;     /* ← back into normal flow */
+    width:100%;
     display:flex;
     justify-content:center;
-    align-items:center;
-
-    padding:12px 12px;
-    padding-bottom:calc(12px + env(safe-area-inset-bottom));
-
-    background:rgba(244,237,227,0.96);
-    border-top:1px solid rgba(0,0,0,0.08);
-
-    z-index:999;
+    margin-top:1rem;     /* space from last card */
+    padding:0;           /* no bar padding */
+    background:none;
+    border:none;
   }
-
-  /* Give page room so content doesn't hide behind the fixed bar */
-  #mainContent{
-    padding-bottom:calc(120px + env(safe-area-inset-bottom));
-  }
+#mainContent{
+  padding-bottom:0;
+}
 
   /* Make Load More look like the main home buttons, AND keep it centered */
 .load-more-btn{
