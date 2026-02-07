@@ -908,6 +908,10 @@ button{
   /* extra: prevent rows from pushing offscreen */
   .row{ min-width:0; }
   .input-wrapper{ min-width:0; }
+/* Bigger dropdown suggestions on mobile portrait */
+.suggestion-item{
+  font-size:18px;
+}   
   .topbar{
     flex-direction:row;
     align-items:flex-start;
