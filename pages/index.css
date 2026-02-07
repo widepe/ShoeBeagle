@@ -1098,7 +1098,8 @@ button{
     left:0;
     right:0;
     bottom:0;
-
+       padding:16px 12px;
+  padding-bottom:calc(16px + env(safe-area-inset-bottom));
     display:flex;
     justify-content:center;
     align-items:center;
@@ -1119,11 +1120,15 @@ button{
 
   /* Make Load More look like the main home buttons, AND keep it centered */
   .load-more-btn{
-    height:var(--btn-h);
+    margin-left:auto;
+    margin-right:auto;
+    display:block;    
+     height:var(--btn-h);
     min-height:var(--btn-h);
 
-    width:min(92vw, 420px);
-    max-width:420px;
+ width:min(78vw, 340px);   /* load more button */
+max-width:340px;
+
 
     padding:0 calc(14px * var(--top-scale));
     border-radius:calc(0.5rem * var(--top-scale));
