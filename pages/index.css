@@ -456,8 +456,8 @@ button{
    STATUS / FILTERS
 ========================================================= */
 .status-message{
-  font-size:1rem;
-  font-weight:500;
+  font-size:1.4rem;
+  font-weight:600;
   color:var(--sb-blue);
   margin:0.35rem auto 0;
   text-align:center;
