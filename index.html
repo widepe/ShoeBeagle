@@ -195,7 +195,8 @@
     const modelSuggestions = document.getElementById("modelSuggestions");
     const logoLink = document.getElementById("logoLink");
     const footerYear = document.getElementById("footerYear");
-
+    const appEl = document.querySelector(".app");
+    
     // Links toggle button + ribbon
     const menuBtn = document.getElementById("menuBtn");
     const linksRibbon = document.getElementById("linksRibbon");
@@ -1005,10 +1006,33 @@ if (toTopBtn){
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
 }
+    // --- Mobile portrait: expand inputs on focus, shrink on submit/return ---
+function expandInputs(){
+  if (!appEl) return;
+  if (!isMobilePortrait()) return;
+  appEl.classList.add("inputs-expanded");
+}
+
+function shrinkInputs(){
+  if (!appEl) return;
+  appEl.classList.remove("inputs-expanded");
+}
+
+// Expand when either input is focused/tapped
+if (brandInput) brandInput.addEventListener("focus", expandInputs);
+if (modelInput) modelInput.addEventListener("focus", expandInputs);
+
+// Optional: shrink if user taps away (nice UX)
+document.addEventListener("focusin", () => {
+  if (!isMobilePortrait()) return;
+  const active = document.activeElement;
+  const inInputs = (active === brandInput || active === modelInput);
+  if (!inInputs) shrinkInputs();
+});
     // --- Submit search ---
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-
+shrinkInputs();
       let brandTyped = sanitizeInput(brandInput.value);
       brandTyped = resolveClosestBrand(brandTyped);
       brandInput.value = brandTyped;
