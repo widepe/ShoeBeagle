@@ -135,15 +135,14 @@
       </div>
 
       <!-- One line that is ALWAYS visible -->
-   <div class="status-message" id="statusMessage">
-  Marty’s Daily Deals
-</div>
+      <div class="status-message" id="statusMessage">
+        Marty’s Daily Deals
+      </div>
 
-
-<!-- Daily deals block -->
-<div class="daily-deals" id="dailyDeals">
-  <div class="shoe-grid" id="dailyDealsGrid"></div>
-</div>
+      <!-- Daily deals block -->
+      <div class="daily-deals" id="dailyDeals">
+        <div class="shoe-grid" id="dailyDealsGrid"></div>
+      </div>
 
       <div class="shoe-grid" id="results"></div>
 
@@ -175,6 +174,11 @@
     </div>
 
   </div>
+
+  <!-- ✅ Back-to-top arrow (shows ONLY on mobile portrait after scrolling) -->
+  <button id="toTopBtn" class="to-top" type="button" aria-label="Back to top" title="Back to top">
+    ▲
+  </button>
 
   <script src="./brandModels.js"></script>
 
@@ -211,7 +215,8 @@
     const pageLabelEl = document.getElementById("pageLabel");
 
     function isMobilePortrait(){
-      return window.matchMedia("(max-width: 768px) and (orientation: portrait)").matches;
+      // NOTE: your CSS mobile portrait breakpoint is 560px
+      return window.matchMedia("(max-width: 560px)").matches;
     }
 
     function runPagerTransitionThen(fn){
@@ -1033,6 +1038,38 @@
 
     brandInput.addEventListener("input", updateFetchReady);
     modelInput.addEventListener("input", updateFetchReady);
+
+    /* =========================================================
+       ✅ Back-to-top arrow logic (ONLY mobile portrait)
+    ========================================================= */
+    const toTopBtn = document.getElementById("toTopBtn");
+    const mqMobilePortrait = window.matchMedia("(max-width: 560px)");
+
+    function updateToTopVisibility(){
+      if (!toTopBtn) return;
+
+      // Only show on mobile portrait breakpoint
+      if (!mqMobilePortrait.matches) {
+        toTopBtn.classList.remove("is-visible");
+        return;
+      }
+
+      const y = window.scrollY || document.documentElement.scrollTop || 0;
+      toTopBtn.classList.toggle("is-visible", y > 350);
+    }
+
+    if (toTopBtn) {
+      window.addEventListener("scroll", updateToTopVisibility, { passive: true });
+      window.addEventListener("resize", updateToTopVisibility);
+      mqMobilePortrait.addEventListener?.("change", updateToTopVisibility);
+
+      toTopBtn.addEventListener("click", () => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+
+      // initial state
+      updateToTopVisibility();
+    }
   })();
   </script>
 </body>
