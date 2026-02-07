@@ -933,10 +933,10 @@ button{
 
 /* Default state: keep a reserved lane for the logo */
 .top-left{
-  transition: flex-basis 320ms ease, max-width 320ms ease;
+  transition: flex-basis 400ms ease, max-width 400ms ease;
   flex: 1 1 auto;
-  flex-basis: calc(100% - 140px);
-  max-width: calc(100% - 140px);
+  flex-basis: calc(100% - 220px);
+  max-width: calc(100% - 220px);
 }
 
 /* Logo animation */
