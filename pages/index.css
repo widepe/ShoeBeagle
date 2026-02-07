@@ -1121,3 +1121,35 @@ button{
 @media (max-width:560px){
   .to-top.is-visible{ display:flex; }
 }
+@media (max-width:560px){
+  .load-more-fixed{
+    position:fixed;
+    left:0;
+    right:0;
+    bottom:0;
+    display:flex;
+    justify-content:center;
+    padding:10px 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    background: rgba(244,237,227,0.96);
+    border-top: 1px solid rgba(0,0,0,0.08);
+    z-index: 999;
+  }
+
+  /* give scroll content room so it doesn't hide behind the fixed button */
+  #mainContent{
+    padding-bottom: 90px;
+  }
+
+  .load-more-btn{
+    width: min(320px, 92vw);
+    height: 46px;
+    border-radius: 0.85rem;
+    border: 1px solid var(--sb-blue);
+    background: var(--sb-blue);
+    color:#fff;
+    font-weight:900;
+    font-size:1.05rem;
+    cursor:pointer;
+  }
+}
