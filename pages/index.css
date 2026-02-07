@@ -931,7 +931,8 @@ button{
     flex:1 1 auto;
     width:auto;
     min-width:0;
-
+      margin-left:0;
+     
     /* default: same starting width you currently see */
     max-width:calc(100% - var(--logo-lane));
     transform:translateX(0);
@@ -954,11 +955,11 @@ button{
     pointer-events:none;
   }
 
-  .app.inputs-expanded .top-left{
-    max-width:100%;
-    /* shift left into the freed lane so it "grows" left->right */
-    transform:translateX(calc(-1 * var(--logo-lane)));
-  }
+.app.inputs-expanded .top-left{
+  max-width:100%;
+  margin-left:auto;   /* keeps the right edge anchored */
+}
+
 }
 
   .brand-logo{
