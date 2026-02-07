@@ -924,42 +924,46 @@ button{
   }
 /* =========================================================
    MOBILE PORTRAIT: INPUT EXPAND ANIMATION
-   - When .app has .inputs-expanded:
-     - logo slides off left
-     - inputs get more horizontal room
 ========================================================= */
-@media (max-width:560px){
 
-  /* Smooth animations */
-  .top-left{
-    transition: max-width 240ms ease, flex 240ms ease;
-    max-width: calc(100% - 120px); /* default: leave room for logo */
-  }
-
-  .top-right{
-    transition: transform 240ms ease, opacity 240ms ease;
-    will-change: transform, opacity;
-  }
-
-  /* Expanded mode */
-  .app.inputs-expanded .top-left{
-    max-width: 100%;
-  }
-
-  .app.inputs-expanded .top-right{
-    transform: translateX(-140%);
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  /* Optional: give a little extra input padding when expanded */
-  .app.inputs-expanded input[type="text"],
-  .app.inputs-expanded input[type="search"]{
-    padding-left: calc(1.1rem * var(--top-scale));
-    padding-right: calc(1.1rem * var(--top-scale));
-    transition: padding 240ms ease;
-  }
+/* Smooth animations */
+.topbar{
+  transition: justify-content 320ms ease, padding-left 320ms ease, padding-right 320ms ease;
 }
+
+/* Default state: keep a reserved lane for the logo */
+.top-left{
+  transition: flex-basis 320ms ease, max-width 320ms ease;
+  flex: 1 1 auto;
+  flex-basis: calc(100% - 140px);
+  max-width: calc(100% - 140px);
+}
+
+/* Logo animation */
+.top-right{
+  transition: transform 320ms ease, opacity 320ms ease;
+  will-change: transform, opacity;
+}
+
+/* Expanded mode: reclaim logo lane and anchor to left */
+.app.inputs-expanded .topbar{
+  justify-content: flex-start;
+  /* pull the whole cluster a touch left so it feels like it grows left */
+  padding-left: max(6px, var(--pad));
+  padding-right: max(6px, var(--pad));
+}
+
+.app.inputs-expanded .top-left{
+  flex-basis: 100%;
+  max-width: 100%;
+}
+
+.app.inputs-expanded .top-right{
+  transform: translateX(-160%);
+  opacity: 0;
+  pointer-events: none;
+}
+
   .brand-logo{
     content:url("/images/logoV2.svg");
     height:calc(var(--input-h) * 2 + var(--gap));
