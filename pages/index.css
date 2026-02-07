@@ -1092,17 +1092,18 @@ button{
    MOBILE PORTRAIT: LOAD MORE BAR + BACK TO TOP VISIBILITY
 ========================================================= */
 @media (max-width:560px){
-  /* Fixed Load More bar */
-    .load-more-fixed{
-    position:static;     /* ← back into normal flow */
-    width:100%;
-    display:flex;
-    justify-content:center;
-    margin-top:1rem;     /* space from last card */
-    padding:0;           /* no bar padding */
-    background:none;
-    border:none;
-  }
+ /* Load More wrapper (mobile portrait only) */
+.load-more-wrap{
+  position:static;     /* back into normal flow */
+  width:100%;
+  display:flex;
+  justify-content:center;
+  margin-top:1rem;     /* space from last card */
+  padding:0;           /* no bar padding */
+  background:none;
+  border:none;
+}
+
 #mainContent{
   padding-bottom:0;
 }
