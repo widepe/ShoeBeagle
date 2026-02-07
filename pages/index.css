@@ -910,20 +910,30 @@ button{
     margin-top:0;
   }
 
-  .top-right{
-    order:0;
-    margin-right:0;
-    flex:0 0 auto;
-  }
+.top-right{
+  order:0;
+  margin-right:0;
+  flex:0 0 auto;
+
+  /* NEW: allow it to shrink in layout */
+  max-width:140px;          /* <-- starting "logo lane" width */
+  overflow:hidden;
+
+  transition: max-width 420ms ease, opacity 420ms ease, transform 420ms ease;
+  will-change: max-width, opacity, transform;
+}
+
 
 .top-left{
   order:1;
   flex:1 1 auto;
   width:auto;
   min-width:0;
-  max-width:100%;
-  transition: flex-basis 360ms ease, max-width 360ms ease;
+
+  transition: max-width 420ms ease;
+  max-width: calc(100% - 140px);   /* <-- match the logo lane */
 }
+
 
 
 
@@ -946,20 +956,20 @@ button{
 
 /* Expanded mode */
 .app.inputs-expanded .topbar{
-  justify-content: flex-start;
+  justify-content:flex-start;
+}
+
+.app.inputs-expanded .top-right{
+  max-width:0;              /* <-- THIS frees real space */
+  opacity:0;
+  transform: translateX(-24px);
+  pointer-events:none;
 }
 
 .app.inputs-expanded .top-left{
-  flex-basis:100%;
   max-width:100%;
 }
 
-
-.app.inputs-expanded .top-right{
-  transform: translateX(-160%);
-  opacity: 0;
-  pointer-events: none;
-}
 
   .brand-logo{
     content:url("/images/logoV2.svg");
