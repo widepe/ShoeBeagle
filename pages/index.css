@@ -1096,3 +1096,28 @@ button{
     margin-right:auto;
   }
 }
+/* Back-to-top arrow (mobile portrait only) */
+.to-top{
+  position:fixed;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width:44px;
+  height:44px;
+  border-radius:999px;
+  border:1px solid rgba(33,68,120,0.45);
+  background:rgba(244,237,227,0.92);
+  color: var(--sb-blue);
+  font-weight:900;
+  font-size:20px;
+  line-height:1;
+  display:none;              /* hidden by default */
+  align-items:center;
+  justify-content:center;
+  z-index:9999;
+  cursor:pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width:560px){
+  .to-top.is-visible{ display:flex; }
+}
