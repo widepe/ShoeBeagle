@@ -858,13 +858,16 @@ button{
   }
 }
 
-/* =========================
+/* ====================================
    MOBILE PORTRAIT VIEW
-========================== */
+======================================= */
 @media (max-width:560px){
   :root{
     --cols:1;
     --pad:6px;
+
+    /* how much space the logo "lane" takes at rest */
+    --logo-lane:140px;
 
     --top-scale:0.47;
     --grid-scale:0.47;
@@ -872,7 +875,7 @@ button{
     --gap:calc(12px * var(--top-scale));
     --input-h:calc(64px * var(--top-scale));
     --btn-h:calc(64px * var(--top-scale));
-    --btn-eq-w:calc(var(--btn-h) * 1.2);   /* Button width */
+    --btn-eq-w:calc(var(--btn-h) * 1.2);
 
     --card-w:1px;
     --grid-gap:calc(1.0rem * var(--grid-scale));
@@ -884,21 +887,17 @@ button{
   }
 
   .mobile-top-banner{ display:none !important; }
-
   .app{ gap:0.25rem; }
 
   /* iOS fix: prevent focus-zoom + layout jump */
-  input[type="text"], input[type="search"]{
-    font-size:16px;
-  }
+  input[type="text"], input[type="search"]{ font-size:16px; }
 
-  /* Bigger dropdown suggestions on mobile portrait */
   .suggestion-item{ font-size:18px; }
 
-  /* prevent rows from pushing offscreen */
   .row{ min-width:0; }
   .input-wrapper{ min-width:0; }
 
+  /* --- TOPBAR LAYOUT (mobile portrait) --- */
   .topbar{
     flex-direction:row;
     align-items:flex-start;
@@ -908,68 +907,59 @@ button{
     padding:0 max(10px, var(--pad));
     width:100%;
     margin-top:0;
+
+    /* animate alignment */
+    transition: justify-content 360ms ease;
   }
 
-.top-right{
-  order:0;
-  margin-right:0;
-  flex:0 0 auto;
+  /* --- LOGO LANE (shrinks to free space) --- */
+  .top-right{
+    order:0;
+    margin-right:0;
+    flex:0 0 auto;
 
-  /* NEW: allow it to shrink in layout */
-  max-width:140px;          /* <-- starting "logo lane" width */
-  overflow:hidden;
+    max-width:var(--logo-lane);
+    overflow:hidden;
 
-  transition: max-width 420ms ease, opacity 420ms ease, transform 420ms ease;
-  will-change: max-width, opacity, transform;
+    transition: max-width 420ms ease, opacity 360ms ease, transform 360ms ease;
+    will-change: max-width, opacity, transform;
+  }
+
+  /* --- INPUTS LANE --- */
+  .top-left{
+    order:1;
+    flex:1 1 auto;
+    width:auto;
+    min-width:0;
+
+    /* default: same starting width you currently see */
+    max-width:calc(100% - var(--logo-lane));
+    transform:translateX(0);
+
+    transition: max-width 420ms ease, transform 420ms ease;
+  }
+
+  /* =========================================================
+     MOBILE PORTRAIT: INPUT EXPAND ANIMATION
+     - Inputs grow into the logo lane (left -> right feel)
+  ========================================================= */
+  .app.inputs-expanded .topbar{
+    justify-content:flex-start;
+  }
+
+  .app.inputs-expanded .top-right{
+    max-width:0;                 /* frees real space */
+    opacity:0;
+    transform:translateX(-24px);
+    pointer-events:none;
+  }
+
+  .app.inputs-expanded .top-left{
+    max-width:100%;
+    /* shift left into the freed lane so it "grows" left->right */
+    transform:translateX(calc(-1 * var(--logo-lane)));
+  }
 }
-
-
-.top-left{
-  order:1;
-  flex:1 1 auto;
-  width:auto;
-  min-width:0;
-
-  transition: max-width 420ms ease;
-  max-width: calc(100% - 140px);   /* <-- match the logo lane */
-}
-
-
-
-
-/* =========================================================
-   MOBILE PORTRAIT: INPUT EXPAND ANIMATION
-   - Start width unchanged
-   - On focus: logo slides away, inputs use freed space
-========================================================= */
-
-/* Smooth animations */
-.topbar{
-  transition: justify-content 360ms ease;
-}
-
-.top-right{
-  transition: transform 360ms ease, opacity 360ms ease;
-  will-change: transform, opacity;
-}
-
-
-/* Expanded mode */
-.app.inputs-expanded .topbar{
-  justify-content:flex-start;
-}
-
-.app.inputs-expanded .top-right{
-  max-width:0;              /* <-- THIS frees real space */
-  opacity:0;
-  transform: translateX(-24px);
-  pointer-events:none;
-}
-
-.app.inputs-expanded .top-left{
-  max-width:100%;
-}
-
 
   .brand-logo{
     content:url("/images/logoV2.svg");
