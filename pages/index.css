@@ -254,25 +254,20 @@ form#search-form{
   opacity:0.5;   
 }
 
-/* give the input left padding so text/caret starts after the icon */
-.input-wrapper input[type="text"],
-.input-wrapper input[type="search"]{
-  padding-left:calc((0.70rem * var(--top-scale)) + (20px * var(--top-scale)) + (0.55rem * var(--top-scale)));
-  /* keep your existing right padding, or leave as-is */
-}
-
 
 input[type="text"], input[type="search"]{
   width:100%;
   height:var(--input-h);
-  padding:0 calc(1rem * var(--top-scale));
+
+  /* RIGHT stays the same, LEFT now accounts for icon */
+  padding-right:calc(1rem * var(--top-scale));
+  padding-left:calc((0.70rem * var(--top-scale)) + (20px * var(--top-scale)) + (0.55rem * var(--top-scale)));
+
   border-radius:calc(0.5rem * var(--top-scale));
   border:1px solid var(--sb-blue);
   background:#fafdf4;
-
   font-size:var(--input-font);
   font-weight:500;
-
   color:#444;
   transition:border-color 0.2s ease, background-color 0.2s ease;
   min-width:0;
@@ -411,16 +406,9 @@ button{
   border:none;
   border-radius:0;
 }
-
-
-/* top & bottom lines */
-.links-ribbon-inner::before,
-.links-ribbon-inner::after{
-  content:"";
-  display:block;
-  width:100%;
-  height:1px;
-  background:rgba(33,68,120,0.25);
+.links-ribbon-inner{
+  border-top:1px solid rgba(33,68,120,0.25);
+  border-bottom:1px solid rgba(33,68,120,0.25);
 }
 
 
