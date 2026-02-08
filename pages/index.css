@@ -985,6 +985,22 @@ button{
     margin-left:auto;            /* keeps the RIGHT edge anchored */
   }
 
+/* GROW inputs + buttons + text while fields are expanded (mobile portrait only) */
+.app{ --typing-scale:1; }
+
+.app.inputs-expanded{ --typing-scale:1.4; } /* ~40% taller / larger */
+
+.app.inputs-expanded input[type="text"],
+.app.inputs-expanded input[type="search"]{
+  height:calc(var(--input-h) * var(--typing-scale));
+  font-size:calc(16px * var(--typing-scale)); /* keep iOS zoom-safe base */
+}
+
+.app.inputs-expanded .btn-eq{
+  height:calc(var(--btn-h) * var(--typing-scale));
+}
+   
+
   /* --- MOBILE PORTRAIT LOGO ASSET + SIZING --- */
   .brand-logo{
     content:url("/images/logoV2.svg");
