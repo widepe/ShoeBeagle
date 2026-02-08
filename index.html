@@ -36,41 +36,52 @@
       <div class="top-left">
         <form id="search-form" method="POST" autocomplete="off">
 
-          <!-- BRAND ROW: input + links toggle button -->
-          <div class="row">
-            <div class="input-wrapper">
-              <input id="brand" type="text" placeholder="🔍 Brand..." autocomplete="off"/>
-              <button type="button" class="input-clear" aria-label="Clear brand">&times;</button>
-              <div id="brandSuggestions" class="suggestions"></div>
-            </div>
+       <!-- BRAND ROW: input + links toggle button -->
+<div class="row">
+  <div class="input-wrapper">
+    <!-- permanent magnifying glass (NOT part of the input text) -->
+    <img class="input-icon" src="/images/mg.svg" alt="" aria-hidden="true">
 
-            <div class="button-wrapper">
-              <!-- This is now ONLY a links toggle button -->
-              <button id="menuBtn"
-                      type="button"
-                      class="btn-eq"
-                      aria-label="Links"
-                      aria-expanded="false"
-                      aria-controls="linksRibbon">
-                <img src="/images/menu.svg" class="btn-icon" alt="Links">
-              </button>
-            </div>
-          </div>
+    <!-- placeholder no longer includes 🔍 so caret starts after icon -->
+    <input id="brand" type="text" placeholder="Brand..." autocomplete="off"/>
 
-          <!-- MODEL ROW: input + fetch -->
-          <div class="row">
-            <div class="input-wrapper">
-              <input id="model" type="text" placeholder="🔍 Model..." autocomplete="off"/>
-              <button type="button" class="input-clear" aria-label="Clear model">&times;</button>
-              <div id="modelSuggestions" class="suggestions"></div>
-            </div>
+    <button type="button" class="input-clear" aria-label="Clear brand">&times;</button>
+    <div id="brandSuggestions" class="suggestions"></div>
+  </div>
 
-            <div class="button-wrapper">
-              <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
-                <img src="/images/fetch.svg" class="btn-icon" alt="Fetch">
-              </button>
-            </div>
-          </div>
+  <div class="button-wrapper">
+    <!-- This is now ONLY a links toggle button -->
+    <button id="menuBtn"
+            type="button"
+            class="btn-eq"
+            aria-label="Links"
+            aria-expanded="false"
+            aria-controls="linksRibbon">
+      <img src="/images/menu.svg" class="btn-icon" alt="Links">
+    </button>
+  </div>
+</div>
+
+<!-- MODEL ROW: input + fetch -->
+<div class="row">
+  <div class="input-wrapper">
+    <!-- permanent magnifying glass (NOT part of the input text) -->
+    <img class="input-icon" src="/images/mg.svg" alt="" aria-hidden="true">
+
+    <!-- placeholder no longer includes 🔍 so caret starts after icon -->
+    <input id="model" type="text" placeholder="Model..." autocomplete="off"/>
+
+    <button type="button" class="input-clear" aria-label="Clear model">&times;</button>
+    <div id="modelSuggestions" class="suggestions"></div>
+  </div>
+
+  <div class="button-wrapper">
+    <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
+      <img src="/images/fetch.svg" class="btn-icon" alt="Fetch">
+    </button>
+  </div>
+</div>
+
 
         </form>
       </div>
