@@ -1226,3 +1226,21 @@ button{
     margin-right:auto;
   }
 }
+/* SAFETY PATCH: pull the topbar cluster back onscreen if it gets shifted */
+#mainContent,
+.app,
+.topbar,
+.top-left,
+.top-right,
+form#search-form{
+  transform:none !important;
+  left:auto !important;
+  right:auto !important;
+  margin-left:auto !important;
+  margin-right:auto !important;
+}
+
+.topbar{
+  width:100% !important;
+  justify-content:center !important;
+}
