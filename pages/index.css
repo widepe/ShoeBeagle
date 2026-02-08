@@ -917,7 +917,7 @@ button{
   input[type="text"], input[type="search"]{ font-size:16px; }
 
   /* Bigger dropdown suggestions on mobile portrait */
-  .suggestion-item{ font-size:18px; }
+  .suggestion-item{ font-size:19px; }
 
   /* prevent rows from pushing offscreen */
   .row{ min-width:0; }
@@ -937,6 +937,11 @@ button{
     /* animate alignment */
     transition: justify-content 360ms ease;
   }
+   /* scale the magnifying glass while typing (mobile portrait) */
+.app.inputs-expanded .input-icon{
+  width:calc(20px * var(--top-scale) * var(--typing-scale));
+  height:calc(20px * var(--top-scale) * var(--typing-scale));
+}
 
   /* --- LOGO LANE (shrinks to free space) --- */
   .top-right{
