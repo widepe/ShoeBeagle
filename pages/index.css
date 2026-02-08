@@ -250,6 +250,8 @@ form#search-form{
   opacity:0.75;
   pointer-events:none; /* clicking focuses the input */
   z-index:10;
+  /* make the magnifying glass icon in search bar faint / transparent */
+  opacity:0.5;   
 }
 
 /* give the input left padding so text/caret starts after the icon */
