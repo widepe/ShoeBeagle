@@ -961,6 +961,13 @@ button{
   height:calc(34px * var(--top-scale));
   font-size:calc(1.6rem * var(--top-scale));
 }
+  /* MOBILE PORTRAIT: smaller links in the links ribbon */
+  .links-ribbon-links a,
+  .links-ribbon-signin{
+    font-size:0.75rem;
+  }
+
+}   
   /* --- INPUTS LANE (default state: unchanged) --- */
   .top-left{
     order:1;
