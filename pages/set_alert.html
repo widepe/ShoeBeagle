@@ -1,394 +1,259 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
   <link rel="icon" type="image/png" href="/images/favicon.png">
   <meta charset="UTF-8" />
-  <title>My Alerts – Shoe Beagle</title>
+  <title>Set a Price Alert – Shoe Beagle</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
-    body {
-      margin: 0;
-      padding: 2rem 1rem;
-      background: #f4ede3ff;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      color: #2d2d2d;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-      box-sizing: border-box;
+    body{
+      margin:0;
+      padding:2rem 1rem;
+      background:#f4ede3ff;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+      color:#2d2d2d;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      min-height:100vh;
+      box-sizing:border-box;
     }
 
-    .page-container {
-      width: 100%;
-      max-width: 900px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 1.5rem;
+    .page-container{
+      width:100%;
+      max-width:900px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:1.25rem;
     }
 
-    .brand-logo {
-      display: block;
-      width: 600px;
-      max-width: 100%;
-      height: auto;
-      object-fit: contain;
-      cursor: pointer;
-      transition: opacity 0.2s ease;
+    .brand-logo{
+      display:block;
+      width:600px;
+      max-width:100%;
+      height:auto;
+      object-fit:contain;
+      cursor:pointer;
+      transition:opacity .2s ease;
     }
-    .brand-logo:hover { opacity: 0.9; }
+    .brand-logo:hover{ opacity:.9; }
 
-    /* Alerts dashboard */
-    .alerts-dashboard {
-      width: 100%;
-      max-width: 850px;
-      background: #ffffffc9;
-      border: 2px solid #214478ff;
-      border-radius: 0.75rem;
-      padding: 1.25rem 1.25rem 1.5rem;
-      box-sizing: border-box;
-    }
-    .alerts-title {
-      color: #214478ff;
-      font-size: 1.6rem;
-      font-weight: 800;
-      text-align: center;
-      margin: 0.25rem 0 0.3rem;
-    }
-    .alerts-instruction {
-      color: #49543a;
-      font-size: 0.88rem;
-      text-align: center;
-      margin: 0 0 0.6rem;
-      font-style: italic;
+    .card{
+      width:100%;
+      max-width:720px;
+      background:#ffffffc9;
+      border:2px solid #214478ff;
+      border-radius:.75rem;
+      padding:1.25rem 1.25rem 1.5rem;
+      box-sizing:border-box;
     }
 
-    .alerts-table-wrapper {
-      width: 100%;
-      overflow-x: auto;
-      overflow-y: visible;
-      position: relative;
+    .title{
+      color:#214478ff;
+      font-size:1.6rem;
+      font-weight:800;
+      text-align:center;
+      margin:.25rem 0 .25rem;
     }
 
-    .alerts-table {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-    }
-    .alerts-table colgroup col:nth-child(1) { width: 9%; }   /* Date Set */
-    .alerts-table colgroup col:nth-child(2) { width: 28%; }  /* Shoe */
-    .alerts-table colgroup col:nth-child(3) { width: 7%; }   /* Gender */
-    .alerts-table colgroup col:nth-child(4) { width: 13%; }  /* Email */
-    .alerts-table colgroup col:nth-child(5) { width: 8%; }   /* Days Left */
-    .alerts-table colgroup col:nth-child(6) { width: 10%; }  /* Target */
-    .alerts-table colgroup col:nth-child(7) { width: 18%; }  /* Status */
-
-    .alerts-table thead th {
-      text-align: left;
-      font-size: 0.78rem;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-      color: #214478ff;
-      padding: 0.5rem 0.65rem;
-      border-bottom: 2px solid rgba(33, 68, 120, 0.35);
-      background: rgba(255, 255, 255, 0.55);
+    .note{
+      margin:.25rem 0 1rem;
+      text-align:center;
+      color:#49543a;
+      font-size:.92rem;
+      font-style:italic;
+      line-height:1.35;
     }
 
-    .alerts-table tbody tr {
-      cursor: pointer;
-      transition: background-color 0.2s ease;
-      position: relative;
-    }
-    .alerts-table tbody tr:hover { background: rgba(33, 68, 120, 0.08); }
-    .alerts-table tbody tr.selected { background: rgba(33, 68, 120, 0.15); }
-    .alerts-table tbody tr.inactive { background: #e8e8e8; opacity: 0.6; }
-    .alerts-table tbody tr.inactive:hover { background: #d8d8d8; }
+    .note strong{ font-style:normal; color:#214478ff; }
 
-    .alerts-table tbody td {
-      padding: 0.5rem 0.65rem;
-      border-bottom: 1px solid rgba(33, 68, 120, 0.18);
-      vertical-align: middle;
-      font-size: 0.92rem;
-      color: #2d2d2d;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      line-height: 1.3;
-      position: relative;
-    }
-    .alerts-table tbody td:nth-child(2),
-    .alerts-table tbody td:nth-child(4) {
-      max-width: 0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+    .form{
+      display:flex;
+      flex-direction:column;
+      gap:.85rem;
+      margin-top:.5rem;
     }
 
-    .alerts-table td.target-cell { text-align: right; }
-    .alerts-table td.gender-cell { text-align: center; font-weight: 600; }
-
-    /* Stacked date and days */
-    .stacked-cell { display: flex; flex-direction: column; gap: 0.1rem; line-height: 1.2; }
-    .stacked-primary { font-weight: 600; font-size: 0.92rem; }
-    .stacked-secondary { font-size: 0.75rem; color: #666; }
-
-    .alerts-muted {
-      text-align: center;
-      padding: 1.25rem 0.5rem;
-      color: #49543a;
-      font-size: 0.95rem;
+    .row{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:.85rem;
     }
 
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0.25rem 0.55rem;
-      border-radius: 999px;
-      font-weight: 700;
-      font-size: 0.82rem;
-      border: 1px solid rgba(33, 68, 120, 0.25);
-      background: rgba(255, 255, 255, 0.6);
-      color: #214478ff;
-    }
-    .pill.active {
-      background: rgba(46, 160, 67, 0.20);
-      border-color: rgba(46, 160, 67, 0.55);
-      color: #1f6a2a;
-    }
-    .pill.expired {
-      background: rgba(150, 150, 150, 0.18);
-      border-color: rgba(150, 150, 150, 0.40);
-      color: #555;
-    }
-    .pill.cancelled {
-      background: rgba(220, 53, 69, 0.14);
-      border-color: rgba(220, 53, 69, 0.35);
-      color: #8a1f2c;
+    @media (max-width:640px){
+      .row{ grid-template-columns:1fr; }
     }
 
-    /* Alert action panel */
-    .alert-actions {
-      padding: 0.75rem 1rem;
-      background: rgba(33, 68, 120, 0.05);
-      border-left: 3px solid #214478ff;
-      margin: 0;
-      display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-      align-items: center;
+    label{
+      font-size:.9rem;
+      font-weight:700;
+      color:#214478ff;
+      display:block;
+      margin:0 0 .35rem;
     }
 
-    .alert-actions button {
-      padding: 0.5rem 1rem;
-      border-radius: 0.5rem;
-      font-size: 0.88rem;
-      font-weight: 600;
-      border: 1px solid #214478ff;
-      background: #214478ff;
-      color: white;
-      cursor: pointer;
-      transition: background 0.2s ease;
-      position: relative;
+    input{
+      width:100%;
+      height:44px;
+      border-radius:.5rem;
+      border:1px solid rgba(33,68,120,.55);
+      padding:0 .75rem;
+      font-size:1rem;
+      box-sizing:border-box;
+      background:#fff;
+      outline:none;
     }
-    .alert-actions button:hover { background: #1a3661; }
-    .alert-actions button.secondary { background: white; color: #214478ff; border: 1px solid #214478ff; }
-    .alert-actions button.secondary:hover { background: rgba(33, 68, 120, 0.1); }
-    .alert-actions button.danger { background: #dc3545; border-color: #c82333; }
-    .alert-actions button.danger:hover { background: #c82333; }
-    .alert-actions button.success { background: #28a745; border-color: #218838; }
-    .alert-actions button.success:hover { background: #218838; }
-
-    .alert-actions .edit-price-form { display: flex; gap: 0.5rem; align-items: center; }
-    .alert-actions .edit-price-input {
-      width: 120px;
-      height: 36px;
-      padding: 0 0.5rem 0 1.75rem;
-      border-radius: 0.4rem;
-      border: 1px solid #214478ff;
-      font-size: 0.9rem;
-      text-align: right;
-    }
-    .alert-actions .price-input-wrapper-small { position: relative; display: inline-block; }
-    .alert-actions .price-input-wrapper-small::before {
-      content: '$';
-      position: absolute;
-      left: 0.5rem;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 0.9rem;
-      color: #444;
-      pointer-events: none;
-      font-weight: 500;
+    input:focus{
+      border-color:#214478ff;
+      box-shadow:0 0 0 3px rgba(33,68,120,.18);
     }
 
-    .alert-actions .confirmation { display: flex; gap: 0.5rem; align-items: center; }
-    .alert-actions .confirmation-text { font-size: 0.88rem; color: #2d2d2d; font-weight: 600; }
-
-    /* Tooltip styles - appear ABOVE elements */
-    [data-tooltip] { position: relative; }
-    [data-tooltip]::before,
-    [data-tooltip]::after {
-      position: absolute;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.2s ease;
-      z-index: 10000;
+    .price-wrap{ position:relative; }
+    .price-wrap::before{
+      content:'$';
+      position:absolute;
+      left:.7rem;
+      top:50%;
+      transform:translateY(-50%);
+      color:#444;
+      font-weight:700;
+      pointer-events:none;
     }
+    .price-input{ padding-left:1.7rem; text-align:right; }
 
-    [data-tooltip]::before {
-      content: attr(data-tooltip);
-      bottom: 100%;
-      left: 50%;
-      transform: translateX(-50%) translateY(-8px);
-      background: #2d2d2d;
-      color: white;
-      padding: 0.4rem 0.6rem;
-      border-radius: 0.3rem;
-      font-size: 0.75rem;
-      white-space: nowrap;
-      margin-bottom: 5px;
+    .btn-row{
+      display:flex;
+      gap:.75rem;
+      flex-wrap:wrap;
+      justify-content:center;
+      margin-top:.25rem;
     }
 
-    [data-tooltip]::after {
-      content: '';
-      bottom: 100%;
-      left: 50%;
-      transform: translateX(-50%);
-      border: 5px solid transparent;
-      border-top-color: #2d2d2d;
-      margin-bottom: 0px;
+    button{
+      padding:.65rem 1.15rem;
+      border-radius:999px;
+      border:1px solid #214478ff;
+      background:#214478ff;
+      color:#fff;
+      font-weight:700;
+      font-size:.98rem;
+      cursor:pointer;
+      transition:background .2s ease;
+    }
+    button:hover{ background:#1a3661; }
+    button.secondary{
+      background:#fff;
+      color:#214478ff;
+      border:2px solid #214478ff;
+    }
+    button.secondary:hover{ background:rgba(33,68,120,.1); }
+
+    .status{
+      display:none;
+      margin-top:1rem;
+      padding:.85rem;
+      border-radius:.6rem;
+      text-align:center;
+      font-weight:700;
+      line-height:1.35;
+    }
+    .status.success{
+      display:block;
+      background:rgba(46,160,67,.15);
+      border:1px solid rgba(46,160,67,.5);
+      color:#1f6a2a;
+    }
+    .status.error{
+      display:block;
+      background:rgba(220,53,69,.15);
+      border:1px solid rgba(220,53,69,.5);
+      color:#8a1f2c;
     }
 
-    [data-tooltip]:hover::before,
-    [data-tooltip]:hover::after {
-      opacity: 1;
+    .post-actions{
+      display:none;
+      margin-top:1rem;
+      padding-top:1rem;
+      border-top:1px solid rgba(33,68,120,.25);
+      text-align:center;
+    }
+    .post-actions p{
+      margin:0 0 .9rem;
+      color:#2d2d2d;
+      font-weight:700;
     }
 
-    .alert-actions button[data-tooltip] {
-      z-index: 100;
-    }
-
-    .status-message {
-      padding: 0.75rem;
-      border-radius: 0.5rem;
-      margin-top: 1rem;
-      text-align: center;
-      display: none;
-    }
-    .status-message.success {
-      background: rgba(46, 160, 67, 0.15);
-      border: 1px solid rgba(46, 160, 67, 0.5);
-      color: #1f6a2a;
-    }
-    .status-message.error {
-      background: rgba(220, 53, 69, 0.15);
-      border: 1px solid rgba(220, 53, 69, 0.5);
-      color: #8a1f2c;
-    }
-
-    .hidden { display: none !important; }
-
-    .action-btn {
-      display: block;
-      margin: 1.5rem auto 0.25rem;
-      padding: 0.6rem 1.25rem;
-      border-radius: 999px;
-      border: 1px solid #214478ff;
-      background: #214478ff;
-      color: white;
-      font-size: 0.95rem;
-      cursor: pointer;
-      text-align: center;
-      text-decoration: none;
-      font-weight: 600;
-      transition: background 0.2s ease;
-      width: max-content;
-      position: relative;
-    }
-    .action-btn:hover { background: #1a3661; }
-
-    .action-btn.secondary {
-      background: white;
-      color: #214478ff;
-      border: 2px solid #214478ff;
-    }
-    .action-btn.secondary:hover {
-      background: rgba(33, 68, 120, 0.1);
-    }
-
-    .footer {
-      margin-top: 1.5rem;
-      padding: 0.75rem 1rem;
-      text-align: center;
-      font-size: 0.82rem;
-      color: #444;
-    }
-    .footer a {
-      color: #214478ff;
-      text-decoration: none;
-      font-weight: 600;
-      margin: 0 0.25rem;
-      cursor: pointer;
-    }
-    .footer a:hover { text-decoration: underline; }
-
-    @media (max-width: 768px) {
-      .alerts-table colgroup col:nth-child(4) { width: 15%; }
-      .alerts-table tbody td:nth-child(4) { font-size: 0.8rem; }
+    .footer{
+      margin-top:1rem;
+      padding:.75rem 1rem;
+      text-align:center;
+      font-size:.82rem;
+      color:#444;
     }
   </style>
 </head>
 
 <body>
   <div class="page-container">
-    <!-- Logo -->
     <a href="/">
       <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="brand-logo">
     </a>
 
-    <!-- Alerts Dashboard -->
-    <div id="alertsDashboard" class="alerts-dashboard">
-      <div class="alerts-title">My Alerts</div>
-      <div class="alerts-instruction">Tap or click a row to manage an alert.</div>
+    <div class="card">
+      <div class="title">Set a Price Alert</div>
 
-      <div class="alerts-table-wrapper">
-        <table class="alerts-table" aria-label="My Alerts Table" id="alertsTable">
-          <colgroup>
-            <col style="width: 9%;">
-            <col style="width: 28%;">
-            <col style="width: 7%;">
-            <col style="width: 13%;">
-            <col style="width: 8%;">
-            <col style="width: 10%;">
-            <col style="width: 18%;">
-          </colgroup>
-          <thead>
-            <tr>
-              <th>Date Set</th>
-              <th>Shoe</th>
-              <th>Gender</th>
-              <th>Email</th>
-              <th>Days Left</th>
-              <th>Target</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="alertsTbody"></tbody>
-        </table>
+      <div class="note">
+        <strong>Important:</strong> Alerts can only be cancelled or managed using the secure link in your email.
+        (We don’t offer sign-in or alert management from the website.)
       </div>
 
-      <div id="alertsEmpty" class="alerts-muted hidden">No alerts have been set.</div>
-      
-      <div id="statusMessage" class="status-message"></div>
-    </div>
+      <form id="alertForm" class="form" autocomplete="off">
+        <div class="row">
+          <div>
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" placeholder="you@example.com" required />
+          </div>
 
-    <a href="/pages/setalert.html" class="action-btn" id="setNewAlertBtn">Set New Alert?</a>
-    <a href="/" class="action-btn secondary">Home</a>
+          <div>
+            <label for="targetPrice">Target Price</label>
+            <div class="price-wrap">
+              <input id="targetPrice" name="targetPrice" type="text" inputmode="numeric"
+                     class="price-input" placeholder="120" required />
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="brand">Brand</label>
+            <input id="brand" name="brand" type="text" placeholder="ASICS" required />
+          </div>
+
+          <div>
+            <label for="model">Model</label>
+            <input id="model" name="model" type="text" placeholder="Gel-Kayano 30" required />
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit" id="submitBtn">Set Alert</button>
+          <button type="button" class="secondary" onclick="window.location.href='/'">Home</button>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div id="postActions" class="post-actions">
+          <p>Want to set another alert?</p>
+          <div class="btn-row">
+            <button type="button" id="anotherBtn" class="secondary">Set Another Alert</button>
+            <button type="button" id="homeBtn">Back to Home</button>
+          </div>
+        </div>
+      </form>
+    </div>
 
     <div class="footer">
       © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
@@ -396,575 +261,103 @@
   </div>
 
   <script>
-    // =======================
-    // BACKEND ENDPOINTS
-    // =======================
     const API = { alerts: "/api/alerts" };
 
-    // =======================
-    // DOM
-    // =======================
-    const alertsTbody = document.getElementById("alertsTbody");
-    const alertsEmpty = document.getElementById("alertsEmpty");
-    const alertsTable = document.getElementById("alertsTable");
-    const statusMessage = document.getElementById("statusMessage");
-    const setNewAlertBtn = document.getElementById("setNewAlertBtn");
-    const footerYear = document.getElementById("footerYear");
-    if (footerYear) footerYear.textContent = new Date().getFullYear();
+    const form = document.getElementById("alertForm");
+    const statusEl = document.getElementById("status");
+    const submitBtn = document.getElementById("submitBtn");
+    const postActions = document.getElementById("postActions");
+    const anotherBtn = document.getElementById("anotherBtn");
+    const homeBtn = document.getElementById("homeBtn");
 
-    // =======================
-    // STATE
-    // =======================
-    let selectedAlertRow = null;
-    let currentAlerts = [];
-    let currentEmail = "";
-    let isProcessing = false;
+    document.getElementById("footerYear").textContent = new Date().getFullYear();
 
-    // =======================
-    // UTILS
-    // =======================
-    function nowMs() { return Date.now(); }
+    // If email is passed in querystring, prefill it (nice UX)
+    (function prefillEmail(){
+      const params = new URLSearchParams(window.location.search);
+      const email = (params.get("email") || "").trim();
+      if (email) document.getElementById("email").value = email;
+    })();
 
-    function formatDateShort(ms) {
-      const d = new Date(ms);
-      const day = d.getDate();
-      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-      const mon = months[d.getMonth()];
-      const yy = String(d.getFullYear()).slice(-2);
-      return `${day}-${mon}-${yy}`;
-    }
-
-    function normalizeStr(s) { return String(s || "").trim().toLowerCase(); }
-
-    function maskEmail(email) {
-      if (!email || !email.includes("@")) return email || "";
-      const [user, domain] = email.split("@");
-      if (!user) return `***@${domain}`;
-      if (user.length <= 2) return `${user[0]}***@${domain}`;
-      return `${user.substring(0, 2)}***@${domain}`;
-    }
-
-    function genderDisplay(gender) {
-      const g = normalizeStr(gender);
-      if (g === "mens") return "M";
-      if (g === "womens") return "W";
-      return "M/W";
-    }
-
-    function computeAlertStatus(alert) {
-      if (alert.cancelledAt) return "Cancelled";
-      const ageDays = Math.floor((nowMs() - Number(alert.setAt || 0)) / (1000 * 60 * 60 * 24));
-      if (ageDays >= 30) return "Expired";
-      return "Active";
-    }
-
-    function computeDaysLeft(alert) {
-      if (alert.cancelledAt) return 0;
-      const ageDays = Math.floor((nowMs() - Number(alert.setAt || 0)) / (1000 * 60 * 60 * 24));
-      const left = 30 - ageDays;
-      return left > 0 ? left : 0;
-    }
-
-    function pillClassFor(status) {
-      if (status === "Active") return "pill active";
-      if (status === "Expired") return "pill expired";
-      if (status === "Cancelled") return "pill cancelled";
-      return "pill";
-    }
-
-    function showStatus(message, type = "error") {
-      statusMessage.textContent = message;
-      statusMessage.className = `status-message ${type}`;
-      statusMessage.style.display = "block";
-      setTimeout(() => { statusMessage.style.display = "none"; }, 6500);
-    }
-
-    // =======================
-    // API CALLS WITH RETRY LOGIC
-    // =======================
-    async function apiWithRetry(apiFn, maxRetries = 3, delayMs = 1000) {
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          return await apiFn();
-        } catch (error) {
-          if (attempt === maxRetries) throw error;
-          console.warn(`API attempt ${attempt} failed, retrying...`, error);
-          await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
-        }
-      }
-    }
-
-    async function apiListAlerts(email) {
-      return apiWithRetry(async () => {
-        const url = `${API.alerts}?email=${encodeURIComponent(email)}&_ts=${Date.now()}`;
-        const res = await fetch(url, { 
-          method: "GET", 
-          cache: "no-store",
-          headers: { 
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache'
-          }
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || `HTTP ${res.status}: Failed to load alerts`);
-        }
-        const data = await res.json();
-        return Array.isArray(data.alerts) ? data.alerts : [];
-      });
-    }
-
-    async function apiCancelAlert(alertId, email) {
-      return apiWithRetry(async () => {
-        const res = await fetch(API.alerts, {
-          method: "POST",
-          cache: "no-store",
-          headers: { 
-            "Content-Type": "application/json",
-            'Cache-Control': 'no-cache'
-          },
-          body: JSON.stringify({ action: "cancel", alertId, email }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || `HTTP ${res.status}: Failed to cancel alert`);
-        }
-        return await res.json();
-      });
-    }
-
-    async function apiUpdateAlert(alertId, email, newPrice) {
-      return apiWithRetry(async () => {
-        const body = {
-          action: "update",
-          alertId,
-          email,
-          targetPrice: newPrice,
-          newPrice: newPrice,
-          price: newPrice
-        };
-
-        const res = await fetch(API.alerts, {
-          method: "POST",
-          cache: "no-store",
-          headers: { 
-            "Content-Type": "application/json",
-            'Cache-Control': 'no-cache'
-          },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || `HTTP ${res.status}: Failed to update alert`);
-        }
-        return await res.json();
-      });
-    }
-
-    async function apiRemoveAlert(alertId, email) {
-      return apiWithRetry(async () => {
-        const res = await fetch(API.alerts, {
-          method: "POST",
-          cache: "no-store",
-          headers: { 
-            "Content-Type": "application/json",
-            'Cache-Control': 'no-cache'
-          },
-          body: JSON.stringify({ action: "remove", alertId, email }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || `HTTP ${res.status}: Failed to remove alert`);
-        }
-        return await res.json();
-      });
-    }
-
-    // =======================
-    // DASHBOARD RENDER
-    // =======================
-    function showEditPriceForm(actionsDiv, alert) {
-      actionsDiv.innerHTML = "";
-
-      const formDiv = document.createElement("div");
-      formDiv.className = "edit-price-form";
-
-      const label = document.createElement("span");
-      label.className = "confirmation-text";
-      label.textContent = "New target price:";
-
-      const wrapper = document.createElement("div");
-      wrapper.className = "price-input-wrapper-small";
-
-      const input = document.createElement("input");
-      input.type = "text";
-      input.inputMode = "numeric";
-      input.className = "edit-price-input";
-      input.value = Math.round(Number(alert.targetPrice || 0));
-      input.placeholder = "0";
-      input.autocomplete = "off";
-
-      input.addEventListener('input', (e) => { e.target.value = e.target.value.replace(/[^0-9]/g, ''); });
-      input.addEventListener('keypress', (e) => { if (e.key && !/[0-9]/.test(e.key)) e.preventDefault(); });
-
-      wrapper.appendChild(input);
-
-      const saveBtn = document.createElement("button");
-      saveBtn.textContent = "Save";
-      saveBtn.className = "success";
-      saveBtn.setAttribute("data-tooltip", "Reset alert to 30 days");
-      saveBtn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        if (isProcessing) return;
-        
-        const newPrice = parseInt(input.value, 10);
-        if (!newPrice || newPrice <= 0) { 
-          showStatus("Please enter a valid price.", "error"); 
-          return; 
-        }
-
-        isProcessing = true;
-        saveBtn.disabled = true;
-        saveBtn.textContent = "Saving...";
-        const previousAlerts = currentAlerts.slice();
-        const optimisticIndex = currentAlerts.findIndex((item) => item.id === alert.id);
-        if (optimisticIndex !== -1) {
-          currentAlerts[optimisticIndex] = {
-            ...currentAlerts[optimisticIndex],
-            targetPrice: newPrice,
-            setAt: Date.now(),
-            cancelledAt: null,
-            lastNotifiedAt: null
-          };
-          renderAlertsDashboard();
-        }
-
-        try {
-          await apiUpdateAlert(alert.id, currentEmail, newPrice);
-          showStatus("Alert updated and reset to 30 days!", "success");
-          await refreshAlerts();
-        } catch (err) {
-          console.error("Update failed:", err);
-          currentAlerts = previousAlerts;
-          renderAlertsDashboard();
-          showStatus(err.message || "Failed to update alert.", "error");
-        } finally {
-          isProcessing = false;
-          saveBtn.disabled = false;
-          saveBtn.textContent = "Save";
-        }
-      });
-
-      const exitBtn = document.createElement("button");
-      exitBtn.textContent = "Exit";
-      exitBtn.className = "secondary";
-      exitBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        renderAlertsDashboard();
-      });
-
-      formDiv.appendChild(label);
-      formDiv.appendChild(wrapper);
-      formDiv.appendChild(saveBtn);
-      formDiv.appendChild(exitBtn);
-      actionsDiv.appendChild(formDiv);
-
-      input.focus();
-      input.select();
-    }
-
-    function showConfirmationDialog(actionsDiv, message, onYes) {
-      actionsDiv.innerHTML = "";
-      const confirmDiv = document.createElement("div");
-      confirmDiv.className = "confirmation";
-
-      const confirmText = document.createElement("span");
-      confirmText.className = "confirmation-text";
-      confirmText.textContent = message;
-
-      const yesBtn = document.createElement("button");
-      yesBtn.textContent = "Yes";
-      yesBtn.className = "success";
-      yesBtn.addEventListener("click", async (e) => { 
-        e.stopPropagation(); 
-        if (isProcessing) return;
-        isProcessing = true;
-        yesBtn.disabled = true;
-        yesBtn.textContent = "Processing...";
-        try {
-          await onYes();
-        } finally {
-          isProcessing = false;
-          yesBtn.disabled = false;
-          yesBtn.textContent = "Yes";
-        }
-      });
-
-      const noBtn = document.createElement("button");
-      noBtn.textContent = "No";
-      noBtn.className = "secondary";
-      noBtn.addEventListener("click", (e) => { 
-        e.stopPropagation(); 
-        renderAlertsDashboard(); 
-      });
-
-      confirmDiv.appendChild(confirmText);
-      confirmDiv.appendChild(yesBtn);
-      confirmDiv.appendChild(noBtn);
-      actionsDiv.appendChild(confirmDiv);
-    }
-
-    function renderAlertsDashboard() {
-      const list = Array.isArray(currentAlerts) ? currentAlerts.slice() : [];
-      alertsTbody.innerHTML = "";
-      selectedAlertRow = null;
-
-      if (!list.length) {
-        alertsEmpty.classList.remove("hidden");
-        alertsTable.classList.add("hidden");
-        return;
-      }
-
-      alertsEmpty.classList.add("hidden");
-      alertsTable.classList.remove("hidden");
-
-      const order = { "Active": 0, "Expired": 1, "Cancelled": 2 };
-      const sorted = list.sort((a, b) => {
-        const sa = computeAlertStatus(a);
-        const sb = computeAlertStatus(b);
-        if (order[sa] !== order[sb]) return order[sa] - order[sb];
-        return (Number(b.setAt || 0) - Number(a.setAt || 0));
-      });
-
-      sorted.forEach(a => {
-        const status = computeAlertStatus(a);
-        const daysLeft = computeDaysLeft(a);
-
-        const tr = document.createElement("tr");
-        tr.dataset.alertId = a.id;
-        if (status !== "Active") tr.classList.add("inactive");
-
-        // Date Set
-        const tdDate = document.createElement("td");
-        const dateDiv = document.createElement("div");
-        dateDiv.className = "stacked-cell";
-        const datePrimary = document.createElement("div");
-        datePrimary.className = "stacked-primary";
-        datePrimary.textContent = formatDateShort(Number(a.setAt || 0));
-        dateDiv.appendChild(datePrimary);
-        tdDate.appendChild(dateDiv);
-        tr.appendChild(tdDate);
-
-        // Shoe
-        const tdShoe = document.createElement("td");
-        const shoeText = `${a.brand || ""} ${a.model || ""}`.trim();
-        tdShoe.textContent = shoeText.length > 40 ? shoeText.substring(0, 40) + "..." : shoeText;
-        tdShoe.title = shoeText;
-        tr.appendChild(tdShoe);
-
-        // Gender
-        const tdGender = document.createElement("td");
-        tdGender.className = "gender-cell";
-        tdGender.textContent = genderDisplay(a.gender);
-        tr.appendChild(tdGender);
-
-        // Email
-        const tdEmail = document.createElement("td");
-        tdEmail.textContent = maskEmail(a.email);
-        tdEmail.title = a.email || "";
-        tr.appendChild(tdEmail);
-
-        // Days Left
-        const tdDays = document.createElement("td");
-        const daysDiv = document.createElement("div");
-        daysDiv.className = "stacked-cell";
-        const daysPrimary = document.createElement("div");
-        daysPrimary.className = "stacked-primary";
-        daysPrimary.textContent = status === "Active" ? String(daysLeft) : "—";
-        daysDiv.appendChild(daysPrimary);
-        tdDays.appendChild(daysDiv);
-        tr.appendChild(tdDays);
-
-        // Target
-        const tdTarget = document.createElement("td");
-        tdTarget.className = "target-cell";
-        tdTarget.textContent = `$${Math.round(Number(a.targetPrice || 0))}`;
-        tr.appendChild(tdTarget);
-
-        // Status pill
-        const tdStatus = document.createElement("td");
-        const pill = document.createElement("span");
-        pill.className = pillClassFor(status);
-        pill.textContent = status;
-        tdStatus.appendChild(pill);
-        tr.appendChild(tdStatus);
-
-        tr.addEventListener("click", (e) => {
-          e.stopPropagation();
-
-          const existingActionRow = document.querySelector(".alert-actions-row");
-          if (existingActionRow) existingActionRow.remove();
-
-          const allRows = alertsTbody.querySelectorAll("tr");
-          allRows.forEach(r => r.classList.remove("selected"));
-
-          if (selectedAlertRow === tr) {
-            selectedAlertRow = null;
-            return;
-          }
-
-          tr.classList.add("selected");
-          selectedAlertRow = tr;
-
-          const actionRow = document.createElement("tr");
-          actionRow.className = "alert-actions-row";
-
-          const actionCell = document.createElement("td");
-          actionCell.colSpan = 7;
-
-          const actionsDiv = document.createElement("div");
-          actionsDiv.className = "alert-actions";
-
-          if (status === "Active") {
-            const editBtn = document.createElement("button");
-            editBtn.textContent = "Edit Price";
-            editBtn.className = "secondary";
-            editBtn.addEventListener("click", (ev) => { 
-              ev.stopPropagation(); 
-              showEditPriceForm(actionsDiv, a); 
-            });
-            actionsDiv.appendChild(editBtn);
-
-            const refreshBtn = document.createElement("button");
-            refreshBtn.textContent = "Refresh";
-            refreshBtn.className = "secondary";
-            refreshBtn.setAttribute("data-tooltip", "Refresh alerts list");
-            refreshBtn.addEventListener("click", async (ev) => { 
-              ev.stopPropagation(); 
-              if (isProcessing) return;
-              isProcessing = true;
-              refreshBtn.disabled = true;
-              refreshBtn.textContent = "Refreshing...";
-              try {
-                await refreshAlerts(); 
-              } finally {
-                isProcessing = false;
-                refreshBtn.disabled = false;
-                refreshBtn.textContent = "Refresh";
-              }
-            });
-            actionsDiv.appendChild(refreshBtn);
-
-            const cancelBtn = document.createElement("button");
-            cancelBtn.textContent = "Cancel";
-            cancelBtn.className = "danger";
-            cancelBtn.setAttribute("data-tooltip", "Cancel alert");
-            cancelBtn.addEventListener("click", (ev) => {
-              ev.stopPropagation();
-              showConfirmationDialog(actionsDiv, "Cancel this alert?", async () => {
-                try {
-                  if (!currentEmail) throw new Error("Missing email context.");
-                  await apiCancelAlert(a.id, currentEmail);
-                  showStatus("Alert cancelled.", "success");
-                  await refreshAlerts();
-                } catch (err) {
-                  console.error("Cancel failed:", err);
-                  showStatus(err.message || "Failed to cancel alert.", "error");
-                }
-              });
-            });
-            actionsDiv.appendChild(cancelBtn);
-          } else {
-            const removeBtn = document.createElement("button");
-            removeBtn.textContent = "Remove";
-            removeBtn.className = "danger";
-            removeBtn.setAttribute("data-tooltip", "Remove from list");
-            removeBtn.addEventListener("click", (ev) => {
-              ev.stopPropagation();
-              showConfirmationDialog(actionsDiv, "Remove this alert?", async () => {
-                try {
-                  if (!currentEmail) throw new Error("Missing email context.");
-                  await apiRemoveAlert(a.id, currentEmail);
-                  showStatus("Alert removed.", "success");
-                  await refreshAlerts();
-                } catch (err) {
-                  console.error("Remove failed:", err);
-                  showStatus(err.message || "Failed to remove alert.", "error");
-                }
-              });
-            });
-            actionsDiv.appendChild(removeBtn);
-          }
-
-          actionCell.appendChild(actionsDiv);
-          actionRow.appendChild(actionCell);
-          tr.parentNode.insertBefore(actionRow, tr.nextSibling);
-        });
-
-        alertsTbody.appendChild(tr);
-      });
-    }
-
-    // Click outside to clear selection
-    document.addEventListener("click", (e) => {
-      if (!e.target.closest(".alerts-table") && !e.target.closest(".alert-actions")) {
-        const existingActionRow = document.querySelector(".alert-actions-row");
-        if (existingActionRow) existingActionRow.remove();
-        const allRows = alertsTbody.querySelectorAll("tr");
-        allRows.forEach(r => r.classList.remove("selected"));
-        selectedAlertRow = null;
-      }
+    // numeric-only target price
+    const priceInput = document.getElementById("targetPrice");
+    priceInput.addEventListener("input", (e) => {
+      e.target.value = e.target.value.replace(/[^0-9]/g, "");
     });
 
-    // =======================
-    // LOAD/REFRESH ALERTS
-    // =======================
-    async function refreshAlerts() {
-      if (!currentEmail) {
-        currentAlerts = [];
-        renderAlertsDashboard();
+    function showStatus(msg, type){
+      statusEl.className = `status ${type}`;
+      statusEl.textContent = msg;
+      statusEl.style.display = "block";
+    }
+
+    function setBusy(isBusy){
+      submitBtn.disabled = isBusy;
+      submitBtn.textContent = isBusy ? "Setting..." : "Set Alert";
+    }
+
+    function resetForAnother(){
+      // Keep email by default (common pattern)
+      const email = document.getElementById("email").value;
+      form.reset();
+      document.getElementById("email").value = email;
+
+      statusEl.style.display = "none";
+      postActions.style.display = "none";
+      setBusy(false);
+      document.getElementById("brand").focus();
+    }
+
+    anotherBtn.addEventListener("click", resetForAnother);
+    homeBtn.addEventListener("click", () => window.location.href = "/");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (submitBtn.disabled) return;
+
+      const email = document.getElementById("email").value.trim();
+      const brand = document.getElementById("brand").value.trim();
+      const model = document.getElementById("model").value.trim();
+      const targetPrice = document.getElementById("targetPrice").value.trim();
+
+      if (!email || !email.includes("@")) {
+        showStatus("Please enter a valid email address.", "error");
         return;
       }
+      if (!brand || !model) {
+        showStatus("Please enter both a brand and model.", "error");
+        return;
+      }
+      if (!targetPrice || Number(targetPrice) <= 0) {
+        showStatus("Please enter a valid target price.", "error");
+        return;
+      }
+
+      setBusy(true);
+      statusEl.style.display = "none";
+      postActions.style.display = "none";
+
       try {
-        const alerts = await apiListAlerts(currentEmail);
-        currentAlerts = alerts;
-        renderAlertsDashboard();
+        const res = await fetch(API.alerts, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, brand, model, targetPrice })
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          throw new Error(data.error || `Failed to set alert (HTTP ${res.status})`);
+        }
+
+        showStatus("✅ Alert created! Check your email for the secure link to manage/cancel alerts.", "success");
+        postActions.style.display = "block";
       } catch (err) {
-        console.error("Failed to refresh alerts:", err);
-        showStatus(err.message || "Failed to load alerts.", "error");
+        showStatus(err.message || "Failed to set alert.", "error");
+      } finally {
+        setBusy(false);
       }
-    }
-
-    function getEmailFromQueryString() {
-      const params = new URLSearchParams(window.location.search);
-      const email = params.get("email");
-      return email ? email.trim().toLowerCase() : "";
-    }
-
-    function setEmailContext(email) {
-      currentEmail = (email || "").trim().toLowerCase();
-      
-      // Update Set New Alert button with email parameter
-      if (currentEmail) {
-        setNewAlertBtn.href = `/pages/setalert.html?email=${encodeURIComponent(currentEmail)}`;
-      }
-    }
-
-    // =======================
-    // INIT
-    // =======================
-    (function init() {
-      const emailFromQS = getEmailFromQueryString();
-      if (emailFromQS) {
-        setEmailContext(emailFromQS);
-        refreshAlerts();
-      } else {
-        // No email - show empty state
-        alertsEmpty.textContent = "Please provide your email address to view your alerts.";
-        alertsEmpty.classList.remove("hidden");
-        alertsTable.classList.add("hidden");
-      }
-    })();
+    });
   </script>
 </body>
 </html>
