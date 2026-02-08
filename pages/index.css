@@ -1066,11 +1066,11 @@ button{
     border-radius:0.6rem;
     display:block;
   }
-
+/*  Not sure i need this if same button but maybe width adjustment???
   #fetchBtn .btn-icon{
     content:url("/images/fetch_vert.svg");
     height:80%;
-  }
+  }   */
 
   .card-tags{
     position:absolute;
