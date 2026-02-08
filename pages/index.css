@@ -399,17 +399,19 @@ button{
   border-radius:0;
 }
 
+/* left - center - right layout for links ribbon */
 .links-ribbon-inner{
   width:100%;
-  display:flex;
+  display:grid;
+  grid-template-columns:auto 1fr auto;
   align-items:center;
-  justify-content:center;
   gap:0.75rem;
   padding:0.35rem 0;
   background:transparent;
   border:none;
   border-radius:0;
 }
+
 
 /* top & bottom lines */
 .links-ribbon-inner::before,
@@ -421,15 +423,7 @@ button{
   background:rgba(33,68,120,0.25);
 }
 
-/* center row content */
-.links-ribbon-left{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:0.9rem;
-  flex-wrap:nowrap;
-  white-space:nowrap;
-}
+
 
 .links-ribbon-title{ display:none; }
 
@@ -449,6 +443,25 @@ button{
   font-size:1rem;
 }
 .links-ribbon-links a:hover{ text-decoration:underline; }
+
+/* center the links block */
+.links-ribbon-links{
+  justify-self:center;
+}
+
+/* left sign-in link */
+.links-ribbon-signin{
+  color:var(--sb-blue);
+  text-decoration:none;
+  font-weight:700;
+  font-size:1rem;
+  white-space:nowrap;
+}
+
+.links-ribbon-signin:hover{
+  text-decoration:underline;
+}
+
 
 /* close button */
 .links-ribbon .chip-close{
