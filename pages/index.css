@@ -890,7 +890,7 @@ button{
     --pad:6px;
 
     /* how much space the logo "lane" takes at rest */
-    --logo-lane:140px;
+--logo-lane:clamp(150px, 34vw, 220px);
 
     --top-scale:0.47;
     --grid-scale:0.47;
