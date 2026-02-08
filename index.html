@@ -211,8 +211,46 @@
     // Links toggle button + ribbon
     const menuBtn = document.getElementById("menuBtn");
     const linksRibbon = document.getElementById("linksRibbon");
+    const linksRibbonClose = linksRibbon?.querySelector(".chip-close");
+
+const menuBtn = document.getElementById("menuBtn");
+const linksRibbon = document.getElementById("linksRibbon");
 const linksRibbonClose = linksRibbon?.querySelector(".chip-close");
 
+/* ↓↓↓ paste the block right here ↓↓↓ */
+
+const app = document.querySelector(".app");
+const brandInput = document.getElementById("brand");
+const modelInput = document.getElementById("model");
+
+const inputs = [brandInput, modelInput].filter(Boolean);
+
+function anyHasText() {
+  return inputs.some(i => (i.value || "").trim().length > 0);
+}
+
+function isFocusedOnAnInput() {
+  return inputs.includes(document.activeElement);
+}
+
+function expandInputs() {
+  app?.classList.add("inputs-expanded");
+}
+
+function maybeCollapseInputs() {
+  setTimeout(() => {
+    if (isFocusedOnAnInput()) return;
+    if (anyHasText()) return;
+    app?.classList.remove("inputs-expanded");
+  }, 0);
+}
+
+inputs.forEach(inp => {
+  inp.addEventListener("focus", expandInputs);
+  inp.addEventListener("blur", maybeCollapseInputs);
+});
+
+    
     const filtersEl = document.getElementById("filters");
     const genderChips = document.getElementById("genderChips");
     const typeChips = document.getElementById("typeChips");
@@ -1026,8 +1064,24 @@ function expandInputs(){
 
 function shrinkInputs(){
   if (!appEl) return;
-  appEl.classList.remove("inputs-expanded");
+  if (!isMobilePortrait()) return;
+
+  const brand = document.getElementById("brand");
+  const model = document.getElementById("model");
+  const inputs = [brand, model].filter(Boolean);
+
+  // wait one tick so focus can move between inputs
+  setTimeout(() => {
+    const stillFocused = inputs.includes(document.activeElement);
+    const anyText = inputs.some(i => (i.value || "").trim().length > 0);
+
+    if (stillFocused) return;
+    if (anyText) return;
+
+    appEl.classList.remove("inputs-expanded");
+  }, 0);
 }
+
 
 // Expand when either input is focused/tapped
 if (brandInput) brandInput.addEventListener("focus", expandInputs);
