@@ -239,6 +239,27 @@ form#search-form{
   min-width:0;
 }
 
+/* the permanent magnifying-glass icon */
+.input-icon{
+  position:absolute;
+  left:calc(0.70rem * var(--top-scale));
+  top:50%;
+  transform:translateY(-50%);
+  width:calc(20px * var(--top-scale));
+  height:calc(20px * var(--top-scale));
+  opacity:0.75;
+  pointer-events:none; /* clicking focuses the input */
+  z-index:10;
+}
+
+/* give the input left padding so text/caret starts after the icon */
+.input-wrapper input[type="text"],
+.input-wrapper input[type="search"]{
+  padding-left:calc((0.70rem * var(--top-scale)) + (20px * var(--top-scale)) + (0.55rem * var(--top-scale)));
+  /* keep your existing right padding, or leave as-is */
+}
+
+
 input[type="text"], input[type="search"]{
   width:100%;
   height:var(--input-h);
