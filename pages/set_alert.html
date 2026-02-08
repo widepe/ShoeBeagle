@@ -59,17 +59,6 @@
       margin:.25rem 0 .25rem;
     }
 
-    .note{
-      margin:.25rem 0 1rem;
-      text-align:center;
-      color:#49543a;
-      font-size:.92rem;
-      font-style:italic;
-      line-height:1.35;
-    }
-
-    .note strong{ font-style:normal; color:#214478ff; }
-
     .form{
       display:flex;
       flex-direction:column;
@@ -186,6 +175,31 @@
       font-weight:700;
     }
 
+    /* IMPORTANT block moved below buttons */
+    .note{
+      margin:.95rem 0 0;
+      padding:.85rem .95rem;
+      background:rgba(33, 68, 120, 0.06);
+      border-left:4px solid #214478ff;
+      border-radius:.5rem;
+      color:#334;
+      font-size:.92rem;
+      line-height:1.45;
+    }
+    .note-title{
+      font-weight:900;
+      color:#214478ff;
+      margin:0 0 .35rem;
+      font-style:normal;
+    }
+    .note ul{
+      margin:.35rem 0 0 1.1rem;
+      padding:0;
+    }
+    .note li{
+      margin:.25rem 0;
+    }
+
     .footer{
       margin-top:1rem;
       padding:.75rem 1rem;
@@ -204,11 +218,6 @@
 
     <div class="card">
       <div class="title">Set a Price Alert</div>
-
-      <div class="note">
-        <strong>Important:</strong> Alerts can only be managed using the secure link in your confirmation email.
-        (For your security, we don’t offer sign-in or alert management from the website.)
-      </div>
 
       <form id="alertForm" class="form" autocomplete="off">
         <div class="row">
@@ -243,6 +252,17 @@
           <button type="button" class="secondary" onclick="window.location.href='/'">Home</button>
         </div>
 
+        <!-- IMPORTANT message moved here -->
+        <div class="note">
+          <div class="note-title">Important</div>
+          <ul>
+            <li>Alerts can only be cancelled or managed using the secure link provided in your confirmation email.</li>
+            <li>For your security, we don’t offer sign-in or alert management from the website.</li>
+            <li>Your email will never be sold or shared by Shoe Beagle, and will only be used for confirmation and notification if we find your shoes at or below your target price.</li>
+            <li><strong>Save your confirmation email</strong> — it provides your only link to manage this and other alerts.</li>
+          </ul>
+        </div>
+
         <div id="status" class="status"></div>
 
         <div id="postActions" class="post-actions">
@@ -272,7 +292,7 @@
 
     document.getElementById("footerYear").textContent = new Date().getFullYear();
 
-    // If email is passed in querystring, prefill it (nice UX)
+    // If email is passed in querystring, prefill it
     (function prefillEmail(){
       const params = new URLSearchParams(window.location.search);
       const email = (params.get("email") || "").trim();
@@ -297,7 +317,7 @@
     }
 
     function resetForAnother(){
-      // Keep email by default (common pattern)
+      // Keep email by default
       const email = document.getElementById("email").value;
       form.reset();
       document.getElementById("email").value = email;
