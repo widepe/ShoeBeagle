@@ -955,7 +955,12 @@ button{
     transition: max-width 420ms ease, opacity 360ms ease, transform 360ms ease;
     will-change: max-width, opacity, transform;
   }
-
+/* MOBILE PORTRAIT: bigger clear (X) buttons */
+.input-clear{
+  width:calc(34px * var(--top-scale));
+  height:calc(34px * var(--top-scale));
+  font-size:calc(1.6rem * var(--top-scale));
+}
   /* --- INPUTS LANE (default state: unchanged) --- */
   .top-left{
     order:1;
@@ -990,7 +995,20 @@ button{
     max-width:100%;
     margin-left:auto;            /* keeps the RIGHT edge anchored */
   }
-
+/* MOBILE PORTRAIT (expanded): keep padding after icon so text/caret has breathing room */
+.app.inputs-expanded .input-wrapper input[type="text"],
+.app.inputs-expanded .input-wrapper input[type="search"]{
+  padding-left:calc(
+    (0.70rem * var(--top-scale)) +
+    (20px * var(--top-scale) * var(--typing-scale)) +
+    (0.75rem * var(--top-scale))
+  );
+}
+   /* MOBILE PORTRAIT: bigger magnifying glass by default */
+.input-icon{
+  width:calc(24px * var(--top-scale));
+  height:calc(24px * var(--top-scale));
+}
 /* GROW inputs + buttons + text while fields are expanded (mobile portrait only) */
 .app{ --typing-scale:1; }
 
