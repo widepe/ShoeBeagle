@@ -14,14 +14,56 @@
 // - Matching is brand/model fuzzy-ish (token prefix + squashed fallback)
 // - Price match uses salePrice <= targetPrice
 // - Email shows salePrice + strikethrough originalPrice (when original > sale)
-// - Email includes: Manage My Alerts + Search for More Deals buttons
 // - Email footer includes: "This is an automated email..." line
 // - Images are displayed in a 4:3 container (240x180) without warping (object-fit: contain)
+//
+// SECURITY / UX UPDATE:
+// - "Manage Alerts" button now uses a signed token link (no ?email=).
+// - Requires env var ALERTS_LINK_SECRET (same one you already created).
+//
+// REQUIRED ENV VARS:
+// - SENDGRID_API_KEY
+// - ALERTS_LINK_SECRET
+// - CRON_SECRET (if you lock down cron)
+// - SENDGRID_ALERTS_EMAIL (recommended; falls back to SENDGRID_FROM_EMAIL if present)
+//
+// OPTIONAL ENV VARS:
+// - SITE_BASE_URL (defaults to https://shoebeagle.com)
 
 const { list, put } = require("@vercel/blob");
 const sgMail = require("@sendgrid/mail");
+const crypto = require("crypto");
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+const SITE_BASE_URL = (process.env.SITE_BASE_URL || "https://shoebeagle.com").replace(/\/+$/, "");
+const LINK_SECRET = process.env.ALERTS_LINK_SECRET || "";
+
+// -----------------------------
+// Token helpers (HMAC signed)
+// token format: base64url(jsonPayload) + "." + base64url(hmac(payload))
+// payload: { email, exp }
+// -----------------------------
+function b64urlEncode(str) {
+  return Buffer.from(str, "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function signToken(payloadObj) {
+  if (!LINK_SECRET) throw new Error("Missing ALERTS_LINK_SECRET");
+  const payload = b64urlEncode(JSON.stringify(payloadObj));
+  const sig = crypto
+    .createHmac("sha256", LINK_SECRET)
+    .update(payload)
+    .digest("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+  return `${payload}.${sig}`;
+}
 
 // -----------------------------
 // Helpers
@@ -125,11 +167,25 @@ function formatActiveText(daysLeft) {
     : "until the end of today";
 }
 
-function generateMatchEmail(alert, matches, daysLeft) {
-  const sorted = [...matches].sort(
-    (a, b) => toNumber(a.salePrice) - toNumber(b.salePrice)
-  );
+function buildManageAlertsUrl(email) {
+  // Token valid for 30 days from send time
+  const TTL_MS = 30 * 24 * 60 * 60 * 1000;
+  const base = `${SITE_BASE_URL}/pages/cancel_alert.html`;
 
+  try {
+    const cleanEmail = normalizeStr(email);
+    const exp = Date.now() + TTL_MS;
+    const token = signToken({ email: cleanEmail, exp });
+    return `${base}?t=${encodeURIComponent(token)}`;
+  } catch (e) {
+    console.error("[CRON] Failed to sign manage token:", e);
+    // Safe fallback: no email leak; page will show "invalid/missing link"
+    return base;
+  }
+}
+
+function generateMatchEmail(alert, matches, daysLeft) {
+  const sorted = [...matches].sort((a, b) => toNumber(a.salePrice) - toNumber(b.salePrice));
   const topDeals = sorted.slice(0, 12);
 
   const dealsHtml = topDeals
@@ -208,7 +264,7 @@ function generateMatchEmail(alert, matches, daysLeft) {
 
   const alertBrand = escapeHtml(alert.brand || "");
   const alertModel = escapeHtml(alert.model || "");
-  const emailParam = encodeURIComponent(alert.email || "");
+  const manageUrl = buildManageAlertsUrl(alert.email);
 
   return `
 <!DOCTYPE html>
@@ -218,8 +274,8 @@ function generateMatchEmail(alert, matches, daysLeft) {
     <div style="background:#fff; border-radius:12px; padding:28px;">
 
       <div style="text-align:center; margin-bottom:22px;">
-        <a href="https://shoebeagle.com">
-          <img src="https://shoebeagle.com/images/email_logo.png"
+        <a href="${SITE_BASE_URL}">
+          <img src="${SITE_BASE_URL}/images/email_logo.png"
                alt="Shoe Beagle"
                style="max-width:300px; height:auto; border:0;" />
         </a>
@@ -247,21 +303,24 @@ function generateMatchEmail(alert, matches, daysLeft) {
         </p>
       </div>
 
-      <div style="margin-top:22px; text-align:center;">
-        <a href="https://shoebeagle.com/pages/myalerts.html?email=${emailParam}"
-           style="display:inline-block; padding:10px 22px;
-                  background:#214478; color:#fff;
-                  text-decoration:none; border-radius:8px; font-size:14px;">
-          Manage My Alerts
-        </a>
-      </div>
+      <!-- Buttons (match confirmation email vibe) -->
+      <div style="margin-top:24px; padding-top:18px; border-top:1px solid #ddd; text-align:center;">
+        <p style="font-size:14px; color:#666; margin:0 0 14px;">
+          <strong>Manage or cancel alerts using your secure link:</strong>
+        </p>
 
-      <div style="margin-top:14px; text-align:center;">
-        <a href="https://shoebeagle.com"
-           style="display:inline-block; padding:10px 22px;
-                  background:#28a745; color:#fff;
-                  text-decoration:none; border-radius:8px; font-size:14px;">
-          Search for More Deals at Shoe Beagle
+        <a href="${manageUrl}"
+           style="display:inline-block; padding:12px 30px; background:#214478; color:#fff;
+                  text-decoration:none; border-radius:8px; font-size:14px; font-weight:bold;">
+          Manage Alerts
+        </a>
+
+        <div style="height:12px;"></div>
+
+        <a href="${SITE_BASE_URL}"
+           style="display:inline-block; padding:12px 30px; background:#28a745; color:#fff;
+                  text-decoration:none; border-radius:8px; font-size:14px; font-weight:bold;">
+          Search for More Deals
         </a>
       </div>
 
@@ -392,9 +451,17 @@ module.exports = async (req, res) => {
         const daysLeft = Math.max(0, 30 - ageDays);
         const emailHtml = generateMatchEmail(alert, matches, daysLeft);
 
+        const fromEmail =
+          process.env.SENDGRID_ALERTS_EMAIL ||
+          process.env.SENDGRID_FROM_EMAIL;
+
+        if (!fromEmail) {
+          throw new Error("Missing SENDGRID_ALERTS_EMAIL (or SENDGRID_FROM_EMAIL)");
+        }
+
         await sgMail.send({
           to: alert.email,
-          from: process.env.SENDGRID_FROM_EMAIL,
+          from: fromEmail,
           subject: `🎉 ${matches.length} Deal${matches.length === 1 ? "" : "s"} Found: ${brand} ${model}`.trim(),
           html: emailHtml,
         });
