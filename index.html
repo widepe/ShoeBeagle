@@ -100,13 +100,22 @@
     <!-- Links ribbon (hidden by default; toggled by the button above) -->
     <div id="linksRibbon" class="links-ribbon" style="display:none;">
       <div class="links-ribbon-inner">
-        <div class="links-ribbon-left">
-          <span class="links-ribbon-title">Links</span>
-          <span class="links-ribbon-links">
+
+  <!-- far left -->
+  <a href="/signin" class="links-ribbon-signin">Sign In</a>
+
+  <!-- centered links -->
+  <div class="links-ribbon-links">
             <a href="/pages/myalerts.html">My Alerts</a>
             <a href="/pages/setalert.html">Set Alert</a>
             <a href="#" aria-disabled="true" tabindex="0">Favorites</a>
-          </span>
+           </div>
+
+  <!-- far right close -->
+  <button class="chip-close" aria-label="Close links">&times;</button>
+
+</div>  
+
         </div>
 
         <button id="linksRibbonClose"
