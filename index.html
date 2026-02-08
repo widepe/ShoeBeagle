@@ -213,42 +213,7 @@
     const linksRibbon = document.getElementById("linksRibbon");
     const linksRibbonClose = linksRibbon?.querySelector(".chip-close");
 
-const menuBtn = document.getElementById("menuBtn");
-const linksRibbon = document.getElementById("linksRibbon");
-const linksRibbonClose = linksRibbon?.querySelector(".chip-close");
 
-/* ↓↓↓ paste the block right here ↓↓↓ */
-
-const app = document.querySelector(".app");
-const brandInput = document.getElementById("brand");
-const modelInput = document.getElementById("model");
-
-const inputs = [brandInput, modelInput].filter(Boolean);
-
-function anyHasText() {
-  return inputs.some(i => (i.value || "").trim().length > 0);
-}
-
-function isFocusedOnAnInput() {
-  return inputs.includes(document.activeElement);
-}
-
-function expandInputs() {
-  app?.classList.add("inputs-expanded");
-}
-
-function maybeCollapseInputs() {
-  setTimeout(() => {
-    if (isFocusedOnAnInput()) return;
-    if (anyHasText()) return;
-    app?.classList.remove("inputs-expanded");
-  }, 0);
-}
-
-inputs.forEach(inp => {
-  inp.addEventListener("focus", expandInputs);
-  inp.addEventListener("blur", maybeCollapseInputs);
-});
 
     
     const filtersEl = document.getElementById("filters");
@@ -1086,7 +1051,8 @@ function shrinkInputs(){
 // Expand when either input is focused/tapped
 if (brandInput) brandInput.addEventListener("focus", expandInputs);
 if (modelInput) modelInput.addEventListener("focus", expandInputs);
-
+if (brandInput) brandInput.addEventListener("blur", shrinkInputs);
+if (modelInput) modelInput.addEventListener("blur", shrinkInputs);
 // Optional: shrink if user taps away (nice UX)
 document.addEventListener("focusin", () => {
   if (!isMobilePortrait()) return;
