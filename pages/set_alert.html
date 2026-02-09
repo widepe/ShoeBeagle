@@ -1,346 +1,515 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
   <link rel="icon" type="image/png" href="/images/favicon.png">
+
   <meta charset="UTF-8" />
-  <title>Set a Price Alert – Shoe Beagle</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Set Alert – Shoe Beagle</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <style>
-    :root{
-      /* Set this to match your index page input background */
-      --input-bg: #ffffff; /* <-- change this to your index input background color */
-      --sb-blue: #214478ff;
-      --bg: #f4ede3ff;
+    body {
+      margin: 0;
+      padding: 2rem 1rem;
+      background: #f4ede3ff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #2d2d2d;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      box-sizing: border-box;
     }
 
-    body{
-      margin:0;
-      padding:2rem 1rem;
-      background:var(--bg);
-      font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
-      color:#2d2d2d;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      min-height:100vh;
-      box-sizing:border-box;
+    .page-container {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
     }
 
-    .page-container{
-      width:100%;
-      max-width:900px;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:1.5rem;
+    .brand-logo {
+      display: block;
+      width: 600px;
+      max-width: 100%;
+      height: auto;
+      object-fit: contain;
+      cursor: pointer;
+      transition: opacity 0.2s ease;
+    }
+    .brand-logo:hover { opacity: 0.9; }
+
+    /* Set Alert Section */
+    .set-alert-section {
+      width: 100%;
+      max-width: 850px;
+      background: #ffffffc9;
+      border: 2px solid #214478ff;
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      box-sizing: border-box;
+      margin-bottom: 1rem;
     }
 
-    .brand-logo{
-      display:block;
-      width:600px;
-      max-width:100%;
-      height:auto;
-      object-fit:contain;
-      cursor:pointer;
-      transition:opacity .2s ease;
-    }
-    .brand-logo:hover{ opacity:.9; }
-
-    .card{
-      width:100%;
-      max-width:720px;
-      background:#ffffffc9;
-      border:2px solid var(--sb-blue);
-      border-radius:.75rem;
-      padding:1.25rem 1.25rem 1.5rem;
-      box-sizing:border-box;
+    .section-title {
+      color: #214478ff;
+      font-size: 1.6rem;
+      font-weight: 800;
+      text-align: center;
+      margin: 0 0 1rem;
     }
 
-    .title{
-      color:var(--sb-blue);
-      font-size:1.6rem;
-      font-weight:800;
-      text-align:center;
-      margin:.25rem 0 .35rem;
+    .form-group { margin-bottom: 1rem; }
+
+    .form-label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #214478ff;
+      margin-bottom: 0.4rem;
     }
 
-    .subtitle{
-      color:#49543a;
-      font-size:.92rem;
-      text-align:center;
-      margin:0 0 .9rem;
-      font-style:italic;
-      line-height:1.35;
+    .input-wrapper { position: relative; width: 100%; }
+
+    input[type="text"], input[type="email"] {
+      width: 100%;
+      height: 42px;
+      padding: 0 0.75rem;
+      border-radius: 0.5rem;
+      border: 1px solid #214478ff;
+      background: #fafdf4;
+      font-size: 1rem;
+      box-sizing: border-box;
+      transition: border-color 0.2s ease;
     }
 
-    form{
-      display:flex;
-      flex-direction:column;
-      gap:.85rem;
-      margin-top:.25rem;
+    input:focus {
+      outline: none;
+      border-color: #1a3661;
+      box-shadow: 0 0 0 3px rgba(33, 68, 120, 0.1);
     }
 
-    .field label{
-      font-size:.9rem;
-      font-weight:700;
-      color:var(--sb-blue);
-      display:block;
-      margin:0 0 .35rem;
+    /* Clear "x" chip */
+    .input-clear {
+      position: absolute;
+      right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: #999;
+      color: white;
+      border: none;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      padding: 0;
+      line-height: 1;
+      z-index: 20;
+    }
+    .input-clear:hover { background: #666; }
+
+    /* Show clear button when there's text */
+    .input-wrapper:has(input:not(:placeholder-shown)) .input-clear { display: flex; }
+
+    .suggestions {
+      position: absolute;
+      top: 46px;
+      left: 0;
+      right: 0;
+      background: #ffffff;
+      border: 1px solid #214478ff;
+      border-radius: 0.5rem;
+      margin-top: 0.15rem;
+      max-height: 180px;
+      overflow-y: auto;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+      z-index: 30;
+      padding: 0.25rem 0;
+      display: none;
+    }
+    .suggestion-item {
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .suggestion-item:hover, .suggestion-item.active { background: #e8f0ff; }
+
+    /* Gender and Price Row */
+    .gender-price-row {
+      display: flex;
+      gap: 2rem;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .gender-group { flex: 1; min-width: 280px; }
+    .price-group { flex: 0 0 auto; }
+
+    .gender-selector {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      align-items: flex-start;
     }
 
-    input{
-      width:100%;
-      height:46px;
-      border-radius:.55rem;
-      border:1px solid rgba(33,68,120,.55);
-      padding:0 .85rem;
-      font-size:1rem;
-      box-sizing:border-box;
-      background:var(--input-bg);
-      outline:none;
-      -webkit-appearance: none;
-      appearance: none;
-    }
-    input:focus{
-      border-color:var(--sb-blue);
-      box-shadow:0 0 0 3px rgba(33,68,120,.18);
+    .gender-option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
     }
 
-    .hint{
-      margin-top:.35rem;
-      font-size:.82rem;
-      color:#54606a;
-      line-height:1.25;
+    .gender-checkbox {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #214478ff;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.2s ease;
     }
 
-    /* ---------- Target Price: show $ + non-editable .00 on focus ---------- */
-    .price-wrap{
-      position:relative;
+    .gender-option:hover .gender-checkbox {
+      border-color: #1a3661;
+      background: rgba(33, 68, 120, 0.05);
     }
 
-    .price-wrap::before{
-      content:'$';
-      position:absolute;
-      left:.85rem;
-      top:50%;
-      transform:translateY(-50%);
-      color:#444;
-      font-weight:800;
-      pointer-events:none;
+    .gender-checkbox .check {
+      display: none;
+      color: #28a745;
+      font-weight: 900;
+      font-size: 1rem;
+      line-height: 1;
     }
 
-    /* The ".00" suffix (hidden until focused) */
-    .price-wrap::after{
-      content:'.00';
-      position:absolute;
-      right:.85rem;
-      top:50%;
-      transform:translateY(-50%);
-      color:#666;
-      font-weight:800;
-      pointer-events:none;
-      opacity:0;
-      transition:opacity .12s ease;
+    .gender-option.active .gender-checkbox .check {
+      display: block;
     }
 
-    .price-wrap.is-focused::after{
-      opacity:1;
+    .gender-label {
+      font-size: 0.95rem;
+      color: #2d2d2d;
+      font-weight: 500;
     }
 
-    .price-input{
-      padding-left:1.95rem;         /* room for $ */
-      padding-right:3.0rem;         /* room for .00 */
-      text-align:right;
+    .price-input-wrapper {
+      position: relative;
+      display: inline-block;
+      width: 150px;
+    }
+    .price-input-wrapper::before {
+      content: '$';
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1rem;
+      color: #444;
+      pointer-events: none;
+      font-weight: 500;
+      z-index: 2;
+    }
+    .price-input-wrapper input {
+      padding-left: 2rem;
+      padding-right: 2.25rem;
+      text-align: right;
+    }
+    .price-input-wrapper .input-clear { right: 0.5rem; }
+
+    .price-input-wrapper:has(input:not(:placeholder-shown)) .input-clear { display: flex; }
+
+    /* .00 suffix for price (non-editable) */
+    .price-suffix {
+      position: absolute;
+      right: 2.15rem; /* leaves room for clear chip */
+      top: 50%;
+      transform: translateY(-50%);
+      color: #666;
+      font-size: 0.95rem;
+      pointer-events: none;
+      display: none;
+      z-index: 2;
+    }
+    .price-input-wrapper.show-suffix .price-suffix { display: block; }
+
+    .submit-btn {
+      width: 100%;
+      height: 48px;
+      border-radius: 0.5rem;
+      border: none;
+      background: #214478ff;
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      margin-top: 0.5rem;
+    }
+    .submit-btn:hover { background: #1a3661; }
+    .submit-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+    /* IMPORTANT note (kept) */
+    .important-note {
+      margin-top: 0.9rem;
+      padding: 0.85rem 0.95rem;
+      background: rgba(33, 68, 120, 0.06);
+      border-left: 4px solid #214478ff;
+      border-radius: 0.5rem;
+      color: #334;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+    .important-note .title {
+      font-weight: 900;
+      color: #214478ff;
+      margin: 0 0 0.35rem;
+    }
+    .important-note ul {
+      margin: 0.35rem 0 0 1.1rem;
+      padding: 0;
+    }
+    .important-note li { margin: 0.25rem 0; }
+
+    /* Confirmation panel */
+    .confirmation-panel {
+      margin-top: 1.25rem;
+      padding: 1.25rem;
+      border-radius: 0.75rem;
+      border: 2px solid rgba(46, 160, 67, 0.6);
+      background: rgba(46, 160, 67, 0.08);
+      display: none;
+    }
+    .confirmation-panel.show { display: block; }
+
+    .confirmation-header {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: #1f6a2a;
+      margin: 0 0 0.75rem;
+      text-align: center;
     }
 
-    .btn-row{
-      display:flex;
-      gap:.75rem;
-      flex-wrap:wrap;
-      justify-content:center;
-      margin-top:.25rem;
+    .confirmation-details {
+      background: white;
+      border-radius: 0.5rem;
+      padding: 0.85rem;
+      margin-bottom: 0.85rem;
+      border: 1px solid rgba(46, 160, 67, 0.3);
+    }
+    .confirmation-details p {
+      margin: 0.35rem 0;
+      font-size: 0.95rem;
+      color: #2d2d2d;
+    }
+    .confirmation-details p strong {
+      color: #214478ff;
+      font-weight: 700;
     }
 
-    button{
-      padding:.65rem 1.15rem;
-      border-radius:999px;
-      border:1px solid var(--sb-blue);
-      background:var(--sb-blue);
-      color:#fff;
-      font-weight:700;
-      font-size:.98rem;
-      cursor:pointer;
-      transition:background .2s ease;
-    }
-    button:hover{ background:#1a3661; }
-    button.secondary{
-      background:#fff;
-      color:var(--sb-blue);
-      border:2px solid var(--sb-blue);
-    }
-    button.secondary:hover{ background:rgba(33,68,120,.1); }
-
-    .note{
-      margin:.95rem 0 0;
-      padding:.85rem .95rem;
-      background:rgba(33, 68, 120, 0.06);
-      border-left:4px solid var(--sb-blue);
-      border-radius:.5rem;
-      color:#334;
-      font-size:.92rem;
-      line-height:1.45;
-    }
-    .note-title{
-      font-weight:900;
-      color:var(--sb-blue);
-      margin:0 0 .35rem;
-      font-style:normal;
-    }
-    .note ul{
-      margin:.35rem 0 0 1.1rem;
-      padding:0;
-    }
-    .note li{ margin:.25rem 0; }
-
-    .status{
-      display:none;
-      margin-top:1rem;
-      padding:.85rem;
-      border-radius:.6rem;
-      text-align:center;
-      font-weight:700;
-      line-height:1.35;
-    }
-    .status.success{
-      display:block;
-      background:rgba(46,160,67,.15);
-      border:1px solid rgba(46,160,67,.5);
-      color:#1f6a2a;
-    }
-    .status.error{
-      display:block;
-      background:rgba(220,53,69,.15);
-      border:1px solid rgba(220,53,69,.5);
-      color:#8a1f2c;
+    .confirmation-message {
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: #1f6a2a;
+      margin-bottom: 1rem;
+      text-align: center;
     }
 
-    .post-actions{
-      display:none;
-      margin-top:1rem;
-      padding-top:1rem;
-      border-top:1px solid rgba(33,68,120,.25);
-      text-align:center;
-    }
-    .post-actions p{
-      margin:0 0 .9rem;
-      color:#2d2d2d;
-      font-weight:800;
+    .confirmation-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      align-items: center;
     }
 
-    .footer{
-      margin-top:1.5rem;
-      padding:.75rem 1rem;
-      text-align:center;
-      font-size:.82rem;
-      color:#444;
+    .confirmation-btn {
+      width: 100%;
+      max-width: 280px;
+      height: 46px;
+      border-radius: 0.5rem;
+      border: 2px solid #214478ff;
+      background: #214478ff;
+      color: white;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      display: block;
+      text-align: center;
+      line-height: 46px;
+      text-decoration: none;
+    }
+    .confirmation-btn:hover { background: #1a3661; border-color: #1a3661; }
+
+    .confirmation-btn.secondary {
+      background: white;
+      color: #214478ff;
+    }
+    .confirmation-btn.secondary:hover {
+      background: rgba(33, 68, 120, 0.1);
+    }
+
+    .status-message {
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      margin-top: 1rem;
+      text-align: center;
+      display: none;
+    }
+    .status-message.success {
+      background: rgba(46, 160, 67, 0.15);
+      border: 1px solid rgba(46, 160, 67, 0.5);
+      color: #1f6a2a;
+    }
+    .status-message.error {
+      background: rgba(220, 53, 69, 0.15);
+      border: 1px solid rgba(220, 53, 69, 0.5);
+      color: #8a1f2c;
+    }
+
+    .home-btn {
+      display: block;
+      margin: 1.5rem auto 0.25rem;
+      padding: 0.6rem 1.25rem;
+      border-radius: 999px;
+      border: 1px solid #214478ff;
+      background: #214478ff;
+      color: white;
+      font-size: 0.95rem;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      font-weight: 600;
+      transition: background 0.2s ease;
+      width: max-content;
+      position: relative;
+    }
+    .home-btn:hover { background: #1a3661; }
+
+    .footer {
+      margin-top: 1.5rem;
+      padding: 0.75rem 1rem;
+      text-align: center;
+      font-size: 0.82rem;
+      color: #444;
+    }
+
+    @media (max-width: 768px) {
+      .gender-price-row { flex-direction: column; gap: 1rem; }
+      .gender-group, .price-group { width: 100%; min-width: 0; }
+      .price-input-wrapper { width: 100%; }
     }
   </style>
 </head>
 
 <body>
   <div class="page-container">
+    <!-- Logo -->
     <a href="/">
       <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="brand-logo">
     </a>
 
-    <div class="card">
-      <div class="title">Set a Price Alert</div>
-      <div class="subtitle">Enter a shoe and a target price. We’ll email you if we find it at or below your price.</div>
+    <!-- Set Alert Form -->
+    <div class="set-alert-section">
+      <div class="section-title">Set Alert</div>
 
-      <!-- DATALISTS (dropdown suggestions as you type) -->
-      <datalist id="brandOptions">
-        <option value="ASICS"></option>
-        <option value="Brooks"></option>
-        <option value="HOKA"></option>
-        <option value="Nike"></option>
-        <option value="Adidas"></option>
-        <option value="New Balance"></option>
-        <option value="Saucony"></option>
-        <option value="Mizuno"></option>
-        <option value="On"></option>
-        <option value="Altra"></option>
-        <option value="Puma"></option>
-      </datalist>
-
-      <datalist id="modelOptions">
-        <option value="Gel-Kayano 30"></option>
-        <option value="GT-2000 12"></option>
-        <option value="Gel-Nimbus 26"></option>
-        <option value="Ghost 15"></option>
-        <option value="Glycerin 21"></option>
-        <option value="Adrenaline GTS 23"></option>
-        <option value="Clifton 9"></option>
-        <option value="Bondi 8"></option>
-        <option value="Mach 6"></option>
-        <option value="Pegasus 40"></option>
-        <option value="Vomero 17"></option>
-        <option value="1080v13"></option>
-        <option value="880v14"></option>
-        <option value="Ride 17"></option>
-        <option value="Endorphin Speed 4"></option>
-      </datalist>
-
-      <form id="alertForm" autocomplete="off">
-        <div class="field">
-          <label for="email">Email</label>
-          <input id="email" name="email" type="email" placeholder="you@example.com" required />
+      <form id="setAlertForm">
+        <div class="form-group">
+          <label class="form-label" for="alertEmail">Email Address *</label>
+          <input type="email" id="alertEmail" placeholder="your@email.com" required autocomplete="email">
         </div>
 
-        <div class="field">
-          <label for="brand">Brand</label>
-          <input id="brand" name="brand" type="text" list="brandOptions" placeholder="Start typing (ex: ASICS, Brooks, Nike)" required />
-        </div>
-
-        <div class="field">
-          <label for="model">Model</label>
-          <input id="model" name="model" type="text" list="modelOptions" placeholder="Start typing (ex: Gel-Kayano 30, Ghost 15)" required />
-          <div class="hint">If your model isn’t suggested, just type it exactly.</div>
-        </div>
-
-        <div class="field">
-          <label for="targetPrice">Target Price</label>
-          <div class="price-wrap" id="priceWrap">
-            <input id="targetPrice" name="targetPrice" type="text" inputmode="numeric" class="price-input" placeholder="120" required />
+        <div class="form-group">
+          <label class="form-label" for="alertBrand">Shoe Brand *</label>
+          <div class="input-wrapper">
+            <input type="text" id="alertBrand" placeholder="e.g., Nike, Hoka, Brooks" autocomplete="off" required>
+            <button type="button" class="input-clear" aria-label="Clear brand">×</button>
+            <div id="alertBrandSuggestions" class="suggestions"></div>
           </div>
         </div>
 
-        <div class="btn-row">
-          <button type="submit" id="submitBtn">Set Alert</button>
-          <button type="button" class="secondary" onclick="window.location.href='/'">Home</button>
+        <div class="form-group">
+          <label class="form-label" for="alertModel">Shoe Model *</label>
+          <div class="input-wrapper">
+            <input type="text" id="alertModel" placeholder="e.g., Pegasus, Clifton, Ghost" autocomplete="off" required>
+            <button type="button" class="input-clear" aria-label="Clear model">×</button>
+            <div id="alertModelSuggestions" class="suggestions"></div>
+          </div>
         </div>
 
-        <div class="note">
-          <div class="note-title">Important</div>
+        <div class="form-group">
+          <div class="gender-price-row">
+            <div class="gender-group">
+              <label class="form-label">Gender</label>
+              <div class="gender-selector">
+                <div class="gender-option" data-gender="mens">
+                  <div class="gender-checkbox"><span class="check">✓</span></div>
+                  <span class="gender-label">Men's</span>
+                </div>
+                <div class="gender-option" data-gender="womens">
+                  <div class="gender-checkbox"><span class="check">✓</span></div>
+                  <span class="gender-label">Women's</span>
+                </div>
+                <div class="gender-option active" data-gender="both">
+                  <div class="gender-checkbox"><span class="check">✓</span></div>
+                  <span class="gender-label">Both</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="price-group">
+              <label class="form-label" for="alertPrice">Target Price *</label>
+              <div class="price-input-wrapper" id="priceWrap">
+                <span class="price-suffix" id="priceSuffix">.00</span>
+                <input type="text" id="alertPrice" placeholder="0" inputmode="numeric" required autocomplete="off">
+                <button type="button" class="input-clear" aria-label="Clear price">×</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="submit-btn" id="setAlertBtn">Set Alert</button>
+
+        <div class="important-note">
+          <div class="title">Important</div>
           <ul>
             <li>Your email will never be sold or shared by Shoe Beagle, and will only be used for confirmation and notification if we find your shoes at or below your target price.</li>
-            <li>Save your confirmation email — it includes your only secure link to cancel or manage alerts.</li>
+            <li>Save your confirmation email — it contains your only secure link to cancel or manage this (and any other) alerts.</li>
             <li>For your security, we don’t offer sign-in or alert management from the website.</li>
           </ul>
         </div>
-
-        <div id="status" class="status"></div>
-
-        <div id="postActions" class="post-actions">
-          <p>Want to set another alert?</p>
-          <div class="btn-row">
-            <button type="button" id="anotherBtn" class="secondary">Set Another Alert</button>
-            <button type="button" id="homeBtn">Back to Home</button>
-          </div>
-        </div>
       </form>
+
+      <!-- Confirmation Panel -->
+      <div id="confirmationPanel" class="confirmation-panel">
+        <div class="confirmation-header">✓ Alert Set Successfully!</div>
+
+        <div class="confirmation-details" id="confirmationDetails"></div>
+
+        <div class="confirmation-message">
+          You’ll receive a confirmation email shortly. If we find your shoes at or below your target price, we’ll email you immediately. This alert expires in 30 days.
+        </div>
+
+        <div class="confirmation-actions">
+          <button type="button" class="confirmation-btn" id="setAnotherBtn">Set Another Alert</button>
+          <a href="/" class="confirmation-btn secondary">Back to Home</a>
+        </div>
+      </div>
+
+      <div id="statusMessage" class="status-message"></div>
     </div>
+
+    <a href="/" class="home-btn">Home</a>
 
     <div class="footer">
       © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
@@ -348,114 +517,565 @@
   </div>
 
   <script>
+    // =======================
+    // BACKEND ENDPOINTS
+    // =======================
     const API = { alerts: "/api/alerts" };
 
-    const form = document.getElementById("alertForm");
-    const statusEl = document.getElementById("status");
-    const submitBtn = document.getElementById("submitBtn");
-    const postActions = document.getElementById("postActions");
-    const anotherBtn = document.getElementById("anotherBtn");
-    const homeBtn = document.getElementById("homeBtn");
+    // =======================
+    // BRAND/MODEL SUGGESTIONS
+    // =======================
+    const brandModels = {
+      "361°": ["Spire","Fury","Strata","Flame"],
+      "Adidas": ["Adizero Adios","Adizero Boston","Adizero Takumi Sen","Supernova","Ultraboost Light"],
+      "Allbirds": ["Tree Dasher","Tree Flyer","Trail Runner SWT","Tree Dashers Relay"],
+      "Altra": ["Escalante","Torin","Lone Peak","Paradigm","Provision"],
+      "Asics": ["Novablast","Gel-Kayano","Gel-Nimbus","Gel-Cumulus","Metaspeed Sky"],
+      "Atreyu": ["Base Model","Artist","Race Model","Daily Trainer"],
+      "Brooks": ["Ghost","Glycerin","Adrenaline GTS","Launch","Hyperion"],
+      "Craft": ["CTM Ultra","CTM Ultra Carbon","Pro Endur","Nordlite"],
+      "Decathlon Kiprun": ["KD900","KS900","Ultralight","Race Light"],
+      "Diadora": ["Mythos Blushield","Equilibrium","Elite Volo"],
+      "Hoka": ["Clifton","Bondi","Mach","Rincon","Arahi","Carbon X"],
+      "Inov-8": ["Roadfly","Trailfly","Roclite","Mudtalon","X-Talon"],
+      "Joe Nimble": ["Addict","Trail Addict","Ultreya","WanderToes"],
+      "Karhu": ["Fusion","Ikoni","Synchron"],
+      "La Sportiva": ["Jackal","Akasha","Karacal","Mutant","Kaptiva"],
+      "Lems": ["Primal","Primal 2","Trailhead","Mesa"],
+      "Merrell": ["Vapor Glove","Trail Glove","Agility Peak","Long Sky","Morphlite"],
+      "Mizuno": ["Wave Rider","Wave Inspire","Wave Rebellion","Wave Sky"],
+      "New Balance": ["Fresh Foam 1080","FuelCell Rebel","Fresh Foam X 880","Fresh Foam More","RC Elite"],
+      "Newton": ["Gravity","Distance","Motion","Fate","Kismet"],
+      "Nike": ["Pegasus","ZoomX Vaporfly","Alphafly","Infinity Run","Structure"],
+      "Norda": ["001","002","003"],
+      "On": ["Cloudsurfer","Cloudmonster","Cloudflow","Cloudstratus","Cloudboom Echo"],
+      "Pearl Izumi": ["Flow","Floatride","Trail N2","Road N1"],
+      "Puma": ["Deviate Nitro","Velocity Nitro","Magnify Nitro"],
+      "Reebok": ["Floatride Energy","Floatride Run Fast"],
+      "Salomon": ["S/Lab Pulsar","Sense Ride","Ultra Glide"],
+      "Saucony": ["Ride","Endorphin Speed","Endorphin Pro","Kinvara","Triumph","Guide"],
+      "Skechers": ["GOrun Ride","GOrun Razor","MaxRoad"],
+      "Topo Athletic": ["Ultrafly","Phantom","Fly Lite"],
+      "Under Armour": ["HOVR Machina","HOVR Infinite","Charged Assert"],
+      "Vibram FiveFingers": ["V-Run","V-Trail","V-Alpha","KSO EVO","V-Trek"],
+      "Vivobarefoot": ["Primus Lite","Primus Trail","Geo Racer","Stealth","Addis"],
+      "Xero Shoes": ["HFS","Prio","Speed Force","Mesa Trail","Zelen"]
+    };
 
-    const priceWrap = document.getElementById("priceWrap");
-    const priceInput = document.getElementById("targetPrice");
-
-    document.getElementById("footerYear").textContent = new Date().getFullYear();
-
-    // Prefill email from querystring if present
-    (function prefillEmail(){
-      const params = new URLSearchParams(window.location.search);
-      const email = (params.get("email") || "").trim();
-      if (email) document.getElementById("email").value = email;
+    const brands = Object.keys(brandModels).sort((a,b) => a.localeCompare(b));
+    const allModels = (() => {
+      const flat = [];
+      for (const b of Object.keys(brandModels)) {
+        const arr = brandModels[b];
+        if (Array.isArray(arr)) flat.push(...arr);
+      }
+      return Array.from(new Set(flat)).sort((a, b) => a.localeCompare(b));
     })();
 
-    // numeric-only target price (whole dollars)
-    priceInput.addEventListener("input", (e) => {
-      e.target.value = e.target.value.replace(/[^0-9]/g, "");
+    // =======================
+    // DOM
+    // =======================
+    const setAlertForm = document.getElementById("setAlertForm");
+    const alertEmail = document.getElementById("alertEmail");
+    const alertBrand = document.getElementById("alertBrand");
+    const alertModel = document.getElementById("alertModel");
+    const alertPrice = document.getElementById("alertPrice");
+    const setAlertBtn = document.getElementById("setAlertBtn");
+    const statusMessage = document.getElementById("statusMessage");
+    const confirmationPanel = document.getElementById("confirmationPanel");
+    const confirmationDetails = document.getElementById("confirmationDetails");
+    const setAnotherBtn = document.getElementById("setAnotherBtn");
+
+    const alertBrandSuggestions = document.getElementById("alertBrandSuggestions");
+    const alertModelSuggestions = document.getElementById("alertModelSuggestions");
+
+    const footerYear = document.getElementById("footerYear");
+    if (footerYear) footerYear.textContent = new Date().getFullYear();
+
+    // Price suffix elements
+    const priceWrap = document.getElementById("priceWrap");
+    const priceSuffix = document.getElementById("priceSuffix");
+
+    // =======================
+    // STATE
+    // =======================
+    let selectedGender = "both"; // Default to Both
+    let isProcessing = false;
+
+    // =======================
+    // PRICE INPUT - NUMBERS ONLY + .00 suffix + caret before decimal
+    // =======================
+    function showPriceSuffix() {
+      if (priceWrap) priceWrap.classList.add("show-suffix");
+    }
+    function hidePriceSuffix() {
+      if (priceWrap) priceWrap.classList.remove("show-suffix");
+    }
+
+    function forceCaretBeforeDecimal() {
+      // caret should stay at end of the integer portion (right before the suffix)
+      try {
+        const len = alertPrice.value.length;
+        alertPrice.setSelectionRange(len, len);
+      } catch (_) {}
+    }
+
+    alertPrice.addEventListener("focus", () => {
+      showPriceSuffix();
+      // put caret at end of integer portion
+      setTimeout(forceCaretBeforeDecimal, 0);
     });
 
-    // Show ".00" only when focused
-    priceInput.addEventListener("focus", () => {
-      priceWrap.classList.add("is-focused");
-      // keep caret in the dollars field (there is no decimal in the input)
-      requestAnimationFrame(() => {
-        const len = priceInput.value.length;
-        priceInput.setSelectionRange(len, len);
+    alertPrice.addEventListener("click", () => {
+      // keep caret where we want it
+      forceCaretBeforeDecimal();
+    });
+
+    alertPrice.addEventListener("keydown", (e) => {
+      // Prevent caret moving left/right into "suffix area" conceptually
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        forceCaretBeforeDecimal();
+      }
+    });
+
+    alertPrice.addEventListener("input", (e) => {
+      e.target.value = e.target.value.replace(/[^0-9]/g, "");
+      forceCaretBeforeDecimal();
+    });
+
+    alertPrice.addEventListener("keypress", (e) => {
+      if (e.key && !/[0-9]/.test(e.key)) e.preventDefault();
+    });
+
+    // Keep suffix visible after blur if there is a value; otherwise hide it
+    alertPrice.addEventListener("blur", () => {
+      if (String(alertPrice.value || "").trim()) showPriceSuffix();
+      else hidePriceSuffix();
+    });
+
+    // =======================
+    // GENDER OPTION HANDLING
+    // =======================
+    document.querySelectorAll(".gender-option").forEach(option => {
+      option.addEventListener("click", () => {
+        const gender = option.dataset.gender;
+        if (selectedGender === gender) return;
+
+        document.querySelectorAll(".gender-option").forEach(o => o.classList.remove("active"));
+        option.classList.add("active");
+        selectedGender = gender;
       });
     });
-    priceInput.addEventListener("blur", () => {
-      priceWrap.classList.remove("is-focused");
+
+    // =======================
+    // "SET ANOTHER ALERT" (no managing)
+    // =======================
+    setAnotherBtn.addEventListener("click", () => {
+      confirmationPanel.classList.remove("show");
+      statusMessage.style.display = "none";
+
+      // Keep email + gender selection; clear inputs
+      alertBrand.value = "";
+      alertModel.value = "";
+      alertPrice.value = "";
+      hidePriceSuffix();
+      closeSuggestions();
+
+      setTimeout(() => alertBrand.focus(), 0);
     });
 
-    function showStatus(msg, type){
-      statusEl.className = `status ${type}`;
-      statusEl.textContent = msg;
-      statusEl.style.display = "block";
+    // =======================
+    // UTILS
+    // =======================
+    function normalizeStr(s) { return String(s || "").trim().toLowerCase(); }
+
+    function sanitizeInput(str) {
+      return String(str || "")
+        .replace(/[<>'"]/g, "")
+        .replace(/script/gi, "")
+        .replace(/javascript:/gi, "")
+        .replace(/on\w+=/gi, "")
+        .trim()
+        .slice(0, 100);
     }
 
-    function setBusy(isBusy){
-      submitBtn.disabled = isBusy;
-      submitBtn.textContent = isBusy ? "Setting..." : "Set Alert";
+    function showStatus(message, type = "error") {
+      statusMessage.textContent = message;
+      statusMessage.className = `status-message ${type}`;
+      statusMessage.style.display = "block";
+      setTimeout(() => { statusMessage.style.display = "none"; }, 6500);
     }
 
-    function resetForAnother(){
-      const email = document.getElementById("email").value;
-      form.reset();
-      document.getElementById("email").value = email;
+    function showConfirmation(brand, model, gender, price) {
+      const genderText = gender === "mens" ? "Men's" : gender === "womens" ? "Women's" : "Men's or Women's";
 
-      statusEl.style.display = "none";
-      postActions.style.display = "none";
-      setBusy(false);
-      document.getElementById("brand").focus();
+      confirmationDetails.innerHTML = `
+        <p><strong>Shoe:</strong> ${escapeHtml(brand)} ${escapeHtml(model)}</p>
+        <p><strong>Gender:</strong> ${escapeHtml(genderText)}</p>
+        <p><strong>Target Price:</strong> $${escapeHtml(String(price))}.00 or less</p>
+      `;
+
+      confirmationPanel.classList.add("show");
     }
 
-    anotherBtn.addEventListener("click", resetForAnother);
-    homeBtn.addEventListener("click", () => window.location.href = "/");
+    function escapeHtml(s) {
+      return String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
 
-    form.addEventListener("submit", async (e) => {
+    function setBusy(isBusy) {
+      setAlertBtn.disabled = isBusy;
+      setAlertBtn.textContent = isBusy ? "Setting..." : "Set Alert";
+    }
+
+    // =======================
+    // API CALLS
+    // =======================
+    async function apiWithRetry(apiFn, maxRetries = 3, delayMs = 1000) {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          return await apiFn();
+        } catch (error) {
+          if (attempt === maxRetries) throw error;
+          await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
+        }
+      }
+    }
+
+    async function apiCreateAlert(payload) {
+      return apiWithRetry(async () => {
+        const res = await fetch(API.alerts, {
+          method: "POST",
+          cache: "no-store",
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache"
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}: Failed to create alert`);
+        }
+        return await res.json();
+      });
+    }
+
+    // =======================
+    // SUGGESTIONS ENGINE
+    // =======================
+    function squashStr(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+
+    function scoreSuggestion(candidate, query) {
+      const c = String(candidate || "");
+      const cl = c.toLowerCase();
+      const q = String(query || "").trim().toLowerCase();
+      if (!q) return 0;
+
+      const cSquash = squashStr(c);
+      const qSquash = squashStr(q);
+
+      let score = 0;
+      if (cl.startsWith(q)) score += 120;
+      if (cl.includes(q)) score += 80;
+      if (qSquash.length >= 3 && cSquash.includes(qSquash)) score += 110;
+
+      const qParts = q.split(/\s+/).filter(Boolean);
+      if (qParts.length >= 2) {
+        const cParts = cl.split(/\s+/);
+        let tokenHits = 0;
+        for (const qp of qParts) {
+          if (cParts.some(cp => cp.startsWith(qp))) tokenHits++;
+        }
+        score += tokenHits * 25;
+      }
+
+      score -= Math.min(c.length, 30) * 0.25;
+      return score;
+    }
+
+    function filterSuggestions(list, typed, limit = 10) {
+      const q = String(typed || "").trim();
+      if (!q) return [];
+      const qLower = q.toLowerCase();
+
+      const starts = list.filter(v => String(v).toLowerCase().startsWith(qLower));
+      if (starts.length) {
+        return starts
+          .map(v => ({ v, s: scoreSuggestion(v, q) }))
+          .sort((a, b) => b.s - a.s)
+          .slice(0, limit)
+          .map(x => x.v);
+      }
+
+      return list
+        .map(v => ({ v, s: scoreSuggestion(v, q) }))
+        .filter(x => x.s > 0)
+        .sort((a, b) => b.s - a.s)
+        .slice(0, limit)
+        .map(x => x.v);
+    }
+
+    function resolveBrandKey(input) {
+      const normalized = normalizeStr(input);
+      return brands.find(b => normalizeStr(b) === normalized) || "";
+    }
+    function resolveBrand() { return resolveBrandKey(alertBrand.value.trim()); }
+
+    const suggestionState = { openFor: null, items: [], activeIndex: -1 };
+
+    function closeSuggestions(which) {
+      if (!which || which === "brand") {
+        alertBrandSuggestions.style.display = "none";
+        alertBrandSuggestions.innerHTML = "";
+      }
+      if (!which || which === "model") {
+        alertModelSuggestions.style.display = "none";
+        alertModelSuggestions.innerHTML = "";
+      }
+      if (!which) {
+        suggestionState.openFor = null;
+        suggestionState.items = [];
+        suggestionState.activeIndex = -1;
+      } else if (suggestionState.openFor === which) {
+        suggestionState.openFor = null;
+        suggestionState.items = [];
+        suggestionState.activeIndex = -1;
+      }
+    }
+
+    function renderSuggestions(container, items, which, onPick) {
+      container.innerHTML = "";
+      if (!items.length) {
+        container.style.display = "none";
+        if (suggestionState.openFor === which) {
+          suggestionState.openFor = null;
+          suggestionState.items = [];
+          suggestionState.activeIndex = -1;
+        }
+        return;
+      }
+
+      suggestionState.openFor = which;
+      suggestionState.items = items.slice();
+      suggestionState.activeIndex = -1;
+
+      items.forEach((value, idx) => {
+        const div = document.createElement("div");
+        div.className = "suggestion-item";
+        div.textContent = value;
+        div.dataset.index = String(idx);
+        div.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          onPick(value);
+        });
+        container.appendChild(div);
+      });
+
+      container.style.display = "block";
+    }
+
+    function highlightActive(container) {
+      const children = Array.from(container.querySelectorAll(".suggestion-item"));
+      children.forEach(el => el.classList.remove("active"));
+      if (suggestionState.activeIndex >= 0 && suggestionState.activeIndex < children.length) {
+        const active = children[suggestionState.activeIndex];
+        active.classList.add("active");
+        const box = container;
+        const top = active.offsetTop;
+        const bottom = top + active.offsetHeight;
+        if (top < box.scrollTop) box.scrollTop = top;
+        else if (bottom > box.scrollTop + box.clientHeight) box.scrollTop = bottom - box.clientHeight;
+      }
+    }
+
+    function handleSuggestionKeys(e, which, container, onPick) {
+      if (suggestionState.openFor !== which) return;
+      const max = suggestionState.items.length;
+      if (!max) return;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        suggestionState.activeIndex = (suggestionState.activeIndex + 1) % max;
+        highlightActive(container);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        suggestionState.activeIndex = (suggestionState.activeIndex - 1 + max) % max;
+        highlightActive(container);
+        return;
+      }
+      if (e.key === "Enter") {
+        if (suggestionState.activeIndex >= 0 && suggestionState.activeIndex < max) {
+          e.preventDefault();
+          onPick(suggestionState.items[suggestionState.activeIndex]);
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeSuggestions(which);
+      }
+    }
+
+    // Brand suggestions
+    alertBrand.addEventListener("input", () => {
+      const typed = alertBrand.value.trim();
+      if (typed.length < 1) { closeSuggestions("brand"); return; }
+      const matches = filterSuggestions(brands, typed, 12);
+      renderSuggestions(alertBrandSuggestions, matches, "brand", (value) => {
+        alertBrand.value = value;
+        closeSuggestions("brand");
+        setTimeout(() => alertModel.focus(), 0);
+      });
+    });
+
+    alertBrand.addEventListener("keydown", (e) => {
+      handleSuggestionKeys(e, "brand", alertBrandSuggestions, (value) => {
+        alertBrand.value = value;
+        closeSuggestions("brand");
+        setTimeout(() => alertModel.focus(), 0);
+      });
+    });
+
+    alertBrand.addEventListener("blur", () => setTimeout(() => closeSuggestions("brand"), 140));
+
+    // Model suggestions
+    alertModel.addEventListener("input", () => {
+      const text = alertModel.value.trim();
+      if (text.length < 1) { closeSuggestions("model"); return; }
+      const brandKey = resolveBrand();
+      const pool = (brandKey && Array.isArray(brandModels[brandKey])) ? brandModels[brandKey] : allModels;
+      const matches = filterSuggestions(pool, text, 12);
+      renderSuggestions(alertModelSuggestions, matches, "model", (value) => {
+        alertModel.value = value;
+        closeSuggestions("model");
+        setTimeout(() => alertPrice.focus(), 0);
+      });
+    });
+
+    alertModel.addEventListener("keydown", (e) => {
+      handleSuggestionKeys(e, "model", alertModelSuggestions, (value) => {
+        alertModel.value = value;
+        closeSuggestions("model");
+        setTimeout(() => alertPrice.focus(), 0);
+      });
+    });
+
+    alertModel.addEventListener("blur", () => setTimeout(() => closeSuggestions("model"), 140));
+
+    // Clear buttons
+    document.querySelectorAll(".input-clear").forEach((clearBtn) => {
+      clearBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const wrapper = clearBtn.closest(".input-wrapper, .price-input-wrapper");
+        const input = wrapper ? wrapper.querySelector("input") : null;
+
+        if (input && input.tagName === "INPUT") {
+          input.value = "";
+          input.focus();
+
+          if (input.id === "alertBrand") closeSuggestions("brand");
+          if (input.id === "alertModel") closeSuggestions("model");
+          if (input.id === "alertPrice") hidePriceSuffix();
+        }
+      });
+    });
+
+    // Click selects text for Brand/Model
+    alertBrand.addEventListener("click", () => alertBrand.select());
+    alertModel.addEventListener("click", () => alertModel.select());
+
+    // Click outside to close suggestions
+    document.addEventListener("click", (e) => {
+      const insideBrand = alertBrandSuggestions.contains(e.target) || alertBrand.contains(e.target);
+      const insideModel = alertModelSuggestions.contains(e.target) || alertModel.contains(e.target);
+      if (!insideBrand) closeSuggestions("brand");
+      if (!insideModel) closeSuggestions("model");
+    });
+
+    // =======================
+    // FORM SUBMISSION (CREATE ONLY)
+    // =======================
+    setAlertForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (submitBtn.disabled) return;
+      if (isProcessing) return;
 
-      const email = document.getElementById("email").value.trim();
-      const brand = document.getElementById("brand").value.trim();
-      const model = document.getElementById("model").value.trim();
-      const targetPrice = document.getElementById("targetPrice").value.trim();
+      const email = sanitizeInput(alertEmail.value).toLowerCase();
+      const brand = sanitizeInput(alertBrand.value);
+      const model = sanitizeInput(alertModel.value);
+      const targetPrice = parseInt(String(alertPrice.value || ""), 10);
+      const gender = selectedGender;
 
+      // Validation
       if (!email || !email.includes("@")) {
         showStatus("Please enter a valid email address.", "error");
         return;
       }
-      if (!brand || !model) {
-        showStatus("Please enter both a brand and model.", "error");
+      if (!brand) {
+        showStatus("Please enter a shoe brand.", "error");
         return;
       }
-      if (!targetPrice || Number(targetPrice) <= 0) {
-        showStatus("Please enter a valid target price.", "error");
+      if (!model) {
+        showStatus("Please enter a shoe model.", "error");
+        return;
+      }
+      if (!targetPrice || targetPrice <= 0) {
+        showStatus("Please enter a valid target price (whole dollars).", "error");
         return;
       }
 
+      isProcessing = true;
       setBusy(true);
-      statusEl.style.display = "none";
-      postActions.style.display = "none";
 
       try {
-        const res = await fetch(API.alerts, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, brand, model, targetPrice })
-        });
+        await apiCreateAlert({ email, brand, model, targetPrice, gender });
 
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || `Failed to set alert (HTTP ${res.status})`);
+        // Show confirmation (no management links)
+        showConfirmation(brand, model, gender, targetPrice);
 
-        showStatus("✅ Alert created! Check your email for the secure link to manage/cancel alerts.", "success");
-        postActions.style.display = "block";
+        // Clear form fields (keep email + gender)
+        alertBrand.value = "";
+        alertModel.value = "";
+        alertPrice.value = "";
+        hidePriceSuffix();
+        closeSuggestions();
+
       } catch (err) {
+        console.error("Create alert failed:", err);
         showStatus(err.message || "Failed to set alert.", "error");
       } finally {
+        isProcessing = false;
         setBusy(false);
       }
     });
+
+    // =======================
+    // INIT
+    // =======================
+    (function init() {
+      // Pre-fill email from query string if present (nice UX)
+      const params = new URLSearchParams(window.location.search);
+      const emailFromQS = params.get("email");
+      if (emailFromQS) {
+        alertEmail.value = emailFromQS.trim().toLowerCase();
+      }
+
+      // Ensure gender "both" is active on load
+      document.querySelectorAll(".gender-option").forEach(o => o.classList.remove("active"));
+      const both = document.querySelector('.gender-option[data-gender="both"]');
+      if (both) both.classList.add("active");
+      selectedGender = "both";
+
+      hidePriceSuffix();
+    })();
   </script>
 </body>
 </html>
