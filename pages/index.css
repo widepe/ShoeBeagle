@@ -1389,7 +1389,17 @@ button{
 .sb-col{ flex:1; min-width:180px; }
 .sb-price-col{ flex:0 0 180px; min-width:180px; }
 
-.sb-gender{ display:flex; gap:8px; flex-wrap:wrap; }
+.sb-gender{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:8px;
+}
+
+
+
+
+
 .sb-chip{
   height:34px;
   padding:0 10px;
@@ -1456,7 +1466,7 @@ button{
   margin-top:6px;
   padding:10px 12px;
   background:rgba(33,68,120,0.06);
-  border-left:4px solid #214478ff;
+  border:1px solid #214478ff;   
   border-radius:10px;
   color:#334;
   font-size:0.9rem;
