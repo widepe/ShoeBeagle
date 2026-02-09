@@ -27,22 +27,24 @@
   const API_ALERTS = "/api/alerts";
 
   // ===== Brand/models data =====
-  // If you already have /public/brandModels.js, load it and set window.brandModels there.
+  // brandModels.js (root) should define: window.brandModels = { ... }
   const brandModels = window.brandModels || {};
-  const brands = Object.keys(brandModels).sort((a,b) => a.localeCompare(b));
+  const brands = Object.keys(brandModels).sort((a, b) => a.localeCompare(b));
   const allModels = (() => {
     const flat = [];
     for (const b of Object.keys(brandModels)) {
       const arr = brandModels[b];
       if (Array.isArray(arr)) flat.push(...arr);
     }
-    return Array.from(new Set(flat)).sort((a,b) => a.localeCompare(b));
+    return Array.from(new Set(flat)).sort((a, b) => a.localeCompare(b));
   })();
 
   // ===== Modal open/close =====
   let lastFocus = null;
+
   function openModal(prefillEmail) {
     lastFocus = document.activeElement;
+
     backdrop.classList.add("open");
     backdrop.setAttribute("aria-hidden", "false");
 
@@ -50,10 +52,15 @@
     hideStatus();
     confirmBox.hidden = true;
 
-    // initialize price as 0.00 with caret before decimal
-    initPrice();
-
     if (prefillEmail) emailEl.value = String(prefillEmail).trim().toLowerCase();
+
+    // Target price now uses placeholder like "Enter whole dollars."
+    // So we do NOT force "0" into it anymore.
+    if (priceEl) priceEl.value = "";
+
+    // clear any suggestions state (fresh open)
+    closeSuggestions();
+
     setTimeout(() => (emailEl.value ? brandEl.focus() : emailEl.focus()), 0);
     document.body.style.overflow = "hidden";
   }
@@ -66,7 +73,7 @@
     if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
   }
 
-  openers.forEach(el => {
+  openers.forEach((el) => {
     el.addEventListener("click", (e) => {
       e.preventDefault();
       const emailFromQS = new URLSearchParams(location.search).get("email");
@@ -74,19 +81,16 @@
     });
   });
 
+  // Per your requirement: modal should ONLY close when hitting the close X
   closeBtn.addEventListener("click", closeModal);
-  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) closeModal(); });
-  document.addEventListener("keydown", (e) => {
-    if (backdrop.classList.contains("open") && e.key === "Escape") closeModal();
-  });
 
   // ===== Gender (chips) =====
   let selectedGender = "both";
   genderWrap.addEventListener("click", (e) => {
     const b = e.target.closest("[data-g]");
     if (!b) return;
-    selectedGender = b.getAttribute("data-g");
-    genderWrap.querySelectorAll(".sb-chip").forEach(x => x.classList.remove("active"));
+    selectedGender = b.getAttribute("data-g") || "both";
+    genderWrap.querySelectorAll(".sb-chip").forEach((x) => x.classList.remove("active"));
     b.classList.add("active");
   });
 
@@ -94,94 +98,67 @@
   document.addEventListener("click", (e) => {
     const c = e.target.closest("[data-clear]");
     if (!c) return;
+    // Only act when modal is open
+    if (!backdrop.classList.contains("open")) return;
+
+    e.preventDefault();
+
     const sel = c.getAttribute("data-clear");
-    const input = document.querySelector(sel);
+    const input = sel ? document.querySelector(sel) : null;
     if (!input) return;
+
     input.value = "";
-    if (input === priceEl) initPrice(); // go back to 0.00
     hideStatus();
     confirmBox.hidden = true;
-    closeSuggestions(input === brandEl ? "brand" : input === modelEl ? "model" : null);
+
+    // keep suggestions open behavior simple: only close if user clears that field
+    if (input === brandEl) closeSuggestions("brand");
+    if (input === modelEl) closeSuggestions("model");
+
     input.focus();
+    toggleClear(brandEl);
+    toggleClear(modelEl);
+    togglePriceClear();
   });
 
-  // ===== Price behavior: shows 0.00, whole dollars only, caret before decimal =====
-  function initPrice() {
-    // keep only whole-dollar digits in the actual input; visual .00 is a separate span
-    if (!priceEl.value) priceEl.value = "0";
-    placeCaret();
-    togglePriceClear();
-  }
-
-  function placeCaret() {
-    // caret should always be at the end of the integer string (right before the .00 span)
-    try {
-      const len = priceEl.value.length;
-      priceEl.setSelectionRange(len, len);
-    } catch (_) {}
-  }
-
+  // ===== Price behavior: whole dollars only (no ".00" element anymore) =====
   function normalizeWholeDollars(v) {
     let s = String(v || "").replace(/[^0-9]/g, "");
-    // collapse leading zeros unless it's exactly "0"
+    // collapse leading zeros unless it's the only digit
     s = s.replace(/^0+(?=\d)/, "");
-    if (!s) s = "0";
     return s.slice(0, 6); // optional safety cap
   }
 
   function togglePriceClear() {
-    const clear = backdrop.querySelector('.sb-clear-price');
+    const clear = backdrop.querySelector(".sb-clear-price");
     if (!clear) return;
-    clear.style.display = (priceEl.value && priceEl.value !== "0") ? "flex" : "none";
+    clear.style.display = priceEl.value.trim() ? "flex" : "none";
   }
 
-  priceEl.addEventListener("focus", () => {
-    if (!priceEl.value) priceEl.value = "0";
-    placeCaret();
-  });
-
-  priceEl.addEventListener("click", placeCaret);
-
-  priceEl.addEventListener("keydown", (e) => {
-    // keep caret pinned
-    if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home") {
-      e.preventDefault();
-      placeCaret();
-      return;
-    }
-
-    // If value is "0", first digit typed replaces it (so the leftmost 0 "disappears")
-    if (/^\d$/.test(e.key) && priceEl.value === "0") {
-      e.preventDefault();
-      priceEl.value = e.key;
-      placeCaret();
-      togglePriceClear();
-    }
-
-    // Backspace on single digit -> return to 0
-    if (e.key === "Backspace" && priceEl.value.length === 1) {
-      e.preventDefault();
-      priceEl.value = "0";
-      placeCaret();
-      togglePriceClear();
-    }
-  });
-
+  // Keep typing natural (caret starts at the front like normal inputs)
   priceEl.addEventListener("input", () => {
-    priceEl.value = normalizeWholeDollars(priceEl.value);
-    placeCaret();
+    const before = priceEl.value;
+    priceEl.value = normalizeWholeDollars(before);
     togglePriceClear();
   });
 
+  // block non-numeric keys (keeps mobile + desktop clean)
+  priceEl.addEventListener("keypress", (e) => {
+    if (e.key && !/[0-9]/.test(e.key)) e.preventDefault();
+  });
+
+  priceEl.addEventListener("focus", togglePriceClear);
+  priceEl.addEventListener("blur", togglePriceClear);
+
   // ===== Suggestions =====
   const S = { open: null, items: [], idx: -1 };
-  const norm = s => String(s||"").trim().toLowerCase();
-  const squash = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const norm = (s) => String(s || "").trim().toLowerCase();
+  const squash = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
   function score(cand, q) {
-    const c = String(cand||"");
+    const c = String(cand || "");
     const cl = c.toLowerCase();
-    q = String(q||"").trim().toLowerCase();
+    q = String(q || "").trim().toLowerCase();
     if (!q) return 0;
     const cs = squash(c), qs = squash(q);
     let s = 0;
@@ -192,41 +169,64 @@
     return s;
   }
 
-  function topMatches(list, typed, limit=10) {
-    const q = String(typed||"").trim();
+  function topMatches(list, typed, limit = 10) {
+    const q = String(typed || "").trim();
     if (!q) return [];
     return list
-      .map(v => ({ v, s: score(v, q) }))
-      .filter(x => x.s > 0)
-      .sort((a,b) => b.s - a.s)
+      .map((v) => ({ v, s: score(v, q) }))
+      .filter((x) => x.s > 0)
+      .sort((a, b) => b.s - a.s)
       .slice(0, limit)
-      .map(x => x.v);
+      .map((x) => x.v);
   }
 
   function renderSug(box, items, which, onPick) {
     box.innerHTML = "";
-    if (!items.length) { box.hidden = true; if (S.open === which) S.open = null; return; }
-    S.open = which; S.items = items; S.idx = -1;
-    items.forEach((v, i) => {
+    if (!items.length) {
+      box.hidden = true;
+      if (S.open === which) S.open = null;
+      return;
+    }
+    S.open = which;
+    S.items = items;
+    S.idx = -1;
+
+    items.forEach((v) => {
       const d = document.createElement("div");
       d.className = "item";
       d.textContent = v;
-      d.addEventListener("mousedown", (e) => { e.preventDefault(); onPick(v); });
+
+      // use mousedown so it doesn't get killed by input blur on mobile
+      d.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        onPick(v);
+      });
+
       box.appendChild(d);
     });
+
     box.hidden = false;
   }
 
   function closeSuggestions(which) {
-    if (!which || which === "brand") { brandSug.hidden = true; brandSug.innerHTML = ""; }
-    if (!which || which === "model") { modelSug.hidden = true; modelSug.innerHTML = ""; }
-    if (!which) { S.open = null; S.items = []; S.idx = -1; }
-    else if (S.open === which) { S.open = null; S.items = []; S.idx = -1; }
+    if (!which || which === "brand") {
+      brandSug.hidden = true;
+      brandSug.innerHTML = "";
+    }
+    if (!which || which === "model") {
+      modelSug.hidden = true;
+      modelSug.innerHTML = "";
+    }
+    if (!which) {
+      S.open = null; S.items = []; S.idx = -1;
+    } else if (S.open === which) {
+      S.open = null; S.items = []; S.idx = -1;
+    }
   }
 
   function resolveBrandKey(input) {
     const n = norm(input);
-    return brands.find(b => norm(b) === n) || "";
+    return brands.find((b) => norm(b) === n) || "";
   }
 
   brandEl.addEventListener("input", () => {
@@ -234,7 +234,8 @@
     toggleClear(brandEl);
     if (!t) return closeSuggestions("brand");
     renderSug(brandSug, topMatches(brands, t, 12), "brand", (v) => {
-      brandEl.value = v; toggleClear(brandEl);
+      brandEl.value = v;
+      toggleClear(brandEl);
       closeSuggestions("brand");
       setTimeout(() => modelEl.focus(), 0);
     });
@@ -244,10 +245,13 @@
     const t = modelEl.value.trim();
     toggleClear(modelEl);
     if (!t) return closeSuggestions("model");
+
     const bk = resolveBrandKey(brandEl.value);
     const pool = (bk && Array.isArray(brandModels[bk])) ? brandModels[bk] : allModels;
+
     renderSug(modelSug, topMatches(pool, t, 12), "model", (v) => {
-      modelEl.value = v; toggleClear(modelEl);
+      modelEl.value = v;
+      toggleClear(modelEl);
       closeSuggestions("model");
       setTimeout(() => priceEl.focus(), 0);
     });
@@ -264,16 +268,15 @@
   brandEl.addEventListener("focus", () => toggleClear(brandEl));
   modelEl.addEventListener("focus", () => toggleClear(modelEl));
 
-  document.addEventListener("click", (e) => {
-    if (!backdrop.classList.contains("open")) return;
-    const inBrand = brandSug.contains(e.target) || brandEl.contains(e.target);
-    const inModel = modelSug.contains(e.target) || modelEl.contains(e.target);
-    if (!inBrand) closeSuggestions("brand");
-    if (!inModel) closeSuggestions("model");
-  });
+  // IMPORTANT: We removed "click outside closes suggestions" entirely per your requirement.
+  // Suggestions will close when:
+  // - user picks a suggestion
+  // - user clears that field
+  // - modal closes via X
 
   // ===== API + submit =====
   let busy = false;
+
   function setBusy(v) {
     busy = v;
     btn.disabled = v;
@@ -281,7 +284,7 @@
   }
 
   function sanitize(str) {
-    return String(str||"")
+    return String(str || "")
       .replace(/[<>'"]/g, "")
       .replace(/script/gi, "")
       .replace(/javascript:/gi, "")
@@ -290,12 +293,16 @@
       .slice(0, 100);
   }
 
-  function showStatus(msg, ok=false) {
+  function showStatus(msg, ok = false) {
     status.hidden = false;
     status.className = "sb-status " + (ok ? "ok" : "err");
     status.textContent = msg;
   }
-  function hideStatus(){ status.hidden = true; status.textContent = ""; status.className = "sb-status"; }
+  function hideStatus() {
+    status.hidden = true;
+    status.textContent = "";
+    status.className = "sb-status";
+  }
 
   async function postJson(url, payload) {
     const res = await fetch(url, {
@@ -311,10 +318,10 @@
     return res.json();
   }
 
-  function esc(s){
-    return String(s||"")
-      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+  function esc(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
 
   form.addEventListener("submit", async (e) => {
@@ -327,7 +334,7 @@
     const email = sanitize(emailEl.value).toLowerCase();
     const brand = sanitize(brandEl.value);
     const model = sanitize(modelEl.value);
-    const targetPrice = parseInt(priceEl.value, 10);
+    const targetPrice = parseInt(String(priceEl.value || ""), 10);
     const gender = selectedGender;
 
     if (!email || !email.includes("@")) return showStatus("Please enter a valid email address.");
@@ -343,14 +350,19 @@
       confirmDetails.innerHTML =
         `<div><strong>Shoe:</strong> ${esc(brand)} ${esc(model)}</div>
          <div><strong>Gender:</strong> ${esc(genderText)}</div>
-         <div><strong>Target Price:</strong> $${esc(String(targetPrice))}.00 or less</div>`;
+         <div><strong>Target Price:</strong> $${esc(String(targetPrice))} or less</div>`;
 
       confirmBox.hidden = false;
 
       // Clear fields (keep email + gender)
-      brandEl.value = ""; modelEl.value = "";
-      toggleClear(brandEl); toggleClear(modelEl);
-      priceEl.value = "0"; initPrice();
+      brandEl.value = "";
+      modelEl.value = "";
+      priceEl.value = "";
+
+      toggleClear(brandEl);
+      toggleClear(modelEl);
+      togglePriceClear();
+
       closeSuggestions();
 
     } catch (err) {
@@ -364,13 +376,21 @@
   setAnother.addEventListener("click", () => {
     confirmBox.hidden = true;
     hideStatus();
-    brandEl.value = ""; modelEl.value = "";
-    toggleClear(brandEl); toggleClear(modelEl);
-    priceEl.value = "0"; initPrice();
+
+    brandEl.value = "";
+    modelEl.value = "";
+    priceEl.value = "";
+
+    toggleClear(brandEl);
+    toggleClear(modelEl);
+    togglePriceClear();
+
     closeSuggestions();
     setTimeout(() => brandEl.focus(), 0);
   });
 
-  // Start with price showing 0.00 when modal opens
-  priceEl.value = "0";
+  // init clear state
+  toggleClear(brandEl);
+  toggleClear(modelEl);
+  togglePriceClear();
 })();
