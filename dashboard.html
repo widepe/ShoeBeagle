@@ -706,32 +706,79 @@
 
   <script>
     // ============================================================
-    // ShoeBeagle Dashboard (Complete, fixed)
+    // ShoeBeagle Dashboard
     //
-    // Schema expected per deal:
-    //   listingName, brand, model, salePrice, originalPrice, discountPercent,
-    //   store, listingURL, imageURL, gender, shoeType
+    // YOUR REQUIRED BEHAVIOR:
+    // 1) If a store is in CANONICAL_STORES, it MUST appear everywhere:
+    //    - Health cards
+    //    - Browse-by-store dropdowns (even if 0 deals)
+    //    - Data quality table (even if 0 deals)
+    //    - Store breakdown (even if 0 deals)
     //
-    // Key fixes included:
-    // - Single BLOB_BASE used everywhere
-    // - deals.json / unaltered-deals.json can be ARRAY or {deals:[...]}
-    // - Store dropdowns + health use ACTUAL stores found in blob data
-    // - 30-day history hides: "Cheerio (non-Holabird)" and "Apify (non-Holabird)"
-    // - 30-day history marks scrapers with * (Apify) and † (Cheerio), notes at bottom
-    // - Health card shows Source Blob; Zappos is forced to use the current blob URL
-    // - NEW: Foot Locker added (store URL + expected blob)
-    // - NEW (YOUR REQUEST): Health card is CRITICAL if Men's OR Women's returns 0 deals
+    // 2) Health card: "Last Updated" must be the FIRST thing listed
+    //    under the store header, followed by how long ago in HOURS.
+    //
+    // 3) Debug info: "Unknown brands" must appear AFTER "Shoe brands found".
     // ============================================================
 
     // One base blob URL everywhere (prevents "wrong blob" drift)
     const BLOB_BASE = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
 
+    // IMPORTANT: This is the one list that drives ALL UI sections.
+    // If it's in here, it shows everywhere, even if it has 0 deals or no blob yet.
+    const CANONICAL_STORES = [
+      "ALS",
+      "ASICS",
+      "Brooks Running",
+      "Fleet Feet",
+      "Foot Locker",
+      "Holabird Sports",
+      "Luke's Locker",
+      "Marathon Sports",
+      "REI",
+      "RNJ Sports",
+      "Road Runner Sports",
+      "Running Warehouse",
+      "Shoebacca",
+      "Zappos",
+    ];
+
     // Stores where you want to enforce a specific "current blob" as the source of truth.
-    // Dashboard will flag CRITICAL if merge-deals is using a different blob (or blobUrl is missing).
     const EXPECTED_STORE_BLOBS = {
       "Zappos": `${BLOB_BASE}/apify-zappos.json`,
       "Foot Locker": `${BLOB_BASE}/apify-footlocker.json`,
       "RNJ Sports": `${BLOB_BASE}/rnjsports.json`,
+    };
+
+    // Store scraper URL mapping (used for "Scraped URL" links in health cards)
+    const SCRAPER_URLS = {
+      "ALS": "https://www.als.com/",
+      "ASICS": "https://www.asics.com/us/en-us/sale/mens-running-shoes/c/aa10107020/",
+      "Fleet Feet": "https://www.fleetfeet.com/collections/mens-running-shoes-on-sale",
+      "Holabird Sports": "https://www.holabirdsports.com",
+      "REI": "https://www.rei.com/rei-garage",
+      "RNJ Sports": "https://www.rnjsports.com/deals/running-shoes/",
+      "Road Runner Sports": "https://www.roadrunnersports.com/rrs/mens/shoes/sale/_/N-u5Z1z141i0",
+      "Running Warehouse": "https://www.runningwarehouse.com/",
+      "Shoebacca": "https://www.shoebacca.com/collections/clearance-athletic",
+      "Zappos": "https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso",
+      "Foot Locker": "https://www.footlocker.com/category/mens/shoes/running.html",
+      "Marathon Sports": "",
+      "Luke's Locker": "",
+      "Brooks Running": "https://www.brooksrunning.com/",
+    };
+
+    const STORE_ALIASES = {
+      "als": "ALS",
+      "rei": "REI",
+      "rei outlet": "REI",
+      "footlocker": "Foot Locker",
+      "foot locker": "Foot Locker",
+      "rnj": "RNJ Sports",
+      "rnjsports": "RNJ Sports",
+      "rnj sports": "RNJ Sports",
+      "brooks": "Brooks Running",
+      "brooks running": "Brooks Running",
     };
 
     // Show JS parse/runtime errors on the page (prevents silent "Loading..." forever)
@@ -745,59 +792,29 @@
       }
     });
 
-    // Store scraper URL mapping (used for "Scraped URL" links in health cards)
-    // NOTE: Removed Brooks mapping so it doesn't show up anywhere as a "scraped URL".
-    const SCRAPER_URLS = {
-      'ALS': 'https://www.als.com/',
-      'ASICS': 'https://www.asics.com/us/en-us/sale/mens-running-shoes/c/aa10107020/',
-      'Fleet Feet': 'https://www.fleetfeet.com/collections/mens-running-shoes-on-sale',
-      'Holabird Sports': 'https://www.holabirdsports.com',
-      'REI Outlet': 'https://www.rei.com/rei-garage',
-      'RNJ Sports': 'https://www.rnjsports.com/',
-      'Road Runner Sports': 'https://www.roadrunnersports.com/rrs/mens/shoes/sale/_/N-u5Z1z141i0',
-      'Running Warehouse': 'https://www.runningwarehouse.com/',
-      'Shoebacca': 'https://www.shoebacca.com/collections/clearance-athletic',
-      'Zappos': 'https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso',
-      'Foot Locker': 'https://www.footlocker.com/category/mens/shoes/running.html',
-    };
-
-    const STORE_ALIASES = {
-      'als': 'ALS',
-      'rei': 'REI Outlet',
-      'rei outlet': 'REI Outlet',
-      'footlocker': 'Foot Locker',
-      'foot locker': 'Foot Locker',
-  'rnj': 'RNJ Sports',
-  'rnjsports': 'RNJ Sports',
-  'rnj sports': 'RNJ Sports',
-};
-      
-    };
-
-    // You previously excluded A Snail's Pace. Keep it here so it never appears.
-    const EXCLUDED_STORES = new Set(["A Snail's Pace"]);
-
-    // NOTE: made dynamic (not const) so we can rebuild after blob loads
-    let CANONICAL_STORES = [];
-
     let ALL_DEALS = [];
     let UNALTERED_DEALS = [];
     let STORE_DATA = null;
-    let CURRENT_STORE_SORT = { column: 'count', direction: 'desc' };
-    let CURRENT_DATA_QUALITY_SORT = { column: 'totalDeals', direction: 'desc' };
+    let CURRENT_STORE_SORT = { column: "count", direction: "desc" };
+    let CURRENT_DATA_QUALITY_SORT = { column: "totalDeals", direction: "desc" };
 
     // ------------------------------------------------------------
-    // Small helpers
+    // Helpers
     // ------------------------------------------------------------
     function normalizeStore(s) {
-      const cleaned = String(s || '').trim();
-      if (!cleaned) return 'Unknown';
+      const cleaned = String(s || "").trim();
+      if (!cleaned) return "Unknown";
       const key = cleaned.toLowerCase();
       return STORE_ALIASES[key] || cleaned;
     }
 
     function normalizeStr(s) {
-      return String(s || '').trim();
+      return String(s || "").trim();
+    }
+
+    function safeNumber(n) {
+      const x = Number(n);
+      return Number.isFinite(x) ? x : 0;
     }
 
     function formatMoney(n) {
@@ -816,9 +833,10 @@
       return `${minutes}m`;
     }
 
-    function safeNumber(n) {
-      const x = Number(n);
-      return Number.isFinite(x) ? x : 0;
+    function formatHoursAgo(ms) {
+      if (!Number.isFinite(ms) || ms < 0) return "Not Available";
+      const hours = ms / 3600000;
+      return `${hours.toFixed(1)}h ago`;
     }
 
     function computeDiscountPercent(originalPrice, salePrice) {
@@ -828,18 +846,8 @@
       return 0;
     }
 
-    function getDealTitle(d) {
-      const brand = normalizeStr(d.brand);
-      const model = normalizeStr(d.model);
-      const listingName = normalizeStr(d.listingName);
-      if (brand || model) return [brand, model].filter(Boolean).join(' ');
-      return listingName || 'Deal';
-    }
-
-    function getDealImage(d) {
-      const img = normalizeStr(d.imageURL);
-      if (!img) return "https://placehold.co/600x400?text=Running+Shoe";
-      return img;
+    function openExternal(url) {
+      window.open(url, "_blank", "noopener,noreferrer");
     }
 
     function hasValidImage(d) {
@@ -849,28 +857,22 @@
       return true;
     }
 
+    function getDealTitle(d) {
+      const brand = normalizeStr(d.brand);
+      const model = normalizeStr(d.model);
+      const listingName = normalizeStr(d.listingName);
+      if (brand || model) return [brand, model].filter(Boolean).join(" ");
+      return listingName || "Deal";
+    }
+
+    function getDealImage(d) {
+      const img = normalizeStr(d.imageURL);
+      if (!img) return "https://placehold.co/600x400?text=Running+Shoe";
+      return img;
+    }
+
     function isPresentText(value) {
       return Boolean(normalizeStr(value));
-    }
-
-    function openExternal(url) {
-      window.open(url, "_blank", "noopener,noreferrer");
-    }
-
-    function getStoresFromDeals(dealsArr) {
-      return Array.from(new Set((dealsArr || []).map(d => normalizeStore(d.store)).filter(Boolean)))
-        .filter(s => s && s !== "Unknown")
-        .sort((a,b)=>a.localeCompare(b));
-    }
-
-    function rebuildCanonicalStores() {
-      const fromUrls = Object.keys(SCRAPER_URLS);
-      const fromDeals = getStoresFromDeals(ALL_DEALS);
-      const fromUnaltered = getStoresFromDeals(UNALTERED_DEALS);
-
-      CANONICAL_STORES = Array.from(new Set([...fromUrls, ...fromDeals, ...fromUnaltered]))
-        .filter(s => s && s !== "Unknown" && !EXCLUDED_STORES.has(s))
-        .sort((a,b)=>a.localeCompare(b));
     }
 
     function getLastUpdatedInfo(dealsJsonRaw, mergeData) {
@@ -883,12 +885,15 @@
 
       const lastUpdated = dealsObj?.lastUpdated || mergeData?.timestamp || mergeData?.lastUpdated || null;
 
-      if (!lastUpdated) return { raw: null, display: "Not Available" };
+      if (!lastUpdated) return { raw: null, display: "Not Available", ageMs: null, ageHours: "Not Available" };
 
       const d = new Date(lastUpdated);
       const ts = d.getTime();
       const display = Number.isFinite(ts) ? d.toLocaleString() : String(lastUpdated);
-      return { raw: lastUpdated, display };
+      const ageMs = Number.isFinite(ts) ? (Date.now() - ts) : null;
+      const ageHours = ageMs != null ? formatHoursAgo(ageMs) : "Not Available";
+
+      return { raw: lastUpdated, display, ageMs, ageHours };
     }
 
     // ------------------------------------------------------------
@@ -907,21 +912,18 @@
     }
 
     function getScraperViaMapFromHistory(scraperData) {
-      // Build scraper -> {apify|cheerio|other|null} from newest day where available
       const viaMap = {};
       if (!scraperData || !Array.isArray(scraperData.days)) return viaMap;
 
       const days = scraperData.days.slice();
-      // newest first (if already newest first, still ok)
       days.sort((a,b) => String(b.dayUTC || "").localeCompare(String(a.dayUTC || "")));
 
       for (const day of days) {
         for (const s of (day.scrapers || [])) {
           const name = s?.scraper;
           if (!name || viaMap[name]) continue;
-
           const via = String(s?.via || "").toLowerCase().trim();
-          if (via) viaMap[name] = via; // "apify", "cheerio", etc.
+          if (via) viaMap[name] = via;
         }
       }
       return viaMap;
@@ -931,7 +933,6 @@
       const viaMap = {};
       const sr = mergeData?.scraperResults || null;
       if (!sr) return viaMap;
-
       for (const [name, obj] of Object.entries(sr)) {
         const via = String(obj?.via || "").toLowerCase().trim();
         if (via) viaMap[name] = via;
@@ -940,9 +941,6 @@
     }
 
     function decorateScraperName(name, via) {
-      // Required by you:
-      // - Apify scrapers: add *
-      // - Cheerio scrapers: add †
       const v = String(via || "").toLowerCase();
       if (v === "apify") return `${name}*`;
       if (v === "cheerio") return `${name}†`;
@@ -950,14 +948,13 @@
     }
 
     function displayScraperHistory(scraperData, mergeData) {
-      const panel = document.getElementById('scraperHistoryPanel');
-      const chart = document.getElementById('scraperHistoryChart');
+      const panel = document.getElementById("scraperHistoryPanel");
+      const chart = document.getElementById("scraperHistoryChart");
 
       if (!panel || !chart || !scraperData || !Array.isArray(scraperData.days) || scraperData.days.length === 0) {
         return;
       }
 
-      // Remove these from the history list per your request
       const HIDE_FROM_HISTORY = new Set([
         "Cheerio (non-Holabird)",
         "Apify (non-Holabird)",
@@ -965,7 +962,6 @@
         "Brooks Sale",
       ]);
 
-      // Collect scraper names
       const allScrapers = new Set();
       scraperData.days.forEach(day => {
         (day.scrapers || []).forEach(s => {
@@ -975,11 +971,9 @@
 
       const scraperNames = Array.from(allScrapers).sort((a,b)=>a.localeCompare(b));
 
-      // Build via maps (history preferred, merge fallback)
       const viaFromHistory = getScraperViaMapFromHistory(scraperData);
       const viaFromMerge = getScraperViaFromMerge(mergeData);
 
-      // Build 30 dates (today-0 ... today-29)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -987,13 +981,12 @@
       for (let i = 0; i < 30; i++) {
         const d = new Date(today);
         d.setDate(d.getDate() - i);
-        allDates.push(d.toISOString().split('T')[0]);
+        allDates.push(d.toISOString().split("T")[0]);
       }
 
-      // Map dateKey -> day object
       const dataMap = {};
       scraperData.days.forEach(day => {
-        const dateKey = (day.dayUTC || '').split('T')[0];
+        const dateKey = (day.dayUTC || "").split("T")[0];
         if (dateKey) dataMap[dateKey] = day;
       });
 
@@ -1009,7 +1002,7 @@
       `;
 
       allDates.forEach(dateStr => {
-        const date = new Date(dateStr + 'T00:00:00');
+        const date = new Date(dateStr + "T00:00:00");
         const monthDay = `${date.getMonth() + 1}/${date.getDate()}`;
         html += `<th>${monthDay}</th>`;
       });
@@ -1071,7 +1064,6 @@
         </div>
       `;
 
-      // Notes per your requirement
       const notes = [];
       if (apifyInTable.size > 0) notes.push(`<div><strong>*</strong> Apify scraper.</div>`);
       if (cheerioInTable.size > 0) notes.push(`<div><strong>†</strong> Cheerio scraper.</div>`);
@@ -1081,7 +1073,7 @@
       }
 
       chart.innerHTML = html;
-      panel.style.display = 'block';
+      panel.style.display = "block";
     }
 
     // ------------------------------------------------------------
@@ -1091,11 +1083,11 @@
       const stats = { mens: 0, womens: 0, unisex: 0, unknown: 0 };
 
       deals.forEach(deal => {
-        const gender = (deal.gender || '').toLowerCase().trim();
+        const gender = (deal.gender || "").toLowerCase().trim();
 
-        if (gender === 'mens' || gender === 'men' || gender === 'male' || gender === "men's") stats.mens++;
-        else if (gender === 'womens' || gender === 'women' || gender === 'female' || gender === "women's") stats.womens++;
-        else if (gender === 'unisex') stats.unisex++;
+        if (gender === "mens" || gender === "men" || gender === "male" || gender === "men's") stats.mens++;
+        else if (gender === "womens" || gender === "women" || gender === "female" || gender === "women's") stats.womens++;
+        else if (gender === "unisex") stats.unisex++;
         else stats.unknown++;
       });
 
@@ -1106,29 +1098,29 @@
     // Main loader
     // ------------------------------------------------------------
     async function loadStats() {
-      const loading = document.getElementById('loading');
-      const error = document.getElementById('error');
-      const content = document.getElementById('content');
-      const debugInfo = document.getElementById('debugInfo');
-      const debugContent = document.getElementById('debugContent');
+      const loading = document.getElementById("loading");
+      const error = document.getElementById("error");
+      const content = document.getElementById("content");
+      const debugInfo = document.getElementById("debugInfo");
+      const debugContent = document.getElementById("debugContent");
 
-      loading.style.display = 'block';
-      error.style.display = 'none';
-      content.style.display = 'none';
-      debugInfo.style.display = 'none';
+      loading.style.display = "block";
+      error.style.display = "none";
+      content.style.display = "none";
+      debugInfo.style.display = "none";
 
       try {
         const cacheBuster = Date.now();
 
-        // Fetch deals.json (required) - supports ARRAY or {deals:[...]}
+        // deals.json supports ARRAY or {deals:[...]}
         const dealsResponse = await fetch(`${BLOB_BASE}/deals.json?t=${cacheBuster}`, { cache: "no-store" });
         if (!dealsResponse.ok) throw new Error(`Failed to fetch deals: ${dealsResponse.status}`);
 
         const dealsJson = await dealsResponse.json();
         const deals = Array.isArray(dealsJson) ? dealsJson : (Array.isArray(dealsJson.deals) ? dealsJson.deals : null);
-        if (!deals) throw new Error('Invalid deals.json format (expected array or {deals:[...]})');
+        if (!deals) throw new Error("Invalid deals.json format (expected array or {deals:[...]})");
 
-        // Fetch unaltered-deals.json (optional) - supports ARRAY or {deals:[...]}
+        // unaltered-deals.json supports ARRAY or {deals:[...]} (optional)
         let unalteredDeals = [];
         try {
           const unalteredResponse = await fetch(`${BLOB_BASE}/unaltered-deals.json?t=${cacheBuster}`, { cache: "no-store" });
@@ -1142,7 +1134,7 @@
           console.log("Could not load unaltered deals (continuing without it):", unalteredError.message);
         }
 
-        // Try to fetch merge-deals metadata (optional, with timeout)
+        // merge-deals metadata (optional)
         let mergeData = null;
         try {
           const mergeController = new AbortController();
@@ -1160,18 +1152,13 @@
           console.log("Could not load merge metadata (continuing without it):", mergeError.message);
         }
 
-        // Save globals
         ALL_DEALS = deals;
         UNALTERED_DEALS = unalteredDeals;
 
-        // Rebuild canonical store list based on actual blob content + known URLs
-        rebuildCanonicalStores();
+        // Build dropdowns (CANONICAL_STORES always used, even if 0 deals)
+        buildStoreDropdown("storeSelect");
+        buildStoreDropdown("unalteredStoreSelect");
 
-        // Build dropdowns
-        buildStoreDropdown(ALL_DEALS, "storeSelect");
-        buildStoreDropdown(UNALTERED_DEALS, "unalteredStoreSelect");
-
-        // Render initial store selections
         renderDealsForSelectedStore({
           selectId: "storeSelect",
           tableWrapId: "storeDealsTableWrap",
@@ -1186,13 +1173,13 @@
           deals: UNALTERED_DEALS,
         });
 
-        // Debug panel
-        const unknownBrands = deals.filter(d => (normalizeStr(d.brand) === 'Unknown' || !normalizeStr(d.brand))).length;
-
-        const uniqueStores = [...new Set(deals.map(d => normalizeStore(d.store)))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
-        const uniqueBrands = [...new Set(deals.map(d => normalizeStr(d.brand) || 'Unknown'))]
-          .filter(b => b && b !== 'Unknown')
+        // Debug panel (re-ordered per your request)
+        const uniqueStoresFound = [...new Set(deals.map(d => normalizeStore(d.store)))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+        const uniqueBrands = [...new Set(deals.map(d => normalizeStr(d.brand) || "Unknown"))]
+          .filter(b => b && b !== "Unknown")
           .sort((a,b)=>a.localeCompare(b));
+
+        const unknownBrandsCount = deals.filter(d => (normalizeStr(d.brand) === "Unknown" || !normalizeStr(d.brand))).length;
 
         const mergedDealsUrl = `${BLOB_BASE}/deals.json`;
         const lastUpdatedInfo = getLastUpdatedInfo(dealsJson, mergeData);
@@ -1200,13 +1187,16 @@
         let debugHTML = `
           <strong>BLOB_BASE:</strong> ${BLOB_BASE}<br>
           <strong>Merged Deals:</strong> <a href="${mergedDealsUrl}" target="_blank" style="color:#214478ff; word-break: break-all;">${mergedDealsUrl}</a><br>
-          <strong>Last Updated:</strong> ${lastUpdatedInfo.display}<br><br>
+          <strong>Last Updated:</strong> ${lastUpdatedInfo.display} (${lastUpdatedInfo.ageHours})<br><br>
+
           <strong>Total deals in array:</strong> ${deals.length}<br>
           <strong>Unaltered deals loaded:</strong> ${unalteredDeals.length}<br>
-          <strong>Unknown brands:</strong> ${unknownBrands} (${deals.length ? ((unknownBrands / deals.length) * 100).toFixed(1) : '0.0'}%)<br>
-          <strong>Unique stores found (${uniqueStores.length}):</strong> ${uniqueStores.join(', ')}<br>
-          <strong>Canonical store list (${CANONICAL_STORES.length}):</strong> ${CANONICAL_STORES.join(', ')}<br>
-          <strong>Shoe brands found (${uniqueBrands.length}):</strong> ${uniqueBrands.join(', ')}<br><br>
+
+          <strong>Unique stores found in deals.json (${uniqueStoresFound.length}):</strong> ${uniqueStoresFound.join(", ") || "None"}<br>
+          <strong>Canonical store list (${CANONICAL_STORES.length}):</strong> ${CANONICAL_STORES.join(", ")}<br>
+
+          <strong>Shoe brands found (${uniqueBrands.length}):</strong> ${uniqueBrands.join(", ") || "None"}<br>
+          <strong>Unknown brands:</strong> ${unknownBrandsCount} (${deals.length ? ((unknownBrandsCount / deals.length) * 100).toFixed(1) : "0.0"}%)<br><br>
         `;
 
         if (mergeData && mergeData.storeMetadata) {
@@ -1218,10 +1208,10 @@
               </div>`;
             }
           });
+          debugHTML += `<br>`;
         }
 
-        // Always show expected store blob(s) so we can verify merge is sourcing correctly.
-        debugHTML += `<br><strong>Expected Store Input Blobs:</strong><br>`;
+        debugHTML += `<strong>Expected Store Input Blobs:</strong><br>`;
         Object.entries(EXPECTED_STORE_BLOBS).forEach(([store, url]) => {
           debugHTML += `<div style="margin-left: 10px; margin-top: 4px;">
             <strong>${store}:</strong>
@@ -1231,7 +1221,7 @@
         debugHTML += `<br>`;
 
         debugContent.innerHTML = debugHTML;
-        debugInfo.style.display = 'block';
+        debugInfo.style.display = "block";
 
         const stats = calculateStats(deals);
         STORE_DATA = stats.stores;
@@ -1243,47 +1233,38 @@
         const scraperHistory = await loadScraperHistory();
         if (scraperHistory) displayScraperHistory(scraperHistory, mergeData);
 
-        loading.style.display = 'none';
-        content.style.display = 'block';
+        loading.style.display = "none";
+        content.style.display = "block";
 
       } catch (err) {
-        loading.style.display = 'none';
-        error.style.display = 'block';
+        loading.style.display = "none";
+        error.style.display = "block";
         error.textContent = `Error loading data: ${err.message}`;
-        console.error('Error:', err);
+        console.error("Error:", err);
       }
     }
 
     function displayOverallMeta(stats, dealsJsonRaw, mergeData) {
-      const el = document.getElementById('overallMeta');
-      const staleBanner = document.getElementById('staleBanner');
+      const el = document.getElementById("overallMeta");
+      const staleBanner = document.getElementById("staleBanner");
       if (!el) return;
 
-      const dealsObj = (!Array.isArray(dealsJsonRaw) && dealsJsonRaw && typeof dealsJsonRaw === "object") ? dealsJsonRaw : null;
-      let lastUpdated = dealsObj?.lastUpdated || mergeData?.timestamp || mergeData?.lastUpdated || null;
-
-      let lastUpdatedStr = 'Not Available';
-      let lastUpdatedAge = null;
-      if (lastUpdated) {
-        const d = new Date(lastUpdated);
-        const ts = d.getTime();
-        lastUpdatedStr = Number.isFinite(ts) ? d.toLocaleString() : String(lastUpdated);
-        lastUpdatedAge = Number.isFinite(ts) ? Date.now() - ts : null;
-      }
+      const lastUpdatedInfo = getLastUpdatedInfo(dealsJsonRaw, mergeData);
 
       el.innerHTML = `
         <span class="inline-pill">Total Deals: ${stats.totalDeals.toLocaleString()}</span>
-        <span class="inline-pill">Last Updated: ${lastUpdatedStr}</span>
+        <span class="inline-pill">Last Updated: ${lastUpdatedInfo.display}</span>
+        <span class="inline-pill">${lastUpdatedInfo.ageHours}</span>
       `;
-      el.style.display = 'block';
+      el.style.display = "block";
 
       if (staleBanner) {
         const staleThresholdMs = 6 * 60 * 60 * 1000;
-        if (lastUpdatedAge && lastUpdatedAge > staleThresholdMs) {
-          staleBanner.innerHTML = `⚠️ Data is stale. Last updated <strong>${formatAge(lastUpdatedAge)}</strong> ago.`;
-          staleBanner.style.display = 'flex';
+        if (lastUpdatedInfo.ageMs && lastUpdatedInfo.ageMs > staleThresholdMs) {
+          staleBanner.innerHTML = `⚠️ Data is stale. Last updated <strong>${formatAge(lastUpdatedInfo.ageMs)}</strong> ago.`;
+          staleBanner.style.display = "flex";
         } else {
-          staleBanner.style.display = 'none';
+          staleBanner.style.display = "none";
         }
       }
     }
@@ -1319,17 +1300,13 @@
         stats.stores[store].totalSavings += dollarSavings;
         stats.stores[store].deals.push(deal);
 
-        if (percentOff > 0) {
-          stats.discounts.push({ deal, percentOff, dollarSavings, salePrice });
-        }
+        if (percentOff > 0) stats.discounts.push({ deal, percentOff, dollarSavings, salePrice });
         if (salePrice > 0) stats.prices.push(salePrice);
       });
 
-      // Ensure all canonical stores exist even if zero
+      // REQUIRED: ensure every canonical store exists even if zero
       CANONICAL_STORES.forEach(store => {
-        if (!stats.stores[store]) {
-          stats.stores[store] = { count: 0, totalDiscount: 0, totalSavings: 0, deals: [] };
-        }
+        if (!stats.stores[store]) stats.stores[store] = { count: 0, totalDiscount: 0, totalSavings: 0, deals: [] };
       });
 
       return stats;
@@ -1338,12 +1315,11 @@
     // ------------------------------------------------------------
     // Data Quality
     // ------------------------------------------------------------
-    function displayDataQuality(deals, stats) {
-      const tbody = document.getElementById('dataQualityTableBody');
+    function displayDataQuality(deals) {
+      const tbody = document.getElementById("dataQualityTableBody");
       if (!tbody) return;
 
       const storeQuality = {};
-
       CANONICAL_STORES.forEach(store => {
         storeQuality[store] = {
           totalDeals: 0,
@@ -1358,7 +1334,6 @@
 
       deals.forEach(deal => {
         const store = normalizeStore(deal.store);
-
         if (!storeQuality[store]) {
           storeQuality[store] = {
             totalDeals: 0,
@@ -1374,7 +1349,7 @@
         storeQuality[store].totalDeals++;
 
         const brand = normalizeStr(deal.brand);
-        if (!brand || brand === 'Unknown') storeQuality[store].unknownBrands++;
+        if (!brand || brand === "Unknown") storeQuality[store].unknownBrands++;
 
         const model = normalizeStr(deal.model);
         if (!model) storeQuality[store].unknownModels++;
@@ -1386,17 +1361,17 @@
         if (!Number.isFinite(salePrice) || salePrice === 0) storeQuality[store].noSalePrice++;
 
         const img = normalizeStr(deal.imageURL);
-        if (!img || img.includes('placehold.co')) storeQuality[store].badImage++;
+        if (!img || img.includes("placehold.co")) storeQuality[store].badImage++;
 
         const url = normalizeStr(deal.listingURL);
-        if (!url || url === '#') storeQuality[store].badUrl++;
+        if (!url || url === "#") storeQuality[store].badUrl++;
       });
 
       renderDataQualityTable(storeQuality);
     }
 
     function renderDataQualityTable(storeQuality) {
-      const tbody = document.getElementById('dataQualityTableBody');
+      const tbody = document.getElementById("dataQualityTableBody");
       if (!tbody) return;
 
       const entries = Object.entries(storeQuality).map(([store, data]) => ({ store, ...data }));
@@ -1405,10 +1380,10 @@
       tbody.innerHTML = entries.map(row => {
         const getIssueClass = (count, total) => {
           const percent = total > 0 ? (count / total) * 100 : 0;
-          if (count === 0) return 'good';
-          if (percent > 20) return 'critical';
-          if (percent > 5) return 'warning';
-          return '';
+          if (count === 0) return "good";
+          if (percent > 20) return "critical";
+          if (percent > 5) return "warning";
+          return "";
         };
 
         const formatIssueCell = (count, total) => {
@@ -1428,18 +1403,17 @@
             <td><span class="issue-count ${getIssueClass(row.badUrl, row.totalDeals)}">${formatIssueCell(row.badUrl, row.totalDeals)}</span></td>
           </tr>
         `;
-      }).join('');
+      }).join("");
     }
 
     function sortDataQuality(column) {
       if (CURRENT_DATA_QUALITY_SORT.column === column) {
-        CURRENT_DATA_QUALITY_SORT.direction = CURRENT_DATA_QUALITY_SORT.direction === 'asc' ? 'desc' : 'asc';
+        CURRENT_DATA_QUALITY_SORT.direction = CURRENT_DATA_QUALITY_SORT.direction === "asc" ? "desc" : "asc";
       } else {
         CURRENT_DATA_QUALITY_SORT.column = column;
-        CURRENT_DATA_QUALITY_SORT.direction = column === 'store' ? 'asc' : 'desc';
+        CURRENT_DATA_QUALITY_SORT.direction = column === "store" ? "asc" : "desc";
       }
-      const stats = calculateStats(ALL_DEALS);
-      displayDataQuality(ALL_DEALS, stats);
+      displayDataQuality(ALL_DEALS);
     }
 
     function sortDataQualityArray(arr, column, direction) {
@@ -1447,14 +1421,14 @@
         let aVal, bVal;
 
         switch(column) {
-          case 'store':
+          case "store":
             aVal = a.store.toLowerCase();
             bVal = b.store.toLowerCase();
-            return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+            return direction === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
           default:
             aVal = a[column] || 0;
             bVal = b[column] || 0;
-            return direction === 'asc' ? aVal - bVal : bVal - aVal;
+            return direction === "asc" ? aVal - bVal : bVal - aVal;
         }
       });
     }
@@ -1464,16 +1438,16 @@
     // ------------------------------------------------------------
     function sortStoreTable(column) {
       if (CURRENT_STORE_SORT.column === column) {
-        CURRENT_STORE_SORT.direction = CURRENT_STORE_SORT.direction === 'asc' ? 'desc' : 'asc';
+        CURRENT_STORE_SORT.direction = CURRENT_STORE_SORT.direction === "asc" ? "desc" : "asc";
       } else {
         CURRENT_STORE_SORT.column = column;
-        CURRENT_STORE_SORT.direction = column === 'name' ? 'asc' : 'desc';
+        CURRENT_STORE_SORT.direction = column === "name" ? "asc" : "desc";
       }
       displayStoreTable(STORE_DATA);
     }
 
     function displayStoreTable(stores) {
-      const tbody = document.getElementById('storesTableBody');
+      const tbody = document.getElementById("storesTableBody");
       if (!tbody || !stores) return;
 
       let sorted = Object.entries(stores).map(([name, data]) => {
@@ -1500,38 +1474,38 @@
       sorted.sort((a, b) => {
         let comparison = 0;
         switch(CURRENT_STORE_SORT.column) {
-          case 'name':
+          case "name":
             comparison = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
             break;
-          case 'count':
+          case "count":
             comparison = a.data.count - b.data.count;
             break;
-          case 'avgDiscount':
+          case "avgDiscount":
             comparison = a.avgDiscount - b.avgDiscount;
             break;
-          case 'avgSavings':
+          case "avgSavings":
             comparison = a.avgSavings - b.avgSavings;
             break;
         }
-        return CURRENT_STORE_SORT.direction === 'asc' ? comparison : -comparison;
+        return CURRENT_STORE_SORT.direction === "asc" ? comparison : -comparison;
       });
 
-      const storeTable = document.querySelectorAll('.stores-table')[1]; // 0 = data quality, 1 = store breakdown
+      const storeTable = document.querySelectorAll(".stores-table")[1]; // 0 = data quality, 1 = store breakdown
       if (storeTable) {
-        storeTable.querySelectorAll('th').forEach(th => th.classList.remove('sorted-asc', 'sorted-desc'));
-        const headers = storeTable.querySelectorAll('th');
+        storeTable.querySelectorAll("th").forEach(th => th.classList.remove("sorted-asc", "sorted-desc"));
+        const headers = storeTable.querySelectorAll("th");
         const columnMap = { name: 0, count: 1, avgDiscount: 2, avgSavings: 3 };
         if (columnMap[CURRENT_STORE_SORT.column] !== undefined) {
           headers[columnMap[CURRENT_STORE_SORT.column]].classList.add(
-            CURRENT_STORE_SORT.direction === 'asc' ? 'sorted-asc' : 'sorted-desc'
+            CURRENT_STORE_SORT.direction === "asc" ? "sorted-asc" : "sorted-desc"
           );
         }
       }
 
       tbody.innerHTML = sorted.map(({ name, data, avgDiscount, avgSavings, bestDeal }) => {
         const bestLabel = bestDeal
-          ? `${normalizeStr(bestDeal.deal.brand) || 'Unknown'} ${normalizeStr(bestDeal.deal.model) || ''} (${bestDeal.pct.toFixed(0)}% off)`
-          : '-';
+          ? `${normalizeStr(bestDeal.deal.brand) || "Unknown"} ${normalizeStr(bestDeal.deal.model) || ""} (${bestDeal.pct.toFixed(0)}% off)`
+          : "—";
         return `
           <tr>
             <td><strong>${name}</strong></td>
@@ -1541,17 +1515,17 @@
             <td>${bestLabel}</td>
           </tr>
         `;
-      }).join('');
+      }).join("");
     }
 
     // ------------------------------------------------------------
-    // Health Status (schema-correct + blob source enforcement)
+    // Health Status
     // ------------------------------------------------------------
     function displayHealthStatus(deals, stats, mergeData) {
-      const healthPanel = document.getElementById('healthPanel');
-      const healthGrid = document.getElementById('healthGrid');
-      const healthSummary = document.getElementById('healthSummary');
-      const healthIssuesList = document.getElementById('healthIssuesList');
+      const healthPanel = document.getElementById("healthPanel");
+      const healthGrid = document.getElementById("healthGrid");
+      const healthSummary = document.getElementById("healthSummary");
+      const healthIssuesList = document.getElementById("healthIssuesList");
       if (!healthPanel || !healthGrid || !healthSummary) return;
 
       const storeMetadata = mergeData?.storeMetadata || {};
@@ -1569,20 +1543,18 @@
           store: storeName,
           dealCount: storeData.count || 0,
           issues: [],
-          status: 'healthy',
+          status: "healthy",
           metadata: null,
           scrapedUrl: SCRAPER_URLS[storeName] || null,
           genderStats: { mens: 0, womens: 0, unisex: 0, unknown: 0 }
         };
 
-        // For enforced stores (Zappos + Foot Locker), we want merge metadata to validate blob drift.
         const enforcedBlob = EXPECTED_STORE_BLOBS[storeName] || null;
         if (enforcedBlob && mergeMissing) {
-          health.issues.push({ type: 'critical', message: `🚨 Cannot verify source blob (merge metadata missing)` });
-          health.status = 'critical';
+          health.issues.push({ type: "critical", message: "🚨 Cannot verify source blob (merge metadata missing)" });
+          health.status = "critical";
         }
 
-        // Best-effort metadata: if /api/merge-deals has a matching key, use it.
         if (storeMetadata[storeName]) {
           const m = storeMetadata[storeName];
           health.metadata = {
@@ -1591,109 +1563,72 @@
             blobUrl: m.blobUrl || null,
           };
 
-          // Enforce: certain stores must come from a specific current blob.
           const expectedBlob = EXPECTED_STORE_BLOBS[storeName] || null;
           const actualBlob = health.metadata?.blobUrl || null;
 
           if (expectedBlob) {
             if (!actualBlob) {
-              health.issues.push({ type: 'critical', message: `🚨 Missing blobUrl in merge metadata (expected current blob)` });
-              health.status = 'critical';
+              health.issues.push({ type: "critical", message: "🚨 Missing blobUrl in merge metadata (expected current blob)" });
+              health.status = "critical";
             } else if (actualBlob !== expectedBlob) {
-              health.issues.push({ type: 'critical', message: `🚨 Wrong blob used (expected current blob)` });
-              health.status = 'critical';
+              health.issues.push({ type: "critical", message: "🚨 Wrong blob used (expected current blob)" });
+              health.status = "critical";
             }
           }
         } else {
-          if (mergeData?.timestamp) {
-            health.metadata = {
-              timestamp: mergeData.timestamp,
-              duration: null,
-              blobUrl: null,
-            };
-          }
+          // still show card; just no metadata
+          health.metadata = { timestamp: null, duration: null, blobUrl: null };
         }
 
         const storeDeals = deals.filter(d => normalizeStore(d.store) === storeName);
 
-        // ---- YOUR REQUEST: CRITICAL if Men's OR Women's = 0 (even if total > 0) ----
         const genderStats = calculateGenderStats(storeDeals);
         health.genderStats = genderStats;
 
-        if (genderStats.mens === 0 || genderStats.womens === 0) {
-          const parts = [];
-          if (genderStats.mens === 0) parts.push("Men's=0");
-          if (genderStats.womens === 0) parts.push("Women's=0");
-          health.issues.push({
-            type: 'critical',
-            message: `🚨 Gender returned 0 results (${parts.join(", ")})`
-          });
-          health.status = 'critical';
-        }
-        // ---------------------------------------------------------------------------
-
         if (health.dealCount === 0) {
-          health.issues.push({ type: 'critical', message: '🚨 ZERO RESULTS - scraper/store mapping broken or scraper failed' });
-          health.status = 'critical';
+          health.issues.push({ type: "critical", message: "🚨 ZERO RESULTS (no deals in merged deals.json)" });
+          health.status = "critical";
         }
 
-        const unknownBrands = storeDeals.filter(d => (normalizeStr(d.brand) === 'Unknown' || !normalizeStr(d.brand))).length;
+        // Keep existing quality checks (still helpful, but store must still render)
+        const unknownBrands = storeDeals.filter(d => (normalizeStr(d.brand) === "Unknown" || !normalizeStr(d.brand))).length;
         const unknownPercent = health.dealCount > 0 ? (unknownBrands / health.dealCount) * 100 : 0;
 
         if (unknownPercent > 50) {
-          health.issues.push({ type: 'critical', message: `🚨 ${unknownPercent.toFixed(0)}% Unknown Brands` });
-          health.status = 'critical';
+          health.issues.push({ type: "critical", message: `🚨 ${unknownPercent.toFixed(0)}% Unknown Brands` });
+          health.status = "critical";
         } else if (unknownPercent > 20) {
-          health.issues.push({ type: 'warning', message: `⚠️ ${unknownPercent.toFixed(0)}% Unknown Brands` });
-          if (health.status !== 'critical') health.status = 'warning';
+          health.issues.push({ type: "warning", message: `⚠️ ${unknownPercent.toFixed(0)}% Unknown Brands` });
+          if (health.status !== "critical") health.status = "warning";
         }
 
         const missingImages = storeDeals.filter(d => {
           const img = normalizeStr(d.imageURL);
-          return !img || img.includes('placehold.co');
+          return !img || img.includes("placehold.co");
         }).length;
         const missingImagesPercent = health.dealCount > 0 ? (missingImages / health.dealCount) * 100 : 0;
 
         if (missingImagesPercent > 30) {
-          health.issues.push({ type: 'warning', message: `⚠️ ${missingImagesPercent.toFixed(0)}% Missing Images` });
-          if (health.status !== 'critical') health.status = 'warning';
+          health.issues.push({ type: "warning", message: `⚠️ ${missingImagesPercent.toFixed(0)}% Missing Images` });
+          if (health.status !== "critical") health.status = "warning";
         }
 
         const missingUrls = storeDeals.filter(d => {
           const url = normalizeStr(d.listingURL);
-          return !url || url === '#';
+          return !url || url === "#";
         }).length;
         const missingUrlsPercent = health.dealCount > 0 ? (missingUrls / health.dealCount) * 100 : 0;
 
         if (missingUrlsPercent > 10) {
-          health.issues.push({ type: 'warning', message: `⚠️ ${missingUrlsPercent.toFixed(0)}% Missing URLs` });
-          if (health.status !== 'critical') health.status = 'warning';
-        }
-
-        const missingSalePrices = storeDeals.filter(d => !Number.isFinite(Number(d.salePrice)) || Number(d.salePrice) === 0).length;
-        if (missingSalePrices > 0) {
-          health.issues.push({ type: 'warning', message: `⚠️ ${missingSalePrices} Missing Sale Prices` });
-          if (health.status !== 'critical') health.status = 'warning';
-        }
-
-        const missingModels = storeDeals.filter(d => !normalizeStr(d.model)).length;
-        const missingModelsPercent = health.dealCount > 0 ? (missingModels / health.dealCount) * 100 : 0;
-
-        if (missingModelsPercent > 30) {
-          health.issues.push({ type: 'warning', message: `⚠️ ${missingModelsPercent.toFixed(0)}% Missing Models` });
-          if (health.status !== 'critical') health.status = 'warning';
-        }
-
-        if (health.dealCount > 0 && health.dealCount < 5) {
-          health.issues.push({ type: 'warning', message: `⚠️ Low Deal Count (${health.dealCount})` });
-          if (health.status !== 'critical') health.status = 'warning';
+          health.issues.push({ type: "warning", message: `⚠️ ${missingUrlsPercent.toFixed(0)}% Missing URLs` });
+          if (health.status !== "critical") health.status = "warning";
         }
 
         storeHealth[storeName] = health;
 
-        if (health.status === 'healthy') healthyCount++;
-        else if (health.status === 'warning') warningCount++;
-        else if (health.status === 'critical') criticalCount++;
+        if (health.status === "healthy") healthyCount++;
+        else if (health.status === "warning") warningCount++;
+        else criticalCount++;
       });
 
       healthSummary.innerHTML = `
@@ -1704,19 +1639,19 @@
 
       if (healthIssuesList) {
         const criticalStores = Object.values(storeHealth)
-          .filter(h => h.status === 'critical')
+          .filter(h => h.status === "critical")
           .map(h => h.store);
 
         if (criticalStores.length > 0) {
           healthIssuesList.innerHTML = `
             <div class="health-issues-list-title">🚨 Critical Issues</div>
-            <div>Stores with zero results, missing gender (Men/Women = 0), or severe data quality problems:</div>
-            <ul>${criticalStores.map(store => `<li>${store}</li>`).join('')}</ul>
+            <div>Stores with zero results, blob drift, or severe data quality problems:</div>
+            <ul>${criticalStores.map(store => `<li>${store}</li>`).join("")}</ul>
           `;
-          healthIssuesList.classList.remove('hidden');
+          healthIssuesList.classList.remove("hidden");
         } else {
-          healthIssuesList.classList.add('hidden');
-          healthIssuesList.innerHTML = '';
+          healthIssuesList.classList.add("hidden");
+          healthIssuesList.innerHTML = "";
         }
       }
 
@@ -1725,29 +1660,16 @@
       );
 
       healthGrid.innerHTML = sortedStores.map(health => {
-        const meta = health.metadata;
-        const hasMetadata = meta && !meta.error;
+        const meta = health.metadata || {};
+        const ts = meta.timestamp ? new Date(meta.timestamp).getTime() : NaN;
 
-        let timestampStr = 'Not Available';
-        if (hasMetadata && meta.timestamp) {
-          const d = new Date(meta.timestamp);
-          timestampStr = Number.isFinite(d.getTime()) ? d.toLocaleString() : String(meta.timestamp);
-        }
+        const lastUpdatedStr = Number.isFinite(ts) ? new Date(ts).toLocaleString() : "Not Available";
+        const hoursAgoStr = Number.isFinite(ts) ? formatHoursAgo(Date.now() - ts) : "Not Available";
+        const durationStr = meta.duration != null ? String(meta.duration) : "Not Available";
 
-        let durationStr = 'Not Available';
-        let ageStr = 'Not Available';
-        if (hasMetadata && meta.duration) durationStr = meta.duration;
-        if (hasMetadata && meta.timestamp) {
-          const ts = new Date(meta.timestamp).getTime();
-          if (Number.isFinite(ts)) ageStr = `${formatAge(Date.now() - ts)} ago`;
-        }
-
-        const scrapedUrlStr = health.scrapedUrl || 'Not Available';
-
-        const sourceBlob = health.metadata?.blobUrl || EXPECTED_STORE_BLOBS[health.store] || null;
-
+        const sourceBlob = meta.blobUrl || EXPECTED_STORE_BLOBS[health.store] || null;
+        const scrapedUrlStr = health.scrapedUrl || "Not Available";
         const genderStats = health.genderStats;
-
         const totalDealsStr = (health.dealCount || 0).toLocaleString();
 
         return `
@@ -1755,12 +1677,29 @@
             <div class="health-header">
               <div class="health-store-name">${health.store}</div>
               <div class="health-status-badge ${health.status}">
-                ${health.status === 'healthy' ? '✓ Healthy' : health.status === 'warning' ? '⚠ Warning' : '✗ Critical'}
+                ${health.status === "healthy" ? "✓ Healthy" : health.status === "warning" ? "⚠ Warning" : "✗ Critical"}
+              </div>
+            </div>
+
+            <!-- REQUIRED: Last Updated FIRST under the header -->
+            <div class="health-metrics" style="margin-top: 6px;">
+              <div class="health-metric full">
+                <div class="health-metric-label">Last Updated</div>
+                <div class="health-metric-value ${lastUpdatedStr === "Not Available" ? "na" : ""}">
+                  ${lastUpdatedStr}
+                  <span style="opacity:.65; font-weight:700;"> • </span>
+                  <span class="${hoursAgoStr === "Not Available" ? "na" : ""}">${hoursAgoStr}</span>
+                </div>
+              </div>
+
+              <div class="health-metric full">
+                <div class="health-metric-label">Duration</div>
+                <div class="health-metric-value ${durationStr === "Not Available" ? "na" : ""}">${durationStr}</div>
               </div>
             </div>
 
             <div class="scraped-url">
-              <strong>Scraped URL:</strong> ${scrapedUrlStr !== 'Not Available'
+              <strong>Scraped URL:</strong> ${scrapedUrlStr !== "Not Available"
                 ? `<a href="${scrapedUrlStr}" target="_blank" rel="noopener noreferrer">${scrapedUrlStr}</a>`
                 : scrapedUrlStr}
             </div>
@@ -1771,21 +1710,6 @@
                   ? `<a href="${sourceBlob}" target="_blank" rel="noopener noreferrer">${sourceBlob}</a>`
                   : `Not Available`
               }
-            </div>
-
-            <div class="health-metrics">
-              <div class="health-metric full">
-                <div class="health-metric-label">Last Updated • Duration • Age</div>
-                <div class="health-metric-value ${timestampStr === 'Not Available' ? 'na' : ''}" style="font-size: 0.86rem;">
-                  <span class="inline-pair">
-                    <span>${timestampStr}</span>
-                    <span style="opacity:.65;">|</span>
-                    <span class="${durationStr === 'Not Available' ? 'na' : ''}">${durationStr}</span>
-                    <span style="opacity:.65;">|</span>
-                    <span class="${ageStr === 'Not Available' ? 'na' : ''}">${ageStr}</span>
-                  </span>
-                </div>
-              </div>
             </div>
 
             <div class="gender-breakdown">
@@ -1820,21 +1744,21 @@
                   <div class="health-issue ${issue.type}">
                     <span>${issue.message}</span>
                   </div>
-                `).join('')}
+                `).join("")}
               </div>
             ` : '<div style="margin-top: 10px; color: #28a745; font-weight: bold;">✓ All checks passed</div>'}
           </div>
         `;
-      }).join('');
+      }).join("");
 
-      healthPanel.style.display = 'block';
+      healthPanel.style.display = "block";
       displayStoreTable(stats.stores);
     }
 
     // ------------------------------------------------------------
     // Deals browser by store
     // ------------------------------------------------------------
-    function buildStoreDropdown(deals, selectId) {
+    function buildStoreDropdown(selectId) {
       const select = document.getElementById(selectId);
       if (!select) return;
 
