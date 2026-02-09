@@ -251,9 +251,8 @@ form#search-form{
   pointer-events:none; /* clicking focuses the input */
   z-index:10;
   /* make the magnifying glass icon in search bar faint / transparent */
-  opacity:0.5;   
+  opacity:0.5;
 }
-
 
 input[type="text"], input[type="search"]{
   width:100%;
@@ -411,8 +410,6 @@ button{
   border-bottom:1px solid rgba(33,68,120,0.25);
 }
 
-
-
 .links-ribbon-title{ display:none; }
 
 .links-ribbon-links{
@@ -449,7 +446,6 @@ button{
 .links-ribbon-signin:hover{
   text-decoration:underline;
 }
-
 
 /* close button */
 .links-ribbon .chip-close{
@@ -891,7 +887,7 @@ button{
     --pad:6px;
 
     /* how much space the logo "lane" takes at rest */
---logo-lane:clamp(150px, 34vw, 220px);
+    --logo-lane:clamp(150px, 34vw, 220px);
 
     --top-scale:0.47;
     --grid-scale:0.47;
@@ -937,11 +933,12 @@ button{
     /* animate alignment */
     transition: justify-content 360ms ease;
   }
-   /* scale the magnifying glass while typing (mobile portrait) */
-.app.inputs-expanded .input-icon{
-  width:calc(22px * var(--top-scale) * var(--typing-scale));
-  height:calc(22px * var(--top-scale) * var(--typing-scale));
-}
+
+  /* scale the magnifying glass while typing (mobile portrait) */
+  .app.inputs-expanded .input-icon{
+    width:calc(22px * var(--top-scale) * var(--typing-scale));
+    height:calc(22px * var(--top-scale) * var(--typing-scale));
+  }
 
   /* --- LOGO LANE (shrinks to free space) --- */
   .top-right{
@@ -955,19 +952,20 @@ button{
     transition: max-width 420ms ease, opacity 360ms ease, transform 360ms ease;
     will-change: max-width, opacity, transform;
   }
-/* MOBILE PORTRAIT: bigger clear (X) buttons */
-.input-clear{
-  width:calc(34px * var(--top-scale));
-  height:calc(34px * var(--top-scale));
-  font-size:calc(1.6rem * var(--top-scale));
-}
+
+  /* MOBILE PORTRAIT: bigger clear (X) buttons */
+  .input-clear{
+    width:calc(34px * var(--top-scale));
+    height:calc(34px * var(--top-scale));
+    font-size:calc(1.6rem * var(--top-scale));
+  }
+
   /* MOBILE PORTRAIT: smaller links in the links ribbon */
   .links-ribbon-links a,
   .links-ribbon-signin{
     font-size:0.75rem;
+  }
 
-
-}   
   /* --- INPUTS LANE (default state: unchanged) --- */
   .top-left{
     order:1;
@@ -1002,35 +1000,37 @@ button{
     max-width:100%;
     margin-left:auto;            /* keeps the RIGHT edge anchored */
   }
-/* MOBILE PORTRAIT (expanded): keep padding after icon so text/caret has breathing room */
-.app.inputs-expanded .input-wrapper input[type="text"],
-.app.inputs-expanded .input-wrapper input[type="search"]{
-  padding-left:calc(
-    (0.70rem * var(--top-scale)) +
-    (20px * var(--top-scale) * var(--typing-scale)) +
-    (0.75rem * var(--top-scale))
-  );
-}
-   /* MOBILE PORTRAIT: bigger magnifying glass by default */
-.input-icon{
-  width:calc(24px * var(--top-scale));
-  height:calc(24px * var(--top-scale));
-}
-/* GROW inputs + buttons + text while fields are expanded (mobile portrait only) */
-.app{ --typing-scale:1; }
 
-.app.inputs-expanded{ --typing-scale:1.4; } /* ~40% taller / larger */
+  /* MOBILE PORTRAIT (expanded): keep padding after icon so text/caret has breathing room */
+  .app.inputs-expanded .input-wrapper input[type="text"],
+  .app.inputs-expanded .input-wrapper input[type="search"]{
+    padding-left:calc(
+      (0.70rem * var(--top-scale)) +
+      (20px * var(--top-scale) * var(--typing-scale)) +
+      (0.75rem * var(--top-scale))
+    );
+  }
 
-.app.inputs-expanded input[type="text"],
-.app.inputs-expanded input[type="search"]{
-  height:calc(var(--input-h) * var(--typing-scale));
-  font-size:calc(16px * var(--typing-scale)); /* keep iOS zoom-safe base */
-}
+  /* MOBILE PORTRAIT: bigger magnifying glass by default */
+  .input-icon{
+    width:calc(24px * var(--top-scale));
+    height:calc(24px * var(--top-scale));
+  }
 
-.app.inputs-expanded .btn-eq{
-  height:calc(var(--btn-h) * var(--typing-scale));
-}
-   
+  /* GROW inputs + buttons + text while fields are expanded (mobile portrait only) */
+  .app{ --typing-scale:1; }
+
+  .app.inputs-expanded{ --typing-scale:1.4; } /* ~40% taller / larger */
+
+  .app.inputs-expanded input[type="text"],
+  .app.inputs-expanded input[type="search"]{
+    height:calc(var(--input-h) * var(--typing-scale));
+    font-size:calc(16px * var(--typing-scale)); /* keep iOS zoom-safe base */
+  }
+
+  .app.inputs-expanded .btn-eq{
+    height:calc(var(--btn-h) * var(--typing-scale));
+  }
 
   /* --- MOBILE PORTRAIT LOGO ASSET + SIZING --- */
   .brand-logo{
@@ -1096,11 +1096,6 @@ button{
     border-radius:0.6rem;
     display:block;
   }
-/*  Not sure i need this if same button but maybe width adjustment???
-  #fetchBtn .btn-icon{
-    content:url("/images/fetch_vert.svg");
-    height:80%;
-  }   */
 
   .card-tags{
     position:absolute;
@@ -1256,10 +1251,16 @@ button{
     margin-right:auto;
   }
 }
-/* ===== Set Alert Modal ===== */
+
+/* =========================================================
+   SET ALERT MODAL
+========================================================= */
+
+/* Backdrop tint: darken by increasing alpha (last number) */
 .sb-alert-backdrop{
-  position:fixed; inset:0;
-  background:rgba(0,0,0,0.35); /* slightly transparent */
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.55); /* DARKER than before (was 0.35) */
   display:none;
   align-items:center;
   justify-content:center;
@@ -1281,8 +1282,11 @@ button{
 }
 
 .sb-alert-close{
-  position:absolute; right:10px; top:8px;
-  width:40px; height:40px;
+  position:absolute;
+  right:10px;
+  top:8px;
+  width:40px;
+  height:40px;
   border-radius:999px;
   border:1px solid #214478ff;
   background:#fff;
@@ -1301,8 +1305,17 @@ button{
   margin:2px 40px 12px;
 }
 
-.sb-alert-form{ display:flex; flex-direction:column; gap:10px; }
-.sb-label{ font-size:0.88rem; font-weight:700; color:#214478ff; }
+.sb-alert-form{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.sb-label{
+  font-size:0.88rem;
+  font-weight:700;
+  color:#214478ff;
+}
 
 .sb-input{
   width:100%;
@@ -1310,10 +1323,13 @@ button{
   border-radius:10px;
   border:1px solid #214478ff;
   background:#fafdf4;
-  padding:0 12px;
+  padding:0 12px; /* cursor + text start at the front */
   font-size:1rem;
   box-sizing:border-box;
 }
+
+.sb-input::placeholder{ color:#999; opacity:1; }
+
 .sb-input:focus{
   outline:none;
   border-color:#1a3661;
@@ -1321,11 +1337,14 @@ button{
 }
 
 .sb-input-wrap{ position:relative; }
+
 .sb-clear{
   position:absolute;
-  right:8px; top:50%;
+  right:8px;
+  top:50%;
   transform:translateY(-50%);
-  width:22px; height:22px;
+  width:22px;
+  height:22px;
   border-radius:999px;
   border:none;
   background:#999;
@@ -1341,7 +1360,9 @@ button{
 
 .sb-sug{
   position:absolute;
-  top:46px; left:0; right:0;
+  top:46px;
+  left:0;
+  right:0;
   background:#fff;
   border:1px solid #214478ff;
   border-radius:10px;
@@ -1366,7 +1387,7 @@ button{
   flex-wrap:wrap;
 }
 .sb-col{ flex:1; min-width:180px; }
-.sb-price-col{ flex:0 0 160px; min-width:160px; }
+.sb-price-col{ flex:0 0 180px; min-width:180px; }
 
 .sb-gender{ display:flex; gap:8px; flex-wrap:wrap; }
 .sb-chip{
@@ -1385,24 +1406,29 @@ button{
   position:relative;
   height:42px;
 }
+
+/* Price input: caret starts at the front; keep room for clear chip */
 .sb-price{
-  padding-left:22px;
-  padding-right:72px; /* space for .00 + clear */
-  text-align:right;
+  padding-left:22px;           /* room for $ */
+  padding-right:40px;          /* room for clear chip only */
+  text-align:left;             /* IMPORTANT: caret starts at the front */
 }
+
+/* Dollar stays on the left */
 .sb-dollar{
-  position:absolute; left:10px; top:50%;
+  position:absolute;
+  left:10px;
+  top:50%;
   transform:translateY(-50%);
-  color:#444; font-weight:600;
+  color:#444;
+  font-weight:600;
   pointer-events:none;
 }
-.sb-decimal{
-  position:absolute; right:44px; top:50%;
-  transform:translateY(-50%);
-  color:#666;
-  pointer-events:none;
+
+/* clear chip position for price */
+.sb-clear-price{
+  right:10px;
 }
-.sb-clear-price{ right:10px; }
 
 .sb-submit{
   width:100%;
@@ -1436,7 +1462,11 @@ button{
   font-size:0.9rem;
   line-height:1.45;
 }
-.sb-note-title{ font-weight:900; color:#214478ff; margin-bottom:4px; }
+.sb-note-title{
+  font-weight:900;
+  color:#214478ff;
+  margin-bottom:4px;
+}
 .sb-note ul{ margin:6px 0 0 18px; padding:0; }
 
 .sb-status{
@@ -1445,8 +1475,16 @@ button{
   text-align:center;
   font-weight:700;
 }
-.sb-status.err{ background:rgba(220,53,69,0.15); border:1px solid rgba(220,53,69,0.5); color:#8a1f2c; }
-.sb-status.ok{ background:rgba(46,160,67,0.15); border:1px solid rgba(46,160,67,0.5); color:#1f6a2a; }
+.sb-status.err{
+  background:rgba(220,53,69,0.15);
+  border:1px solid rgba(220,53,69,0.5);
+  color:#8a1f2c;
+}
+.sb-status.ok{
+  background:rgba(46,160,67,0.15);
+  border:1px solid rgba(46,160,67,0.5);
+  color:#1f6a2a;
+}
 
 .sb-confirm{
   margin-top:10px;
@@ -1479,6 +1517,6 @@ button{
 }
 
 /* Mobile: keep it tight */
-@media (max-width: 420px){
+@media (max-width:420px){
   .sb-price-col{ flex:1; min-width:0; }
 }
