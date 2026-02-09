@@ -103,7 +103,7 @@
   <div class="links-ribbon-inner">
 
     <!-- far left -->
-    <a href="/pages/set_alert.html" class="links-ribbon-signin">Set Alert</a>
+    <a href="/pages/set_alert2.html" class="links-ribbon-signin">Set Alert</a>
     <!-- centered links -->
     <div class="links-ribbon-links">
       <a href="/pages/myalerts.html">Filter</a>
@@ -1150,5 +1150,76 @@ shrinkInputs();
     modelInput.addEventListener("input", updateFetchReady);
   })();
   </script>
+
+  <!-- Set Alert Modal (drop-in) -->
+<div id="sbAlertBackdrop" class="sb-alert-backdrop" aria-hidden="true">
+  <div class="sb-alert-modal" role="dialog" aria-modal="true" aria-labelledby="sbAlertTitle">
+    <button type="button" class="sb-alert-close" id="sbAlertClose" aria-label="Close">×</button>
+
+    <div class="sb-alert-title" id="sbAlertTitle">Set Alert</div>
+
+    <form id="sbSetAlertForm" class="sb-alert-form">
+      <label class="sb-label" for="sbAlertEmail">Email Address *</label>
+      <input class="sb-input" type="email" id="sbAlertEmail" placeholder="your@email.com" required autocomplete="email">
+
+      <label class="sb-label" for="sbAlertBrand">Shoe Brand *</label>
+      <div class="sb-input-wrap">
+        <input class="sb-input" type="text" id="sbAlertBrand" placeholder="e.g., Nike, Hoka, Brooks" autocomplete="off" required>
+        <button type="button" class="sb-clear" data-clear="#sbAlertBrand" aria-label="Clear brand">×</button>
+        <div id="sbBrandSug" class="sb-sug" hidden></div>
+      </div>
+
+      <label class="sb-label" for="sbAlertModel">Shoe Model *</label>
+      <div class="sb-input-wrap">
+        <input class="sb-input" type="text" id="sbAlertModel" placeholder="e.g., Pegasus, Clifton, Ghost" autocomplete="off" required>
+        <button type="button" class="sb-clear" data-clear="#sbAlertModel" aria-label="Clear model">×</button>
+        <div id="sbModelSug" class="sb-sug" hidden></div>
+      </div>
+
+      <div class="sb-row">
+        <div class="sb-col">
+          <div class="sb-label">Gender</div>
+          <div class="sb-gender" id="sbGender">
+            <button type="button" class="sb-chip" data-g="mens">Men’s</button>
+            <button type="button" class="sb-chip" data-g="womens">Women’s</button>
+            <button type="button" class="sb-chip active" data-g="both">Both</button>
+          </div>
+        </div>
+
+        <div class="sb-col sb-price-col">
+          <label class="sb-label" for="sbAlertPrice">Target Price *</label>
+          <div class="sb-price-wrap">
+            <span class="sb-dollar">$</span>
+            <input class="sb-input sb-price" type="text" id="sbAlertPrice" inputmode="numeric" autocomplete="off" aria-label="Target price in whole dollars">
+            <span class="sb-decimal">.00</span>
+            <button type="button" class="sb-clear sb-clear-price" data-clear="#sbAlertPrice" aria-label="Clear price">×</button>
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="sb-submit" id="sbSetAlertBtn">Set Alert</button>
+
+      <div class="sb-note">
+        <div class="sb-note-title">Important</div>
+        <ul>
+          <li>Your email will never be sold or shared by Shoe Beagle, and will only be used for confirmation and notifications.</li>
+          <li>Save your confirmation email — it contains your only secure link to cancel or manage alerts.</li>
+          <li>For your security, we don’t offer sign-in or alert management from the website.</li>
+        </ul>
+      </div>
+
+      <div id="sbStatus" class="sb-status" hidden></div>
+
+      <div id="sbConfirm" class="sb-confirm" hidden>
+        <div class="sb-confirm-title">✓ Alert Set Successfully!</div>
+        <div id="sbConfirmDetails" class="sb-confirm-details"></div>
+        <div class="sb-confirm-msg">
+          You’ll receive a confirmation email shortly. If we find your shoes at or below your target price, we’ll email you immediately. This alert expires in 30 days.
+        </div>
+        <button type="button" class="sb-submit sb-secondary" id="sbSetAnother">Set Another Alert</button>
+      </div>
+    </form>
+  </div>
+</div>
 </body>
 </html>
