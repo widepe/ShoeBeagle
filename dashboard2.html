@@ -1287,6 +1287,12 @@
         debugInfo.style.display = "block";
 
         const stats = calculateStats(deals);
+
+// DROP any non-canonical stores from stats.stores
+const canonicalSet = new Set(CANONICAL.list.map(s => s.displayName));
+for (const k of Object.keys(stats.stores)) {
+  if (!canonicalSet.has(k)) delete stats.stores[k];
+}        
         STORE_DATA = stats.stores;
 
         displayOverallMeta(stats, dealsJson, mergeData);
@@ -1451,6 +1457,13 @@
         if (!url || url === "#") storeQuality[store].badUrl++;
       });
 
+
+const canonicalSet = new Set(CANONICAL.list.map(s => s.displayName));
+for (const k of Object.keys(storeQuality)) {
+  if (!canonicalSet.has(k)) delete storeQuality[k];
+}
+
+      
       renderDataQualityTable(storeQuality);
     }
 
