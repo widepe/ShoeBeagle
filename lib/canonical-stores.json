@@ -1,0 +1,219 @@
+[
+  {
+    "id": "als",
+    "displayName": "ALS",
+    "addedAt": "unknown",
+    "scrapedUrls": [
+      "https://www.als.com/"
+    ],
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/als-sale.json"
+    ],
+    "aliases": ["als"],
+    "enabled": true,
+    "scraperType": "cheerio",
+    "notes": "no notes"
+  },
+
+  {
+    "id": "asics",
+    "displayName": "ASICS",
+    "addedAt": "unknown",
+    "scrapedUrls": [
+      "https://www.asics.com/us/en-us/sale/mens-running-shoes/c/aa10107020/"
+    ],
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/asics-sale.json"
+    ],
+    "aliases": ["asics"],
+    "enabled": true,
+    "scraperType": "cheerio",
+    "notes": "no notes"
+  },
+
+  {
+    "id": "brooks-running",
+    "displayName": "Brooks Running",
+    "addedAt": "unknown",
+    "scrapedUrls": [
+      "https://www.brooksrunning.com/"
+    ],
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/brooks/deals.json"
+    ],
+    "aliases": ["brooks", "brooks running"],
+    "enabled": true,
+    "scraperType": "cheerio",
+    "notes": "no notes"
+  },
+
+  {
+    "id": "fleet-feet",
+    "displayName": "Fleet Feet",
+    "addedAt": "unknown",
+    "scrapedUrls": [
+      "https://www.fleetfeet.com/collections/mens-running-shoes-on-sale"
+    ],
+    "expectedBlob": "unknown",
+    "aliases": ["fleet feet", "fleetfeet"],
+    "enabled": true,
+    "scraperType": "unknown",
+    "notes": "Store appears in merged results but merge metadata does not expose a per-store blob."
+  },
+
+  {
+    "id": "foot-locker",
+    "displayName": "Foot Locker",
+    "addedAt": "unknown",
+    "scrapedUrls": [
+      "https://www.footlocker.com/category/mens/shoes/running.html"
+    ],
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-footlocker.json"
+    ],
+    "aliases": ["foot locker", "footlocker"],
+    "enabled": true,
+    "scraperType": "apify",
+    "notes": "no notes"
+  },
+
+  {
+    "id": "holabird-sports",
+    "displayName": "Holabird Sports",
+    "addedAt": "unknown",
+    "scrapedUrls": [
+      "https://www.holabirdsports.com/"
+    ],
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/holabird-mens-road.json",
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/holabird-womens-road.json",
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/holabird-trail-unisex.json"
+    ],
+    "aliases": ["holabird", "holabird sports"],
+    "enabled": true,
+    "scraperType": "cheerio",
+    "notes": "Holabird is split into multiple blobs (mens, womens, trail/unisex)."
+  },
+
+  {
+    "id": "lukes-locker",
+    "displayName": "Luke's Locker",
+    "addedAt": "unknown",
+    "scrapedUrls": [
+      "https://www.lukeslocker.com/"
+    ],
+    "expectedBlob": "unknown",
+    "aliases": ["luke's locker", "lukes locker", "lukeslocker"],
+    "enabled": true,
+    "scraperType": "unknown",
+    "notes": "Store appears in merged results but merge metadata does not expose a per-store blob."
+  },
+
+  {
+    "id": "marathon-sports",
+    "displayName": "Marathon Sports",
+    "addedAt": "unknown",
+    "scrapedUrls": [
+      "https://www.marathonsports.com/"
+    ],
+    "expectedBlob": "unknown",
+    "aliases": ["marathon sports", "marathonsports"],
+    "enabled": true,
+    "scraperType": "unknown",
+    "notes": "Store appears in merged results but merge metadata does not expose a per-store blob."
+  },
+
+  {
+    "id": "rei-outlet",
+    "displayName": "REI Outlet",
+    "addedAt": "unknown",
+    "scrapedUrls": [
+      "https://www.rei.com/rei-garage"
+    ],
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/rei/deals.json"
+    ],
+    "aliases": ["rei", "rei outlet", "rei-outlet"],
+    "enabled": true,
+    "scraperType": "cheerio",
+    "notes": "no notes"
+  },
+
+  {
+    "id": "rnj-sports",
+    "displayName": "RNJ Sports",
+    "addedAt": "unknown",
+    "scrapedUrls": [
+      "https://www.rnjsports.com/deals/running-shoes/"
+    ],
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/rnjsports.json"
+    ],
+    "aliases": ["rnj", "rnj sports", "rnjsports"],
+    "enabled": true,
+    "scraperType": "cheerio",
+    "notes": "no notes"
+  },
+
+  {
+    "id": "road-runner-sports",
+    "displayName": "Road Runner Sports",
+    "addedAt": "unknown",
+    "scrapedUrls": [
+      "https://www.roadrunnersports.com/rrs/mens/shoes/sale/_/N-u5Z1z141i0"
+    ],
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-roadrunner_blob.json"
+    ],
+    "aliases": ["road runner sports", "roadrunner sports", "road runner"],
+    "enabled": true,
+    "scraperType": "apify",
+    "notes": "no notes"
+  },
+
+  {
+    "id": "running-warehouse",
+    "displayName": "Running Warehouse",
+    "addedAt": "unknown",
+    "scrapedUrls": [
+      "https://www.runningwarehouse.com/"
+    ],
+    "expectedBlob": "unknown",
+    "aliases": ["running warehouse", "runningwarehouse"],
+    "enabled": true,
+    "scraperType": "unknown",
+    "notes": "Store appears in merged results but merge metadata does not expose a per-store blob."
+  },
+
+  {
+    "id": "shoebacca",
+    "displayName": "Shoebacca",
+    "addedAt": "unknown",
+    "scrapedUrls": [
+      "https://www.shoebacca.com/collections/clearance-athletic"
+    ],
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/shoebacca-clearance.json"
+    ],
+    "aliases": ["shoebacca"],
+    "enabled": true,
+    "scraperType": "cheerio",
+    "notes": "no notes"
+  },
+
+  {
+    "id": "zappos",
+    "displayName": "Zappos",
+    "addedAt": "unknown",
+    "scrapedUrls": [
+      "https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso"
+    ],
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-zappos.json"
+    ],
+    "aliases": ["zappos"],
+    "enabled": true,
+    "scraperType": "apify",
+    "notes": "no notes"
+  }
+]
