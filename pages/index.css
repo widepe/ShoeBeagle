@@ -1326,7 +1326,7 @@ button{
   border-radius:10px;
   border:1px solid #214478ff;
   background:#fafdf4;
-  padding:0 6px; /* cursor + text start at the front */
+  padding:0 12px; /* cursor + text start at the front */
   font-size:1rem;
   box-sizing:border-box;
 }
