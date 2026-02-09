@@ -126,7 +126,7 @@
     let s = String(v || "").replace(/[^0-9]/g, "");
     // collapse leading zeros unless it's the only digit
     s = s.replace(/^0+(?=\d)/, "");
-    return s.slice(0, 6); // optional safety cap
+    return s.slice(0, 4); // optional safety cap
   }
 
   function togglePriceClear() {
