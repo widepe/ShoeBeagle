@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
+  <link rel="icon" type="image/png" href="/images/favicon.png">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Shoe Beagle — Canonical Stores Editor</title>
+
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+      background:#f4ede3;
+      color:#2d2d2d;
+      padding:18px;
+    }
+    .container{max-width:1400px;margin:0 auto}
+    .brand-header{
+      display:flex;justify-content:center;align-items:center;
+      margin-top:6px;margin-bottom:10px;
+    }
+    .brand-logo{width:520px;max-width:100%;height:auto;object-fit:contain}
+    h1{
+      text-align:center;
+      color:#214478ff;
+      margin:10px 0 6px;
+      font-size:2.1rem;
+    }
+    .meta-line{
+      text-align:center;
+      color:#666;
+      margin-bottom:14px;
+      font-size:0.95rem;
+      line-height:1.35;
+    }
+    .meta-line strong{color:#214478ff}
+
+    .panel{
+      background:#fff;
+      border:2px solid #214478ff;
+      border-radius:12px;
+      padding:16px;
+      margin-bottom:18px;
+    }
+    .panel h2{
+      color:#214478ff;
+      font-size:1.35rem;
+      margin-bottom:12px;
+    }
+
+    .toolbar{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:center;
+      align-items:center;
+      margin-bottom:10px;
+    }
+    .btn{
+      appearance:none;border:none;cursor:pointer;
+      border-radius:10px;
+      padding:10px 14px;
+      font-weight:900;
+      background:#214478ff;color:#fff;
+      transition:transform .05s,opacity .2s,filter .2s;
+      display:inline-flex;gap:8px;align-items:center;justify-content:center;
+      user-select:none;
+    }
+    .btn:active{transform:translateY(1px)}
+    .btn.secondary{background:#1a3661}
+    .btn.good{background:#2e7d32}
+    .btn.warn{background:#b45309}
+    .btn.danger{background:#dc3545}
+    .btn[disabled]{opacity:.55;cursor:not-allowed;filter:saturate(.6)}
+
+    .notice{
+      border:1px solid rgba(33,68,120,.25);
+      background:rgba(33,68,120,.06);
+      border-radius:10px;
+      padding:12px 12px;
+      color:#214478ff;
+      font-weight:800;
+      margin:10px auto 0;
+      max-width:1050px;
+      text-align:center;
+    }
+    .notice small{
+      display:block;color:#555;font-weight:650;margin-top:6px
+    }
+
+    .error{
+      border:2px solid rgba(220,53,69,.5);
+      background:rgba(220,53,69,.08);
+      color:#8a1f2c;
+      border-radius:10px;
+      padding:12px;
+      font-weight:800;
+      margin-top:10px;
+      white-space:pre-wrap;
+    }
+    .success{
+      border:2px solid rgba(46,125,50,.5);
+      background:rgba(46,125,50,.08);
+      color:#1f5a25;
+      border-radius:10px;
+      padding:12px;
+      font-weight:800;
+      margin-top:10px;
+      white-space:pre-wrap;
+    }
+
+    .pillbar{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      justify-content:center;
+      margin-top:10px;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 12px;
+      border-radius:999px;
+      background:rgba(33,68,120,.08);
+      border:1px solid rgba(33,68,120,.18);
+      color:#214478ff;
+      font-weight:900;
+      font-size:.86rem;
+      white-space:nowrap;
+    }
+    .pill.dirty{
+      background:rgba(180,83,9,.09);
+      border-color:rgba(180,83,9,.25);
+      color:#8a4a10;
+    }
+    .pill.good{
+      background:rgba(46,125,50,.10);
+      border-color:rgba(46,125,50,.22);
+      color:#1f5a25;
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      min-width:1200px;
+    }
+    th,td{
+      border-bottom:1px solid #e7e7e7;
+      padding:10px 10px;
+      vertical-align:top;
+      text-align:left;
+    }
+    th{
+      position:sticky;top:0;z-index:1;
+      background:#214478ff;
+      color:#fff;
+      font-size:.9rem;
+      letter-spacing:.2px;
+    }
+    .table-wrap{
+      overflow:auto;
+      border:1px solid #e5e5e5;
+      border-radius:10px;
+    }
+
+    .cell-readonly{
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:.92rem;
+      color:#214478ff;
+      font-weight:900;
+      white-space:nowrap;
+    }
+
+    input[type="text"], select, textarea{
+      width:100%;
+      border:1px solid #cfd6e4;
+      border-radius:8px;
+      padding:8px 9px;
+      font-size:.92rem;
+      outline:none;
+      background:#fff;
+    }
+    textarea{
+      min-height:64px;
+      resize:vertical;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    }
+    input[readonly]{
+      background:#f3f4f6;
+      color:#555;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    }
+
+    .row-actions{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      justify-content:flex-start;
+      flex-wrap:wrap;
+      white-space:nowrap;
+    }
+
+    .notes-row td{
+      background:#fafafa;
+      border-bottom:2px solid #214478ff;
+      padding:12px 12px;
+    }
+    .notes-title{
+      color:#214478ff;
+      font-weight:950;
+      margin-bottom:6px;
+    }
+
+    .modal-backdrop{
+      position:fixed;inset:0;
+      background:rgba(0,0,0,.35);
+      display:none;
+      align-items:center;justify-content:center;
+      padding:16px;
+      z-index:999;
+    }
+    .modal{
+      width:min(980px, 100%);
+      background:#fff;
+      border-radius:14px;
+      border:2px solid #214478ff;
+      box-shadow:0 20px 60px rgba(0,0,0,.25);
+      overflow:hidden;
+    }
+    .modal-header{
+      background:#214478ff;color:#fff;
+      padding:14px 16px;
+      display:flex;align-items:center;justify-content:space-between;
+      gap:10px;
+    }
+    .modal-title{font-weight:950;font-size:1.05rem}
+    .modal-body{padding:14px 16px}
+    .modal-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+    @media (max-width: 820px){
+      table{min-width:0}
+      .modal-grid{grid-template-columns:1fr}
+    }
+    .field label{
+      display:block;
+      font-weight:900;
+      color:#214478ff;
+      margin-bottom:6px;
+      font-size:.9rem;
+    }
+    .modal-footer{
+      padding:12px 16px;
+      display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;
+      border-top:1px solid #e7e7e7;
+      background:#fafafa;
+    }
+    .muted{
+      color:#666;
+      font-size:.9rem;
+      line-height:1.35;
+    }
+    .smallmono{
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:.86rem;
+      color:#444;
+      word-break:break-all;
+    }
+
+    /* Generated JSON box */
+    .gen-wrap{
+      margin-top:10px;
+      display:none;
+    }
+    .gen-title{
+      display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+      margin-bottom:8px;
+    }
+    .gen-title strong{color:#214478ff}
+    .gen-box{
+      border:1px solid #d7dbe6;
+      border-radius:10px;
+      background:#0b1220;
+      color:#e6edf7;
+      padding:12px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:.86rem;
+      line-height:1.35;
+      max-height:420px;
+      overflow:auto;
+      white-space:pre;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="brand-header">
+      <img class="brand-logo" src="/images/logo.svg" alt="Shoe Beagle">
+    </div>
+
+    <h1>Canonical Stores</h1>
+    <div class="meta-line">
+      Canonical file: <strong>/lib/canonical-stores.json</strong><br>
+      Last file updated: <strong id="fileUpdatedText">Loading…</strong>
+    </div>
+
+    <div class="panel">
+      <div class="toolbar">
+        <button class="btn good" id="btnReload">↻ Reload file</button>
+        <button class="btn warn" id="btnAddStore">＋ Add Store</button>
+
+        <!-- NEW: Create updated file button (enabled only when dirty) -->
+        <button class="btn" id="btnCreateUpdated" disabled>🧾 Create Updated canonical-stores.json</button>
+
+        <!-- NEW: Download button (enabled after create OR when dirty) -->
+        <button class="btn secondary" id="btnDownload" disabled>⬇ Download canonical-stores.json</button>
+      </div>
+
+      <div class="pillbar">
+        <span class="pill" id="pillCount">Stores: —</span>
+        <span class="pill" id="pillDirty">Edits: —</span>
+        <span class="pill" id="pillState">State: —</span>
+      </div>
+
+      <div class="notice">
+        Edits are tracked. When you change any field or add a store, click
+        <strong>Create Updated canonical-stores.json</strong> to generate the exact JSON you can copy/paste into the repo.
+        <small>
+          Locked fields: <code>id</code>, <code>addedAt</code>, <code>lastUpdated</code>.
+          Editable fields: everything else.
+        </small>
+      </div>
+
+      <div id="statusArea"></div>
+
+      <!-- NEW: generated JSON output -->
+      <div class="gen-wrap" id="genWrap">
+        <div class="gen-title">
+          <div><strong>Generated canonical-stores.json</strong> (sorted A→Z by displayName)</div>
+          <div class="inline">
+            <button class="btn secondary" id="btnCopyJson">📋 Copy JSON</button>
+            <button class="btn secondary" id="btnHideJson">Hide</button>
+          </div>
+        </div>
+        <div class="gen-box" id="genBox"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Stores</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width:120px;">ID (locked)</th>
+              <th style="min-width:160px;">Display Name</th>
+              <th style="min-width:120px;">Added (locked)</th>
+              <th style="min-width:130px;">Last Updated (locked)</th>
+              <th style="min-width:220px;">Scraped URLs (JSON array)</th>
+              <th style="min-width:220px;">Expected Blob (string / array)</th>
+              <th style="min-width:190px;">Aliases (JSON array)</th>
+              <th style="min-width:120px;">Enabled</th>
+              <th style="min-width:140px;">Scraper Type</th>
+              <th style="min-width:190px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="storesTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Store Modal -->
+  <div class="modal-backdrop" id="addModalBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
+      <div class="modal-header">
+        <div class="modal-title" id="addModalTitle">Add Store</div>
+        <button class="btn secondary" id="btnCloseAdd">✕ Close</button>
+      </div>
+      <div class="modal-body">
+        <div class="muted" style="margin-bottom:10px;">
+          Required: <strong>id</strong> (machine key, lowercase), <strong>displayName</strong>.
+          Dates auto-fill to today and are locked.
+        </div>
+
+        <div class="modal-grid">
+          <div class="field">
+            <label for="add_id">id (machine key)</label>
+            <input id="add_id" type="text" placeholder="e.g. rnj-sports" />
+          </div>
+
+          <div class="field">
+            <label for="add_displayName">displayName</label>
+            <input id="add_displayName" type="text" placeholder="e.g. RNJ Sports" />
+          </div>
+
+          <div class="field">
+            <label for="add_scrapedUrls">scrapedUrls (JSON array)</label>
+            <textarea id="add_scrapedUrls" placeholder='["https://example.com/sale"]'></textarea>
+          </div>
+
+          <div class="field">
+            <label for="add_expectedBlob">expectedBlob (string or JSON array)</label>
+            <textarea id="add_expectedBlob" placeholder='"unknown"  OR  ["https://.../store.json"]'></textarea>
+          </div>
+
+          <div class="field">
+            <label for="add_aliases">aliases (JSON array)</label>
+            <textarea id="add_aliases" placeholder='["example", "example store"]'></textarea>
+          </div>
+
+          <div class="field">
+            <label for="add_enabled">enabled</label>
+            <select id="add_enabled">
+              <option value="true" selected>true</option>
+              <option value="false">false</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="add_scraperType">scraperType</label>
+            <select id="add_scraperType">
+              <option value="unknown" selected>unknown</option>
+              <option value="cheerio">cheerio</option>
+              <option value="apify">apify</option>
+              <option value="playwright">playwright</option>
+              <option value="firecrawl">firecrawl</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="add_notes">notes</label>
+            <textarea id="add_notes" placeholder="no notes"></textarea>
+          </div>
+        </div>
+
+        <div class="smallmono" style="margin-top:10px;">
+          addedAt = <span id="todayA"></span> • lastUpdated = <span id="todayB"></span> (auto)
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn secondary" id="btnCancelAdd">Cancel</button>
+        <button class="btn good" id="btnConfirmAdd">Confirm Add</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    // Canonical Stores Editor (Complete)
+    //
+    // Loads: /lib/canonical-stores.json
+    // Top: shows last file updated (from HTTP Last-Modified if available)
+    //
+    // Edits are tracked live (dirty state) while typing.
+    // - "Create Updated canonical-stores.json" generates a sorted JSON snapshot
+    //   shown on-page for copy/paste into repo.
+    // - "Download canonical-stores.json" downloads that generated snapshot.
+    //
+    // Confirm per store: validates + commits row edits to in-memory STORES.
+    // Add store: validates + adds to STORES.
+    //
+    // Locked: id, addedAt, lastUpdated (never editable on this page)
+    // ============================================================
+
+    const SOURCE_URL = "/lib/canonical-stores.json";
+    const TODAY = new Date().toISOString().slice(0, 10);
+
+    let STORES = [];
+    let ORIGINAL_BY_ID = new Map(); // snapshot for dirty comparison (file-loaded baseline)
+    let FILE_LAST_MODIFIED = null;  // string display from headers
+    let GENERATED_JSON = "";        // latest generated snapshot
+
+    const elTbody = document.getElementById("storesTbody");
+    const statusArea = document.getElementById("statusArea");
+    const fileUpdatedText = document.getElementById("fileUpdatedText");
+
+    const pillCount = document.getElementById("pillCount");
+    const pillDirty = document.getElementById("pillDirty");
+    const pillState = document.getElementById("pillState");
+
+    const btnReload = document.getElementById("btnReload");
+    const btnAddStore = document.getElementById("btnAddStore");
+    const btnCreateUpdated = document.getElementById("btnCreateUpdated");
+    const btnDownload = document.getElementById("btnDownload");
+
+    const genWrap = document.getElementById("genWrap");
+    const genBox = document.getElementById("genBox");
+    const btnCopyJson = document.getElementById("btnCopyJson");
+    const btnHideJson = document.getElementById("btnHideJson");
+
+    const addModalBackdrop = document.getElementById("addModalBackdrop");
+    const btnCloseAdd = document.getElementById("btnCloseAdd");
+    const btnCancelAdd = document.getElementById("btnCancelAdd");
+    const btnConfirmAdd = document.getElementById("btnConfirmAdd");
+
+    document.getElementById("todayA").textContent = TODAY;
+    document.getElementById("todayB").textContent = TODAY;
+
+    function setStatus(type, msg) {
+      statusArea.innerHTML = "";
+      if (!msg) return;
+      const div = document.createElement("div");
+      div.className = type === "error" ? "error" : "success";
+      div.textContent = msg;
+      statusArea.appendChild(div);
+    }
+
+    function deepClone(x) {
+      return JSON.parse(JSON.stringify(x));
+    }
+
+    function normalizeStr(x) {
+      return String(x ?? "").trim();
+    }
+
+    function safeParseJson(text, fallback) {
+      try { return JSON.parse(text); } catch { return fallback; }
+    }
+
+    function isValidId(id) {
+      return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id);
+    }
+
+    function sortStoresAlpha(stores) {
+      return stores.slice().sort((a,b) => {
+        const an = normalizeStr(a.displayName).toLowerCase();
+        const bn = normalizeStr(b.displayName).toLowerCase();
+        return an.localeCompare(bn);
+      });
+    }
+
+    function toJsonArrayText(value, fallbackArr) {
+      const arr = Array.isArray(value) ? value : (fallbackArr || []);
+      return JSON.stringify(arr);
+    }
+
+    function toJsonValueText(value) {
+      if (Array.isArray(value)) return JSON.stringify(value);
+      if (typeof value === "string") return JSON.stringify(value);
+      return JSON.stringify(value ?? "unknown");
+    }
+
+    function computeDirtyForStore(id, currentObj) {
+      const orig = ORIGINAL_BY_ID.get(id);
+      if (!orig) return true; // new store not in original baseline => dirty vs file
+      return JSON.stringify(currentObj) !== JSON.stringify(orig);
+    }
+
+    function countDirtyStores() {
+      let n = 0;
+      for (const s of STORES) {
+        if (computeDirtyForStore(s.id, s)) n++;
+      }
+      return n;
+    }
+
+    function updateDirtyUI() {
+      const dirtyCount = countDirtyStores();
+      const anyDirty = dirtyCount > 0;
+
+      pillCount.textContent = `Stores: ${STORES.length}`;
+      pillDirty.textContent = `Edits: ${dirtyCount}`;
+      pillDirty.className = `pill ${anyDirty ? "dirty" : "good"}`;
+
+      pillState.textContent = anyDirty ? "State: Modified" : "State: Clean";
+      pillState.className = `pill ${anyDirty ? "dirty" : "good"}`;
+
+      btnCreateUpdated.disabled = !anyDirty;
+      // Download is enabled when we have generated JSON OR if dirty (so you can generate then download).
+      btnDownload.disabled = !(GENERATED_JSON && GENERATED_JSON.length) && !anyDirty;
+    }
+
+    async function loadFile() {
+      setStatus(null, "");
+      GENERATED_JSON = "";
+      genWrap.style.display = "none";
+      genBox.textContent = "";
+
+      elTbody.innerHTML = `<tr><td colspan="10" style="padding:18px;color:#666;">Loading…</td></tr>`;
+      fileUpdatedText.textContent = "Loading…";
+
+      try {
+        // Fetch with headers (Last-Modified)
+        const res = await fetch(`${SOURCE_URL}?t=${Date.now()}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`Failed to fetch ${SOURCE_URL} (${res.status})`);
+
+        const lm = res.headers.get("last-modified") || res.headers.get("Last-Modified") || null;
+        FILE_LAST_MODIFIED = lm;
+        fileUpdatedText.textContent = lm ? new Date(lm).toLocaleString() : "Not available (no Last-Modified header)";
+
+        const json = await res.json();
+        if (!Array.isArray(json)) throw new Error("canonical-stores.json must be a JSON array.");
+
+        STORES = json.map(s => ({
+          id: normalizeStr(s.id),
+          displayName: normalizeStr(s.displayName),
+          addedAt: normalizeStr(s.addedAt),
+          lastUpdated: normalizeStr(s.lastUpdated),
+          scrapedUrls: Array.isArray(s.scrapedUrls) ? s.scrapedUrls : [],
+          expectedBlob: (typeof s.expectedBlob === "string" || Array.isArray(s.expectedBlob)) ? s.expectedBlob : "unknown",
+          aliases: Array.isArray(s.aliases) ? s.aliases : [],
+          enabled: Boolean(s.enabled),
+          scraperType: normalizeStr(s.scraperType) || "unknown",
+          notes: normalizeStr(s.notes) || "no notes",
+        }));
+
+        // Basic sanity
+        for (const s of STORES) {
+          if (!s.id) throw new Error("Found store with missing id.");
+        }
+
+        ORIGINAL_BY_ID = new Map(STORES.map(s => [s.id, deepClone(s)]));
+
+        renderTable();
+        updateDirtyUI();
+        setStatus("success", `Loaded ${STORES.length} store(s) from ${SOURCE_URL}.`);
+
+      } catch (e) {
+        console.error(e);
+        elTbody.innerHTML = "";
+        fileUpdatedText.textContent = "Error";
+        setStatus("error", String(e?.message || e));
+        STORES = [];
+        ORIGINAL_BY_ID = new Map();
+        updateDirtyUI();
+      }
+    }
+
+    function renderTable() {
+      const storesSorted = sortStoresAlpha(STORES);
+      const rows = [];
+
+      for (const store of storesSorted) {
+        const id = store.id;
+        const dirty = computeDirtyForStore(id, store);
+
+        rows.push(`
+          <tr data-id="${escapeHtml(id)}">
+            <td class="cell-readonly">${escapeHtml(id)}</td>
+
+            <td>
+              <input type="text" data-field="displayName" value="${escapeAttr(store.displayName)}" />
+            </td>
+
+            <td>
+              <input type="text" value="${escapeAttr(store.addedAt)}" readonly />
+            </td>
+
+            <td>
+              <input type="text" value="${escapeAttr(store.lastUpdated)}" readonly />
+            </td>
+
+            <td>
+              <textarea data-field="scrapedUrls" spellcheck="false">${escapeHtml(toJsonArrayText(store.scrapedUrls, []))}</textarea>
+            </td>
+
+            <td>
+              <textarea data-field="expectedBlob" spellcheck="false">${escapeHtml(toJsonValueText(store.expectedBlob))}</textarea>
+            </td>
+
+            <td>
+              <textarea data-field="aliases" spellcheck="false">${escapeHtml(toJsonArrayText(store.aliases, []))}</textarea>
+            </td>
+
+            <td>
+              <select data-field="enabled">
+                <option value="true" ${store.enabled ? "selected" : ""}>true</option>
+                <option value="false" ${!store.enabled ? "selected" : ""}>false</option>
+              </select>
+            </td>
+
+            <td>
+              <select data-field="scraperType">
+                ${["unknown","cheerio","apify","playwright","firecrawl"].map(v => `
+                  <option value="${v}" ${store.scraperType === v ? "selected" : ""}>${v}</option>
+                `).join("")}
+              </select>
+            </td>
+
+            <td>
+              <div class="row-actions">
+                <span class="pill ${dirty ? "dirty" : "good"}">${dirty ? "Unsaved" : "Saved"}</span>
+                <button class="btn good" onclick="confirmRow('${escapeJs(id)}')">Confirm</button>
+                <button class="btn secondary" onclick="resetRow('${escapeJs(id)}')">Reset</button>
+              </div>
+            </td>
+          </tr>
+
+          <tr class="notes-row">
+            <td colspan="10">
+              <div class="notes-title">Notes</div>
+              <textarea data-field="notes" data-id="${escapeAttr(id)}" style="width:100%;min-height:74px;">${escapeHtml(store.notes || "no notes")}</textarea>
+            </td>
+          </tr>
+        `);
+      }
+
+      elTbody.innerHTML = rows.join("");
+
+      // Track edits live (typing/selecting) so the top "dirty" state updates immediately.
+      // NOTE: these are "pending edits" in the UI; they become part of STORES only after Confirm,
+      // but we still want Create Updated to be available after either Confirm or Add.
+      wireLiveDirtyTracking();
+    }
+
+    function wireLiveDirtyTracking() {
+      // If user edits any input/textarea/select, mark the row pill as "Unsaved" visually,
+      // and enable Create Updated (because they intend to change something).
+      const allControls = elTbody.querySelectorAll("input[data-field], textarea[data-field], select[data-field], textarea[data-field='notes']");
+      allControls.forEach(ctrl => {
+        ctrl.addEventListener("input", () => {
+          markRowPending(ctrl);
+          updateDirtyUI(); // still based on STORES vs original, but button enable logic also considers pending edits below
+          updateCreateButtonForPendingEdits();
+        });
+        ctrl.addEventListener("change", () => {
+          markRowPending(ctrl);
+          updateDirtyUI();
+          updateCreateButtonForPendingEdits();
+        });
+      });
+
+      updateCreateButtonForPendingEdits();
+    }
+
+    function updateCreateButtonForPendingEdits() {
+      // If there are pending edits in the UI (even before confirm), allow Create Updated
+      // because you might want to generate after confirming; but we can just enable it now.
+      const pending = elTbody.querySelectorAll("tr[data-pending='true']").length > 0;
+      const dirtyCount = countDirtyStores();
+      const any = pending || dirtyCount > 0;
+      btnCreateUpdated.disabled = !any;
+      btnDownload.disabled = !(GENERATED_JSON && GENERATED_JSON.length) && !any;
+
+      pillState.textContent = any ? "State: Modified" : "State: Clean";
+      pillState.className = `pill ${any ? "dirty" : "good"}`;
+
+      pillDirty.textContent = `Edits: ${dirtyCount}${pending ? " (+pending)" : ""}`;
+      pillDirty.className = `pill ${any ? "dirty" : "good"}`;
+    }
+
+    function markRowPending(controlEl) {
+      // find nearest store row (data-id)
+      const tr = controlEl.closest("tr[data-id]");
+      if (!tr) {
+        // could be notes row (next row). find previous sibling store row
+        const notesRow = controlEl.closest("tr.notes-row");
+        if (notesRow && notesRow.previousElementSibling && notesRow.previousElementSibling.matches("tr[data-id]")) {
+          notesRow.previousElementSibling.setAttribute("data-pending", "true");
+          // update pill to unsaved
+          const pill = notesRow.previousElementSibling.querySelector(".row-actions .pill");
+          if (pill) { pill.textContent = "Unsaved"; pill.className = "pill dirty"; }
+        }
+        return;
+      }
+      tr.setAttribute("data-pending", "true");
+      const pill = tr.querySelector(".row-actions .pill");
+      if (pill) { pill.textContent = "Unsaved"; pill.className = "pill dirty"; }
+    }
+
+    function findStoreById(id) {
+      return STORES.find(s => s.id === id) || null;
+    }
+
+    function confirmRow(id) {
+      setStatus(null, "");
+
+      const store = findStoreById(id);
+      if (!store) return;
+
+      // locate store row (first row with data-id)
+      const tr = elTbody.querySelector(`tr[data-id="${cssEscape(id)}"]`);
+      if (!tr) return;
+
+      const getField = (field) => {
+        const el = tr.querySelector(`[data-field="${field}"]`);
+        return el ? el.value : "";
+      };
+
+      const notesEl = elTbody.querySelector(`textarea[data-field="notes"][data-id="${cssEscape(id)}"]`);
+      const notesVal = notesEl ? notesEl.value : store.notes;
+
+      const scrapedUrlsRaw = getField("scrapedUrls");
+      const scrapedUrls = safeParseJson(scrapedUrlsRaw, null);
+      if (!Array.isArray(scrapedUrls)) {
+        setStatus("error", `Store "${id}": scrapedUrls must be a JSON array (e.g. ["https://..."]).`);
+        return;
+      }
+
+      const aliasesRaw = getField("aliases");
+      const aliases = safeParseJson(aliasesRaw, null);
+      if (!Array.isArray(aliases)) {
+        setStatus("error", `Store "${id}": aliases must be a JSON array (e.g. ["alias1","alias2"]).`);
+        return;
+      }
+
+      const expectedBlobRaw = getField("expectedBlob").trim();
+      let expectedBlob = null;
+      if (expectedBlobRaw === "") expectedBlob = "unknown";
+      else {
+        const parsed = safeParseJson(expectedBlobRaw, "__PARSE_FAIL__");
+        expectedBlob = (parsed !== "__PARSE_FAIL__") ? parsed : expectedBlobRaw;
+      }
+
+      const okExpected =
+        (typeof expectedBlob === "string") ||
+        (Array.isArray(expectedBlob) && expectedBlob.every(x => typeof x === "string"));
+      if (!okExpected) {
+        setStatus("error", `Store "${id}": expectedBlob must be a string or JSON array of strings.`);
+        return;
+      }
+
+      const displayName = normalizeStr(getField("displayName"));
+      if (!displayName) {
+        setStatus("error", `Store "${id}": displayName cannot be empty.`);
+        return;
+      }
+
+      const enabled = getField("enabled") === "true";
+      const scraperType = normalizeStr(getField("scraperType")) || "unknown";
+
+      // apply updates (id + dates locked)
+      store.displayName = displayName;
+      store.scrapedUrls = scrapedUrls;
+      store.expectedBlob = expectedBlob;
+      store.aliases = aliases;
+      store.enabled = enabled;
+      store.scraperType = scraperType;
+      store.notes = normalizeStr(notesVal) || "no notes";
+
+      // clear pending marker + re-render
+      renderTable();
+      updateDirtyUI();
+      setStatus("success", `Confirmed updates for "${displayName}" (${id}).`);
+
+      // After confirm, we consider this row "pending" resolved.
+      // (Still dirty vs original, but that’s fine — Create Updated is for exporting new file.)
+    }
+
+    function resetRow(id) {
+      setStatus(null, "");
+      const orig = ORIGINAL_BY_ID.get(id);
+      if (!orig) {
+        // If it's a new store not in the original file, delete it on reset.
+        const idx = STORES.findIndex(s => s.id === id);
+        if (idx !== -1) {
+          const name = STORES[idx].displayName || id;
+          STORES.splice(idx, 1);
+          renderTable();
+          updateDirtyUI();
+          setStatus("success", `Removed new (unsaved) store "${name}" (${id}).`);
+          return;
+        }
+        return;
+      }
+
+      const idx = STORES.findIndex(s => s.id === id);
+      if (idx === -1) return;
+
+      STORES[idx] = deepClone(orig);
+      renderTable();
+      updateDirtyUI();
+      setStatus("success", `Reset "${id}" back to last loaded file state.`);
+    }
+
+    function openAddModal() {
+      setStatus(null, "");
+      addModalBackdrop.style.display = "flex";
+      addModalBackdrop.setAttribute("aria-hidden", "false");
+
+      document.getElementById("add_id").value = "";
+      document.getElementById("add_displayName").value = "";
+      document.getElementById("add_scrapedUrls").value = "[]";
+      document.getElementById("add_expectedBlob").value = "\"unknown\"";
+      document.getElementById("add_aliases").value = "[]";
+      document.getElementById("add_enabled").value = "true";
+      document.getElementById("add_scraperType").value = "unknown";
+      document.getElementById("add_notes").value = "no notes";
+    }
+
+    function closeAddModal() {
+      addModalBackdrop.style.display = "none";
+      addModalBackdrop.setAttribute("aria-hidden", "true");
+    }
+
+    function confirmAddStore() {
+      setStatus(null, "");
+
+      const id = normalizeStr(document.getElementById("add_id").value);
+      const displayName = normalizeStr(document.getElementById("add_displayName").value);
+
+      if (!id) return setStatus("error", "Add Store: id is required.");
+      if (!isValidId(id)) return setStatus("error", "Add Store: id must be lowercase and use only letters, numbers, and hyphens (e.g. rnj-sports).");
+      if (STORES.some(s => s.id === id)) return setStatus("error", `Add Store: id "${id}" already exists.`);
+      if (!displayName) return setStatus("error", "Add Store: displayName is required.");
+
+      const scrapedUrlsRaw = document.getElementById("add_scrapedUrls").value;
+      const scrapedUrls = safeParseJson(scrapedUrlsRaw, null);
+      if (!Array.isArray(scrapedUrls)) return setStatus("error", "Add Store: scrapedUrls must be a JSON array.");
+
+      const aliasesRaw = document.getElementById("add_aliases").value;
+      const aliases = safeParseJson(aliasesRaw, null);
+      if (!Array.isArray(aliases)) return setStatus("error", "Add Store: aliases must be a JSON array.");
+
+      const expectedBlobRaw = document.getElementById("add_expectedBlob").value.trim();
+      let expectedBlob = null;
+      if (!expectedBlobRaw) expectedBlob = "unknown";
+      else {
+        const parsed = safeParseJson(expectedBlobRaw, "__PARSE_FAIL__");
+        expectedBlob = (parsed !== "__PARSE_FAIL__") ? parsed : expectedBlobRaw;
+      }
+
+      const okExpected =
+        (typeof expectedBlob === "string") ||
+        (Array.isArray(expectedBlob) && expectedBlob.every(x => typeof x === "string"));
+      if (!okExpected) return setStatus("error", "Add Store: expectedBlob must be a string or JSON array of strings.");
+
+      const enabled = document.getElementById("add_enabled").value === "true";
+      const scraperType = normalizeStr(document.getElementById("add_scraperType").value) || "unknown";
+      const notes = normalizeStr(document.getElementById("add_notes").value) || "no notes";
+
+      const newStore = {
+        id,
+        displayName,
+        addedAt: TODAY,
+        lastUpdated: TODAY,
+        scrapedUrls,
+        expectedBlob,
+        aliases,
+        enabled,
+        scraperType,
+        notes
+      };
+
+      STORES.push(newStore);
+
+      renderTable();
+      updateDirtyUI();
+      updateCreateButtonForPendingEdits();
+
+      closeAddModal();
+      setStatus("success", `Added store "${displayName}" (${id}). Now click "Create Updated canonical-stores.json".`);
+    }
+
+    // ---------- NEW: Create updated file (generate JSON for copy/paste) ----------
+    function createUpdatedJson() {
+      setStatus(null, "");
+
+      // Before generating, ensure there are no obvious schema problems in STORES.
+      // (We only validate committed STORES here; pending UI changes require Confirm.)
+      for (const s of STORES) {
+        if (!normalizeStr(s.id)) return setStatus("error", "Cannot generate: a store is missing id.");
+        if (!normalizeStr(s.displayName)) return setStatus("error", `Cannot generate: store "${s.id}" is missing displayName.`);
+        if (!Array.isArray(s.scrapedUrls)) return setStatus("error", `Cannot generate: store "${s.id}" scrapedUrls is not an array.`);
+        if (!Array.isArray(s.aliases)) return setStatus("error", `Cannot generate: store "${s.id}" aliases is not an array.`);
+        const okExpected =
+          (typeof s.expectedBlob === "string") ||
+          (Array.isArray(s.expectedBlob) && s.expectedBlob.every(x => typeof x === "string"));
+        if (!okExpected) return setStatus("error", `Cannot generate: store "${s.id}" expectedBlob must be string or array of strings.`);
+        if (typeof s.enabled !== "boolean") return setStatus("error", `Cannot generate: store "${s.id}" enabled must be true/false.`);
+      }
+
+      // Generate sorted file
+      const exported = sortStoresAlpha(STORES).map(s => deepClone(s));
+      GENERATED_JSON = JSON.stringify(exported, null, 2);
+
+      genBox.textContent = GENERATED_JSON;
+      genWrap.style.display = "block";
+
+      btnDownload.disabled = false;
+      // keep create enabled if still dirty/pending
+      updateCreateButtonForPendingEdits();
+
+      setStatus("success", "Generated updated canonical-stores.json below. You can copy it into the repo or download it.");
+    }
+
+    // ---------- NEW: Download generated file ----------
+    function downloadGeneratedJson() {
+      setStatus(null, "");
+
+      // If user clicks download without having clicked Create Updated yet, generate now.
+      if (!GENERATED_JSON) createUpdatedJson();
+      if (!GENERATED_JSON) return;
+
+      const blob = new Blob([GENERATED_JSON], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "canonical-stores.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      setStatus("success", "Downloaded canonical-stores.json.");
+    }
+
+    async function copyGeneratedJson() {
+      if (!GENERATED_JSON) createUpdatedJson();
+      if (!GENERATED_JSON) return;
+
+      try {
+        await navigator.clipboard.writeText(GENERATED_JSON);
+        setStatus("success", "Copied JSON to clipboard.");
+      } catch {
+        // fallback
+        const ta = document.createElement("textarea");
+        ta.value = GENERATED_JSON;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try { document.execCommand("copy"); setStatus("success", "Copied JSON to clipboard."); }
+        catch { setStatus("error", "Clipboard copy failed. You can manually select and copy the JSON box."); }
+        ta.remove();
+      }
+    }
+
+    function hideGeneratedBox() {
+      genWrap.style.display = "none";
+    }
+
+    // ---------------- Escaping helpers ----------------
+    function escapeHtml(str) {
+      return String(str ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+    function escapeAttr(str) {
+      return escapeHtml(str).replaceAll("\n", "&#10;");
+    }
+    function escapeJs(str) {
+      return String(str ?? "").replaceAll("\\", "\\\\").replaceAll("'", "\\'");
+    }
+    function cssEscape(str) {
+      return String(str ?? "").replaceAll('"', '\\"');
+    }
+
+    // ---------------- Wiring ----------------
+    btnReload.addEventListener("click", loadFile);
+    btnAddStore.addEventListener("click", openAddModal);
+
+    btnCreateUpdated.addEventListener("click", createUpdatedJson);
+    btnDownload.addEventListener("click", downloadGeneratedJson);
+
+    btnCopyJson.addEventListener("click", copyGeneratedJson);
+    btnHideJson.addEventListener("click", hideGeneratedBox);
+
+    btnCloseAdd.addEventListener("click", closeAddModal);
+    btnCancelAdd.addEventListener("click", closeAddModal);
+    btnConfirmAdd.addEventListener("click", confirmAddStore);
+
+    addModalBackdrop.addEventListener("click", (e) => {
+      if (e.target === addModalBackdrop) closeAddModal();
+    });
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && addModalBackdrop.style.display === "flex") closeAddModal();
+    });
+
+    // expose confirm/reset for inline onclick
+    window.confirmRow = confirmRow;
+    window.resetRow = resetRow;
+
+    // initial load
+    loadFile();
+  </script>
+</body>
+</html>
