@@ -334,7 +334,8 @@ function absolutizeUrl(u, base) {
 function storeBaseUrl(store) {
   const s = String(store || "").toLowerCase();
 
-  if (s === "als") return "https://www.als.com";  if (s.includes("holabird")) return "https://www.holabirdsports.com";
+  if (s === "als") return "https://www.als.com";
+  if (s.includes("holabird")) return "https://www.holabirdsports.com";
   if (s.includes("asics")) return "https://www.asics.com";
   if (s.includes("brooks")) return "https://www.brooksrunning.com";
   if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
@@ -348,6 +349,7 @@ function storeBaseUrl(store) {
   if (s.includes("road runner")) return "https://www.roadrunnersports.com";
   if (s.includes("shoebacca")) return "https://www.shoebacca.com";
   if (s.includes("zappos")) return "https://www.zappos.com";
+  if (s.includes("rnj")) return "https://www.rnjsports.com";
   return "https://example.com";
 }
 
@@ -423,7 +425,8 @@ function sanitizeDeal(raw) {
   // -----------------------------
   // Honesty logic for discount fields
   // -----------------------------
-  const anySaleRange = Number.isFinite(toNumber(canonical.salePriceLow)) && Number.isFinite(toNumber(canonical.salePriceHigh));
+  const anySaleRange =
+    Number.isFinite(toNumber(canonical.salePriceLow)) && Number.isFinite(toNumber(canonical.salePriceHigh));
   const anyOrigRange =
     Number.isFinite(toNumber(canonical.originalPriceLow)) && Number.isFinite(toNumber(canonical.originalPriceHigh));
   const anyRangeInvolved = anySaleRange || anyOrigRange;
@@ -673,7 +676,11 @@ async function loadDealsFromBlobOnly({ name, blobUrl }) {
     metadata.source = "blob";
     metadata.deals = deals;
     metadata.blobUrl = u;
-    metadata.timestamp = payload.lastUpdated || payload.timestamp || null;
+
+    // IMPORTANT: support multiple timestamp field names across scrapers
+    // (RNJ uses "scrapedAt")
+    metadata.timestamp = payload.lastUpdated || payload.timestamp || payload.scrapedAt || null;
+
     metadata.duration = payload.scrapeDurationMs ?? payload.duration ?? null;
     metadata.payloadMeta = payload;
 
@@ -1146,7 +1153,7 @@ function toIsoDayUTC(isoOrDate) {
 
 function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
   const payload = meta?.payloadMeta || null;
-  const timestamp = meta?.timestamp || payload?.lastUpdated || payload?.timestamp || null;
+  const timestamp = meta?.timestamp || payload?.lastUpdated || payload?.timestamp || payload?.scrapedAt || null;
   const durationMs = parseDurationMs(meta?.duration || payload?.scrapeDurationMs || payload?.duration || null);
   const via = meta?.source || null;
   const blobUrl = meta?.blobUrl || null;
@@ -1179,7 +1186,7 @@ function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
         ok,
         count,
         durationMs: dMs,
-        timestamp: payload.lastUpdated || payload.timestamp || timestamp || null,
+        timestamp: payload.lastUpdated || payload.timestamp || payload.scrapedAt || timestamp || null,
         via,
         blobUrl,
       });
@@ -1254,13 +1261,23 @@ module.exports = async (req, res) => {
   // Prefer env var if set, otherwise fall back to the new known blob.
   // --------------------------------------------------------------------------
   const ZAPPOS_DEALS_BLOB_URL = String(
-    process.env.ZAPPOS_DEALS_BLOB_URL ||
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-zappos.json"
+    process.env.ZAPPOS_DEALS_BLOB_URL || "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-zappos.json"
   ).trim();
+
   const FOOTLOCKER_DEALS_BLOB_URL = String(
     process.env.FOOTLOCKER_DEALS_BLOB_URL ||
       "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-footlocker.json"
-  ).trim();  const SCRAPER_DATA_BLOB_URL = String(process.env.SCRAPER_DATA_BLOB_URL || "").trim();
+  ).trim();
+
+  // --------------------------------------------------------------------------
+  // RNJ Sports (NEW)
+  // Prefer env var if set, otherwise fall back to the known blob.
+  // --------------------------------------------------------------------------
+  const RNJSPORTS_DEALS_BLOB_URL = String(
+    process.env.RNJSPORTS_DEALS_BLOB_URL || "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/rnjsports.json"
+  ).trim();
+
+  const SCRAPER_DATA_BLOB_URL = String(process.env.SCRAPER_DATA_BLOB_URL || "").trim();
 
   // --------------------------------------------------------------------------
   // Freshness policy (your requirement):
@@ -1285,27 +1302,34 @@ module.exports = async (req, res) => {
     console.log("[MERGE] ROADRUNNER_DEALS_BLOB_URL set?", !!ROADRUNNER_DEALS_BLOB_URL);
     console.log("[MERGE] REI_DEALS_BLOB_URL set?", !!REI_DEALS_BLOB_URL);
     console.log("[MERGE] ZAPPOS_DEALS_BLOB_URL set?", !!ZAPPOS_DEALS_BLOB_URL);
+    console.log("[MERGE] RNJSPORTS_DEALS_BLOB_URL set?", !!RNJSPORTS_DEALS_BLOB_URL);
 
     const sources = [
       { name: "Cheerio (non-Holabird)", blobUrl: CHEERIO_DEALS_BLOB_URL },
-      
+
       { name: "ASICS Sale", blobUrl: ASICS_SALE_BLOB_URL },
-      { name: "ALS Sale", blobUrl: ALS_SALE_BLOB_URL },      
+      { name: "ALS Sale", blobUrl: ALS_SALE_BLOB_URL },
+
       { name: "Apify (non-Holabird)", blobUrl: APIFY_DEALS_BLOB_URL },
       { name: "Brooks", blobUrl: BROOKS_DEALS_BLOB_URL },
-      { name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },      
+      { name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
+
       { name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
       { name: "REI", blobUrl: REI_DEALS_BLOB_URL },
 
       // Zappos (NEW source)
       { name: "Zappos", blobUrl: ZAPPOS_DEALS_BLOB_URL },
 
+      // RNJ Sports (NEW source)
+      { name: "RNJ Sports", blobUrl: RNJSPORTS_DEALS_BLOB_URL },
+
       { name: "Holabird Mens Road", blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL },
       { name: "Holabird Womens Road", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
       { name: "Holabird Trail + Unisex", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
 
-
       { name: "Shoebacca Clearance", blobUrl: SHOEBACCA_CLEARANCE_BLOB_URL },
+      // (If you want SNAILSPACE back, add it here)
+      // { name: "Snailspace Sale", blobUrl: SNAILSPACE_SALE_BLOB_URL },
     ];
 
     const settled = await Promise.allSettled(sources.map((s) => loadDealsFromBlobOnly(s)));
