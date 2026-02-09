@@ -15,7 +15,6 @@
     "scraperType": "cheerio",
     "notes": "no notes"
   },
-
   {
     "id": "asics",
     "displayName": "ASICS",
@@ -32,7 +31,6 @@
     "scraperType": "cheerio",
     "notes": "no notes"
   },
-
   {
     "id": "brooks-running",
     "displayName": "Brooks Running",
@@ -49,7 +47,6 @@
     "scraperType": "cheerio",
     "notes": "no notes"
   },
-
   {
     "id": "fleet-feet",
     "displayName": "Fleet Feet",
@@ -58,13 +55,14 @@
     "scrapedUrls": [
       "https://www.fleetfeet.com/collections/mens-running-shoes-on-sale"
     ],
-    "expectedBlob": "unknown",
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/fleet-feet.json"
+    ],
     "aliases": ["fleet feet", "fleetfeet"],
     "enabled": true,
-    "scraperType": "unknown",
-    "notes": "Store appears in merged results but merge metadata does not expose a per-store blob."
+    "scraperType": "cheerio",
+    "notes": "Per-store Cheerio blob (env: FLEET_FEET_CHEERIO_BLOB_URL)."
   },
-
   {
     "id": "foot-locker",
     "displayName": "Foot Locker",
@@ -81,7 +79,6 @@
     "scraperType": "apify",
     "notes": "no notes"
   },
-
   {
     "id": "holabird-sports",
     "displayName": "Holabird Sports",
@@ -100,7 +97,6 @@
     "scraperType": "cheerio",
     "notes": "Holabird is split into multiple blobs (mens, womens, trail/unisex)."
   },
-
   {
     "id": "lukes-locker",
     "displayName": "Luke's Locker",
@@ -109,13 +105,14 @@
     "scrapedUrls": [
       "https://www.lukeslocker.com/"
     ],
-    "expectedBlob": "unknown",
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/lukes-locker.json"
+    ],
     "aliases": ["luke's locker", "lukes locker", "lukeslocker"],
     "enabled": true,
-    "scraperType": "unknown",
-    "notes": "Store appears in merged results but merge metadata does not expose a per-store blob."
+    "scraperType": "cheerio",
+    "notes": "Per-store Cheerio blob (env: LUKES_LOCKER_CHEERIO_BLOB_URL)."
   },
-
   {
     "id": "marathon-sports",
     "displayName": "Marathon Sports",
@@ -124,13 +121,14 @@
     "scrapedUrls": [
       "https://www.marathonsports.com/"
     ],
-    "expectedBlob": "unknown",
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/marathon-sports.json"
+    ],
     "aliases": ["marathon sports", "marathonsports"],
     "enabled": true,
-    "scraperType": "unknown",
-    "notes": "Store appears in merged results but merge metadata does not expose a per-store blob."
+    "scraperType": "cheerio",
+    "notes": "Per-store Cheerio blob (env: MARATHON_SPORTS_CHEERIO_BLOB_URL)."
   },
-
   {
     "id": "rei-outlet",
     "displayName": "REI Outlet",
@@ -147,7 +145,6 @@
     "scraperType": "cheerio",
     "notes": "no notes"
   },
-
   {
     "id": "rnj-sports",
     "displayName": "RNJ Sports",
@@ -164,7 +161,6 @@
     "scraperType": "cheerio",
     "notes": "no notes"
   },
-
   {
     "id": "road-runner-sports",
     "displayName": "Road Runner Sports",
@@ -181,7 +177,6 @@
     "scraperType": "apify",
     "notes": "no notes"
   },
-
   {
     "id": "running-warehouse",
     "displayName": "Running Warehouse",
@@ -190,13 +185,14 @@
     "scrapedUrls": [
       "https://www.runningwarehouse.com/"
     ],
-    "expectedBlob": "unknown",
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/running-warehouse.json"
+    ],
     "aliases": ["running warehouse", "runningwarehouse"],
     "enabled": true,
-    "scraperType": "unknown",
-    "notes": "Store appears in merged results but merge metadata does not expose a per-store blob."
+    "scraperType": "cheerio",
+    "notes": "Per-store Cheerio blob (env: RUNNING_WAREHOUSE_CHEERIO_BLOB_URL)."
   },
-
   {
     "id": "shoebacca",
     "displayName": "Shoebacca",
@@ -213,7 +209,6 @@
     "scraperType": "cheerio",
     "notes": "no notes"
   },
-
   {
     "id": "zappos",
     "displayName": "Zappos",
