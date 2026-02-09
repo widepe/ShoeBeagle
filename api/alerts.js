@@ -327,9 +327,9 @@ async function handleCreate(req, res) {
     (Number(a.setAt || 0) + TTL_MS) > Date.now()
   );
 
-  if (userActiveAlerts.length >= 5) {
+  if (userActiveAlerts.length >= 7) {
     return res.status(429).json({
-      error: "Maximum 5 active alerts per email. Please cancel an existing alert first.",
+      error: "Maximum 7 active alerts per email. Please cancel an existing alert first.",
       currentCount: userActiveAlerts.length
     });
   }
