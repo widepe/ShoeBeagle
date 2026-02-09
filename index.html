@@ -1160,26 +1160,26 @@ shrinkInputs();
     <div class="sb-alert-title" id="sbAlertTitle">Set Alert</div>
 
     <form id="sbSetAlertForm" class="sb-alert-form">
-      <label class="sb-label" for="sbAlertEmail">Email Address *</label>
+      <label class="sb-label" for="sbAlertEmail">Email Address:</label>
       <input class="sb-input" type="email" id="sbAlertEmail" placeholder="your@email.com" required autocomplete="email">
 
-      <label class="sb-label" for="sbAlertBrand">Shoe Brand *</label>
+      <label class="sb-label" for="sbAlertBrand">Shoe Brand:</label>
       <div class="sb-input-wrap">
-        <input class="sb-input" type="text" id="sbAlertBrand" placeholder="e.g., Nike, Hoka, Brooks" autocomplete="off" required>
+        <input class="sb-input" type="text" id="sbAlertBrand" placeholder="Enter shoe brand..." autocomplete="off" required>
         <button type="button" class="sb-clear" data-clear="#sbAlertBrand" aria-label="Clear brand">×</button>
         <div id="sbBrandSug" class="sb-sug" hidden></div>
       </div>
 
-      <label class="sb-label" for="sbAlertModel">Shoe Model *</label>
+      <label class="sb-label" for="sbAlertModel">Shoe Model:</label>
       <div class="sb-input-wrap">
-        <input class="sb-input" type="text" id="sbAlertModel" placeholder="e.g., Pegasus, Clifton, Ghost" autocomplete="off" required>
+        <input class="sb-input" type="text" id="sbAlertModel" placeholder="Enter shoe model..." autocomplete="off" required>
         <button type="button" class="sb-clear" data-clear="#sbAlertModel" aria-label="Clear model">×</button>
         <div id="sbModelSug" class="sb-sug" hidden></div>
       </div>
 
       <div class="sb-row">
         <div class="sb-col">
-          <div class="sb-label">Gender</div>
+          <div class="sb-label">Gender:</div>
           <div class="sb-gender" id="sbGender">
             <button type="button" class="sb-chip" data-g="mens">Men’s</button>
             <button type="button" class="sb-chip" data-g="womens">Women’s</button>
@@ -1188,11 +1188,18 @@ shrinkInputs();
         </div>
 
         <div class="sb-col sb-price-col">
-          <label class="sb-label" for="sbAlertPrice">Target Price *</label>
+          <label class="sb-label" for="sbAlertPrice">Target Price:</label>
           <div class="sb-price-wrap">
             <span class="sb-dollar">$</span>
-            <input class="sb-input sb-price" type="text" id="sbAlertPrice" inputmode="numeric" autocomplete="off" aria-label="Target price in whole dollars">
-            <span class="sb-decimal">.00</span>
+            <input class="sb-input sb-price"
+       type="text"
+       id="sbAlertPrice"
+       placeholder="Enter whole dollars."
+       inputmode="numeric"
+       autocomplete="off"
+       aria-label="Target price in whole dollars">
+
+            
             <button type="button" class="sb-clear sb-clear-price" data-clear="#sbAlertPrice" aria-label="Clear price">×</button>
           </div>
         </div>
