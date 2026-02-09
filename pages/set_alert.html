@@ -1,1 +1,360 @@
-<!DOCTYPE html> <html lang="en"> <head> <link rel="icon" type="image/svg+xml" href="/images/favicon.svg"> <link rel="icon" type="image/png" href="/images/favicon.png"> <meta charset="UTF-8" /> <title>Set a Price Alert – Shoe Beagle</title> <meta name="viewport" content="width=device-width, initial-scale=1" /> <style> body{ margin:0; padding:2rem 1rem; background:#f4ede3ff; font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif; color:#2d2d2d; display:flex; flex-direction:column; align-items:center; min-height:100vh; box-sizing:border-box; } .page-container{ width:100%; max-width:900px; display:flex; flex-direction:column; align-items:center; gap:1.25rem; } .brand-logo{ display:block; width:600px; max-width:100%; height:auto; object-fit:contain; cursor:pointer; transition:opacity .2s ease; } .brand-logo:hover{ opacity:.9; } .card{ width:100%; max-width:720px; background:#ffffffc9; border:2px solid #214478ff; border-radius:.75rem; padding:1.25rem 1.25rem 1.5rem; box-sizing:border-box; } .title{ color:#214478ff; font-size:1.6rem; font-weight:800; text-align:center; margin:.25rem 0 .25rem; } .form{ display:flex; flex-direction:column; gap:.85rem; margin-top:.5rem; } .row{ display:grid; grid-template-columns: 1fr 1fr; gap:.85rem; } @media (max-width:640px){ .row{ grid-template-columns:1fr; } } label{ font-size:.9rem; font-weight:700; color:#214478ff; display:block; margin:0 0 .35rem; } input{ width:100%; height:44px; border-radius:.5rem; border:1px solid rgba(33,68,120,.55); padding:0 .75rem; font-size:1rem; box-sizing:border-box; background:#fff; outline:none; } input:focus{ border-color:#214478ff; box-shadow:0 0 0 3px rgba(33,68,120,.18); } .price-wrap{ position:relative; } .price-wrap::before{ content:'$'; position:absolute; left:.7rem; top:50%; transform:translateY(-50%); color:#444; font-weight:700; pointer-events:none; } .price-input{ padding-left:1.7rem; text-align:right; } .btn-row{ display:flex; gap:.75rem; flex-wrap:wrap; justify-content:center; margin-top:.25rem; } button{ padding:.65rem 1.15rem; border-radius:999px; border:1px solid #214478ff; background:#214478ff; color:#fff; font-weight:700; font-size:.98rem; cursor:pointer; transition:background .2s ease; } button:hover{ background:#1a3661; } button.secondary{ background:#fff; color:#214478ff; border:2px solid #214478ff; } button.secondary:hover{ background:rgba(33,68,120,.1); } .status{ display:none; margin-top:1rem; padding:.85rem; border-radius:.6rem; text-align:center; font-weight:700; line-height:1.35; } .status.success{ display:block; background:rgba(46,160,67,.15); border:1px solid rgba(46,160,67,.5); color:#1f6a2a; } .status.error{ display:block; background:rgba(220,53,69,.15); border:1px solid rgba(220,53,69,.5); color:#8a1f2c; } .post-actions{ display:none; margin-top:1rem; padding-top:1rem; border-top:1px solid rgba(33,68,120,.25); text-align:center; } .post-actions p{ margin:0 0 .9rem; color:#2d2d2d; font-weight:700; } /* IMPORTANT block moved below buttons */ .note{ margin:.95rem 0 0; padding:.85rem .95rem; background:rgba(33, 68, 120, 0.06); border-left:4px solid #214478ff; border-radius:.5rem; color:#334; font-size:.92rem; line-height:1.45; } .note-title{ font-weight:900; color:#214478ff; margin:0 0 .35rem; font-style:normal; } .note ul{ margin:.35rem 0 0 1.1rem; padding:0; } .note li{ margin:.25rem 0; } .footer{ margin-top:1rem; padding:.75rem 1rem; text-align:center; font-size:.82rem; color:#444; } </style> </head> <body> <div class="page-container"> <a href="/"> <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="brand-logo"> </a> <div class="card"> <div class="title">Set a Price Alert</div> <form id="alertForm" class="form" autocomplete="off"> <div class="row"> <div> <label for="email">Email</label> <input id="email" name="email" type="email" placeholder="you@example.com" required /> </div> <div> <label for="targetPrice">Target Price</label> <div class="price-wrap"> <input id="targetPrice" name="targetPrice" type="text" inputmode="numeric" class="price-input" placeholder="120" required /> </div> </div> </div> <div class="row"> <div> <label for="brand">Brand</label> <input id="brand" name="brand" type="text" placeholder="ASICS" required /> </div> <div> <label for="model">Model</label> <input id="model" name="model" type="text" placeholder="Gel-Kayano 30" required /> </div> </div> <div class="btn-row"> <button type="submit" id="submitBtn">Set Alert</button> <button type="button" class="secondary" onclick="window.location.href='/'">Home</button> </div> <!-- IMPORTANT message moved here --> <div class="note"> <div class="note-title">Important</div> <ul> <li>Your email will never be sold or shared by Shoe Beagle, and will only be used for confirmation and notification of this alert should we find your shoes at or below your target price.</li> <li>For your security, we don’t offer sign-in or alert management from the website; but, Alerts can be cancelled or managed at any time using the secure link provided in your confirmation email.</li> </ul> </div> <div id="status" class="status"></div> <div id="postActions" class="post-actions"> <p>Want to set another alert?</p> <div class="btn-row"> <button type="button" id="anotherBtn" class="secondary">Set Another Alert</button> <button type="button" id="homeBtn">Back to Home</button> </div> </div> </form> </div> <div class="footer"> © <span id="footerYear"></span> Shoe Beagle. All rights reserved. </div> </div> <script> const API = { alerts: "/api/alerts" }; const form = document.getElementById("alertForm"); const statusEl = document.getElementById("status"); const submitBtn = document.getElementById("submitBtn"); const postActions = document.getElementById("postActions"); const anotherBtn = document.getElementById("anotherBtn"); const homeBtn = document.getElementById("homeBtn"); document.getElementById("footerYear").textContent = new Date().getFullYear(); // If email is passed in querystring, prefill it (function prefillEmail(){ const params = new URLSearchParams(window.location.search); const email = (params.get("email") || "").trim(); if (email) document.getElementById("email").value = email; })(); // numeric-only target price const priceInput = document.getElementById("targetPrice"); priceInput.addEventListener("input", (e) => { e.target.value = e.target.value.replace(/[^0-9]/g, ""); }); function showStatus(msg, type){ statusEl.className = status ${type}; statusEl.textContent = msg; statusEl.style.display = "block"; } function setBusy(isBusy){ submitBtn.disabled = isBusy; submitBtn.textContent = isBusy ? "Setting..." : "Set Alert"; } function resetForAnother(){ // Keep email by default const email = document.getElementById("email").value; form.reset(); document.getElementById("email").value = email; statusEl.style.display = "none"; postActions.style.display = "none"; setBusy(false); document.getElementById("brand").focus(); } anotherBtn.addEventListener("click", resetForAnother); homeBtn.addEventListener("click", () => window.location.href = "/"); form.addEventListener("submit", async (e) => { e.preventDefault(); if (submitBtn.disabled) return; const email = document.getElementById("email").value.trim(); const brand = document.getElementById("brand").value.trim(); const model = document.getElementById("model").value.trim(); const targetPrice = document.getElementById("targetPrice").value.trim(); if (!email || !email.includes("@")) { showStatus("Please enter a valid email address.", "error"); return; } if (!brand || !model) { showStatus("Please enter both a brand and model.", "error"); return; } if (!targetPrice || Number(targetPrice) <= 0) { showStatus("Please enter a valid target price.", "error"); return; } setBusy(true); statusEl.style.display = "none"; postActions.style.display = "none"; try { const res = await fetch(API.alerts, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, brand, model, targetPrice }) }); const data = await res.json().catch(() => ({})); if (!res.ok) { throw new Error(data.error || Failed to set alert (HTTP ${res.status})); } showStatus("✅ Alert created! Check your email for the secure link to manage/cancel alerts.", "success"); postActions.style.display = "block"; } catch (err) { showStatus(err.message || "Failed to set alert.", "error"); } finally { setBusy(false); } }); </script> </body> </html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
+  <link rel="icon" type="image/png" href="/images/favicon.png">
+  <meta charset="UTF-8" />
+  <title>Set a Price Alert – Shoe Beagle</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    body{
+      margin:0;
+      padding:2rem 1rem;
+      background:#f4ede3ff;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+      color:#2d2d2d;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      min-height:100vh;
+      box-sizing:border-box;
+    }
+    .page-container{
+      width:100%;
+      max-width:900px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:1.25rem;
+    }
+    .brand-logo{
+      display:block;
+      width:600px;
+      max-width:100%;
+      height:auto;
+      object-fit:contain;
+      cursor:pointer;
+      transition:opacity .2s ease;
+    }
+    .brand-logo:hover{ opacity:.9; }
+    .card{
+      width:100%;
+      max-width:720px;
+      background:#ffffffc9;
+      border:2px solid #214478ff;
+      border-radius:.75rem;
+      padding:1.25rem 1.25rem 1.5rem;
+      box-sizing:border-box;
+    }
+    .title{
+      color:#214478ff;
+      font-size:1.6rem;
+      font-weight:800;
+      text-align:center;
+      margin:.25rem 0 .25rem;
+    }
+    .form{
+      display:flex;
+      flex-direction:column;
+      gap:.85rem;
+      margin-top:.5rem;
+    }
+    .row{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:.85rem;
+    }
+    @media (max-width:640px){
+      .row{ grid-template-columns:1fr; }
+    }
+    label{
+      font-size:.9rem;
+      font-weight:700;
+      color:#214478ff;
+      display:block;
+      margin:0 0 .35rem;
+    }
+    input{
+      width:100%;
+      height:44px;
+      border-radius:.5rem;
+      border:1px solid rgba(33,68,120,.55);
+      padding:0 .75rem;
+      font-size:1rem;
+      box-sizing:border-box;
+      background:#fff;
+      outline:none;
+    }
+    input:focus{
+      border-color:#214478ff;
+      box-shadow:0 0 0 3px rgba(33,68,120,.18);
+    }
+    .price-wrap{ position:relative; }
+    .price-wrap::before{
+      content:'$';
+      position:absolute;
+      left:.7rem;
+      top:50%;
+      transform:translateY(-50%);
+      color:#444;
+      font-weight:700;
+      pointer-events:none;
+    }
+    .price-input{ padding-left:1.7rem; text-align:right; }
+    .btn-row{
+      display:flex;
+      gap:.75rem;
+      flex-wrap:wrap;
+      justify-content:center;
+      margin-top:.25rem;
+    }
+    button{
+      padding:.65rem 1.15rem;
+      border-radius:999px;
+      border:1px solid #214478ff;
+      background:#214478ff;
+      color:#fff;
+      font-weight:700;
+      font-size:.98rem;
+      cursor:pointer;
+      transition:background .2s ease;
+    }
+    button:hover{ background:#1a3661; }
+    button.secondary{
+      background:#fff;
+      color:#214478ff;
+      border:2px solid #214478ff;
+    }
+    button.secondary:hover{ background:rgba(33,68,120,.1); }
+    .status{
+      display:none;
+      margin-top:1rem;
+      padding:.85rem;
+      border-radius:.6rem;
+      text-align:center;
+      font-weight:700;
+      line-height:1.35;
+    }
+    .status.success{
+      display:block;
+      background:rgba(46,160,67,.15);
+      border:1px solid rgba(46,160,67,.5);
+      color:#1f6a2a;
+    }
+    .status.error{
+      display:block;
+      background:rgba(220,53,69,.15);
+      border:1px solid rgba(220,53,69,.5);
+      color:#8a1f2c;
+    }
+    .post-actions{
+      display:none;
+      margin-top:1rem;
+      padding-top:1rem;
+      border-top:1px solid rgba(33,68,120,.25);
+      text-align:center;
+    }
+    .post-actions p{
+      margin:0 0 .9rem;
+      color:#2d2d2d;
+      font-weight:700;
+    }
+
+    /* IMPORTANT message block */
+    .note{
+      margin:.95rem 0 0;
+      padding:.85rem .95rem;
+      background:rgba(33, 68, 120, 0.06);
+      border-left:4px solid #214478ff;
+      border-radius:.5rem;
+      color:#334;
+      font-size:.92rem;
+      line-height:1.45;
+    }
+    .note-title{
+      font-weight:900;
+      color:#214478ff;
+      margin:0 0 .35rem;
+      font-style:normal;
+    }
+    .note ul{
+      margin:.35rem 0 0 1.1rem;
+      padding:0;
+    }
+    .note li{
+      margin:.25rem 0;
+    }
+
+    .footer{
+      margin-top:1rem;
+      padding:.75rem 1rem;
+      text-align:center;
+      font-size:.82rem;
+      color:#444;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page-container">
+    <a href="/">
+      <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="brand-logo">
+    </a>
+
+    <div class="card">
+      <div class="title">Set a Price Alert</div>
+
+      <form id="alertForm" class="form" autocomplete="off">
+        <div class="row">
+          <div>
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" placeholder="you@example.com" required />
+          </div>
+          <div>
+            <label for="targetPrice">Target Price</label>
+            <div class="price-wrap">
+              <input id="targetPrice" name="targetPrice" type="text" inputmode="numeric" class="price-input" placeholder="120" required />
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="brand">Brand</label>
+            <input id="brand" name="brand" type="text" placeholder="ASICS" required />
+          </div>
+          <div>
+            <label for="model">Model</label>
+            <input id="model" name="model" type="text" placeholder="Gel-Kayano 30" required />
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit" id="submitBtn">Set Alert</button>
+          <button type="button" class="secondary" onclick="window.location.href='/'">Home</button>
+        </div>
+
+        <!-- IMPORTANT message added here -->
+        <div class="note">
+          <div class="note-title">Important</div>
+          <ul>
+            <li>Your email will never be sold or shared by Shoe Beagle, and will only be used for confirmation and notification of this alert should we find your shoes at or below your target price.</li>
+            <li>For your security, we don’t offer sign-in or alert management from the website; but, alerts can be cancelled or managed at any time using the secure link provided in your confirmation email.</li>
+          </ul>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div id="postActions" class="post-actions">
+          <p>Want to set another alert?</p>
+          <div class="btn-row">
+            <button type="button" id="anotherBtn" class="secondary">Set Another Alert</button>
+            <button type="button" id="homeBtn">Back to Home</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="footer">
+      © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
+    </div>
+  </div>
+
+  <script>
+    const API = { alerts: "/api/alerts" };
+    const form = document.getElementById("alertForm");
+    const statusEl = document.getElementById("status");
+    const submitBtn = document.getElementById("submitBtn");
+    const postActions = document.getElementById("postActions");
+    const anotherBtn = document.getElementById("anotherBtn");
+    const homeBtn = document.getElementById("homeBtn");
+
+    document.getElementById("footerYear").textContent = new Date().getFullYear();
+
+    (function prefillEmail(){
+      const params = new URLSearchParams(window.location.search);
+      const email = (params.get("email") || "").trim();
+      if (email) document.getElementById("email").value = email;
+    })();
+
+    const priceInput = document.getElementById("targetPrice");
+    priceInput.addEventListener("input", (e) => {
+      e.target.value = e.target.value.replace(/[^0-9]/g, "");
+    });
+
+    function showStatus(msg, type){
+      statusEl.className = `status ${type}`;
+      statusEl.textContent = msg;
+      statusEl.style.display = "block";
+    }
+
+    function setBusy(isBusy){
+      submitBtn.disabled = isBusy;
+      submitBtn.textContent = isBusy ? "Setting..." : "Set Alert";
+    }
+
+    function resetForAnother(){
+      const email = document.getElementById("email").value;
+      form.reset();
+      document.getElementById("email").value = email;
+
+      statusEl.style.display = "none";
+      postActions.style.display = "none";
+      setBusy(false);
+      document.getElementById("brand").focus();
+    }
+
+    anotherBtn.addEventListener("click", resetForAnother);
+    homeBtn.addEventListener("click", () => window.location.href = "/");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (submitBtn.disabled) return;
+
+      const email = document.getElementById("email").value.trim();
+      const brand = document.getElementById("brand").value.trim();
+      const model = document.getElementById("model").value.trim();
+      const targetPrice = document.getElementById("targetPrice").value.trim();
+
+      if (!email || !email.includes("@")) {
+        showStatus("Please enter a valid email address.", "error");
+        return;
+      }
+      if (!brand || !model) {
+        showStatus("Please enter both a brand and model.", "error");
+        return;
+      }
+      if (!targetPrice || Number(targetPrice) <= 0) {
+        showStatus("Please enter a valid target price.", "error");
+        return;
+      }
+
+      setBusy(true);
+      statusEl.style.display = "none";
+      postActions.style.display = "none";
+
+      try {
+        const res = await fetch(API.alerts, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, brand, model, targetPrice })
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          throw new Error(data.error || `Failed to set alert (HTTP ${res.status})`);
+        }
+
+        showStatus("✅ Alert created! Check your email for the secure link to manage/cancel alerts.", "success");
+        postActions.style.display = "block";
+      } catch (err) {
+        showStatus(err.message || "Failed to set alert.", "error");
+      } finally {
+        setBusy(false);
+      }
+    });
+  </script>
+</body>
+</html>
