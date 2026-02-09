@@ -2,13 +2,14 @@
 // Daily scraper for running shoe deals (CHEERIO ONLY)
 // Runs via Vercel Cron
 //
-// Output blob: cheerio-deals_blob.json
-// Top-level:
-//   { lastUpdated, scrapeDurationMs, scraperResults, deals }
+// NEW OUTPUT (per store blob):
+//   { lastUpdated, scrapeDurationMs, scraperResult, deals }
 //
-// Deal schema (per deal) - 11 fields:
-//   listingName, brand, model, salePrice, originalPrice, discountPercent,
-//   store, listingURL, imageURL, gender, shoeType
+// Blobs (public, stable names):
+//   running-warehouse.json
+//   fleet-feet.json
+//   lukes-locker.json
+//   marathon-sports.json
 
 const axios = require("axios");
 const cheerio = require("cheerio");
@@ -35,11 +36,9 @@ function cleanTitleText(raw) {
 function absolutizeUrl(u, base) {
   let url = String(u || "").trim();
   if (!url) return "";
-
   if (/^https?:\/\//i.test(url)) return url;
   if (url.startsWith("//")) return "https:" + url;
   if (url.startsWith("/")) return base.replace(/\/+$/, "") + url;
-
   return base.replace(/\/+$/, "") + "/" + url.replace(/^\/+/, "");
 }
 
@@ -136,8 +135,7 @@ function parseBrandModel(title) {
     const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
     if (regex.test(title)) {
       brand = b;
-      model = title.replace(regex, " ").trim();
-      model = model.replace(/\s+/g, " ");
+      model = title.replace(regex, " ").trim().replace(/\s+/g, " ");
       break;
     }
   }
@@ -178,7 +176,8 @@ function detectShoeType(listingName, model) {
     return "road";
   }
 
-  return "road";
+  // If unstated, you said you'd rather not guess — use unknown.
+  return "unknown";
 }
 
 function computeDiscountPercent(originalPrice, salePrice) {
@@ -215,7 +214,6 @@ function extractSuperscriptPrices($, $element) {
 
     const $parent = $centsEl.parent();
     const parentTextWithoutChildren = $parent.clone().children().remove().end().text();
-
     const dollarMatch = parentTextWithoutChildren.match(/\$\s*(\d+)/);
     if (!dollarMatch) return;
 
@@ -269,14 +267,12 @@ function extractPrices($, $element, fullText) {
   if (prices.length === 2) {
     const original = prices[0];
     const sale = prices[1];
-
     if (!(sale < original)) return { salePrice: null, originalPrice: null, valid: false };
 
     const discountPercent = ((original - sale) / original) * 100;
     if (discountPercent < 5 || discountPercent > 90) {
       return { salePrice: null, originalPrice: null, valid: false };
     }
-
     return { salePrice: sale, originalPrice: original, valid: true };
   }
 
@@ -295,15 +291,11 @@ function extractPrices($, $element, fullText) {
       if (isP1Save && !isP2Save) {
         const sale = p2;
         const pct = ((original - sale) / original) * 100;
-        if (pct >= 5 && pct <= 90 && sale < original) {
-          return { salePrice: sale, originalPrice: original, valid: true };
-        }
+        if (pct >= 5 && pct <= 90 && sale < original) return { salePrice: sale, originalPrice: original, valid: true };
       } else if (isP2Save && !isP1Save) {
         const sale = p1;
         const pct = ((original - sale) / original) * 100;
-        if (pct >= 5 && pct <= 90 && sale < original) {
-          return { salePrice: sale, originalPrice: original, valid: true };
-        }
+        if (pct >= 5 && pct <= 90 && sale < original) return { salePrice: sale, originalPrice: original, valid: true };
       }
     }
 
@@ -332,9 +324,7 @@ function extractPrices($, $element, fullText) {
     // fallback: choose the larger of remaining as sale
     const sale = Math.max(...remaining);
     const pct = ((original - sale) / original) * 100;
-    if (pct >= 5 && pct <= 90 && sale < original) {
-      return { salePrice: sale, originalPrice: original, valid: true };
-    }
+    if (pct >= 5 && pct <= 90 && sale < original) return { salePrice: sale, originalPrice: original, valid: true };
 
     return { salePrice: null, originalPrice: null, valid: false };
   }
@@ -635,6 +625,69 @@ async function scrapeMarathonSports() {
   return deals;
 }
 
+/** -------------------- Per-store blob writer -------------------- **/
+
+async function runAndSaveStore({ storeName, blobName, via, fn }) {
+  const start = Date.now();
+  const timestamp = nowIso();
+
+  try {
+    const deals = await fn();
+    const durationMs = Date.now() - start;
+
+    const scraperResult = {
+      scraper: storeName,
+      ok: true,
+      count: Array.isArray(deals) ? deals.length : 0,
+      durationMs,
+      timestamp,
+      via,
+      error: null,
+    };
+
+    const output = {
+      lastUpdated: timestamp,
+      scrapeDurationMs: durationMs,
+      scraperResult,
+      deals: Array.isArray(deals) ? deals : [],
+    };
+
+    const blob = await put(blobName, JSON.stringify(output, null, 2), {
+      access: "public",
+      addRandomSuffix: false,
+    });
+
+    return { ...scraperResult, blobUrl: blob.url };
+  } catch (err) {
+    const durationMs = Date.now() - start;
+
+    const scraperResult = {
+      scraper: storeName,
+      ok: false,
+      count: 0,
+      durationMs,
+      timestamp,
+      via,
+      error: err?.message || "Unknown error",
+    };
+
+    // Still write an output blob so merge-deals can see "ok:false" and 0 deals.
+    const output = {
+      lastUpdated: timestamp,
+      scrapeDurationMs: durationMs,
+      scraperResult,
+      deals: [],
+    };
+
+    const blob = await put(blobName, JSON.stringify(output, null, 2), {
+      access: "public",
+      addRandomSuffix: false,
+    });
+
+    return { ...scraperResult, blobUrl: blob.url };
+  }
+}
+
 /** -------------------- Main handler -------------------- **/
 
 module.exports = async (req, res) => {
@@ -643,81 +696,58 @@ module.exports = async (req, res) => {
   }
 
   // Optional cron auth (recommended)
-  //const cronSecret = process.env.CRON_SECRET;
- // if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
- //   return res.status(401).json({ success: false, error: "Unauthorized" });
- // }
+  // const cronSecret = process.env.CRON_SECRET;
+  // if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
+  //   return res.status(401).json({ success: false, error: "Unauthorized" });
+  // }
 
   const overallStartTime = Date.now();
   const runTimestamp = nowIso();
 
   try {
-    const allDeals = [];
-    const scraperResults = {};
+    const results = {};
 
-    async function runSource({ name, via, fn }) {
-      const timestamp = nowIso();
-      const scraperStart = Date.now();
-
-      try {
-        const deals = await fn();
-        const durationMs = Date.now() - scraperStart;
-
-        allDeals.push(...deals);
-
-        scraperResults[name] = {
-          scraper: name,
-          ok: true,
-          count: Array.isArray(deals) ? deals.length : 0,
-          durationMs,
-          timestamp,
-          via,
-          error: null,
-        };
-      } catch (err) {
-        const durationMs = Date.now() - scraperStart;
-
-        scraperResults[name] = {
-          scraper: name,
-          ok: false,
-          count: 0,
-          durationMs,
-          timestamp,
-          via,
-          error: err?.message || "Unknown error",
-        };
-      }
-    }
-
-    await runSource({ name: "Running Warehouse", via: "cheerio", fn: scrapeRunningWarehouse });
-    await randomDelay();
-    await runSource({ name: "Fleet Feet", via: "cheerio", fn: scrapeFleetFeet });
-    await randomDelay();
-    await runSource({ name: "Luke's Locker", via: "cheerio", fn: scrapeLukesLocker });
-    await randomDelay();
-    await runSource({ name: "Marathon Sports", via: "cheerio", fn: scrapeMarathonSports });
-
-    const scrapeDurationMs = Date.now() - overallStartTime;
-
-    const output = {
-      lastUpdated: runTimestamp,
-      scrapeDurationMs,
-      scraperResults,
-      deals: allDeals,
-    };
-
-    const blob = await put("cheerio-deals_blob.json", JSON.stringify(output, null, 2), {
-      access: "public",
-      addRandomSuffix: false,
+    results["Running Warehouse"] = await runAndSaveStore({
+      storeName: "Running Warehouse",
+      blobName: "running-warehouse.json",
+      via: "cheerio",
+      fn: scrapeRunningWarehouse,
     });
+
+    await randomDelay();
+
+    results["Fleet Feet"] = await runAndSaveStore({
+      storeName: "Fleet Feet",
+      blobName: "fleet-feet.json",
+      via: "cheerio",
+      fn: scrapeFleetFeet,
+    });
+
+    await randomDelay();
+
+    results["Luke's Locker"] = await runAndSaveStore({
+      storeName: "Luke's Locker",
+      blobName: "lukes-locker.json",
+      via: "cheerio",
+      fn: scrapeLukesLocker,
+    });
+
+    await randomDelay();
+
+    results["Marathon Sports"] = await runAndSaveStore({
+      storeName: "Marathon Sports",
+      blobName: "marathon-sports.json",
+      via: "cheerio",
+      fn: scrapeMarathonSports,
+    });
+
+    const durationMs = Date.now() - overallStartTime;
 
     return res.status(200).json({
       success: true,
-      totalDeals: allDeals.length,
-      scraperResults,
-      blobUrl: blob.url,
-      duration: `${scrapeDurationMs}ms`,
       timestamp: runTimestamp,
+      duration: `${durationMs}ms`,
+      stores: results,
     });
   } catch (error) {
     return res.status(500).json({
