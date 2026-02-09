@@ -2,7 +2,8 @@
   {
     "id": "als",
     "displayName": "ALS",
-    "addedAt": "unknown",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
     "scrapedUrls": [
       "https://www.als.com/"
     ],
@@ -18,7 +19,8 @@
   {
     "id": "asics",
     "displayName": "ASICS",
-    "addedAt": "unknown",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
     "scrapedUrls": [
       "https://www.asics.com/us/en-us/sale/mens-running-shoes/c/aa10107020/"
     ],
@@ -34,7 +36,8 @@
   {
     "id": "brooks-running",
     "displayName": "Brooks Running",
-    "addedAt": "unknown",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
     "scrapedUrls": [
       "https://www.brooksrunning.com/"
     ],
@@ -50,7 +53,8 @@
   {
     "id": "fleet-feet",
     "displayName": "Fleet Feet",
-    "addedAt": "unknown",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
     "scrapedUrls": [
       "https://www.fleetfeet.com/collections/mens-running-shoes-on-sale"
     ],
@@ -64,7 +68,8 @@
   {
     "id": "foot-locker",
     "displayName": "Foot Locker",
-    "addedAt": "unknown",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
     "scrapedUrls": [
       "https://www.footlocker.com/category/mens/shoes/running.html"
     ],
@@ -80,7 +85,8 @@
   {
     "id": "holabird-sports",
     "displayName": "Holabird Sports",
-    "addedAt": "unknown",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
     "scrapedUrls": [
       "https://www.holabirdsports.com/"
     ],
@@ -98,7 +104,8 @@
   {
     "id": "lukes-locker",
     "displayName": "Luke's Locker",
-    "addedAt": "unknown",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
     "scrapedUrls": [
       "https://www.lukeslocker.com/"
     ],
@@ -112,7 +119,8 @@
   {
     "id": "marathon-sports",
     "displayName": "Marathon Sports",
-    "addedAt": "unknown",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
     "scrapedUrls": [
       "https://www.marathonsports.com/"
     ],
@@ -126,7 +134,8 @@
   {
     "id": "rei-outlet",
     "displayName": "REI Outlet",
-    "addedAt": "unknown",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
     "scrapedUrls": [
       "https://www.rei.com/rei-garage"
     ],
@@ -142,7 +151,8 @@
   {
     "id": "rnj-sports",
     "displayName": "RNJ Sports",
-    "addedAt": "unknown",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
     "scrapedUrls": [
       "https://www.rnjsports.com/deals/running-shoes/"
     ],
@@ -158,7 +168,8 @@
   {
     "id": "road-runner-sports",
     "displayName": "Road Runner Sports",
-    "addedAt": "unknown",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
     "scrapedUrls": [
       "https://www.roadrunnersports.com/rrs/mens/shoes/sale/_/N-u5Z1z141i0"
     ],
@@ -174,7 +185,8 @@
   {
     "id": "running-warehouse",
     "displayName": "Running Warehouse",
-    "addedAt": "unknown",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
     "scrapedUrls": [
       "https://www.runningwarehouse.com/"
     ],
@@ -188,7 +200,8 @@
   {
     "id": "shoebacca",
     "displayName": "Shoebacca",
-    "addedAt": "unknown",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
     "scrapedUrls": [
       "https://www.shoebacca.com/collections/clearance-athletic"
     ],
@@ -204,7 +217,8 @@
   {
     "id": "zappos",
     "displayName": "Zappos",
-    "addedAt": "unknown",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
     "scrapedUrls": [
       "https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso"
     ],
