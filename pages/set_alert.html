@@ -20,14 +20,16 @@
       min-height:100vh;
       box-sizing:border-box;
     }
+
     .page-container{
       width:100%;
       max-width:900px;
       display:flex;
       flex-direction:column;
       align-items:center;
-      gap:1.25rem;
+      gap:1.5rem;
     }
+
     .brand-logo{
       display:block;
       width:600px;
@@ -38,6 +40,7 @@
       transition:opacity .2s ease;
     }
     .brand-logo:hover{ opacity:.9; }
+
     .card{
       width:100%;
       max-width:720px;
@@ -47,40 +50,45 @@
       padding:1.25rem 1.25rem 1.5rem;
       box-sizing:border-box;
     }
+
     .title{
       color:#214478ff;
       font-size:1.6rem;
       font-weight:800;
       text-align:center;
-      margin:.25rem 0 .25rem;
+      margin:.25rem 0 .35rem;
     }
-    .form{
+
+    .subtitle{
+      color:#49543a;
+      font-size:.92rem;
+      text-align:center;
+      margin:0 0 .9rem;
+      font-style:italic;
+      line-height:1.35;
+    }
+
+    form{
       display:flex;
       flex-direction:column;
       gap:.85rem;
-      margin-top:.5rem;
+      margin-top:.25rem;
     }
-    .row{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:.85rem;
-    }
-    @media (max-width:640px){
-      .row{ grid-template-columns:1fr; }
-    }
-    label{
+
+    .field label{
       font-size:.9rem;
       font-weight:700;
       color:#214478ff;
       display:block;
       margin:0 0 .35rem;
     }
+
     input{
       width:100%;
-      height:44px;
-      border-radius:.5rem;
+      height:46px;
+      border-radius:.55rem;
       border:1px solid rgba(33,68,120,.55);
-      padding:0 .75rem;
+      padding:0 .85rem;
       font-size:1rem;
       box-sizing:border-box;
       background:#fff;
@@ -90,18 +98,30 @@
       border-color:#214478ff;
       box-shadow:0 0 0 3px rgba(33,68,120,.18);
     }
+
+    .hint{
+      margin-top:.35rem;
+      font-size:.82rem;
+      color:#54606a;
+      line-height:1.25;
+    }
+
     .price-wrap{ position:relative; }
     .price-wrap::before{
       content:'$';
       position:absolute;
-      left:.7rem;
+      left:.85rem;
       top:50%;
       transform:translateY(-50%);
       color:#444;
-      font-weight:700;
+      font-weight:800;
       pointer-events:none;
     }
-    .price-input{ padding-left:1.7rem; text-align:right; }
+    .price-input{
+      padding-left:1.95rem;
+      text-align:right;
+    }
+
     .btn-row{
       display:flex;
       gap:.75rem;
@@ -109,6 +129,7 @@
       justify-content:center;
       margin-top:.25rem;
     }
+
     button{
       padding:.65rem 1.15rem;
       border-radius:999px;
@@ -127,6 +148,29 @@
       border:2px solid #214478ff;
     }
     button.secondary:hover{ background:rgba(33,68,120,.1); }
+
+    .note{
+      margin:.95rem 0 0;
+      padding:.85rem .95rem;
+      background:rgba(33, 68, 120, 0.06);
+      border-left:4px solid #214478ff;
+      border-radius:.5rem;
+      color:#334;
+      font-size:.92rem;
+      line-height:1.45;
+    }
+    .note-title{
+      font-weight:900;
+      color:#214478ff;
+      margin:0 0 .35rem;
+      font-style:normal;
+    }
+    .note ul{
+      margin:.35rem 0 0 1.1rem;
+      padding:0;
+    }
+    .note li{ margin:.25rem 0; }
+
     .status{
       display:none;
       margin-top:1rem;
@@ -148,6 +192,7 @@
       border:1px solid rgba(220,53,69,.5);
       color:#8a1f2c;
     }
+
     .post-actions{
       display:none;
       margin-top:1rem;
@@ -158,36 +203,11 @@
     .post-actions p{
       margin:0 0 .9rem;
       color:#2d2d2d;
-      font-weight:700;
-    }
-
-    /* IMPORTANT message block */
-    .note{
-      margin:.95rem 0 0;
-      padding:.85rem .95rem;
-      background:rgba(33, 68, 120, 0.06);
-      border-left:4px solid #214478ff;
-      border-radius:.5rem;
-      color:#334;
-      font-size:.92rem;
-      line-height:1.45;
-    }
-    .note-title{
-      font-weight:900;
-      color:#214478ff;
-      margin:0 0 .35rem;
-      font-style:normal;
-    }
-    .note ul{
-      margin:.35rem 0 0 1.1rem;
-      padding:0;
-    }
-    .note li{
-      margin:.25rem 0;
+      font-weight:800;
     }
 
     .footer{
-      margin-top:1rem;
+      margin-top:1.5rem;
       padding:.75rem 1rem;
       text-align:center;
       font-size:.82rem;
@@ -204,30 +224,33 @@
 
     <div class="card">
       <div class="title">Set a Price Alert</div>
+      <div class="subtitle">Enter a shoe and a target price. We’ll email you if we find it at or below your price.</div>
 
-      <form id="alertForm" class="form" autocomplete="off">
-        <div class="row">
-          <div>
-            <label for="email">Email</label>
-            <input id="email" name="email" type="email" placeholder="you@example.com" required />
-          </div>
-          <div>
-            <label for="targetPrice">Target Price</label>
-            <div class="price-wrap">
-              <input id="targetPrice" name="targetPrice" type="text" inputmode="numeric" class="price-input" placeholder="120" required />
-            </div>
-          </div>
+      <form id="alertForm" autocomplete="off">
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" placeholder="you@example.com" required />
+          <div class="hint">We’ll send your confirmation email here.</div>
         </div>
 
-        <div class="row">
-          <div>
-            <label for="brand">Brand</label>
-            <input id="brand" name="brand" type="text" placeholder="ASICS" required />
+        <div class="field">
+          <label for="brand">Brand</label>
+          <input id="brand" name="brand" type="text" placeholder="Examples: ASICS, Brooks, Nike, HOKA" required />
+          <div class="hint">Tip: keep it simple (one brand).</div>
+        </div>
+
+        <div class="field">
+          <label for="model">Model</label>
+          <input id="model" name="model" type="text" placeholder="Examples: Gel-Kayano 30, Ghost 15, Pegasus 40" required />
+          <div class="hint">Tip: include the number/version if there is one.</div>
+        </div>
+
+        <div class="field">
+          <label for="targetPrice">Target Price</label>
+          <div class="price-wrap">
+            <input id="targetPrice" name="targetPrice" type="text" inputmode="numeric" class="price-input" placeholder="120" required />
           </div>
-          <div>
-            <label for="model">Model</label>
-            <input id="model" name="model" type="text" placeholder="Gel-Kayano 30" required />
-          </div>
+          <div class="hint">Whole dollars only (example: 120).</div>
         </div>
 
         <div class="btn-row">
@@ -235,12 +258,12 @@
           <button type="button" class="secondary" onclick="window.location.href='/'">Home</button>
         </div>
 
-        <!-- IMPORTANT message added here -->
         <div class="note">
           <div class="note-title">Important</div>
           <ul>
-            <li>Your email will never be sold or shared by Shoe Beagle, and will only be used for confirmation and notification of this alert should we find your shoes at or below your target price.</li>
-            <li>For your security, we don’t offer sign-in or alert management from the website; but, alerts can be cancelled or managed at any time using the secure link provided in your confirmation email.</li>
+            <li>Your email will never be sold or shared by Shoe Beagle, and will only be used for confirmation and notification if we find your shoes at or below your target price.</li>
+            <li>Save your confirmation email — it includes your only secure link to cancel or manage alerts.</li>
+            <li>For your security, we don’t offer sign-in or alert management from the website.</li>
           </ul>
         </div>
 
@@ -263,6 +286,7 @@
 
   <script>
     const API = { alerts: "/api/alerts" };
+
     const form = document.getElementById("alertForm");
     const statusEl = document.getElementById("status");
     const submitBtn = document.getElementById("submitBtn");
@@ -272,12 +296,14 @@
 
     document.getElementById("footerYear").textContent = new Date().getFullYear();
 
+    // Prefill email from querystring if present
     (function prefillEmail(){
       const params = new URLSearchParams(window.location.search);
       const email = (params.get("email") || "").trim();
       if (email) document.getElementById("email").value = email;
     })();
 
+    // numeric-only target price
     const priceInput = document.getElementById("targetPrice");
     priceInput.addEventListener("input", (e) => {
       e.target.value = e.target.value.replace(/[^0-9]/g, "");
@@ -342,10 +368,7 @@
         });
 
         const data = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          throw new Error(data.error || `Failed to set alert (HTTP ${res.status})`);
-        }
+        if (!res.ok) throw new Error(data.error || `Failed to set alert (HTTP ${res.status})`);
 
         showStatus("✅ Alert created! Check your email for the secure link to manage/cancel alerts.", "success");
         postActions.style.display = "block";
