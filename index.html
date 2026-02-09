@@ -16,8 +16,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- CSS split -->
-  <link rel="stylesheet" href="/pages/index.css?v=83
-    ">
+  <link rel="stylesheet" href="/pages/index.css?v=83">
 
   <!--
     IMPORTANT:
@@ -37,52 +36,42 @@
       <div class="top-left">
         <form id="search-form" method="POST" autocomplete="off">
 
-       <!-- BRAND ROW: input + links toggle button -->
-<div class="row">
-  <div class="input-wrapper">
-    <!-- permanent magnifying glass (NOT part of the input text) -->
-    <img class="input-icon" src="/images/mg.svg" alt="" aria-hidden="true">
+          <!-- BRAND ROW: input + links toggle button -->
+          <div class="row">
+            <div class="input-wrapper">
+              <img class="input-icon" src="/images/mg.svg" alt="" aria-hidden="true">
+              <input id="brand" type="text" placeholder="Brand Search..." autocomplete="off"/>
+              <button type="button" class="input-clear" aria-label="Clear brand">&times;</button>
+              <div id="brandSuggestions" class="suggestions"></div>
+            </div>
 
-    <!-- placeholder no longer includes 🔍 so caret starts after icon -->
-    <input id="brand" type="text" placeholder="Brand Search..." autocomplete="off"/>
+            <div class="button-wrapper">
+              <button id="menuBtn"
+                      type="button"
+                      class="btn-eq"
+                      aria-label="Links"
+                      aria-expanded="false"
+                      aria-controls="linksRibbon">
+                <img src="/images/menu.svg" class="btn-icon" alt="Links">
+              </button>
+            </div>
+          </div>
 
-    <button type="button" class="input-clear" aria-label="Clear brand">&times;</button>
-    <div id="brandSuggestions" class="suggestions"></div>
-  </div>
+          <!-- MODEL ROW: input + fetch -->
+          <div class="row">
+            <div class="input-wrapper">
+              <img class="input-icon" src="/images/mg.svg" alt="" aria-hidden="true">
+              <input id="model" type="text" placeholder="Model Search..." autocomplete="off"/>
+              <button type="button" class="input-clear" aria-label="Clear model">&times;</button>
+              <div id="modelSuggestions" class="suggestions"></div>
+            </div>
 
-  <div class="button-wrapper">
-    <!-- This is now ONLY a links toggle button -->
-    <button id="menuBtn"
-            type="button"
-            class="btn-eq"
-            aria-label="Links"
-            aria-expanded="false"
-            aria-controls="linksRibbon">
-      <img src="/images/menu.svg" class="btn-icon" alt="Links">
-    </button>
-  </div>
-</div>
-
-<!-- MODEL ROW: input + fetch -->
-<div class="row">
-  <div class="input-wrapper">
-    <!-- permanent magnifying glass (NOT part of the input text) -->
-    <img class="input-icon" src="/images/mg.svg" alt="" aria-hidden="true">
-
-    <!-- placeholder no longer includes 🔍 so caret starts after icon -->
-    <input id="model" type="text" placeholder="Model Search..." autocomplete="off"/>
-
-    <button type="button" class="input-clear" aria-label="Clear model">&times;</button>
-    <div id="modelSuggestions" class="suggestions"></div>
-  </div>
-
-  <div class="button-wrapper">
-    <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
-      <img src="/images/fetch.svg" class="btn-icon" alt="Fetch">
-    </button>
-  </div>
-</div>
-
+            <div class="button-wrapper">
+              <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
+                <img src="/images/fetch.svg" class="btn-icon" alt="Fetch">
+              </button>
+            </div>
+          </div>
 
         </form>
       </div>
@@ -99,25 +88,19 @@
     </div>
 
     <!-- Links ribbon (hidden by default; toggled by the button above) -->
-<div id="linksRibbon" class="links-ribbon" style="display:none;">
-  <div class="links-ribbon-inner">
+    <div id="linksRibbon" class="links-ribbon" style="display:none;">
+      <div class="links-ribbon-inner">
+        <a href="#" data-open-alert>Set Alert</a>
 
-    <!-- far left -->
-  <!--  <a href="/pages/set_alert2.html" class="links-ribbon-signin">Set Alert</a> -->
-    <a href="#" data-open-alert>Set Alert</a>
-    <!-- centered links -->
-    <div class="links-ribbon-links">
-      <a href="/pages/myalerts.html">Filter</a>
-      <a href="/pages/setalert.html">Sort</a>
-      <a href="#" aria-disabled="true" tabindex="0">Favorites</a>
+        <div class="links-ribbon-links">
+          <a href="/pages/myalerts.html">Filter</a>
+          <a href="/pages/setalert.html">Sort</a>
+          <a href="#" aria-disabled="true" tabindex="0">Favorites</a>
+        </div>
+
+        <button type="button" class="chip-close" aria-label="Close links">&times;</button>
+      </div>
     </div>
-
-    <!-- far right close -->
-    <button type="button" class="chip-close" aria-label="Close links">&times;</button>
-
-  </div>
-</div>
-
 
     <div id="mainContent">
 
@@ -143,24 +126,20 @@
         </div>
       </div>
 
-      <!-- One line that is ALWAYS visible -->
       <div class="status-message" id="statusMessage">
         Marty’s Daily Deals
       </div>
 
-      <!-- Daily deals block -->
       <div class="daily-deals" id="dailyDeals">
         <div class="shoe-grid" id="dailyDealsGrid"></div>
       </div>
 
       <div class="shoe-grid" id="results"></div>
 
-      <!-- ✅ Mobile portrait: load more (appends next 12) -->
       <div class="load-more-wrap" id="loadMoreWrap" style="display:none;">
         <button id="loadMoreBtn" class="load-more-btn" type="button">Load more</button>
       </div>
 
-      <!-- ✅ Desktop/tablet: pager (prev/next) -->
       <div class="pager">
         <button id="prevPage" class="pager-btn" aria-label="Previous page">◀</button>
         <div id="pageLabel" class="page-label">1 / 1</div>
@@ -187,11 +166,14 @@
         © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
       </div>
     </div>
-<button class="to-top" id="toTopBtn" type="button" aria-label="Back to top">↑</button>
+
+    <button class="to-top" id="toTopBtn" type="button" aria-label="Back to top">↑</button>
   </div>
 
-  <script src="./brandModels.js"></script>
+  <!-- Load brand/models once (root) -->
+  <script src="/brandModels.js"></script>
 
+  <!-- ===== Your existing page script (unchanged) ===== -->
   <script>
   (() => {
     const form = document.getElementById("search-form");
@@ -208,15 +190,12 @@
     const logoLink = document.getElementById("logoLink");
     const footerYear = document.getElementById("footerYear");
     const appEl = document.querySelector(".app");
-    
+
     // Links toggle button + ribbon
     const menuBtn = document.getElementById("menuBtn");
     const linksRibbon = document.getElementById("linksRibbon");
     const linksRibbonClose = linksRibbon?.querySelector(".chip-close");
 
-
-
-    
     const filtersEl = document.getElementById("filters");
     const genderChips = document.getElementById("genderChips");
     const typeChips = document.getElementById("typeChips");
@@ -231,9 +210,10 @@
     // ✅ Load more elements
     const loadMoreWrap = document.getElementById("loadMoreWrap");
     const loadMoreBtn = document.getElementById("loadMoreBtn");
-const toTopBtn = document.getElementById("toTopBtn");
+    const toTopBtn = document.getElementById("toTopBtn");
+
     function isMobilePortrait(){
-        return window.matchMedia("(max-width: 560px) and (orientation: portrait)").matches;
+      return window.matchMedia("(max-width: 560px) and (orientation: portrait)").matches;
     }
 
     function runPagerTransitionThen(fn){
@@ -729,20 +709,16 @@ const toTopBtn = document.getElementById("toTopBtn");
       return Math.max(1, Math.ceil((Number(total) || 0) / PAGE_SIZE));
     }
 
-    // ✅ One place to control pager vs load-more
     function updateNavUI(totalFiltered){
       const pager = document.querySelector(".pager");
 
       if (isMobilePortrait()){
-        // Hide desktop pager on mobile portrait
         if (pager) pager.style.display = "none";
-
         const hasMore = ((pageIndex + 1) * PAGE_SIZE) < (Number(totalFiltered) || 0);
         if (loadMoreWrap) loadMoreWrap.style.display = hasMore ? "flex" : "none";
         return;
       }
 
-      // Desktop/tablet: show pager if > 1 page
       if (loadMoreWrap) loadMoreWrap.style.display = "none";
 
       const pages = totalPagesCount(totalFiltered);
@@ -755,7 +731,6 @@ const toTopBtn = document.getElementById("toTopBtn");
       if (pager) pager.style.display = (pages > 1) ? "flex" : "none";
     }
 
-    // ✅ render results with optional append (for mobile “Load more”)
     function renderFilteredResults({ resetPage = true, append = false } = {}) {
       const filtered = applyFilters(lastSearchResults);
 
@@ -782,7 +757,6 @@ const toTopBtn = document.getElementById("toTopBtn");
       updateNavUI(filtered.length);
     }
 
-    // ✅ Mobile Load More handler
     if (loadMoreBtn) {
       loadMoreBtn.addEventListener("click", () => {
         const filtered = applyFilters(lastSearchResults);
@@ -792,12 +766,10 @@ const toTopBtn = document.getElementById("toTopBtn");
         if (!hasMore) return;
 
         pageIndex++;
-        // append the next page
         renderFilteredResults({ resetPage: false, append: true });
       });
     }
 
-    // Desktop pager buttons (unchanged behavior)
     if (prevPageBtn) {
       prevPageBtn.addEventListener("click", () => {
         const filtered = applyFilters(lastSearchResults);
@@ -965,7 +937,6 @@ const toTopBtn = document.getElementById("toTopBtn");
       return card;
     }
 
-    // --- Daily deals ---
     async function loadDailyDeals() {
       try {
         const url = withCacheBust(blobUrl("twelve_daily_deals.json"));
@@ -997,74 +968,72 @@ const toTopBtn = document.getElementById("toTopBtn");
     }
 
     loadDailyDeals();
-// --- Back to top (mobile portrait only) ---
-function updateToTopVisibility(){
-  if (!toTopBtn) return;
 
-  if (!isMobilePortrait()){
-    toTopBtn.classList.remove("is-visible");
-    return;
-  }
+    function updateToTopVisibility(){
+      if (!toTopBtn) return;
 
-  if (window.scrollY > 250)
-    toTopBtn.classList.add("is-visible");
-  else
-    toTopBtn.classList.remove("is-visible");
-}
+      if (!isMobilePortrait()){
+        toTopBtn.classList.remove("is-visible");
+        return;
+      }
 
-window.addEventListener("scroll", updateToTopVisibility, { passive: true });
-window.addEventListener("resize", updateToTopVisibility);
-updateToTopVisibility();
+      if (window.scrollY > 250)
+        toTopBtn.classList.add("is-visible");
+      else
+        toTopBtn.classList.remove("is-visible");
+    }
 
-if (toTopBtn){
-  toTopBtn.addEventListener("click", () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  });
-}
-    // --- Mobile portrait: expand inputs on focus, shrink on submit/return ---
-function expandInputs(){
-  if (!appEl) return;
-  if (!isMobilePortrait()) return;
-  appEl.classList.add("inputs-expanded");
-}
+    window.addEventListener("scroll", updateToTopVisibility, { passive: true });
+    window.addEventListener("resize", updateToTopVisibility);
+    updateToTopVisibility();
 
-function shrinkInputs(){
-  if (!appEl) return;
-  if (!isMobilePortrait()) return;
+    if (toTopBtn){
+      toTopBtn.addEventListener("click", () => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
 
-  const brand = document.getElementById("brand");
-  const model = document.getElementById("model");
-  const inputs = [brand, model].filter(Boolean);
+    function expandInputs(){
+      if (!appEl) return;
+      if (!isMobilePortrait()) return;
+      appEl.classList.add("inputs-expanded");
+    }
 
-  // wait one tick so focus can move between inputs
-  setTimeout(() => {
-    const stillFocused = inputs.includes(document.activeElement);
-    const anyText = inputs.some(i => (i.value || "").trim().length > 0);
+    function shrinkInputs(){
+      if (!appEl) return;
+      if (!isMobilePortrait()) return;
 
-    if (stillFocused) return;
-    if (anyText) return;
+      const brand = document.getElementById("brand");
+      const model = document.getElementById("model");
+      const inputs = [brand, model].filter(Boolean);
 
-    appEl.classList.remove("inputs-expanded");
-  }, 0);
-}
+      setTimeout(() => {
+        const stillFocused = inputs.includes(document.activeElement);
+        const anyText = inputs.some(i => (i.value || "").trim().length > 0);
 
+        if (stillFocused) return;
+        if (anyText) return;
 
-// Expand when either input is focused/tapped
-if (brandInput) brandInput.addEventListener("focus", expandInputs);
-if (modelInput) modelInput.addEventListener("focus", expandInputs);
-if (brandInput) brandInput.addEventListener("blur", shrinkInputs);
-if (modelInput) modelInput.addEventListener("blur", shrinkInputs);
-// Optional: shrink if user taps away (nice UX)
-document.addEventListener("focusin", () => {
-  if (!isMobilePortrait()) return;
-  const active = document.activeElement;
-  const inInputs = (active === brandInput || active === modelInput);
-  if (!inInputs) shrinkInputs();
-});
-    // --- Submit search ---
+        appEl.classList.remove("inputs-expanded");
+      }, 0);
+    }
+
+    if (brandInput) brandInput.addEventListener("focus", expandInputs);
+    if (modelInput) modelInput.addEventListener("focus", expandInputs);
+    if (brandInput) brandInput.addEventListener("blur", shrinkInputs);
+    if (modelInput) modelInput.addEventListener("blur", shrinkInputs);
+
+    document.addEventListener("focusin", () => {
+      if (!isMobilePortrait()) return;
+      const active = document.activeElement;
+      const inInputs = (active === brandInput || active === modelInput);
+      if (!inInputs) shrinkInputs();
+    });
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-shrinkInputs();
+      shrinkInputs();
+
       let brandTyped = sanitizeInput(brandInput.value);
       brandTyped = resolveClosestBrand(brandTyped);
       brandInput.value = brandTyped;
@@ -1142,8 +1111,6 @@ shrinkInputs();
       }
 
       if (filtersEl) filtersEl.style.display = "flex";
-
-      // ✅ show first 12; nav UI will decide pager vs load-more
       renderFilteredResults({ resetPage: true, append: false });
     });
 
@@ -1152,99 +1119,527 @@ shrinkInputs();
   })();
   </script>
 
-  <!-- Set Alert Modal (drop-in) -->
-<div id="sbAlertBackdrop" class="sb-alert-backdrop" aria-hidden="true">
-  <div class="sb-alert-modal" role="dialog" aria-modal="true" aria-labelledby="sbAlertTitle">
-    <button type="button" class="sb-alert-close" id="sbAlertClose" aria-label="Close">×</button>
+  <!-- ===== Set Alert Modal (drop-in) ===== -->
+  <div id="sbAlertBackdrop" class="sb-alert-backdrop" aria-hidden="true">
+    <div class="sb-alert-modal" role="dialog" aria-modal="true" aria-labelledby="sbAlertTitle">
+      <button type="button" class="sb-alert-close" id="sbAlertClose" aria-label="Close">×</button>
 
-    <div class="sb-alert-title" id="sbAlertTitle">Set Alert</div>
+      <div class="sb-alert-title" id="sbAlertTitle">Set Alert</div>
 
-    <form id="sbSetAlertForm" class="sb-alert-form">
-      <label class="sb-label" for="sbAlertEmail">Email Address:</label>
-      <input class="sb-input" type="email" id="sbAlertEmail" placeholder="your@email.com" required autocomplete="email">
+      <form id="sbSetAlertForm" class="sb-alert-form">
+        <!-- FORM VIEW -->
+        <div id="sbAlertFormView">
+          <label class="sb-label" for="sbAlertEmail">Email Address:</label>
+          <input class="sb-input" type="email" id="sbAlertEmail" placeholder="your@email.com" required autocomplete="email">
 
-      <label class="sb-label" for="sbAlertBrand">Shoe Brand:</label>
-      <div class="sb-input-wrap">
-        <input class="sb-input" type="text" id="sbAlertBrand" placeholder="Enter shoe brand..." autocomplete="off" required>
-        <button type="button" class="sb-clear" data-clear="#sbAlertBrand" aria-label="Clear brand">×</button>
-        <div id="sbBrandSug" class="sb-sug" hidden></div>
-      </div>
-
-      <label class="sb-label" for="sbAlertModel">Shoe Model:</label>
-      <div class="sb-input-wrap">
-        <input class="sb-input" type="text" id="sbAlertModel" placeholder="Enter shoe model..." autocomplete="off" required>
-        <button type="button" class="sb-clear" data-clear="#sbAlertModel" aria-label="Clear model">×</button>
-        <div id="sbModelSug" class="sb-sug" hidden></div>
-      </div>
-
-      <div class="sb-row">
-        <div class="sb-col">
-          <div class="sb-label">Gender:</div>
-          <div class="sb-gender" id="sbGender">
-
-  <div class="sb-gender-option" data-g="womens">
-    <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
-    <span class="sb-gender-label">Women’s</span>
-  </div>
-
-  <div class="sb-gender-option" data-g="mens">
-    <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
-    <span class="sb-gender-label">Men’s</span>
-  </div>
-
-  <div class="sb-gender-option active" data-g="both">
-    <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
-    <span class="sb-gender-label">Both</span>
-  </div>
-
-</div>
-
-        </div>
-
-        <div class="sb-col sb-price-col">
-          <label class="sb-label" for="sbAlertPrice">Target Price:</label>
-          <div class="sb-price-wrap">
-            <span class="sb-dollar">$</span>
-            <input class="sb-input sb-price"
-       type="text"
-       id="sbAlertPrice"
-       placeholder="Enter whole dollars."
-       inputmode="numeric"
-       autocomplete="off"
-       aria-label="Target price in whole dollars">
-
-            
-            <button type="button" class="sb-clear sb-clear-price" data-clear="#sbAlertPrice" aria-label="Clear price">×</button>
+          <label class="sb-label" for="sbAlertBrand">Shoe Brand:</label>
+          <div class="sb-input-wrap">
+            <input class="sb-input" type="text" id="sbAlertBrand" placeholder="Enter shoe brand..." autocomplete="off" required>
+            <button type="button" class="sb-clear" data-clear="#sbAlertBrand" aria-label="Clear brand">×</button>
+            <div id="sbBrandSug" class="sb-sug" hidden></div>
           </div>
+
+          <label class="sb-label" for="sbAlertModel">Shoe Model:</label>
+          <div class="sb-input-wrap">
+            <input class="sb-input" type="text" id="sbAlertModel" placeholder="Enter shoe model..." autocomplete="off" required>
+            <button type="button" class="sb-clear" data-clear="#sbAlertModel" aria-label="Clear model">×</button>
+            <div id="sbModelSug" class="sb-sug" hidden></div>
+          </div>
+
+          <div class="sb-row">
+            <div class="sb-col">
+              <div class="sb-label">Gender:</div>
+
+              <!-- Your “checkbox + label” vertical list -->
+              <div class="sb-gender" id="sbGender">
+                <div class="sb-gender-option" data-g="womens" role="radio" aria-checked="false" tabindex="0">
+                  <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
+                  <span class="sb-gender-label">Women’s</span>
+                </div>
+
+                <div class="sb-gender-option" data-g="mens" role="radio" aria-checked="false" tabindex="0">
+                  <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
+                  <span class="sb-gender-label">Men’s</span>
+                </div>
+
+                <div class="sb-gender-option active" data-g="both" role="radio" aria-checked="true" tabindex="0">
+                  <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
+                  <span class="sb-gender-label">Both</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="sb-col sb-price-col">
+              <label class="sb-label" for="sbAlertPrice">Target Price:</label>
+              <div class="sb-price-wrap">
+                <span class="sb-dollar">$</span>
+                <input class="sb-input sb-price"
+                       type="text"
+                       id="sbAlertPrice"
+                       placeholder="Enter whole dollars."
+                       inputmode="numeric"
+                       autocomplete="off"
+                       aria-label="Target price in whole dollars"
+                       required>
+
+                <button type="button" class="sb-clear sb-clear-price" data-clear="#sbAlertPrice" aria-label="Clear price">×</button>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="sb-submit" id="sbSetAlertBtn">Set Alert</button>
+
+          <div class="sb-note">
+            <div class="sb-note-title">Important</div>
+            <ul>
+              <li>Your email will never be sold or shared by Shoe Beagle, and will only be used for confirmation and notifications.</li>
+              <li>Save your confirmation email — it contains your only secure link to cancel or manage alerts.</li>
+              <li>For your security, we don’t offer sign-in or alert management from the website.</li>
+            </ul>
+          </div>
+
+          <div id="sbStatus" class="sb-status" hidden></div>
         </div>
-      </div>
 
-      <button type="submit" class="sb-submit" id="sbSetAlertBtn">Set Alert</button>
-
-      <div class="sb-note">
-        <div class="sb-note-title">Important</div>
-        <ul>
-          <li>Your email will never be sold or shared by Shoe Beagle, and will only be used for confirmation and notifications.</li>
-          <li>Save your confirmation email — it contains your only secure link to cancel or manage alerts.</li>
-          <li>For your security, we don’t offer sign-in or alert management from the website.</li>
-        </ul>
-      </div>
-
-      <div id="sbStatus" class="sb-status" hidden></div>
-
-      <div id="sbConfirm" class="sb-confirm" hidden>
-        <div class="sb-confirm-title">✓ Alert Set Successfully!</div>
-        <div id="sbConfirmDetails" class="sb-confirm-details"></div>
-        <div class="sb-confirm-msg">
-          You’ll receive a confirmation email shortly. If we find your shoes at or below your target price, we’ll email you immediately. This alert expires in 30 days.
+        <!-- SUCCESS VIEW (clears/overrides the previous screen) -->
+        <div id="sbConfirm" class="sb-confirm" hidden>
+          <div class="sb-confirm-title">✓ Alert Set Successfully!</div>
+          <div id="sbConfirmDetails" class="sb-confirm-details"></div>
+          <div class="sb-confirm-msg">
+            You’ll receive a confirmation email shortly. If we find your shoes at or below your target price, we’ll email you immediately. This alert expires in 30 days.
+          </div>
+          <button type="button" class="sb-submit sb-secondary" id="sbSetAnother">Set Another Alert</button>
         </div>
-        <button type="button" class="sb-submit sb-secondary" id="sbSetAnother">Set Another Alert</button>
-      </div>
-    </form>
+
+        <!-- MAXED OUT VIEW (clears/overrides the previous screen) -->
+        <div id="sbMaxed" class="sb-confirm" hidden>
+          <div class="sb-confirm-title">Alert Limit Reached</div>
+          <div class="sb-confirm-details" style="border-color: rgba(220,53,69,0.35);">
+            <div style="font-weight:800; color:#214478ff; margin-bottom:6px;">You’ve reached the maximum number of alerts.</div>
+            <div style="line-height:1.45;">
+              If you want to set another alert, open your confirmation email and use the secure link inside it to remove an existing alert first.
+            </div>
+          </div>
+          <button type="button" class="sb-submit sb-secondary" id="sbMaxedClose">Close</button>
+        </div>
+      </form>
+    </div>
   </div>
-</div>
-  <script src="/brandModels.js?v=1"></script>
-<script src="/pages/index.js?v=1"></script>
+
+  <!-- ===== Modal controller (edited to: single-select gender + success/max screens clear prior view) ===== -->
+  <script>
+  (() => {
+    const openers = document.querySelectorAll("[data-open-alert]");
+
+    const backdrop = document.getElementById("sbAlertBackdrop");
+    const closeBtn = document.getElementById("sbAlertClose");
+    const form = document.getElementById("sbSetAlertForm");
+
+    const formView = document.getElementById("sbAlertFormView");
+    const confirmBox = document.getElementById("sbConfirm");
+    const confirmDetails = document.getElementById("sbConfirmDetails");
+    const setAnother = document.getElementById("sbSetAnother");
+
+    const maxedBox = document.getElementById("sbMaxed");
+    const maxedClose = document.getElementById("sbMaxedClose");
+
+    const emailEl = document.getElementById("sbAlertEmail");
+    const brandEl = document.getElementById("sbAlertBrand");
+    const modelEl = document.getElementById("sbAlertModel");
+    const priceEl = document.getElementById("sbAlertPrice");
+
+    const brandSug = document.getElementById("sbBrandSug");
+    const modelSug = document.getElementById("sbModelSug");
+
+    const genderWrap = document.getElementById("sbGender");
+    const btn = document.getElementById("sbSetAlertBtn");
+
+    const status = document.getElementById("sbStatus");
+
+    const API_ALERTS = "/api/alerts";
+
+    const brandModels = window.brandModels || {};
+    const brands = Object.keys(brandModels).sort((a,b) => a.localeCompare(b));
+    const allModels = (() => {
+      const flat = [];
+      for (const b of Object.keys(brandModels)) {
+        const arr = brandModels[b];
+        if (Array.isArray(arr)) flat.push(...arr);
+      }
+      return Array.from(new Set(flat)).sort((a,b) => a.localeCompare(b));
+    })();
+
+    if (!backdrop || !closeBtn || !form || !emailEl || !brandEl || !modelEl || !priceEl || !genderWrap) return;
+
+    let lastFocus = null;
+    let busy = false;
+    let selectedGender = "both";
+
+    function setBusy(v){
+      busy = v;
+      if (btn) btn.disabled = v;
+      if (btn) btn.textContent = v ? "Setting..." : "Set Alert";
+    }
+
+    function hideStatus(){
+      if (!status) return;
+      status.hidden = true;
+      status.textContent = "";
+      status.className = "sb-status";
+    }
+
+    function showStatus(msg, ok=false){
+      if (!status) return;
+      status.hidden = false;
+      status.className = "sb-status " + (ok ? "ok" : "err");
+      status.textContent = msg;
+    }
+
+    function openModal(prefillEmail){
+      lastFocus = document.activeElement;
+
+      // Reset views
+      hideStatus();
+      if (confirmBox) confirmBox.hidden = true;
+      if (maxedBox) maxedBox.hidden = true;
+      if (formView) formView.hidden = false;
+
+      // Reset inputs (keep email if already present or prefilled)
+      if (prefillEmail) emailEl.value = String(prefillEmail).trim().toLowerCase();
+
+      brandEl.value = "";
+      modelEl.value = "";
+      priceEl.value = "";
+
+      // Default gender = both (single select)
+      setGender("both");
+
+      backdrop.classList.add("open");
+      backdrop.setAttribute("aria-hidden", "false");
+      document.body.style.overflow = "hidden";
+
+      setTimeout(() => (emailEl.value ? brandEl.focus() : emailEl.focus()), 0);
+    }
+
+    function closeModal(){
+      closeSuggestions();
+      backdrop.classList.remove("open");
+      backdrop.setAttribute("aria-hidden", "true");
+      document.body.style.overflow = "";
+      if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
+    }
+
+    openers.forEach(el => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        const emailFromQS = new URLSearchParams(location.search).get("email");
+        openModal(emailFromQS);
+      });
+    });
+
+    closeBtn.addEventListener("click", closeModal);
+    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) closeModal(); });
+    document.addEventListener("keydown", (e) => {
+      if (backdrop.classList.contains("open") && e.key === "Escape") closeModal();
+    });
+
+    if (maxedClose) maxedClose.addEventListener("click", closeModal);
+
+    // ===== Gender: single select ONLY =====
+    function setGender(g){
+      selectedGender = g;
+      const opts = genderWrap.querySelectorAll(".sb-gender-option");
+      opts.forEach(o => {
+        const on = o.getAttribute("data-g") === g;
+        o.classList.toggle("active", on);
+        o.setAttribute("aria-checked", on ? "true" : "false");
+      });
+    }
+
+    genderWrap.addEventListener("click", (e) => {
+      const opt = e.target.closest(".sb-gender-option");
+      if (!opt) return;
+      const g = opt.getAttribute("data-g") || "both";
+      setGender(g);
+    });
+
+    // Keyboard accessibility (optional but small)
+    genderWrap.addEventListener("keydown", (e) => {
+      const opt = e.target.closest(".sb-gender-option");
+      if (!opt) return;
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        const g = opt.getAttribute("data-g") || "both";
+        setGender(g);
+      }
+    });
+
+    // ===== Clear buttons =====
+    document.addEventListener("click", (e) => {
+      if (!backdrop.classList.contains("open")) return;
+      const c = e.target.closest("[data-clear]");
+      if (!c) return;
+
+      e.preventDefault();
+      const sel = c.getAttribute("data-clear");
+      const input = sel ? document.querySelector(sel) : null;
+      if (!input) return;
+
+      input.value = "";
+      hideStatus();
+      closeSuggestions(input === brandEl ? "brand" : input === modelEl ? "model" : null);
+      input.focus();
+    });
+
+    // ===== Price: whole digits only (max 4 digits) =====
+    function normalizeWholeDollars(v){
+      let s = String(v || "").replace(/[^0-9]/g, "");
+      s = s.replace(/^0+(?=\d)/, "");
+      if (!s) s = "";
+      return s.slice(0, 4); // <= you asked for 4
+    }
+
+    priceEl.addEventListener("input", () => {
+      priceEl.value = normalizeWholeDollars(priceEl.value);
+    });
+
+    priceEl.addEventListener("keypress", (e) => {
+      if (e.key && !/[0-9]/.test(e.key)) e.preventDefault();
+    });
+
+    // ===== Suggestions =====
+    const S = { open: null, items: [], idx: -1 };
+    const squash = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    function score(cand, q){
+      const c = String(cand||"");
+      const cl = c.toLowerCase();
+      q = String(q||"").trim().toLowerCase();
+      if (!q) return 0;
+      const cs = squash(c), qs = squash(q);
+      let s = 0;
+      if (cl.startsWith(q)) s += 120;
+      if (cl.includes(q)) s += 80;
+      if (qs.length >= 3 && cs.includes(qs)) s += 110;
+      s -= Math.min(c.length, 30) * 0.25;
+      return s;
+    }
+
+    function topMatches(list, typed, limit=10){
+      const q = String(typed||"").trim();
+      if (!q) return [];
+      return list
+        .map(v => ({ v, s: score(v, q) }))
+        .filter(x => x.s > 0)
+        .sort((a,b) => b.s - a.s)
+        .slice(0, limit)
+        .map(x => x.v);
+    }
+
+    function renderSug(box, items, which, onPick){
+      box.innerHTML = "";
+      if (!items.length){
+        box.hidden = true;
+        if (S.open === which) S.open = null;
+        return;
+      }
+      S.open = which; S.items = items; S.idx = -1;
+      items.forEach((v) => {
+        const d = document.createElement("div");
+        d.className = "item";
+        d.textContent = v;
+        d.addEventListener("mousedown", (e) => { e.preventDefault(); onPick(v); });
+        box.appendChild(d);
+      });
+      box.hidden = false;
+    }
+
+    function closeSuggestions(which){
+      if (!which || which === "brand"){ brandSug.hidden = true; brandSug.innerHTML = ""; }
+      if (!which || which === "model"){ modelSug.hidden = true; modelSug.innerHTML = ""; }
+      if (!which){ S.open = null; S.items = []; S.idx = -1; }
+      else if (S.open === which){ S.open = null; S.items = []; S.idx = -1; }
+    }
+
+    function resolveBrandKey(input){
+      const n = String(input||"").trim().toLowerCase();
+      return brands.find(b => String(b).trim().toLowerCase() === n) || "";
+    }
+
+    function toggleClear(input){
+      const wrap = input.closest(".sb-input-wrap");
+      if (!wrap) return;
+      const c = wrap.querySelector(".sb-clear");
+      if (!c) return;
+      c.style.display = input.value.trim() ? "flex" : "none";
+    }
+
+    brandEl.addEventListener("input", () => {
+      const t = brandEl.value.trim();
+      toggleClear(brandEl);
+      if (!t) return closeSuggestions("brand");
+      renderSug(brandSug, topMatches(brands, t, 12), "brand", (v) => {
+        brandEl.value = v; toggleClear(brandEl);
+        closeSuggestions("brand");
+        setTimeout(() => modelEl.focus(), 0);
+      });
+    });
+
+    modelEl.addEventListener("input", () => {
+      const t = modelEl.value.trim();
+      toggleClear(modelEl);
+      if (!t) return closeSuggestions("model");
+      const bk = resolveBrandKey(brandEl.value);
+      const pool = (bk && Array.isArray(brandModels[bk])) ? brandModels[bk] : allModels;
+      renderSug(modelSug, topMatches(pool, t, 12), "model", (v) => {
+        modelEl.value = v; toggleClear(modelEl);
+        closeSuggestions("model");
+        setTimeout(() => priceEl.focus(), 0);
+      });
+    });
+
+    brandEl.addEventListener("focus", () => toggleClear(brandEl));
+    modelEl.addEventListener("focus", () => toggleClear(modelEl));
+
+    // ===== API submit =====
+    function sanitize(str){
+      return String(str||"")
+        .replace(/[<>'"]/g, "")
+        .replace(/script/gi, "")
+        .replace(/javascript:/gi, "")
+        .replace(/on\w+=/gi, "")
+        .trim()
+        .slice(0, 100);
+    }
+
+    function esc(s){
+      return String(s||"")
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+    }
+
+    async function postJson(url, payload){
+      const res = await fetch(url, {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // If your API sends { code: "MAX_ALERTS" } or similar, we respect it.
+        const code = data && data.code ? String(data.code) : "";
+        const msg = data && data.error ? String(data.error) : `HTTP ${res.status}: Failed to create alert`;
+        const err = new Error(msg);
+        err.code = code;
+        throw err;
+      }
+
+      return data;
+    }
+
+    function showSuccess(brand, model, gender, price){
+      const genderText = gender === "mens" ? "Men’s" : gender === "womens" ? "Women’s" : "Men’s or Women’s";
+      confirmDetails.innerHTML =
+        `<div><strong>Shoe:</strong> ${esc(brand)} ${esc(model)}</div>
+         <div><strong>Gender:</strong> ${esc(genderText)}</div>
+         <div><strong>Target Price:</strong> $${esc(String(price))} or less</div>`;
+
+      // Clear/override previous screen
+      hideStatus();
+      closeSuggestions();
+      if (formView) formView.hidden = true;
+      if (maxedBox) maxedBox.hidden = true;
+      if (confirmBox) confirmBox.hidden = false;
+
+      // Clear the prior inputs so it feels “reset”
+      brandEl.value = "";
+      modelEl.value = "";
+      priceEl.value = "";
+      toggleClear(brandEl);
+      toggleClear(modelEl);
+    }
+
+    function showMaxedOut(){
+      hideStatus();
+      closeSuggestions();
+      if (formView) formView.hidden = true;
+      if (confirmBox) confirmBox.hidden = true;
+      if (maxedBox) maxedBox.hidden = false;
+
+      // Clear prior inputs (per your requirement)
+      brandEl.value = "";
+      modelEl.value = "";
+      priceEl.value = "";
+      toggleClear(brandEl);
+      toggleClear(modelEl);
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (busy) return;
+
+      hideStatus();
+      if (confirmBox) confirmBox.hidden = true;
+      if (maxedBox) maxedBox.hidden = true;
+
+      const email = sanitize(emailEl.value).toLowerCase();
+      const brand = sanitize(brandEl.value);
+      const model = sanitize(modelEl.value);
+      const targetPrice = parseInt(String(priceEl.value || ""), 10);
+      const gender = selectedGender;
+
+      if (!email || !email.includes("@")) return showStatus("Please enter a valid email address.");
+      if (!brand) return showStatus("Please enter a shoe brand.");
+      if (!model) return showStatus("Please enter a shoe model.");
+      if (!targetPrice || targetPrice <= 0) return showStatus("Please enter a valid target price (whole dollars).");
+
+      setBusy(true);
+      try {
+        await postJson(API_ALERTS, { email, brand, model, targetPrice, gender });
+        showSuccess(brand, model, gender, targetPrice);
+
+      } catch (err) {
+        const msg = (err && err.message) ? String(err.message) : "Failed to set alert.";
+
+        // Detect max alerts: either API error code, or message contains "max"
+        const code = err && err.code ? String(err.code) : "";
+        const looksMax =
+          code.toUpperCase().includes("MAX") ||
+          msg.toLowerCase().includes("max") ||
+          msg.toLowerCase().includes("limit");
+
+        if (looksMax) {
+          showMaxedOut();
+        } else {
+          showStatus(msg);
+        }
+      } finally {
+        setBusy(false);
+      }
+    });
+
+    if (setAnother) {
+      setAnother.addEventListener("click", () => {
+        // Return to form view, keep email + gender selection
+        if (confirmBox) confirmBox.hidden = true;
+        if (maxedBox) maxedBox.hidden = true;
+        if (formView) formView.hidden = false;
+        hideStatus();
+
+        brandEl.value = "";
+        modelEl.value = "";
+        priceEl.value = "";
+        toggleClear(brandEl);
+        toggleClear(modelEl);
+        closeSuggestions();
+
+        setTimeout(() => brandEl.focus(), 0);
+      });
+    }
+  })();
+  </script>
 
 </body>
 </html>
