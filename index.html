@@ -1181,10 +1181,24 @@ shrinkInputs();
         <div class="sb-col">
           <div class="sb-label">Gender:</div>
           <div class="sb-gender" id="sbGender">
-            <button type="button" class="sb-chip" data-g="womens">Women’s</button>           
-            <button type="button" class="sb-chip" data-g="mens">Men’s</button>
-            <button type="button" class="sb-chip active" data-g="both">Both</button>
-          </div>
+
+  <div class="sb-gender-option" data-g="womens">
+    <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
+    <span class="sb-gender-label">Women’s</span>
+  </div>
+
+  <div class="sb-gender-option" data-g="mens">
+    <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
+    <span class="sb-gender-label">Men’s</span>
+  </div>
+
+  <div class="sb-gender-option active" data-g="both">
+    <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
+    <span class="sb-gender-label">Both</span>
+  </div>
+
+</div>
+
         </div>
 
         <div class="sb-col sb-price-col">
