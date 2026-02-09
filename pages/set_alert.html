@@ -8,10 +8,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
+    :root{
+      /* Set this to match your index page input background */
+      --input-bg: #ffffff; /* <-- change this to your index input background color */
+      --sb-blue: #214478ff;
+      --bg: #f4ede3ff;
+    }
+
     body{
       margin:0;
       padding:2rem 1rem;
-      background:#f4ede3ff;
+      background:var(--bg);
       font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
       color:#2d2d2d;
       display:flex;
@@ -45,14 +52,14 @@
       width:100%;
       max-width:720px;
       background:#ffffffc9;
-      border:2px solid #214478ff;
+      border:2px solid var(--sb-blue);
       border-radius:.75rem;
       padding:1.25rem 1.25rem 1.5rem;
       box-sizing:border-box;
     }
 
     .title{
-      color:#214478ff;
+      color:var(--sb-blue);
       font-size:1.6rem;
       font-weight:800;
       text-align:center;
@@ -78,7 +85,7 @@
     .field label{
       font-size:.9rem;
       font-weight:700;
-      color:#214478ff;
+      color:var(--sb-blue);
       display:block;
       margin:0 0 .35rem;
     }
@@ -91,11 +98,13 @@
       padding:0 .85rem;
       font-size:1rem;
       box-sizing:border-box;
-      background:#fff;
+      background:var(--input-bg);
       outline:none;
+      -webkit-appearance: none;
+      appearance: none;
     }
     input:focus{
-      border-color:#214478ff;
+      border-color:var(--sb-blue);
       box-shadow:0 0 0 3px rgba(33,68,120,.18);
     }
 
@@ -106,7 +115,11 @@
       line-height:1.25;
     }
 
-    .price-wrap{ position:relative; }
+    /* ---------- Target Price: show $ + non-editable .00 on focus ---------- */
+    .price-wrap{
+      position:relative;
+    }
+
     .price-wrap::before{
       content:'$';
       position:absolute;
@@ -117,8 +130,28 @@
       font-weight:800;
       pointer-events:none;
     }
+
+    /* The ".00" suffix (hidden until focused) */
+    .price-wrap::after{
+      content:'.00';
+      position:absolute;
+      right:.85rem;
+      top:50%;
+      transform:translateY(-50%);
+      color:#666;
+      font-weight:800;
+      pointer-events:none;
+      opacity:0;
+      transition:opacity .12s ease;
+    }
+
+    .price-wrap.is-focused::after{
+      opacity:1;
+    }
+
     .price-input{
-      padding-left:1.95rem;
+      padding-left:1.95rem;         /* room for $ */
+      padding-right:3.0rem;         /* room for .00 */
       text-align:right;
     }
 
@@ -133,8 +166,8 @@
     button{
       padding:.65rem 1.15rem;
       border-radius:999px;
-      border:1px solid #214478ff;
-      background:#214478ff;
+      border:1px solid var(--sb-blue);
+      background:var(--sb-blue);
       color:#fff;
       font-weight:700;
       font-size:.98rem;
@@ -144,8 +177,8 @@
     button:hover{ background:#1a3661; }
     button.secondary{
       background:#fff;
-      color:#214478ff;
-      border:2px solid #214478ff;
+      color:var(--sb-blue);
+      border:2px solid var(--sb-blue);
     }
     button.secondary:hover{ background:rgba(33,68,120,.1); }
 
@@ -153,7 +186,7 @@
       margin:.95rem 0 0;
       padding:.85rem .95rem;
       background:rgba(33, 68, 120, 0.06);
-      border-left:4px solid #214478ff;
+      border-left:4px solid var(--sb-blue);
       border-radius:.5rem;
       color:#334;
       font-size:.92rem;
@@ -161,7 +194,7 @@
     }
     .note-title{
       font-weight:900;
-      color:#214478ff;
+      color:var(--sb-blue);
       margin:0 0 .35rem;
       font-style:normal;
     }
@@ -226,31 +259,61 @@
       <div class="title">Set a Price Alert</div>
       <div class="subtitle">Enter a shoe and a target price. We’ll email you if we find it at or below your price.</div>
 
+      <!-- DATALISTS (dropdown suggestions as you type) -->
+      <datalist id="brandOptions">
+        <option value="ASICS"></option>
+        <option value="Brooks"></option>
+        <option value="HOKA"></option>
+        <option value="Nike"></option>
+        <option value="Adidas"></option>
+        <option value="New Balance"></option>
+        <option value="Saucony"></option>
+        <option value="Mizuno"></option>
+        <option value="On"></option>
+        <option value="Altra"></option>
+        <option value="Puma"></option>
+      </datalist>
+
+      <datalist id="modelOptions">
+        <option value="Gel-Kayano 30"></option>
+        <option value="GT-2000 12"></option>
+        <option value="Gel-Nimbus 26"></option>
+        <option value="Ghost 15"></option>
+        <option value="Glycerin 21"></option>
+        <option value="Adrenaline GTS 23"></option>
+        <option value="Clifton 9"></option>
+        <option value="Bondi 8"></option>
+        <option value="Mach 6"></option>
+        <option value="Pegasus 40"></option>
+        <option value="Vomero 17"></option>
+        <option value="1080v13"></option>
+        <option value="880v14"></option>
+        <option value="Ride 17"></option>
+        <option value="Endorphin Speed 4"></option>
+      </datalist>
+
       <form id="alertForm" autocomplete="off">
         <div class="field">
           <label for="email">Email</label>
           <input id="email" name="email" type="email" placeholder="you@example.com" required />
-          <div class="hint">We’ll send your confirmation email here.</div>
         </div>
 
         <div class="field">
           <label for="brand">Brand</label>
-          <input id="brand" name="brand" type="text" placeholder="Examples: ASICS, Brooks, Nike, HOKA" required />
-          <div class="hint">Tip: keep it simple (one brand).</div>
+          <input id="brand" name="brand" type="text" list="brandOptions" placeholder="Start typing (ex: ASICS, Brooks, Nike)" required />
         </div>
 
         <div class="field">
           <label for="model">Model</label>
-          <input id="model" name="model" type="text" placeholder="Examples: Gel-Kayano 30, Ghost 15, Pegasus 40" required />
-          <div class="hint">Tip: include the number/version if there is one.</div>
+          <input id="model" name="model" type="text" list="modelOptions" placeholder="Start typing (ex: Gel-Kayano 30, Ghost 15)" required />
+          <div class="hint">If your model isn’t suggested, just type it exactly.</div>
         </div>
 
         <div class="field">
           <label for="targetPrice">Target Price</label>
-          <div class="price-wrap">
+          <div class="price-wrap" id="priceWrap">
             <input id="targetPrice" name="targetPrice" type="text" inputmode="numeric" class="price-input" placeholder="120" required />
           </div>
-          <div class="hint">Whole dollars only (example: 120).</div>
         </div>
 
         <div class="btn-row">
@@ -294,6 +357,9 @@
     const anotherBtn = document.getElementById("anotherBtn");
     const homeBtn = document.getElementById("homeBtn");
 
+    const priceWrap = document.getElementById("priceWrap");
+    const priceInput = document.getElementById("targetPrice");
+
     document.getElementById("footerYear").textContent = new Date().getFullYear();
 
     // Prefill email from querystring if present
@@ -303,10 +369,22 @@
       if (email) document.getElementById("email").value = email;
     })();
 
-    // numeric-only target price
-    const priceInput = document.getElementById("targetPrice");
+    // numeric-only target price (whole dollars)
     priceInput.addEventListener("input", (e) => {
       e.target.value = e.target.value.replace(/[^0-9]/g, "");
+    });
+
+    // Show ".00" only when focused
+    priceInput.addEventListener("focus", () => {
+      priceWrap.classList.add("is-focused");
+      // keep caret in the dollars field (there is no decimal in the input)
+      requestAnimationFrame(() => {
+        const len = priceInput.value.length;
+        priceInput.setSelectionRange(len, len);
+      });
+    });
+    priceInput.addEventListener("blur", () => {
+      priceWrap.classList.remove("is-focused");
     });
 
     function showStatus(msg, type){
