@@ -1323,7 +1323,7 @@ button{
   border-radius:10px;
   border:1px solid #214478ff;
   background:#fafdf4;
-  padding:0 12px; /* cursor + text start at the front */
+  padding:0 6px; /* cursor + text start at the front */
   font-size:1rem;
   box-sizing:border-box;
 }
@@ -1395,22 +1395,45 @@ button{
   align-items:flex-start;
   gap:8px;
 }
-
-
-
-
-
-.sb-chip{
-  height:34px;
-  padding:0 10px;
-  border-radius:999px;
-  border:1px solid #214478ff;
-  background:#fff;
-  color:#214478ff;
-  font-weight:700;
+.sb-gender-option{
+  display:flex;
+  align-items:center;
+  gap:8px;
   cursor:pointer;
+  user-select:none;
+  font-weight:600;
+  color:#2d2d2d;
 }
-.sb-chip.active{ background:#214478ff; color:#fff; }
+/* the little square */
+.sb-gender-box{
+  width:18px;
+  height:18px;
+  border:1px solid #214478ff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#fff;
+  flex-shrink:0;
+}
+
+/* the checkmark */
+.sb-gender-check{
+  display:none;
+  font-size:14px;
+  line-height:1;
+  color:#1f6a2a;
+  font-weight:900;
+}
+
+/* active state */
+.sb-gender-option.active .sb-gender-check{
+  display:block;
+}
+
+.sb-gender-label{
+  font-size:0.95rem;
+}
+
 
 .sb-price-wrap{
   position:relative;
