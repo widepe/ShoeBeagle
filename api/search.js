@@ -300,7 +300,11 @@ module.exports = async (req, res) => {
 
     let dealsData;
     try {
-      const response = await fetch(blob.url);
+      // ✅ CACHE BUST: Vercel Blob public URLs can be CDN-cached even after overwrite.
+// Adding a unique query param forces a fresh fetch of the newest blob contents.
+const freshUrl = `${blob.url}${blob.url.includes("?") ? "&" : "?"}cb=${Date.now()}`;
+const response = await fetch(freshUrl, { cache: "no-store" });
+
       if (!response.ok) throw new Error(`Blob fetch failed: ${response.status}`);
       dealsData = await response.json();
     } catch (blobError) {
