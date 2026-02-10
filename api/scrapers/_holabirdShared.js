@@ -210,28 +210,27 @@ function extractBrandAndModel(title) {
   return { brand: "Unknown", model: title };
 }
 
-function detectGender(url, listingName) {
-  const urlLower = (url || "").toLowerCase();
-  const combined = (urlLower + " " + (listingName || "").toLowerCase()).trim();
+function detectGender(listingName) {
+  const name = (listingName || "").toLowerCase();
 
-  if (/gender_mens|\/mens[\/-]|men-/.test(urlLower)) return "mens";
-  if (/gender_womens|\/womens[\/-]|women-/.test(urlLower)) return "womens";
-
-  if (/\b(men'?s?|male)\b/i.test(combined)) return "mens";
-  if (/\b(women'?s?|female|ladies)\b/i.test(combined)) return "womens";
-  if (/\bunisex\b/i.test(combined)) return "unisex";
+  if (/\bmen'?s\b/.test(name)) return "mens";
+  if (/\bwomen'?s\b/.test(name)) return "womens";
+  if (/\bunisex\b/.test(name)) return "unisex";
 
   return "unknown";
 }
 
-function detectShoeType(url, listingName) {
-  const combined = ((url || "") + " " + (listingName || "")).toLowerCase();
 
-  if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross)\b/i.test(combined))
-    return "trail";
-  if (/\b(track|spike|dragonfly|zoom.*victory|spikes?)\b/i.test(combined)) return "track";
-  return "road";
+function detectShoeType(listingName) {
+  const name = (listingName || "").toLowerCase();
+
+  if (/\btrail\b/.test(name)) return "trail";
+  if (/\btrack\b/.test(name) || /\bspike(s)?\b/.test(name)) return "track";
+  if (/\broad\b/.test(name)) return "road";
+
+  return "unknown";
 }
+
 
 function randomDelay(min = 250, max = 700) {
   const wait = Math.floor(Math.random() * (max - min + 1)) + min;
@@ -310,8 +309,9 @@ async function scrapeHolabirdCollection({
         store: "Holabird Sports",
         listingURL,
         imageURL: findBestImageURL($, $link, $container),
-        gender: detectGender(listingURL, listingName),
-        shoeType: detectShoeType(listingURL, listingName),
+gender: detectGender(listingName),
+shoeType: detectShoeType(listingName),
+
       });
 
       seen.add(listingURL);
