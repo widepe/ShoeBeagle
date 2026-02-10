@@ -596,7 +596,7 @@ color:#888;
   position:relative;
   width:100%;
   overflow:hidden;
-  aspect-ratio:1 / 1;
+  aspect-ratio:4 / 3;
 }
 
 .card img{
