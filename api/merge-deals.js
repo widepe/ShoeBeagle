@@ -535,23 +535,32 @@ function dedupeDeals(deals) {
   return unique;
 }
 
-/** ------------ Blob-only fetch helpers ------------ **/
+/** ------------ Blob-only fetch helpers CACHE BUSTER fetch fresh data ------------ **/
 
 async function fetchJson(url) {
   try {
-    const resp = await axios.get(url, {
+    // ✅ CACHE-BUST: force a fresh fetch from Blob CDN (prevents stale week-old JSON)
+    const cacheBustedUrl = `${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`;
+
+    const resp = await axios.get(cacheBustedUrl, {
       timeout: 30000,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         Accept: "application/json,text/plain,*/*",
+
+        // ✅ Best-effort (some CDNs still ignore; cb param above is the real fix)
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
       },
     });
+
     return resp.data;
   } catch (e) {
     throw new Error(`fetchJson failed for ${url}: ${e?.message || String(e)}`);
   }
 }
+
 
 async function loadDealsFromBlobOnly({ name, blobUrl }) {
   const metadata = {
