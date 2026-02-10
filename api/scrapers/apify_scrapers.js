@@ -10,6 +10,8 @@
 //   REI Outlet:          REI_DEALS_BLOB_URL
 //   Road Runner Sports:  ROADRUNNER_DEALS_BLOB_URL
 //   Zappos:              ZAPPOS_DEALS_BLOB_URL
+//   Foot Locker:         FOOTLOCKER_DEALS_BLOB_URL
+//   RnJ Sports:          RNJSPORTS_DEALS_BLOB_URL
 //
 // IMPORTANT:
 // - The env vars above should contain the FULL PUBLIC blob URL
@@ -295,6 +297,72 @@ async function fetchZapposDeals() {
   });
 }
 
+async function fetchFootlockerDeals() {
+  const STORE = "Foot Locker";
+  const actorId = process.env.APIFY_FOOTLOCKER_ACTOR_ID;
+  if (!actorId) throw new Error("APIFY_FOOTLOCKER_ACTOR_ID is not set");
+
+  const items = await fetchActorDatasetItems(actorId, STORE);
+
+  return items.map((item) => {
+    const { salePrice, originalPrice } = normalizeApifyPrices(item);
+
+    const brand = item.brand || "Unknown";
+    const model = item.model || "";
+    const listingName = item.title || `${brand} ${model}`.trim() || "Running Shoe";
+    const listingURL = item.url || "#";
+    const imageURL = item.image ?? null;
+    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+
+    return {
+      listingName,
+      brand,
+      model,
+      salePrice: salePrice ?? null,
+      originalPrice: originalPrice ?? null,
+      discountPercent,
+      store: item.store || STORE,
+      listingURL,
+      imageURL,
+      gender: item.gender || detectGender(listingURL, listingName),
+      shoeType: item.shoeType || detectShoeType(listingName, model),
+    };
+  });
+}
+
+async function fetchRnjSportsDeals() {
+  const STORE = "RnJ Sports";
+  const actorId = process.env.APIFY_RNJSPORTS_ACTOR_ID;
+  if (!actorId) throw new Error("APIFY_RNJSPORTS_ACTOR_ID is not set");
+
+  const items = await fetchActorDatasetItems(actorId, STORE);
+
+  return items.map((item) => {
+    const { salePrice, originalPrice } = normalizeApifyPrices(item);
+
+    const brand = item.brand || "Unknown";
+    const model = item.model || "";
+    const listingName = item.title || `${brand} ${model}`.trim() || "Running Shoe";
+    const listingURL = item.url || "#";
+    const imageURL = item.image ?? null;
+    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+
+    return {
+      listingName,
+      brand,
+      model,
+      salePrice: salePrice ?? null,
+      originalPrice: originalPrice ?? null,
+      discountPercent,
+      store: item.store || STORE,
+      listingURL,
+      imageURL,
+      gender: item.gender || detectGender(listingURL, listingName),
+      shoeType: item.shoeType || detectShoeType(listingName, model),
+    };
+  });
+}
+
 /** -------------------- Main handler -------------------- **/
 
 module.exports = async (req, res) => {
@@ -317,6 +385,10 @@ module.exports = async (req, res) => {
     { name: "REI Outlet", env: "REI_DEALS_BLOB_URL", fn: fetchReiDeals },
     { name: "Road Runner Sports", env: "ROADRUNNER_DEALS_BLOB_URL", fn: fetchRoadRunnerDeals },
     { name: "Zappos", env: "ZAPPOS_DEALS_BLOB_URL", fn: fetchZapposDeals },
+
+    // NEW
+    { name: "Foot Locker", env: "FOOTLOCKER_DEALS_BLOB_URL", fn: fetchFootlockerDeals },
+    { name: "RnJ Sports", env: "RNJSPORTS_DEALS_BLOB_URL", fn: fetchRnjSportsDeals },
   ];
 
   try {
