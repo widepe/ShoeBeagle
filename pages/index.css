@@ -1559,3 +1559,7 @@ color:#888;
 @media (max-width:420px){
   .sb-price-col{ flex:1; min-width:0; }
 }
+
+.card-image-wrapper{                      /*  TESTING  */
+  outline:6px solid hotpink !important;
+}
