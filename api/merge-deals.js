@@ -283,22 +283,22 @@ function absolutizeUrl(u, base) {
 function storeBaseUrl(store) {
   const s = String(store || "").toLowerCase();
 
-  if (s === "als") return "https://www.als.com";
-  if (s.includes("holabird")) return "https://www.holabirdsports.com";
-  if (s.includes("asics")) return "https://www.asics.com";
-  if (s.includes("brooks")) return "https://www.brooksrunning.com";
-  if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
-  if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
-  if (s.includes("foot locker") || s.includes("footlocker")) return "https://www.footlocker.com";
-  if (s.includes("luke")) return "https://lukeslocker.com";
-  if (s.includes("marathon sports")) return "https://www.marathonsports.com";
-  if (s.includes("rei outlet")) return "https://www.rei.com/rei-garage";
-  if (s === "rei") return "https://www.rei.com";
-  if (s.includes("rei")) return "https://www.rei.com";
-  if (s.includes("road runner")) return "https://www.roadrunnersports.com";
-  if (s.includes("shoebacca")) return "https://www.shoebacca.com";
-  if (s.includes("zappos")) return "https://www.zappos.com";
-  if (s.includes("rnj")) return "https://www.rnjsports.com";
+if (s === "als") return "https://www.als.com";
+if (s.includes("asics")) return "https://www.asics.com";
+if (s.includes("brooks")) return "https://www.brooksrunning.com";
+if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
+if (s.includes("foot locker") || s.includes("footlocker")) return "https://www.footlocker.com";
+if (s.includes("holabird")) return "https://www.holabirdsports.com";
+if (s.includes("luke")) return "https://lukeslocker.com";
+if (s.includes("marathon sports")) return "https://www.marathonsports.com";
+if (s === "rei") return "https://www.rei.com";
+if (s.includes("rei outlet")) return "https://www.rei.com/rei-garage";
+if (s.includes("rei")) return "https://www.rei.com";
+if (s.includes("road runner")) return "https://www.roadrunnersports.com";
+if (s.includes("rnj")) return "https://www.rnjsports.com";
+if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
+if (s.includes("shoebacca")) return "https://www.shoebacca.com";
+if (s.includes("zappos")) return "https://www.zappos.com";
   return "https://example.com";
 }
 
@@ -1154,37 +1154,24 @@ module.exports = async (req, res) => {
   // BLOB URLs (blob-only mode)
   // ============================================================================
 
-  // NEW: Cheerio per-store blobs (replaces CHEERIO_DEALS_BLOB_URL)
-  const RUNNING_WAREHOUSE_CHEERIO_BLOB_URL = String(process.env.RUNNING_WAREHOUSE_CHEERIO_BLOB_URL || "").trim();
-  const FLEET_FEET_CHEERIO_BLOB_URL = String(process.env.FLEET_FEET_CHEERIO_BLOB_URL || "").trim();
-  const LUKES_LOCKER_CHEERIO_BLOB_URL = String(process.env.LUKES_LOCKER_CHEERIO_BLOB_URL || "").trim();
-  const MARATHON_SPORTS_CHEERIO_BLOB_URL = String(process.env.MARATHON_SPORTS_CHEERIO_BLOB_URL || "").trim();
 
-  const APIFY_DEALS_BLOB_URL = String(process.env.APIFY_DEALS_BLOB_URL || "").trim();
-  const BROOKS_DEALS_BLOB_URL = String(process.env.BROOKS_DEALS_BLOB_URL || "").trim();
-  const ROADRUNNER_DEALS_BLOB_URL = String(process.env.ROADRUNNER_DEALS_BLOB_URL || "").trim();
-  const REI_DEALS_BLOB_URL = String(process.env.REI_DEALS_BLOB_URL || "").trim();
+const ALS_SALE_BLOB_URL = String(process.env.ALS_SALE_BLOB_URL || "").trim();
+const ASICS_SALE_BLOB_URL = String(process.env.ASICS_SALE_BLOB_URL || "").trim();
+const BROOKS_DEALS_BLOB_URL = String(process.env.BROOKS_DEALS_BLOB_URL || "").trim();
+const FLEET_FEET_CHEERIO_BLOB_URL = String(process.env.FLEET_FEET_CHEERIO_BLOB_URL || "").trim();
+const FOOTLOCKER_DEALS_BLOB_URL = String(process.env.FOOTLOCKER_DEALS_BLOB_URL || "").trim();
+const HOLABIRD_MENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_MENS_ROAD_BLOB_URL || "").trim();
+const HOLABIRD_TRAIL_UNISEX_BLOB_URL = String(process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "").trim();
+const HOLABIRD_WOMENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "").trim();
+const LUKES_LOCKER_CHEERIO_BLOB_URL = String(process.env.LUKES_LOCKER_CHEERIO_BLOB_URL || "").trim();
+const MARATHON_SPORTS_CHEERIO_BLOB_URL = String(process.env.MARATHON_SPORTS_CHEERIO_BLOB_URL || "").trim();
+const REI_DEALS_BLOB_URL = String(process.env.REI_DEALS_BLOB_URL || "").trim();
+const RNJSPORTS_DEALS_BLOB_URL = String(process.env.RNJSPORTS_DEALS_BLOB_URL || "").trim();
+const ROADRUNNER_DEALS_BLOB_URL = String(process.env.ROADRUNNER_DEALS_BLOB_URL || "").trim();
+const RUNNING_WAREHOUSE_CHEERIO_BLOB_URL = String(process.env.RUNNING_WAREHOUSE_CHEERIO_BLOB_URL || "").trim();
+const SHOEBACCA_CLEARANCE_BLOB_URL = String(process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "").trim();
+const ZAPPOS_DEALS_BLOB_URL = String(process.env.ZAPPOS_DEALS_BLOB_URL || "").trim();
 
-  const HOLABIRD_MENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_MENS_ROAD_BLOB_URL || "").trim();
-  const HOLABIRD_WOMENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "").trim();
-  const HOLABIRD_TRAIL_UNISEX_BLOB_URL = String(process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "").trim();
-
-  const ASICS_SALE_BLOB_URL = String(process.env.ASICS_SALE_BLOB_URL || "").trim();
-  const ALS_SALE_BLOB_URL = String(process.env.ALS_SALE_BLOB_URL || "").trim();
-  const SHOEBACCA_CLEARANCE_BLOB_URL = String(process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "").trim();
-  const SNAILSPACE_SALE_BLOB_URL = String(process.env.SNAILSPACE_SALE_BLOB_URL || "").trim();
-
-  const ZAPPOS_DEALS_BLOB_URL = String(
-    process.env.ZAPPOS_DEALS_BLOB_URL || "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-zappos.json"
-  ).trim();
-
-  const FOOTLOCKER_DEALS_BLOB_URL = String(
-    process.env.FOOTLOCKER_DEALS_BLOB_URL || "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-footlocker.json"
-  ).trim();
-
-  const RNJSPORTS_DEALS_BLOB_URL = String(
-    process.env.RNJSPORTS_DEALS_BLOB_URL || "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/rnjsports.json"
-  ).trim();
 
   const SCRAPER_DATA_BLOB_URL = String(process.env.SCRAPER_DATA_BLOB_URL || "").trim();
 
@@ -1208,7 +1195,6 @@ module.exports = async (req, res) => {
     console.log("[MERGE] LUKES_LOCKER_CHEERIO_BLOB_URL set?", !!LUKES_LOCKER_CHEERIO_BLOB_URL);
     console.log("[MERGE] MARATHON_SPORTS_CHEERIO_BLOB_URL set?", !!MARATHON_SPORTS_CHEERIO_BLOB_URL);
 
-    console.log("[MERGE] APIFY_DEALS_BLOB_URL set?", !!APIFY_DEALS_BLOB_URL);
     console.log("[MERGE] BROOKS_DEALS_BLOB_URL set?", !!BROOKS_DEALS_BLOB_URL);
     console.log("[MERGE] FOOTLOCKER_DEALS_BLOB_URL set?", !!FOOTLOCKER_DEALS_BLOB_URL);
     console.log("[MERGE] ROADRUNNER_DEALS_BLOB_URL set?", !!ROADRUNNER_DEALS_BLOB_URL);
@@ -1226,7 +1212,7 @@ module.exports = async (req, res) => {
       { name: "ASICS Sale", blobUrl: ASICS_SALE_BLOB_URL },
       { name: "ALS Sale", blobUrl: ALS_SALE_BLOB_URL },
 
-      { name: "Apify (non-Holabird)", blobUrl: APIFY_DEALS_BLOB_URL },
+      // Removed: Apify (non-Holabird)
       { name: "Brooks", blobUrl: BROOKS_DEALS_BLOB_URL },
       { name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
 
@@ -1241,9 +1227,6 @@ module.exports = async (req, res) => {
       { name: "Holabird Trail + Unisex", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
 
       { name: "Shoebacca Clearance", blobUrl: SHOEBACCA_CLEARANCE_BLOB_URL },
-
-      // (If you want SNAILSPACE back, add it here)
-      // { name: "Snailspace Sale", blobUrl: SNAILSPACE_SALE_BLOB_URL },
     ];
 
     const settled = await Promise.allSettled(sources.map((s) => loadDealsFromBlobOnly(s)));
