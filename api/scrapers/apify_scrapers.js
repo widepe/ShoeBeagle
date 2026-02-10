@@ -2,9 +2,21 @@
 // Daily scraper for running shoe deals (APIFY ONLY)
 // Runs via Vercel Cron
 //
-// Output blob: apify-deals_blob.json
-// Top-level:
-//   { lastUpdated, scrapeDurationMs, scraperResults, deals }
+// NEW (per your change):
+// - We DO NOT write apify-deals_blob.json anymore.
+// - Each store writes to its OWN blob path, derived from env var URL:
+//
+//   Brooks Running:      BROOKS_DEALS_BLOB_URL
+//   REI Outlet:          REI_DEALS_BLOB_URL
+//   Road Runner Sports:  ROADRUNNER_DEALS_BLOB_URL
+//   Zappos:              ZAPPOS_DEALS_BLOB_URL
+//
+// IMPORTANT:
+// - The env vars above should contain the FULL PUBLIC blob URL
+//   (e.g. https://<your>.public.blob.vercel-storage.com/<filename>.json)
+// - We parse the filename/path from that URL and write to that blob path via put().
+// - Each blob payload top-level:
+//     { lastUpdated, scrapeDurationMs, scraperResult, deals }
 //
 // Deal schema (per deal) - 11 fields:
 //   listingName, brand, model, salePrice, originalPrice, discountPercent,
@@ -28,6 +40,32 @@ function computeDiscountPercent(originalPrice, salePrice) {
   if (originalPrice <= 0 || salePrice <= 0) return null;
   if (salePrice >= originalPrice) return 0;
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+}
+
+function toFiniteNumber(x) {
+  if (x == null) return null;
+  const n = typeof x === "string" ? parseFloat(String(x).replace(/[^0-9.]/g, "")) : x;
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Normalizes Apify price fields across versions.
+ * Supports:
+ * - NEW schema: { salePrice, price } where price = MSRP/list
+ * - OLD schema: { price, originalPrice } where price = current/sale and originalPrice = MSRP
+ */
+function normalizeApifyPrices(item) {
+  const newSale = toFiniteNumber(item?.salePrice);
+  const newOrig = toFiniteNumber(item?.price);
+
+  if (newSale != null || newOrig != null) {
+    return { salePrice: newSale, originalPrice: newOrig };
+  }
+
+  const oldSale = toFiniteNumber(item?.price);
+  const oldOrig = toFiniteNumber(item?.originalPrice);
+
+  return { salePrice: oldSale, originalPrice: oldOrig };
 }
 
 // Detect gender from URL or listing text
@@ -62,33 +100,37 @@ function detectShoeType(listingName, model) {
     return "road";
   }
 
-  return "road";
-}
-
-function toFiniteNumber(x) {
-  if (x == null) return null;
-  const n = typeof x === "string" ? parseFloat(String(x).replace(/[^0-9.]/g, "")) : x;
-  return Number.isFinite(n) ? n : null;
+  // IMPORTANT: if unstated, keep unknown (safer)
+  return "unknown";
 }
 
 /**
- * Normalizes Apify price fields across versions.
- * Supports:
- * - NEW schema: { salePrice, price } where price = MSRP/list
- * - OLD schema: { price, originalPrice } where price = current/sale and originalPrice = MSRP
+ * Env var holds the *public blob URL*.
+ * We need the blob "pathname" to pass to put(), e.g.:
+ *   https://.../brooks.json  ->  "brooks.json"
+ *   https://.../folder/brooks.json -> "folder/brooks.json"
+ *
+ * Accepts either:
+ * - full URL, or
+ * - a plain pathname like "brooks.json"
  */
-function normalizeApifyPrices(item) {
-  const newSale = toFiniteNumber(item?.salePrice);
-  const newOrig = toFiniteNumber(item?.price);
+function blobPathFromEnv(envVal) {
+  const raw = String(envVal || "").trim();
+  if (!raw) return null;
 
-  if (newSale != null || newOrig != null) {
-    return { salePrice: newSale, originalPrice: newOrig };
+  // If it's already a relative-ish path, just use it
+  if (!/^https?:\/\//i.test(raw)) {
+    const p = raw.replace(/^\/+/, "").trim();
+    return p || null;
   }
 
-  const oldSale = toFiniteNumber(item?.price);
-  const oldOrig = toFiniteNumber(item?.originalPrice);
-
-  return { salePrice: oldSale, originalPrice: oldOrig };
+  try {
+    const u = new URL(raw);
+    const p = String(u.pathname || "").replace(/^\/+/, "").trim();
+    return p || null;
+  } catch {
+    return null;
+  }
 }
 
 async function fetchActorDatasetItems(actorId, storeName) {
@@ -120,6 +162,72 @@ async function fetchActorDatasetItems(actorId, storeName) {
 }
 
 /** -------------------- Apify fetchers -------------------- **/
+
+async function fetchBrooksDeals() {
+  const STORE = "Brooks Running";
+  const actorId = process.env.APIFY_BROOKS_ACTOR_ID;
+  if (!actorId) throw new Error("APIFY_BROOKS_ACTOR_ID is not set");
+
+  const items = await fetchActorDatasetItems(actorId, STORE);
+
+  return items.map((item) => {
+    const { salePrice, originalPrice } = normalizeApifyPrices(item);
+
+    const brand = item.brand || "Brooks";
+    const model = item.model || "";
+    const listingName = item.title || `${brand} ${model}`.trim() || "Brooks Running Shoe";
+    const listingURL = item.url || "#";
+    const imageURL = item.image ?? null;
+    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+
+    return {
+      listingName,
+      brand,
+      model,
+      salePrice: salePrice ?? null,
+      originalPrice: originalPrice ?? null,
+      discountPercent,
+      store: item.store || STORE,
+      listingURL,
+      imageURL,
+      gender: item.gender || detectGender(listingURL, listingName),
+      shoeType: item.shoeType || detectShoeType(listingName, model),
+    };
+  });
+}
+
+async function fetchReiDeals() {
+  const STORE = "REI Outlet";
+  const actorId = process.env.APIFY_REI_ACTOR_ID;
+  if (!actorId) throw new Error("APIFY_REI_ACTOR_ID is not set");
+
+  const items = await fetchActorDatasetItems(actorId, STORE);
+
+  return items.map((item) => {
+    const { salePrice, originalPrice } = normalizeApifyPrices(item);
+
+    const brand = item.brand || "Unknown";
+    const model = item.model || "";
+    const listingName = item.title || `${brand} ${model}`.trim() || "REI Outlet Shoe";
+    const listingURL = item.url || "#";
+    const imageURL = item.image ?? null;
+    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+
+    return {
+      listingName,
+      brand,
+      model,
+      salePrice: salePrice ?? null,
+      originalPrice: originalPrice ?? null,
+      discountPercent,
+      store: item.store || STORE,
+      listingURL,
+      imageURL,
+      gender: item.gender || detectGender(listingURL, listingName),
+      shoeType: item.shoeType || detectShoeType(listingName, model),
+    };
+  });
+}
 
 async function fetchRoadRunnerDeals() {
   const STORE = "Road Runner Sports";
@@ -187,72 +295,6 @@ async function fetchZapposDeals() {
   });
 }
 
-async function fetchReiDeals() {
-  const STORE = "REI Outlet";
-  const actorId = process.env.APIFY_REI_ACTOR_ID;
-  if (!actorId) throw new Error("APIFY_REI_ACTOR_ID is not set");
-
-  const items = await fetchActorDatasetItems(actorId, STORE);
-
-  return items.map((item) => {
-    const { salePrice, originalPrice } = normalizeApifyPrices(item);
-
-    const brand = item.brand || "Unknown";
-    const model = item.model || "";
-    const listingName = item.title || `${brand} ${model}`.trim() || "REI Outlet Shoe";
-    const listingURL = item.url || "#";
-    const imageURL = item.image ?? null;
-    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-
-    return {
-      listingName,
-      brand,
-      model,
-      salePrice: salePrice ?? null,
-      originalPrice: originalPrice ?? null,
-      discountPercent,
-      store: item.store || STORE,
-      listingURL,
-      imageURL,
-      gender: item.gender || detectGender(listingURL, listingName),
-      shoeType: item.shoeType || detectShoeType(listingName, model),
-    };
-  });
-}
-
-async function fetchBrooksDeals() {
-  const STORE = "Brooks Running";
-  const actorId = process.env.APIFY_BROOKS_ACTOR_ID;
-  if (!actorId) throw new Error("APIFY_BROOKS_ACTOR_ID is not set");
-
-  const items = await fetchActorDatasetItems(actorId, STORE);
-
-  return items.map((item) => {
-    const { salePrice, originalPrice } = normalizeApifyPrices(item);
-
-    const brand = item.brand || "Brooks";
-    const model = item.model || "";
-    const listingName = item.title || `${brand} ${model}`.trim() || "Brooks Running Shoe";
-    const listingURL = item.url || "#";
-    const imageURL = item.image ?? null;
-    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-
-    return {
-      listingName,
-      brand,
-      model,
-      salePrice: salePrice ?? null,
-      originalPrice: originalPrice ?? null,
-      discountPercent,
-      store: item.store || STORE,
-      listingURL,
-      imageURL,
-      gender: item.gender || detectGender(listingURL, listingName),
-      shoeType: item.shoeType || detectShoeType(listingName, model),
-    };
-  });
-}
-
 /** -------------------- Main handler -------------------- **/
 
 module.exports = async (req, res) => {
@@ -260,37 +302,70 @@ module.exports = async (req, res) => {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  // TEMPORARY STOPPED FOR DEBUGGIN Optional cron auth (recommended)
-  //const cronSecret = process.env.CRON_SECRET;
-  //if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
-  //  return res.status(401).json({ success: false, error: "Unauthorized" });
-  //}
+  // Optional cron auth (recommended)
+  // const cronSecret = process.env.CRON_SECRET;
+  // if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
+  //   return res.status(401).json({ success: false, error: "Unauthorized" });
+  // }
 
   const overallStartTime = Date.now();
   const runTimestamp = nowIso();
 
+  // Store -> env var containing blob URL (or pathname)
+  const TARGETS = [
+    { name: "Brooks Running", env: "BROOKS_DEALS_BLOB_URL", fn: fetchBrooksDeals },
+    { name: "REI Outlet", env: "REI_DEALS_BLOB_URL", fn: fetchReiDeals },
+    { name: "Road Runner Sports", env: "ROADRUNNER_DEALS_BLOB_URL", fn: fetchRoadRunnerDeals },
+    { name: "Zappos", env: "ZAPPOS_DEALS_BLOB_URL", fn: fetchZapposDeals },
+  ];
+
   try {
-    const allDeals = [];
     const scraperResults = {};
 
-    async function runSource({ name, via, fn }) {
+    async function runStore({ name, env, fn }) {
       const timestamp = nowIso();
       const scraperStart = Date.now();
 
       try {
+        const blobPath = blobPathFromEnv(process.env[env]);
+        if (!blobPath) {
+          throw new Error(`${env} is not set (or not a valid blob URL/path).`);
+        }
+
         const deals = await fn();
         const durationMs = Date.now() - scraperStart;
 
-        allDeals.push(...deals);
+        const payload = {
+          lastUpdated: timestamp,
+          scrapeDurationMs: durationMs,
+          scraperResult: {
+            scraper: name,
+            ok: true,
+            count: Array.isArray(deals) ? deals.length : 0,
+            durationMs,
+            timestamp,
+            via: "apify",
+            error: null,
+          },
+          deals: Array.isArray(deals) ? deals : [],
+        };
+
+        const blob = await put(blobPath, JSON.stringify(payload, null, 2), {
+          access: "public",
+          addRandomSuffix: false,
+        });
 
         scraperResults[name] = {
           scraper: name,
           ok: true,
-          count: Array.isArray(deals) ? deals.length : 0,
+          count: payload.scraperResult.count,
           durationMs,
           timestamp,
-          via,
+          via: "apify",
           error: null,
+          blobUrl: blob.url,
+          blobPath,
+          env,
         };
       } catch (err) {
         const durationMs = Date.now() - scraperStart;
@@ -301,38 +376,29 @@ module.exports = async (req, res) => {
           count: 0,
           durationMs,
           timestamp,
-          via,
+          via: "apify",
           error: err?.message || "Unknown error",
+          blobUrl: null,
+          blobPath: blobPathFromEnv(process.env[env]),
+          env,
         };
       }
     }
 
-    await runSource({ name: "Road Runner Sports", via: "apify", fn: fetchRoadRunnerDeals });
-    await runSource({ name: "REI Outlet", via: "apify", fn: fetchReiDeals });
-    await runSource({ name: "Zappos", via: "apify", fn: fetchZapposDeals });
-    await runSource({ name: "Brooks Running", via: "apify", fn: fetchBrooksDeals });
+    // Run sequentially (safer for rate limits); can be parallelized later if you want.
+    for (const t of TARGETS) {
+      // eslint-disable-next-line no-await-in-loop
+      await runStore(t);
+    }
 
     const scrapeDurationMs = Date.now() - overallStartTime;
 
-    const output = {
-      lastUpdated: runTimestamp,
-      scrapeDurationMs,
-      scraperResults,
-      deals: allDeals,
-    };
-
-    const blob = await put("apify-deals_blob.json", JSON.stringify(output, null, 2), {
-      access: "public",
-      addRandomSuffix: false,
-    });
-
     return res.status(200).json({
       success: true,
-      totalDeals: allDeals.length,
-      scraperResults,
-      blobUrl: blob.url,
-      duration: `${scrapeDurationMs}ms`,
       timestamp: runTimestamp,
+      duration: `${scrapeDurationMs}ms`,
+      scraperResults,
+      note: "Per-store blobs written (no apify-deals_blob.json).",
     });
   } catch (error) {
     return res.status(500).json({
