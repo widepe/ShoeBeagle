@@ -288,7 +288,7 @@ input::placeholder{ color:#999; opacity:1; }
   display:none;
   align-items:center;
   justify-content:center;
-  font-size:calc(1.2rem * var(--top-scale));
+  font-size:calc(2rem * var(--top-scale));
   padding:0;
   line-height:1;
   z-index:20;
@@ -449,20 +449,20 @@ button{
 
 /* close button */
 .links-ribbon .chip-close{
-  width:26px;
-  height:26px;
-  border-radius:999px;
-  border:1px solid rgba(33,68,120,0.35);
+  border:0;
   background:transparent;
-  color:var(--sb-blue);
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  font-size:1.1rem;
-  line-height:1;
+  padding:0;
+  margin:0;
   cursor:pointer;
+
+  font-size:30px;
+  line-height:1;
+  font-weight:800;
+
+  opacity:.85;
 }
-.links-ribbon .chip-close:hover{ background:rgba(33,68,120,0.08); }
+.chip-close:hover{ opacity:1; }
+
 
 /* =========================================================
    STATUS / FILTERS
@@ -1282,20 +1282,20 @@ button{
 }
 
 .sb-alert-close{
-  position:absolute;
-  right:10px;
-  top:8px;
-  width:40px;
-  height:40px;
-  border-radius:999px;
-  border:1px solid #214478ff;
-  background:#fff;
-  color:#214478ff;
-  font-size:22px;
-  line-height:38px;
+  border:0;
+  background:transparent;
+  padding:0;
+  margin:0;
   cursor:pointer;
+
+  font-size:32px;
+  line-height:1;
+  font-weight:900;
+
+  opacity:.85;
 }
-.sb-alert-close:hover{ background:rgba(33,68,120,0.10); }
+.sb-alert-close:hover{ opacity:1; }
+
 
 .sb-alert-title{
   text-align:center;
@@ -1343,19 +1343,22 @@ button{
   right:8px;
   top:50%;
   transform:translateY(-50%);
-  width:22px;
-  height:22px;
-  border-radius:999px;
+
   border:none;
-  background:#999;
-  color:#fff;
+  background:transparent;
+  padding:0;
+  margin:0;
+
   cursor:pointer;
-  display:none;
-  align-items:center;
-  justify-content:center;
-  font-size:14px;
+
+  display:none;   /* keep this – your JS depends on it */
+
+  font-size:26px;           /* should be relative need to fix */
   line-height:1;
+  font-weight:800;
+  color:inherit;
 }
+
 .sb-clear:hover{ background:#666; }
 
 .sb-sug{
