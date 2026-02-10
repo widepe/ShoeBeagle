@@ -89,17 +89,17 @@
 
     <!-- Links ribbon (hidden by default; toggled by the button above) -->
     <div id="linksRibbon" class="links-ribbon" style="display:none;">
-      <div class="links-ribbon-inner">
-        <a href="#" data-open-alert>Set Alert</a>
+     <div class="links-ribbon-inner">
+  <div class="links-ribbon-links">
+    <a href="#" data-open-alert>Set Alert</a>
+    <a href="/pages/myalerts.html">Filter</a>
+    <a href="/pages/setalert.html">Sort</a>
+    <a href="#" aria-disabled="true" tabindex="0">Favorites</a>
+  </div>
 
-        <div class="links-ribbon-links">
-          <a href="/pages/myalerts.html">Filter</a>
-          <a href="/pages/setalert.html">Sort</a>
-          <a href="#" aria-disabled="true" tabindex="0">Favorites</a>
-        </div>
+  <button type="button" class="chip-close" aria-label="Close links">×</button>
+</div>
 
-        <button type="button" class="chip-close" aria-label="Close links">&times;</button>
-      </div>
     </div>
 
     <div id="mainContent">
@@ -1129,17 +1129,17 @@
       <form id="sbSetAlertForm" class="sb-alert-form">
         <!-- FORM VIEW -->
         <div id="sbAlertFormView">
-          <label class="sb-label" for="sbAlertEmail">Email Address:</label>
+    <!--   <label class="sb-label" for="sbAlertEmail">Email Address:</label>   -->
           <input class="sb-input" type="email" id="sbAlertEmail" placeholder="your@email.com" required autocomplete="email">
 
-          <label class="sb-label" for="sbAlertBrand">Shoe Brand:</label>
+    <!--      <label class="sb-label" for="sbAlertBrand">Shoe Brand:</label>    -->
           <div class="sb-input-wrap">
             <input class="sb-input" type="text" id="sbAlertBrand" placeholder="Enter shoe brand..." autocomplete="off" required>
             <button type="button" class="sb-clear" data-clear="#sbAlertBrand" aria-label="Clear brand">×</button>
             <div id="sbBrandSug" class="sb-sug" hidden></div>
           </div>
 
-          <label class="sb-label" for="sbAlertModel">Shoe Model:</label>
+     <!--     <label class="sb-label" for="sbAlertModel">Shoe Model:</label>     -->
           <div class="sb-input-wrap">
             <input class="sb-input" type="text" id="sbAlertModel" placeholder="Enter shoe model..." autocomplete="off" required>
             <button type="button" class="sb-clear" data-clear="#sbAlertModel" aria-label="Clear model">×</button>
@@ -1148,8 +1148,6 @@
 
           <div class="sb-row">
             <div class="sb-col">
-              <div class="sb-label">Gender:</div>
-
               <!-- Your “checkbox + label” vertical list -->
               <div class="sb-gender" id="sbGender">
                 <div class="sb-gender-option" data-g="womens" role="radio" aria-checked="false" tabindex="0">
@@ -1161,16 +1159,10 @@
                   <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
                   <span class="sb-gender-label">Men’s</span>
                 </div>
-
-                <div class="sb-gender-option active" data-g="both" role="radio" aria-checked="true" tabindex="0">
-                  <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
-                  <span class="sb-gender-label">Both</span>
-                </div>
-              </div>
             </div>
-
+            </div>
             <div class="sb-col sb-price-col">
-              <label class="sb-label" for="sbAlertPrice">Target Price:</label>
+         <!--     <label class="sb-label" for="sbAlertPrice">Target Price:</label>  -->
               <div class="sb-price-wrap">
                 <span class="sb-dollar">$</span>
                 <input class="sb-input sb-price"
@@ -1193,8 +1185,6 @@
             <div class="sb-note-title">Important</div>
             <ul>
               <li>Your email will never be sold or shared by Shoe Beagle, and will only be used for confirmation and notifications.</li>
-              <li>Save your confirmation email — it contains your only secure link to cancel or manage alerts.</li>
-              <li>For your security, we don’t offer sign-in or alert management from the website.</li>
             </ul>
           </div>
 
@@ -1273,7 +1263,7 @@
 
     let lastFocus = null;
     let busy = false;
-    let selectedGender = "both";
+    let selectedGender = "";
 
     function setBusy(v){
       busy = v;
@@ -1312,7 +1302,7 @@
       priceEl.value = "";
 
       // Default gender = both (single select)
-      setGender("both");
+      setGender("");
 
       backdrop.classList.add("open");
       backdrop.setAttribute("aria-hidden", "false");
@@ -1347,14 +1337,15 @@
 
     // ===== Gender: single select ONLY =====
     function setGender(g){
-      selectedGender = g;
-      const opts = genderWrap.querySelectorAll(".sb-gender-option");
-      opts.forEach(o => {
-        const on = o.getAttribute("data-g") === g;
-        o.classList.toggle("active", on);
-        o.setAttribute("aria-checked", on ? "true" : "false");
-      });
-    }
+  selectedGender = String(g || "");
+  const opts = genderWrap.querySelectorAll(".sb-gender-option");
+  opts.forEach(o => {
+    const on = (o.getAttribute("data-g") || "") === selectedGender;
+    o.classList.toggle("active", on);
+    o.setAttribute("aria-checked", on ? "true" : "false");
+  });
+}
+
 
     genderWrap.addEventListener("click", (e) => {
       const opt = e.target.closest(".sb-gender-option");
@@ -1540,7 +1531,7 @@
     }
 
     function showSuccess(brand, model, gender, price){
-      const genderText = gender === "mens" ? "Men’s" : gender === "womens" ? "Women’s" : "Men’s or Women’s";
+const genderText = gender === "mens" ? "Men’s" : "Women’s";
       confirmDetails.innerHTML =
         `<div><strong>Shoe:</strong> ${esc(brand)} ${esc(model)}</div>
          <div><strong>Gender:</strong> ${esc(genderText)}</div>
@@ -1593,6 +1584,7 @@
       if (!email || !email.includes("@")) return showStatus("Please enter a valid email address.");
       if (!brand) return showStatus("Please enter a shoe brand.");
       if (!model) return showStatus("Please enter a shoe model.");
+      if (!gender) return showStatus("Select a gender.");
       if (!targetPrice || targetPrice <= 0) return showStatus("Please enter a valid target price (whole dollars).");
 
       setBusy(true);
