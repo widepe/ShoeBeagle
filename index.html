@@ -353,11 +353,7 @@
       return base.replace(/\/+$/, "") + "/" + cleanPath;
     }
 
-    function withCacheBust(url) {
-      const u = new URL(url, window.location.origin);
-      u.searchParams.set("cb", String(Date.now()));
-      return u.toString();
-    }
+
 
     function getDiscountInfo(item) {
       const current = Number(item.salePrice);
@@ -939,7 +935,7 @@
 
     async function loadDailyDeals() {
       try {
-        const url = withCacheBust(blobUrl("twelve_daily_deals.json"));
+const url = blobUrl("twelve_daily_deals.json");
         const res = await fetch(url);
 
         if (!res.ok) {
