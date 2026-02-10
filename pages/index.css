@@ -1265,7 +1265,9 @@ color:#888;
   position:fixed;
   inset:0;
   background:rgba(0,0,0,0.55); /* DARKER than before (was 0.35) */
-  display:none;
+   
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);  display:none;
   align-items:center;
   justify-content:center;
   padding:14px;
