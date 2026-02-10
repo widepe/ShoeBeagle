@@ -1262,20 +1262,8 @@
           <strong>Unknown brands:</strong> ${unknownBrandsCount} (${deals.length ? ((unknownBrandsCount / deals.length) * 100).toFixed(1) : "0.0"}%)<br><br>
         `;
 
-        if (mergeData && mergeData.storeMetadata) {
-          debugHTML += `<strong>Scraper Blob URLs (from /api/merge-deals):</strong><br>`;
-          Object.entries(mergeData.storeMetadata).forEach(([scraperName, meta]) => {
-            if (meta && meta.blobUrl) {
-              debugHTML += `<div style="margin-left: 10px; margin-top: 4px;">
-                <strong>${scraperName}:</strong> <a href="${meta.blobUrl}" target="_blank" style="color: #214478ff; word-break: break-all;">${meta.blobUrl}</a>
-              </div>`;
-            }
-          });
-          debugHTML += `<br>`;
-        }
-
         // Canonical expected blobs (from canonical-stores.json)
-        debugHTML += `<strong>Expected Store Blobs (from canonical-stores.json):</strong><br>`;
+        debugHTML += `<strong>Store Blobs (from canonical-stores.json):</strong><br>`;
         for (const s of CANONICAL.list) {
           const blobs = canonicalExpectedBlobs(s);
           debugHTML += `<div style="margin-left: 10px; margin-top: 4px;">
