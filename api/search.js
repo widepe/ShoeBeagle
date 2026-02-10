@@ -7,10 +7,11 @@
 // - Keeps your: rate limiting, requestId, caching, blob loading
 // - ✅ RETURNS CANONICAL 11-FIELD SCHEMA (matches merge-deals + UI)
 //
-// ✅ FIX INCLUDED:
-// - Cache key now includes dealsData.lastUpdated (versioned cache).
-//   When merge-deals overwrites deals.json and lastUpdated changes, old cached
-//   results won't be reused (fresh data automatically).
+// ✅ CLEAN FRESHNESS FIX (daily data, users all day):
+// 1) Cache deals.json in-memory for 5 minutes (reduces Blob reads).
+// 2) Version search-result cache by dealsData.lastUpdated.
+//    When merge-deals overwrites deals.json, lastUpdated changes,
+//    and cached search results automatically flip to the new dataset.
 
 const { list } = require("@vercel/blob");
 
@@ -47,9 +48,6 @@ function queryTokensFromRaw(rawQuery) {
   const ns = normalizeSpaces(rawQuery);
   const tokens = tokenize(ns).filter(isMeaningfulToken);
 
-  // If user typed something like "gt2000" (no spaces), add a split hint:
-  // - add number runs (2000)
-  // - add leading letters (gt)
   const squashedQuery = squash(rawQuery);
   if (tokens.length === 1 && squashedQuery.length >= 4 && /^[a-z0-9]+$/.test(squashedQuery)) {
     const nums = squashedQuery.match(/\d+/g) || [];
@@ -66,11 +64,10 @@ function queryTokensFromRaw(rawQuery) {
 
 /* ------------------------------ Scoring --------------------------------- */
 
-// Build a searchable index for each deal once per request (cheap and clear).
+// Build a searchable index for each deal once per request.
 function buildIndex(deal) {
   const brand = deal.brand || "";
   const model = deal.model || "";
-  // ✅ Canonical title field is listingName (fallback to title/name if any legacy source leaks through)
   const title = deal.listingName || deal.title || deal.name || "";
 
   const combined = `${brand} ${model} ${title}`;
@@ -81,8 +78,6 @@ function buildIndex(deal) {
   return { tokenSet, tokens, squashedCombined, brand, model, title };
 }
 
-// Score how well this deal matches the desired brand/model/query tokens.
-// Higher score = better rank.
 function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
   let score = 0;
 
@@ -90,28 +85,27 @@ function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
   const hasPrefix = (t) => idx.tokens.some((dt) => dt.startsWith(t));
   const hasSquashed = (qSquashed) => idx.squashedCombined.includes(qSquashed);
 
-  // --- Brand field (if provided) should be relatively strong ---
+  // --- Brand ---
   if (brandTokens.length) {
     let brandHits = 0;
 
     for (const t of brandTokens) {
       if (hasExact(t)) { score += 20; brandHits++; continue; }
-      if (hasPrefix(t)) { score += 12; brandHits++; continue; } // asic -> asics
+      if (hasPrefix(t)) { score += 12; brandHits++; continue; }
     }
 
-    // Require at least one brand hit if brand was provided
     if (brandHits === 0) return 0;
 
     score += Math.floor((brandHits / brandTokens.length) * 10);
   }
 
-  // --- Model field (if provided) strong, allow numbers + squashed matching ---
+  // --- Model ---
   if (modelTokens.length) {
     let modelHits = 0;
 
     const modelSquashed = squash(modelTokens.join(" "));
     if (modelSquashed && modelSquashed.length >= 4 && hasSquashed(modelSquashed)) {
-      score += 25; // gt2000 matches GT-2000 regardless of separators
+      score += 25;
       modelHits++;
     }
 
@@ -129,13 +123,12 @@ function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
       }
     }
 
-    // Require at least one model hit if model was provided
     if (modelHits === 0) return 0;
 
     score += Math.floor((modelHits / modelTokens.length) * 10);
   }
 
-  // --- Free-text query tokens (if provided) moderate weight, order-independent ---
+  // --- Query ---
   if (queryTokens.length) {
     let hits = 0;
 
@@ -150,7 +143,6 @@ function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
       if (hasPrefix(t)) { score += 6; hits++; continue; }
     }
 
-    // For query-only searches, require a minimum hit rate
     if (!brandTokens.length && !modelTokens.length) {
       const required = queryTokens.length === 1 ? 1 : Math.ceil(queryTokens.length * 0.6);
       if (hits < required) return 0;
@@ -159,7 +151,6 @@ function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
     score += Math.floor((hits / queryTokens.length) * 12);
   }
 
-  // Tie-breaker: slight preference if model appears (more specific)
   if (idx.model && idx.model.trim()) score += 2;
 
   return score;
@@ -167,9 +158,12 @@ function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
 
 /* ------------------------------ Caching --------------------------------- */
 
-// In-memory cache (results only)
+// Per-query search results cache
 const cache = new Map();
-const CACHE_TTL = 4 * 60 * 60 * 1000;
+
+// Because we version cache keys by dealsData.lastUpdated,
+// you can safely keep this long. It won't block "fresh daily data".
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 function getCached(key) {
   const entry = cache.get(key);
@@ -183,6 +177,43 @@ function getCached(key) {
 
 function setCache(key, data) {
   cache.set(key, { data, timestamp: Date.now() });
+}
+
+// deals.json cache (reduces Blob reads)
+const DEALS_TTL = 5 * 60 * 1000; // 5 minutes
+let dealsCache = { timestamp: 0, data: null, blobUrl: null };
+
+async function loadDealsDataFresh() {
+  const { blobs } = await list({ prefix: "deals.json" });
+  if (!blobs || blobs.length === 0) {
+    throw new Error("Could not locate deals.json blob");
+  }
+
+  const blob = blobs[0];
+  const url = blob.url;
+
+  // When we DO refresh, we cache-bust here (once per 5 minutes max)
+  const freshUrl = `${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`;
+  const resp = await fetch(freshUrl, { cache: "no-store" });
+  if (!resp.ok) throw new Error(`Blob fetch failed: ${resp.status}`);
+
+  const data = await resp.json();
+  return { data, blobUrl: url };
+}
+
+async function getDealsData() {
+  const now = Date.now();
+  if (dealsCache.data && (now - dealsCache.timestamp) < DEALS_TTL) {
+    return dealsCache;
+  }
+
+  const loaded = await loadDealsDataFresh();
+  dealsCache = {
+    timestamp: now,
+    data: loaded.data,
+    blobUrl: loaded.blobUrl,
+  };
+  return dealsCache;
 }
 
 /* ---------------------------- Rate Limiting ----------------------------- */
@@ -253,27 +284,13 @@ module.exports = async (req, res) => {
       return res.status(429).json({ error: "Too many requests", requestId });
     }
 
-    // OLD style: separate brand / model
     const rawBrand = req.query && req.query.brand ? req.query.brand : "";
     const rawModel = req.query && req.query.model ? req.query.model : "";
-
-    // NEW style: single query string
     const rawQuery = req.query && req.query.query ? req.query.query : "";
 
     const brandTokens = tokenize(rawBrand).filter(isMeaningfulToken);
     const modelTokens = tokenize(rawModel).filter(isMeaningfulToken);
     const queryTokens = queryTokensFromRaw(rawQuery).filter(isMeaningfulToken);
-
-    console.log("[/api/search] Request:", {
-      requestId,
-      ip: clientIp,
-      rawBrand,
-      rawModel,
-      rawQuery,
-      brandTokens,
-      modelTokens,
-      queryTokens,
-    });
 
     if (!brandTokens.length && !modelTokens.length && !queryTokens.length) {
       return res.status(400).json({
@@ -287,52 +304,37 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Load deals.json blob
-    const { blobs } = await list({ prefix: "deals.json" });
-    if (!blobs || blobs.length === 0) {
-      console.error("[/api/search] Could not locate deals blob");
-      return res.status(500).json({ error: "Failed to load deals data", requestId });
-    }
-
-    const blob = blobs[0];
-
+    // Get deals.json (cached for 5 minutes)
     let dealsData;
     try {
-      // ✅ CACHE BUST: Vercel Blob public URLs can be CDN-cached even after overwrite.
-      // Adding a unique query param forces a fresh fetch of the newest blob contents.
-      const freshUrl = `${blob.url}${blob.url.includes("?") ? "&" : "?"}cb=${Date.now()}`;
-      const response = await fetch(freshUrl, { cache: "no-store" });
-
-      if (!response.ok) throw new Error(`Blob fetch failed: ${response.status}`);
-      dealsData = await response.json();
-    } catch (blobError) {
-      console.error("[/api/search] Error fetching from blob:", blobError.message);
+      const loaded = await getDealsData();
+      dealsData = loaded.data;
+    } catch (e) {
+      console.error("[/api/search] Failed loading deals.json:", e?.message || String(e));
       return res.status(500).json({ error: "Failed to load deals data", requestId });
     }
 
-    // ✅ Versioned cache key: includes dealsData.lastUpdated so cache flips immediately after merge-deals runs
-    const dealsVersion = (dealsData && dealsData.lastUpdated) ? String(dealsData.lastUpdated) : "unknown";
-    const cacheKey = `search:v4:${dealsVersion}:${brandTokens.join(".")}:${modelTokens.join(".")}:${queryTokens.join(".")}`;
+    const dealsVersion = dealsData?.lastUpdated ? String(dealsData.lastUpdated) : "unknown";
+    const cacheKey = `search:v5:${dealsVersion}:${brandTokens.join(".")}:${modelTokens.join(".")}:${queryTokens.join(".")}`;
 
     const cached = getCached(cacheKey);
     if (cached) {
-      console.log("[/api/search] Cache hit (versioned):", dealsVersion);
-      return res.status(200).json({ results: cached, requestId, lastUpdated: dealsVersion, cached: true });
+      return res.status(200).json({
+        results: cached,
+        requestId,
+        lastUpdated: dealsVersion,
+        cached: true,
+      });
     }
 
-    const deals = (dealsData && Array.isArray(dealsData.deals))
+    const deals = Array.isArray(dealsData?.deals)
       ? dealsData.deals
       : (Array.isArray(dealsData) ? dealsData : []);
 
-    console.log("[/api/search] Loaded deals:", {
-      total: deals.length,
-      lastUpdated: dealsVersion,
-    });
-
     // Score + rank
     const desired = { brandTokens, modelTokens, queryTokens };
-
     const scored = [];
+
     for (const deal of deals) {
       const idx = buildIndex(deal);
       const s = scoreDeal(desired, idx);
@@ -341,28 +343,27 @@ module.exports = async (req, res) => {
 
     scored.sort((a, b) => b.score - a.score);
 
-    // ✅ Return CANONICAL SCHEMA FIELDS that your UI expects
-    const results = scored
-      .slice(0, 480)
-      .map(({ deal /*, score*/ }) => ({
-        listingName: deal.listingName || deal.title || deal.name || "Running Shoe Deal",
-        brand: deal.brand || "Unknown",
-        model: deal.model || "",
-        salePrice: safeNum(deal.salePrice),
-        originalPrice: safeNum(deal.originalPrice),
-        discountPercent: Number.isFinite(safeNum(deal.discountPercent)) ? Math.round(safeNum(deal.discountPercent)) : 0,
-        store: deal.store || "Unknown",
-        listingURL: deal.listingURL || deal.url || "",
-        imageURL:
-          deal.imageURL ||
-          deal.imageUrl ||
-          deal.image ||
-          deal.img ||
-          deal.thumbnail ||
-          "https://placehold.co/600x400?text=Running+Shoe",
-        gender: deal.gender || "unknown",
-        shoeType: deal.shoeType || "unknown",
-      }));
+    const results = scored.slice(0, 480).map(({ deal }) => ({
+      listingName: deal.listingName || deal.title || deal.name || "Running Shoe Deal",
+      brand: deal.brand || "Unknown",
+      model: deal.model || "",
+      salePrice: safeNum(deal.salePrice),
+      originalPrice: safeNum(deal.originalPrice),
+      discountPercent: Number.isFinite(safeNum(deal.discountPercent))
+        ? Math.round(safeNum(deal.discountPercent))
+        : 0,
+      store: deal.store || "Unknown",
+      listingURL: deal.listingURL || deal.url || "",
+      imageURL:
+        deal.imageURL ||
+        deal.imageUrl ||
+        deal.image ||
+        deal.img ||
+        deal.thumbnail ||
+        "https://placehold.co/600x400?text=Running+Shoe",
+      gender: deal.gender || "unknown",
+      shoeType: deal.shoeType || "unknown",
+    }));
 
     setCache(cacheKey, results);
 
@@ -371,10 +372,8 @@ module.exports = async (req, res) => {
       ip: clientIp,
       ms: Date.now() - startedAt,
       count: results.length,
+      dealsVersion,
       query: { brandTokens, modelTokens, queryTokens },
-      dataAge: dealsVersion
-        ? `Updated ${new Date(dealsVersion).toLocaleString()}`
-        : "unknown",
     });
 
     return res.status(200).json({
@@ -383,10 +382,9 @@ module.exports = async (req, res) => {
       lastUpdated: dealsVersion,
       cached: false,
     });
-
   } catch (err) {
     console.error("[/api/search] Fatal error:", {
-      requestId: (req.headers && (req.headers["x-vercel-id"] || req.headers["x-request-id"])) || `local-${Date.now()}`,
+      requestId,
       message: err?.message || String(err),
       stack: err?.stack,
     });
@@ -394,9 +392,7 @@ module.exports = async (req, res) => {
     return res.status(500).json({
       error: "Internal server error",
       details: err?.message,
-      requestId:
-        (req.headers && (req.headers["x-vercel-id"] || req.headers["x-request-id"])) ||
-        `local-${Date.now()}`,
+      requestId,
     });
   }
 };
