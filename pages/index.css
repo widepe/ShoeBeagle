@@ -278,22 +278,26 @@ input::placeholder{ color:#999; opacity:1; }
   right:calc(0.55rem * var(--top-scale));
   top:50%;
   transform:translateY(-50%);
-  width:calc(24px * var(--top-scale));
-  height:calc(24px * var(--top-scale));
-  border-radius:50%;
-  background:#999;
-  color:#fff;
+
   border:none;
+  background:transparent;
+  padding:0;
+
   cursor:pointer;
   display:none;
-  align-items:center;
-  justify-content:center;
+
   font-size:calc(2rem * var(--top-scale));
-  padding:0;
   line-height:1;
+  font-weight:800;
+  color:#888;
+
   z-index:20;
 }
-.input-clear:hover{ background:#666; }
+
+.input-clear:hover{
+  color:#555;
+}
+
 .input-wrapper:has(input:not(:placeholder-shown)) .input-clear{ display:flex; }
 
 /* =========================================================
@@ -454,8 +458,8 @@ button{
   padding:0;
   margin:0;
   cursor:pointer;
-
-  font-size:30px;
+color:#888; 
+   font-size:30px;
   line-height:1;
   font-weight:800;
 
