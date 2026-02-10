@@ -1213,7 +1213,7 @@ const ZAPPOS_DEALS_BLOB_URL = String(process.env.ZAPPOS_DEALS_BLOB_URL || "").tr
       { name: "ALS Sale", blobUrl: ALS_SALE_BLOB_URL },
 
       // Removed: Apify (non-Holabird)
-      { name: "Brooks", blobUrl: BROOKS_DEALS_BLOB_URL },
+      { name: "Brooks Running", blobUrl: BROOKS_DEALS_BLOB_URL },
       { name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
 
       { name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
