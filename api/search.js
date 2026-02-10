@@ -6,6 +6,11 @@
 // - Scores + sorts results (best matches first)
 // - Keeps your: rate limiting, requestId, caching, blob loading
 // - ✅ RETURNS CANONICAL 11-FIELD SCHEMA (matches merge-deals + UI)
+//
+// ✅ FIX INCLUDED:
+// - Cache key now includes dealsData.lastUpdated (versioned cache).
+//   When merge-deals overwrites deals.json and lastUpdated changes, old cached
+//   results won't be reused (fresh data automatically).
 
 const { list } = require("@vercel/blob");
 
@@ -282,13 +287,6 @@ module.exports = async (req, res) => {
       });
     }
 
-    const cacheKey = `search:v3:${brandTokens.join(".")}:${modelTokens.join(".")}:${queryTokens.join(".")}`;
-    const cached = getCached(cacheKey);
-    if (cached) {
-      console.log("[/api/search] Cache hit");
-      return res.status(200).json({ results: cached, requestId, cached: true });
-    }
-
     // Load deals.json blob
     const { blobs } = await list({ prefix: "deals.json" });
     if (!blobs || blobs.length === 0) {
@@ -301,9 +299,9 @@ module.exports = async (req, res) => {
     let dealsData;
     try {
       // ✅ CACHE BUST: Vercel Blob public URLs can be CDN-cached even after overwrite.
-// Adding a unique query param forces a fresh fetch of the newest blob contents.
-const freshUrl = `${blob.url}${blob.url.includes("?") ? "&" : "?"}cb=${Date.now()}`;
-const response = await fetch(freshUrl, { cache: "no-store" });
+      // Adding a unique query param forces a fresh fetch of the newest blob contents.
+      const freshUrl = `${blob.url}${blob.url.includes("?") ? "&" : "?"}cb=${Date.now()}`;
+      const response = await fetch(freshUrl, { cache: "no-store" });
 
       if (!response.ok) throw new Error(`Blob fetch failed: ${response.status}`);
       dealsData = await response.json();
@@ -312,13 +310,23 @@ const response = await fetch(freshUrl, { cache: "no-store" });
       return res.status(500).json({ error: "Failed to load deals data", requestId });
     }
 
+    // ✅ Versioned cache key: includes dealsData.lastUpdated so cache flips immediately after merge-deals runs
+    const dealsVersion = (dealsData && dealsData.lastUpdated) ? String(dealsData.lastUpdated) : "unknown";
+    const cacheKey = `search:v4:${dealsVersion}:${brandTokens.join(".")}:${modelTokens.join(".")}:${queryTokens.join(".")}`;
+
+    const cached = getCached(cacheKey);
+    if (cached) {
+      console.log("[/api/search] Cache hit (versioned):", dealsVersion);
+      return res.status(200).json({ results: cached, requestId, lastUpdated: dealsVersion, cached: true });
+    }
+
     const deals = (dealsData && Array.isArray(dealsData.deals))
       ? dealsData.deals
       : (Array.isArray(dealsData) ? dealsData : []);
 
     console.log("[/api/search] Loaded deals:", {
       total: deals.length,
-      lastUpdated: dealsData.lastUpdated || "unknown",
+      lastUpdated: dealsVersion,
     });
 
     // Score + rank
@@ -364,21 +372,21 @@ const response = await fetch(freshUrl, { cache: "no-store" });
       ms: Date.now() - startedAt,
       count: results.length,
       query: { brandTokens, modelTokens, queryTokens },
-      dataAge: dealsData.lastUpdated
-        ? `Updated ${new Date(dealsData.lastUpdated).toLocaleString()}`
+      dataAge: dealsVersion
+        ? `Updated ${new Date(dealsVersion).toLocaleString()}`
         : "unknown",
     });
 
     return res.status(200).json({
       results,
       requestId,
-      lastUpdated: dealsData.lastUpdated,
+      lastUpdated: dealsVersion,
       cached: false,
     });
 
   } catch (err) {
     console.error("[/api/search] Fatal error:", {
-      requestId,
+      requestId: (req.headers && (req.headers["x-vercel-id"] || req.headers["x-request-id"])) || `local-${Date.now()}`,
       message: err?.message || String(err),
       stack: err?.stack,
     });
@@ -386,7 +394,9 @@ const response = await fetch(freshUrl, { cache: "no-store" });
     return res.status(500).json({
       error: "Internal server error",
       details: err?.message,
-      requestId,
+      requestId:
+        (req.headers && (req.headers["x-vercel-id"] || req.headers["x-request-id"])) ||
+        `local-${Date.now()}`,
     });
   }
 };
