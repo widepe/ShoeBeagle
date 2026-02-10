@@ -1,31 +1,9 @@
-/**
- * kohls-scrape.js
- *
- * Scrapes these two Kohl's catalog pages:
- *  1) Sale adult running shoes
- *  2) Clearance adult running shoes
- *
- * Outputs ONE JSON object:
- * {
- *   meta: {...},
- *   deals: [ { 11 canonical fields... }, ... ]
- * }
- *
- * Canonical 11 fields:
- *   listingName, brand, model, salePrice, originalPrice, discountPercent,
- *   store, listingURL, imageURL, gender, shoeType
- *
- * Rules (per you):
- * - Defaults are ALWAYS "unknown" (or null for numeric) unless explicitly present.
- * - shoeType remains "unknown" unless listingName explicitly contains "trail", "road", or "track".
- */
+// /api/run-kohls.js  (CommonJS)
+// Hit this route manually to test: /api/run-kohls
 
-import * as cheerio from "cheerio";
-import { put } from "@vercel/blob";
+const cheerio = require("cheerio");
+const { put } = require("@vercel/blob");
 
-// -----------------------------
-// CONFIG
-// -----------------------------
 const SOURCES = [
   {
     key: "sale",
@@ -37,26 +15,15 @@ const SOURCES = [
   },
 ];
 
-// Where to write (Vercel Blob path). The public URL you gave corresponds to this pathname:
 const BLOB_PATHNAME = "kohls.json";
-
-// Hard stop for safety. (These Kohl’s catalog pages can be large.)
 const MAX_ITEMS_TOTAL = 5000;
 
-// Basic headers to reduce trivial blocking.
 const HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
   Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
   "Accept-Language": "en-US,en;q=0.9",
 };
-
-// -----------------------------
-// HELPERS
-// -----------------------------
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
 
 function absUrl(href) {
   if (!href) return null;
@@ -79,7 +46,6 @@ function calcDiscountPercent(salePrice, originalPrice) {
   return Number.isFinite(pct) ? pct : null;
 }
 
-// Per your rule: unknown unless explicitly in listing name.
 function detectGenderFromListingName(listingName) {
   const s = (listingName || "").toLowerCase();
   if (s.includes("men's") || s.includes("mens ")) return "mens";
@@ -87,7 +53,7 @@ function detectGenderFromListingName(listingName) {
   return "unknown";
 }
 
-// Per your rule: unknown unless explicitly says trail/road/track in listing.
+// Your rule: unknown unless explicitly says trail/road/track in the listing text
 function detectShoeTypeFromListingName(listingName) {
   const s = (listingName || "").toLowerCase();
   if (s.includes("trail")) return "trail";
@@ -96,8 +62,6 @@ function detectShoeTypeFromListingName(listingName) {
   return "unknown";
 }
 
-// Conservative parsing: brand = first word token; model = remainder after brand,
-// stripped of common suffixes. Defaults to "unknown" if can't confidently derive.
 function parseBrandModel(listingName) {
   const name = (listingName || "").trim();
   if (!name) return { brand: "unknown", model: "unknown" };
@@ -108,7 +72,6 @@ function parseBrandModel(listingName) {
   let rest = parts.slice(1).join(" ").trim();
   if (!rest) return { brand, model: "unknown" };
 
-  // Strip gender phrases and common ending phrases, but keep it conservative.
   rest = rest
     .replace(/\bmen'?s\b/gi, "")
     .replace(/\bwomen'?s\b/gi, "")
@@ -135,36 +98,28 @@ function uniqByKey(items, keyFn) {
   return out;
 }
 
-// -----------------------------
-// CORE SCRAPE
-// -----------------------------
 async function fetchHtml(url) {
   const res = await fetch(url, { headers: HEADERS, redirect: "follow" });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
   return await res.text();
 }
 
-function extractDealsFromHtml(html, sourceLabel) {
+function extractDealsFromHtml(html) {
   const $ = cheerio.load(html);
-
   const deals = [];
 
-  // Loop anchor from your screenshot: div[data-webid]
   $("div[data-webid]").each((_, el) => {
     const card = $(el);
 
-    // listingName: highlighted text node
+    // listingName MUST come from the highlighted listing text
     const listingName = card.find('a[data-dte="product-title"]').first().text().trim();
+    if (!listingName) return;
 
-    // URL: /product/prd-...
     const href = card.find('a[href^="/product/prd-"]').first().attr("href") || null;
     const listingURL = absUrl(href);
 
-    // Image
-    const imageURL =
-      card.find('img[data-dte="product-image"]').first().attr("src") || null;
+    const imageURL = card.find('img[data-dte="product-image"]').first().attr("src") || null;
 
-    // Prices
     const salePriceText = card.find('span[data-dte="product-sub-sale-price"]').first().text().trim();
     const regPriceText = card.find('span[data-dte="product-sub-regular-price"]').first().text().trim();
 
@@ -172,110 +127,85 @@ function extractDealsFromHtml(html, sourceLabel) {
     const originalPrice = parseMoney(regPriceText);
     const discountPercent = calcDiscountPercent(salePrice, originalPrice);
 
-    // Defaults are unknown unless explicit
     const gender = detectGenderFromListingName(listingName);
     const shoeType = detectShoeTypeFromListingName(listingName);
 
     const { brand, model } = parseBrandModel(listingName);
 
-    // If listingName is missing, skip (can’t create a safe deal row).
-    if (!listingName) return;
-
     deals.push({
-      listingName,                  // string
-      brand: brand || "unknown",     // string
-      model: model || "unknown",     // string
-      salePrice: salePrice ?? null,  // number|null
-      originalPrice: originalPrice ?? null, // number|null
-      discountPercent: discountPercent ?? null, // number|null
-      store: "Kohls",                // string
-      listingURL: listingURL ?? null,// string|null
-      imageURL: imageURL ?? null,    // string|null
-      gender,                        // 'mens'|'womens'|'unknown' (your rule)
-      shoeType,                      // 'road'|'trail'|'track'|'unknown' (your rule)
-      // (Optional extra internal fields could go here, but keeping it strictly 11 fields)
+      listingName,
+      brand: brand || "unknown",
+      model: model || "unknown",
+      salePrice: salePrice ?? null,
+      originalPrice: originalPrice ?? null,
+      discountPercent: discountPercent ?? null,
+      store: "Kohls",
+      listingURL: listingURL ?? null,
+      imageURL: imageURL ?? null,
+      gender,
+      shoeType,
     });
   });
 
-  // Deduplicate by listingURL if present; otherwise by listingName+imageURL
-  const deduped = uniqByKey(deals, (d) => d.listingURL || `${d.listingName}||${d.imageURL || ""}`);
-
-  // Cap to protect you from accidental runaway.
-  return deduped.slice(0, MAX_ITEMS_TOTAL).map((d) => ({
-    ...d,
-    // keep store as Kohls; sourceLabel only goes in metadata (not per-deal) to keep exactly 11 fields
-  }));
+  return uniqByKey(deals, (d) => d.listingURL || `${d.listingName}||${d.imageURL || ""}`)
+    .slice(0, MAX_ITEMS_TOTAL);
 }
 
 async function scrapeAll() {
   const startedAt = new Date().toISOString();
-
   const perSourceCounts = {};
   const allDeals = [];
 
   for (const src of SOURCES) {
     const html = await fetchHtml(src.url);
-    const deals = extractDealsFromHtml(html, src.key);
-
+    const deals = extractDealsFromHtml(html);
     perSourceCounts[src.key] = deals.length;
     allDeals.push(...deals);
-
-    // tiny delay to be polite
-    await sleep(600);
   }
 
-  // Final dedupe across both pages
   const deals = uniqByKey(allDeals, (d) => d.listingURL || `${d.listingName}||${d.imageURL || ""}`)
     .slice(0, MAX_ITEMS_TOTAL);
 
-  const meta = {
-    store: "Kohls",
-    scrapedAt: new Date().toISOString(),
-    startedAt,
-    sourcePages: SOURCES.map((s) => ({ key: s.key, url: s.url })),
-    countsBySource: perSourceCounts,
-    totalDeals: deals.length,
-    notes: [
-      "Defaults: gender and shoeType are 'unknown' unless explicitly present in listingName.",
-      "shoeType is only set if listingName contains 'trail', 'road', or 'track' (case-insensitive).",
-      "listingName is taken from a[data-dte='product-title'] (not img alt).",
-    ],
+  return {
+    meta: {
+      store: "Kohls",
+      scrapedAt: new Date().toISOString(),
+      startedAt,
+      sourcePages: SOURCES,
+      countsBySource: perSourceCounts,
+      totalDeals: deals.length,
+      notes: [
+        "Defaults: gender and shoeType are 'unknown' unless explicitly present in listingName.",
+        "shoeType only set if listingName contains trail/road/track.",
+        "listingName comes from a[data-dte='product-title'] (not img alt).",
+      ],
+    },
+    deals,
   };
-
-  return { meta, deals };
 }
 
-async function writeToBlob(obj) {
-  // Requires: BLOB_READ_WRITE_TOKEN in env (Vercel Blob).
-  // Example:
-  //   export BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
-  //
-  // This writes/overwrites kohls.json at your blob store (public).
-  const body = JSON.stringify(obj, null, 2);
-
-  const res = await put(BLOB_PATHNAME, body, {
-    access: "public",
-    addRandomSuffix: false,
-    contentType: "application/json",
-  });
-
-  return res;
-}
-
-// -----------------------------
-// RUN
-// -----------------------------
-(async () => {
+module.exports = async function handler(req, res) {
   try {
     const data = await scrapeAll();
-    const blobRes = await writeToBlob(data);
 
-    console.log("✅ Scrape complete.");
-    console.log("Total deals:", data.meta.totalDeals);
-    console.log("Counts by source:", data.meta.countsBySource);
-    console.log("Blob URL:", blobRes.url);
+    const blobRes = await put(BLOB_PATHNAME, JSON.stringify(data, null, 2), {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: "application/json",
+    });
+
+    res.status(200).json({
+      ok: true,
+      totalDeals: data.meta.totalDeals,
+      countsBySource: data.meta.countsBySource,
+      blobUrl: blobRes.url,
+    });
   } catch (err) {
-    console.error("❌ Kohl's scrape failed:", err);
-    process.exitCode = 1;
+    // This makes the REAL error show up in Vercel logs and in the response
+    console.error("Kohls scrape failed:", err);
+    res.status(500).json({
+      ok: false,
+      error: String(err && err.message ? err.message : err),
+    });
   }
-})();
+};
