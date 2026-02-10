@@ -51,23 +51,62 @@ function toFiniteNumber(x) {
 }
 
 /**
- * Normalizes Apify price fields across versions.
- * Supports:
- * - NEW schema: { salePrice, price } where price = MSRP/list
- * - OLD schema: { price, originalPrice } where price = current/sale and originalPrice = MSRP
+ * Canonical-first price normalization.
+ * Prefers canonical keys:
+ *   salePrice, originalPrice
+ * Then falls back to common alternates used by different actors:
+ *   currentPrice, price, msrp, listPrice, wasPrice, compareAtPrice, etc.
  */
 function normalizeApifyPrices(item) {
-  const newSale = toFiniteNumber(item?.salePrice);
-  const newOrig = toFiniteNumber(item?.price);
-
-  if (newSale != null || newOrig != null) {
-    return { salePrice: newSale, originalPrice: newOrig };
+  // 1) Prefer canonical (your 11-field schema)
+  const canonicalSale = toFiniteNumber(item?.salePrice);
+  const canonicalOrig = toFiniteNumber(item?.originalPrice);
+  if (canonicalSale != null || canonicalOrig != null) {
+    return { salePrice: canonicalSale, originalPrice: canonicalOrig };
   }
 
-  const oldSale = toFiniteNumber(item?.price);
-  const oldOrig = toFiniteNumber(item?.originalPrice);
+  // 2) Common alternates (varies by actor/site)
+  const sale =
+    toFiniteNumber(item?.currentPrice) ??
+    toFiniteNumber(item?.sale_price) ??
+    toFiniteNumber(item?.sale) ??
+    toFiniteNumber(item?.price) ?? // often current/sale
+    null;
 
-  return { salePrice: oldSale, originalPrice: oldOrig };
+  const orig =
+    toFiniteNumber(item?.msrp) ??
+    toFiniteNumber(item?.listPrice) ??
+    toFiniteNumber(item?.wasPrice) ??
+    toFiniteNumber(item?.compareAtPrice) ??
+    toFiniteNumber(item?.compare_at_price) ??
+    toFiniteNumber(item?.original_price) ??
+    null;
+
+  return { salePrice: sale, originalPrice: orig };
+}
+
+/**
+ * Canonical-first field pickers.
+ * These prevent the “good in dataset, bad in blob” problem.
+ */
+function pickListingName(item, brand, model, fallback) {
+  return (
+    item?.listingName ||
+    item?.title ||
+    item?.name ||
+    item?.productName ||
+    (brand || model ? `${brand || ""} ${model || ""}`.trim() : "") ||
+    fallback ||
+    "Running Shoe"
+  );
+}
+
+function pickListingURL(item) {
+  return item?.listingURL || item?.listingUrl || item?.url || item?.href || item?.link || "#";
+}
+
+function pickImageURL(item) {
+  return item?.imageURL || item?.imageUrl || item?.image || item?.img || item?.thumbnail || item?.imageSrc || null;
 }
 
 // Detect gender from URL or listing text
@@ -98,7 +137,11 @@ function detectShoeType(listingName, model) {
     return "track";
   }
 
-  if (/\b(road|kayano|clifton|ghost|pegasus|nimbus|cumulus|gel|glycerin|kinvara|ride|triumph|novablast)\b/i.test(combined)) {
+  if (
+    /\b(road|kayano|clifton|ghost|pegasus|nimbus|cumulus|gel|glycerin|kinvara|ride|triumph|novablast)\b/i.test(
+      combined
+    )
+  ) {
     return "road";
   }
 
@@ -165,37 +208,40 @@ async function fetchActorDatasetItems(actorId, storeName) {
 
 /** -------------------- Apify fetchers -------------------- **/
 
+function mapToCanonicalDeal(item, STORE, brandDefault) {
+  const { salePrice, originalPrice } = normalizeApifyPrices(item);
+
+  const brand = item?.brand || brandDefault || "Unknown";
+  const model = item?.model || "";
+
+  const listingName = pickListingName(item, brand, model, `${STORE} Shoe`);
+  const listingURL = pickListingURL(item);
+  const imageURL = pickImageURL(item);
+
+  const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+
+  return {
+    listingName,
+    brand,
+    model,
+    salePrice: salePrice ?? null,
+    originalPrice: originalPrice ?? null,
+    discountPercent,
+    store: item?.store || STORE,
+    listingURL,
+    imageURL,
+    gender: item?.gender || detectGender(listingURL, listingName),
+    shoeType: item?.shoeType || detectShoeType(listingName, model),
+  };
+}
+
 async function fetchBrooksDeals() {
   const STORE = "Brooks Running";
   const actorId = process.env.APIFY_BROOKS_ACTOR_ID;
   if (!actorId) throw new Error("APIFY_BROOKS_ACTOR_ID is not set");
 
   const items = await fetchActorDatasetItems(actorId, STORE);
-
-  return items.map((item) => {
-    const { salePrice, originalPrice } = normalizeApifyPrices(item);
-
-    const brand = item.brand || "Brooks";
-    const model = item.model || "";
-    const listingName = item.title || `${brand} ${model}`.trim() || "Brooks Running Shoe";
-    const listingURL = item.url || "#";
-    const imageURL = item.image ?? null;
-    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-
-    return {
-      listingName,
-      brand,
-      model,
-      salePrice: salePrice ?? null,
-      originalPrice: originalPrice ?? null,
-      discountPercent,
-      store: item.store || STORE,
-      listingURL,
-      imageURL,
-      gender: item.gender || detectGender(listingURL, listingName),
-      shoeType: item.shoeType || detectShoeType(listingName, model),
-    };
-  });
+  return items.map((item) => mapToCanonicalDeal(item, STORE, "Brooks"));
 }
 
 async function fetchReiDeals() {
@@ -204,31 +250,7 @@ async function fetchReiDeals() {
   if (!actorId) throw new Error("APIFY_REI_ACTOR_ID is not set");
 
   const items = await fetchActorDatasetItems(actorId, STORE);
-
-  return items.map((item) => {
-    const { salePrice, originalPrice } = normalizeApifyPrices(item);
-
-    const brand = item.brand || "Unknown";
-    const model = item.model || "";
-    const listingName = item.title || `${brand} ${model}`.trim() || "REI Outlet Shoe";
-    const listingURL = item.url || "#";
-    const imageURL = item.image ?? null;
-    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-
-    return {
-      listingName,
-      brand,
-      model,
-      salePrice: salePrice ?? null,
-      originalPrice: originalPrice ?? null,
-      discountPercent,
-      store: item.store || STORE,
-      listingURL,
-      imageURL,
-      gender: item.gender || detectGender(listingURL, listingName),
-      shoeType: item.shoeType || detectShoeType(listingName, model),
-    };
-  });
+  return items.map((item) => mapToCanonicalDeal(item, STORE, null));
 }
 
 async function fetchRoadRunnerDeals() {
@@ -237,31 +259,7 @@ async function fetchRoadRunnerDeals() {
   if (!actorId) throw new Error("APIFY_ROADRUNNER_ACTOR_ID is not set");
 
   const items = await fetchActorDatasetItems(actorId, STORE);
-
-  return items.map((item) => {
-    const { salePrice, originalPrice } = normalizeApifyPrices(item);
-
-    const brand = item.brand || "Unknown";
-    const model = item.model || "";
-    const listingName = item.title || `${brand} ${model}`.trim() || "Running Shoe";
-    const listingURL = item.url || "#";
-    const imageURL = item.image ?? null;
-    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-
-    return {
-      listingName,
-      brand,
-      model,
-      salePrice: salePrice ?? null,
-      originalPrice: originalPrice ?? null,
-      discountPercent,
-      store: item.store || STORE,
-      listingURL,
-      imageURL,
-      gender: item.gender || detectGender(listingURL, listingName),
-      shoeType: item.shoeType || detectShoeType(listingName, model),
-    };
-  });
+  return items.map((item) => mapToCanonicalDeal(item, STORE, null));
 }
 
 async function fetchZapposDeals() {
@@ -270,31 +268,7 @@ async function fetchZapposDeals() {
   if (!actorId) throw new Error("APIFY_ZAPPOS_ACTOR_ID is not set");
 
   const items = await fetchActorDatasetItems(actorId, STORE);
-
-  return items.map((item) => {
-    const { salePrice, originalPrice } = normalizeApifyPrices(item);
-
-    const brand = item.brand || "Unknown";
-    const model = item.model || "";
-    const listingName = item.title || `${brand} ${model}`.trim() || "Running Shoe";
-    const listingURL = item.url || "#";
-    const imageURL = item.image ?? null;
-    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-
-    return {
-      listingName,
-      brand,
-      model,
-      salePrice: salePrice ?? null,
-      originalPrice: originalPrice ?? null,
-      discountPercent,
-      store: item.store || STORE,
-      listingURL,
-      imageURL,
-      gender: item.gender || detectGender(listingURL, listingName),
-      shoeType: item.shoeType || detectShoeType(listingName, model),
-    };
-  });
+  return items.map((item) => mapToCanonicalDeal(item, STORE, null));
 }
 
 async function fetchFootlockerDeals() {
@@ -303,31 +277,7 @@ async function fetchFootlockerDeals() {
   if (!actorId) throw new Error("APIFY_FOOTLOCKER_ACTOR_ID is not set");
 
   const items = await fetchActorDatasetItems(actorId, STORE);
-
-  return items.map((item) => {
-    const { salePrice, originalPrice } = normalizeApifyPrices(item);
-
-    const brand = item.brand || "Unknown";
-    const model = item.model || "";
-    const listingName = item.title || `${brand} ${model}`.trim() || "Running Shoe";
-    const listingURL = item.url || "#";
-    const imageURL = item.image ?? null;
-    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-
-    return {
-      listingName,
-      brand,
-      model,
-      salePrice: salePrice ?? null,
-      originalPrice: originalPrice ?? null,
-      discountPercent,
-      store: item.store || STORE,
-      listingURL,
-      imageURL,
-      gender: item.gender || detectGender(listingURL, listingName),
-      shoeType: item.shoeType || detectShoeType(listingName, model),
-    };
-  });
+  return items.map((item) => mapToCanonicalDeal(item, STORE, null));
 }
 
 async function fetchRnjSportsDeals() {
@@ -336,31 +286,7 @@ async function fetchRnjSportsDeals() {
   if (!actorId) throw new Error("APIFY_RNJSPORTS_ACTOR_ID is not set");
 
   const items = await fetchActorDatasetItems(actorId, STORE);
-
-  return items.map((item) => {
-    const { salePrice, originalPrice } = normalizeApifyPrices(item);
-
-    const brand = item.brand || "Unknown";
-    const model = item.model || "";
-    const listingName = item.title || `${brand} ${model}`.trim() || "Running Shoe";
-    const listingURL = item.url || "#";
-    const imageURL = item.image ?? null;
-    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-
-    return {
-      listingName,
-      brand,
-      model,
-      salePrice: salePrice ?? null,
-      originalPrice: originalPrice ?? null,
-      discountPercent,
-      store: item.store || STORE,
-      listingURL,
-      imageURL,
-      gender: item.gender || detectGender(listingURL, listingName),
-      shoeType: item.shoeType || detectShoeType(listingName, model),
-    };
-  });
+  return items.map((item) => mapToCanonicalDeal(item, STORE, null));
 }
 
 /** -------------------- Main handler -------------------- **/
@@ -386,7 +312,6 @@ module.exports = async (req, res) => {
     { name: "Road Runner Sports", env: "ROADRUNNER_DEALS_BLOB_URL", fn: fetchRoadRunnerDeals },
     { name: "Zappos", env: "ZAPPOS_DEALS_BLOB_URL", fn: fetchZapposDeals },
 
-    // NEW
     { name: "Foot Locker", env: "FOOTLOCKER_DEALS_BLOB_URL", fn: fetchFootlockerDeals },
     { name: "RnJ Sports", env: "RNJSPORTS_DEALS_BLOB_URL", fn: fetchRnjSportsDeals },
   ];
