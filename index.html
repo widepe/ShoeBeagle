@@ -1,3 +1,4 @@
+<!-- /pages/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -90,24 +91,25 @@
     <!-- Links ribbon (hidden by default; toggled by the button above) -->
     <div id="linksRibbon" class="links-ribbon" style="display:none;">
       <div class="links-ribbon-inner">
-        <div class="links-ribbon-links">
-          <a href="#" data-open-alert>Set Alert</a>
 
-          <!-- Filter dropdown -->
-          <div class="ribbon-control">
-            <label class="ribbon-label" for="genderFilterSelect">Filter:</label>
-            <select id="genderFilterSelect" class="ribbon-select" aria-label="Gender filter">
-              <option value="all">All</option>
+        <!-- LEFT: Set Alert -->
+        <div class="links-ribbon-left">
+          <a class="links-ribbon-link" href="#" data-open-alert>Set Alert</a>
+        </div>
+
+        <!-- CENTER: Filter + Sort dropdowns -->
+        <div class="links-ribbon-center">
+          <div class="ribbon-controls" role="group" aria-label="Filter and sort">
+            <label class="ribbon-label" for="ribbonFilter">Filter:</label>
+            <select id="ribbonFilter" class="ribbon-select" aria-label="Filter by gender">
+              <option value="all" selected>All</option>
               <option value="mens">Mens only</option>
               <option value="womens">Womens only</option>
             </select>
-          </div>
 
-          <!-- Sort dropdown -->
-          <div class="ribbon-control">
-            <label class="ribbon-label" for="sortSelect">Sort:</label>
-            <select id="sortSelect" class="ribbon-select" aria-label="Sort results">
-              <option value="none">None</option>
+            <label class="ribbon-label" for="ribbonSort">Sort:</label>
+            <select id="ribbonSort" class="ribbon-select" aria-label="Sort results">
+              <option value="none" selected>None</option>
 
               <option value="price_asc">Price: Low → High</option>
               <option value="price_desc">Price: High → Low</option>
@@ -119,16 +121,44 @@
               <option value="save_desc">$ Savings: High → Low</option>
             </select>
           </div>
-
-          <a href="#" aria-disabled="true" tabindex="0">Favorites</a>
         </div>
 
-        <button type="button" class="chip-close" aria-label="Close links">×</button>
+        <!-- RIGHT: Favorites + close -->
+        <div class="links-ribbon-right">
+          <a class="links-ribbon-link is-disabled" href="#" aria-disabled="true" tabindex="0">Favorites</a>
+          <button type="button" class="chip-close" aria-label="Close links">×</button>
+        </div>
+
       </div>
     </div>
 
     <div id="mainContent">
-      <div class="status-message" id="statusMessage">Marty’s Daily Deals</div>
+
+      <!-- (You can keep these chips if you want — dropdown will also drive gender filtering) -->
+      <div class="filters" id="filters" style="display:none;">
+        <div class="filter-row">
+          <div class="filter-label">Gender:</div>
+          <div class="chip-group" id="genderChips">
+            <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
+            <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
+            <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
+          </div>
+        </div>
+
+        <div class="filter-row">
+          <div class="filter-label">Shoe type:</div>
+          <div class="chip-group" id="typeChips">
+            <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
+            <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
+            <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
+            <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="status-message" id="statusMessage">
+        Marty’s Daily Deals
+      </div>
 
       <div class="daily-deals" id="dailyDeals">
         <div class="shoe-grid" id="dailyDealsGrid"></div>
@@ -151,6 +181,7 @@
         We do not sell products directly and are not responsible for changes in price, availability,
         or shipping terms on retailer sites.
       </p>
+
     </div>
 
     <div class="footer">
@@ -172,7 +203,7 @@
   <!-- Load brand/models once (root) -->
   <script src="/brandModels.js"></script>
 
-  <!-- ===== Page script ===== -->
+  <!-- ===== Main Page Script ===== -->
   <script>
   (() => {
     const form = document.getElementById("search-form");
@@ -190,12 +221,18 @@
     const footerYear = document.getElementById("footerYear");
     const appEl = document.querySelector(".app");
 
-    // Ribbon elements
+    // Links toggle button + ribbon
     const menuBtn = document.getElementById("menuBtn");
     const linksRibbon = document.getElementById("linksRibbon");
     const linksRibbonClose = linksRibbon?.querySelector(".chip-close");
-    const genderFilterSelect = document.getElementById("genderFilterSelect");
-    const sortSelect = document.getElementById("sortSelect");
+
+    // NEW: ribbon dropdowns
+    const ribbonFilter = document.getElementById("ribbonFilter");
+    const ribbonSort = document.getElementById("ribbonSort");
+
+    const filtersEl = document.getElementById("filters");
+    const genderChips = document.getElementById("genderChips");
+    const typeChips = document.getElementById("typeChips");
 
     const PAGE_SIZE = 12;
     let pageIndex = 0;
@@ -204,6 +241,7 @@
     const nextPageBtn = document.getElementById("nextPage");
     const pageLabelEl = document.getElementById("pageLabel");
 
+    // Load more elements
     const loadMoreWrap = document.getElementById("loadMoreWrap");
     const loadMoreBtn = document.getElementById("loadMoreBtn");
     const toTopBtn = document.getElementById("toTopBtn");
@@ -217,22 +255,28 @@
       resultsEl.classList.add("is-switching");
       setTimeout(() => {
         fn();
-        requestAnimationFrame(() => resultsEl.classList.remove("is-switching"));
+        requestAnimationFrame(() => {
+          resultsEl.classList.remove("is-switching");
+        });
       }, 160);
     }
 
     let currentSearch = { brand: "", model: "" };
     let lastSearchResults = [];
+    let lastDailyDeals = []; // NEW: so sort/filter can re-render daily deals too
 
-    // Ribbon state
-    let genderFilterMode = "all";   // all | mens | womens
-    let sortMode = "none";          // none | price_asc | ... etc
+    let selectedGender = "";      // chips gender (mens/womens/"")
+    let selectedShoeType = "";    // chips shoeType (road/trail/track/"")
+    let ribbonGenderMode = "all"; // NEW: all/mens/womens (unisex/unknown always allowed)
+    let currentSort = "none";     // NEW
 
     if (footerYear) footerYear.textContent = new Date().getFullYear();
     if (logoLink) logoLink.addEventListener("click", () => location.reload());
 
-    // --- Ribbon open/close ---
-    function isRibbonOpen(){ return !!(linksRibbon && linksRibbon.style.display !== "none"); }
+    // --- Links ribbon toggle ---
+    function isRibbonOpen(){
+      return !!(linksRibbon && linksRibbon.style.display !== "none");
+    }
     function openRibbon(){
       if (!linksRibbon) return;
       linksRibbon.style.display = "block";
@@ -256,19 +300,24 @@
         toggleRibbon();
       });
     }
+
     if (linksRibbonClose) {
       linksRibbonClose.addEventListener("click", (e) => {
         e.preventDefault();
         closeRibbon();
       });
     }
+
     document.addEventListener("click", (e) => {
       if (!linksRibbon || linksRibbon.style.display === "none") return;
       const clickedInsideRibbon = linksRibbon.contains(e.target);
       const clickedButton = menuBtn && menuBtn.contains(e.target);
       if (!clickedInsideRibbon && !clickedButton) closeRibbon();
     });
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeRibbon(); });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeRibbon();
+    });
 
     if (linksRibbon) {
       linksRibbon.addEventListener("click", (e) => {
@@ -277,27 +326,12 @@
       });
     }
 
-    // --- Dropdown handlers ---
-    function normalizeEnum(s){ return String(s || "").trim().toLowerCase(); }
-
-    if (genderFilterSelect) {
-      genderFilterSelect.addEventListener("change", () => {
-        genderFilterMode = normalizeEnum(genderFilterSelect.value || "all");
-        renderFilteredResults({ resetPage: true, append: false });
-      });
-    }
-
-    if (sortSelect) {
-      sortSelect.addEventListener("change", () => {
-        sortMode = normalizeEnum(sortSelect.value || "none");
-        renderFilteredResults({ resetPage: true, append: false });
-      });
-    }
-
     // make sure brandModels always exists
     const brandModels = window.brandModels || {};
 
+    // --- Helpers ---
     function normalizeStr(s) { return String(s || "").trim().toLowerCase(); }
+    function normalizeEnum(s) { return String(s || "").trim().toLowerCase(); }
 
     function sanitizeInput(str) {
       return String(str || "")
@@ -347,54 +381,117 @@
       if (fromMeta && !looksLikePlaceholder) return fromMeta.replace(/\/+$/, "");
       return "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
     }
+
     function blobUrl(path) {
       const base = getBlobBase();
       const cleanPath = String(path || "").replace(/^\/+/, "");
       return base.replace(/\/+$/, "") + "/" + cleanPath;
     }
 
-    // --- Discount helpers (for card badge + sorting) ---
+    // ===== Sort math helpers (price / % off / $ savings) =====
+    function toNum(x){
+      const n = Number(x);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function computePercentOff(item){
+      const sale = toNum(item.salePrice);
+      const orig = toNum(item.originalPrice);
+
+      if (sale != null && orig != null && orig > 0 && sale < orig) {
+        return ((orig - sale) / orig) * 100;
+      }
+
+      // fallback if upstream provides discountPercent
+      const pct = toNum(item.discountPercent);
+      if (pct != null && pct > 0 && pct < 100) return pct;
+
+      return null;
+    }
+
+    function computeSavings(item){
+      const sale = toNum(item.salePrice);
+      const orig = toNum(item.originalPrice);
+      if (sale != null && orig != null && orig > sale) return (orig - sale);
+      return null;
+    }
+
+    function computePrice(item){
+      const sale = toNum(item.salePrice);
+      return sale;
+    }
+
+    function getSortValue(item, sortKey){
+      if (!sortKey || sortKey === "none") return null;
+      if (sortKey.startsWith("price_")) return computePrice(item);
+      if (sortKey.startsWith("pct_")) return computePercentOff(item);
+      if (sortKey.startsWith("save_")) return computeSavings(item);
+      return null;
+    }
+
+    function sortItems(items){
+      const sortKey = currentSort;
+      if (!sortKey || sortKey === "none") return (items || []).slice();
+
+      const desc = sortKey.endsWith("_desc");
+      const out = (items || []).slice();
+
+      out.sort((a,b) => {
+        const va = getSortValue(a, sortKey);
+        const vb = getSortValue(b, sortKey);
+
+        // missing values go last
+        const aMissing = (va == null);
+        const bMissing = (vb == null);
+        if (aMissing && bMissing) return 0;
+        if (aMissing) return 1;
+        if (bMissing) return -1;
+
+        if (va === vb) return 0;
+        return desc ? (vb - va) : (va - vb);
+      });
+
+      return out;
+    }
+
+    // ===== Ribbon gender filter rules =====
+    // Requirement: Unisex/unknown/empty gender ALWAYS display, even when filtering mens/womens.
+    function passesRibbonGender(item){
+      const mode = String(ribbonGenderMode || "all");
+      if (mode === "all") return true;
+
+      const g = normalizeEnum(item.gender);
+      if (!g || g === "unknown" || g === "unisex") return true;
+
+      if (mode === "mens") return g === "mens";
+      if (mode === "womens") return g === "womens";
+      return true;
+    }
+
+    // ===== Existing discount badge helper =====
     function getDiscountInfo(item) {
       const current = Number(item.salePrice);
       const original = Number(item.originalPrice);
 
       if (Number.isFinite(current) && Number.isFinite(original) && original > 0 && current < original) {
         const pct = Math.round(((original - current) / original) * 100);
-        return {
-          hasDiscount: true,
-          current,
-          original,
-          percent: pct,
-          savings: (original - current)
-        };
+        return { hasDiscount: true, current: current.toFixed(2), original: original.toFixed(2), percent: pct };
       }
 
       const pct2 = Number(item.discountPercent);
       if (Number.isFinite(current) && Number.isFinite(pct2) && pct2 > 0 && pct2 < 100) {
         const origGuess = current / (1 - pct2 / 100);
         if (Number.isFinite(origGuess) && origGuess > current) {
-          return {
-            hasDiscount: true,
-            current,
-            original: origGuess,
-            percent: Math.round(pct2),
-            savings: (origGuess - current)
-          };
+          return { hasDiscount: true, current: current.toFixed(2), original: origGuess.toFixed(2), percent: Math.round(pct2) };
         }
-        return {
-          hasDiscount: true,
-          current,
-          original: null,
-          percent: Math.round(pct2),
-          savings: null
-        };
+        return { hasDiscount: true, current: current.toFixed(2), original: "", percent: Math.round(pct2) };
       }
 
-      return { hasDiscount: false, current: Number.isFinite(current) ? current : null, original: Number.isFinite(original) ? original : null, percent: null, savings: null };
+      return { hasDiscount: false };
     }
 
-    // ---- Suggestion plumbing (unchanged) ----
     const brands = Object.keys(brandModels).sort((a,b) => a.localeCompare(b));
+
     function squashStr(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
 
     function scoreSuggestion(candidate, query) {
@@ -540,6 +637,7 @@
 
     function renderSuggestions(container, items, which, onPick) {
       container.innerHTML = "";
+
       if (!items.length) {
         container.style.display = "none";
         if (suggestionState.openFor === which) {
@@ -685,6 +783,7 @@
     });
 
     modelInput.addEventListener("blur", () => setTimeout(() => closeSuggestions("model"), 140));
+
     brandInput.addEventListener("click", () => brandInput.select());
     modelInput.addEventListener("click", () => modelInput.select());
 
@@ -695,61 +794,29 @@
       if (!insideModel) closeSuggestions("model");
     });
 
-    // ===== FILTER + SORT PIPELINE =====
-    // Gender filter rule:
-    // - All => no filtering
-    // - Mens only => show mens + ALSO always show unisex/unknown/empty
-    // - Womens only => show womens + ALSO always show unisex/unknown/empty
-    function passesGenderFilter(item){
-      const mode = normalizeEnum(genderFilterMode);
-      if (!mode || mode === "all") return true;
-
-      const g = normalizeEnum(item.gender);
-      const alwaysShow = (!g || g === "unknown" || g === "unisex");
-
-      if (alwaysShow) return true;
-      if (mode === "mens") return g === "mens";
-      if (mode === "womens") return g === "womens";
-      return true;
+    function setActiveChip(groupEl, activeBtn) {
+      if (!groupEl) return;
+      groupEl.querySelectorAll(".chip").forEach(btn => btn.classList.remove("active"));
+      if (activeBtn) activeBtn.classList.add("active");
     }
 
-    function sortValue(item){
-      const d = getDiscountInfo(item);
+    // ===== Combined filtering: chips + ribbon =====
+    function applyFilters(items) {
+      const g = normalizeEnum(selectedGender);
+      const t = normalizeEnum(selectedShoeType);
 
-      const sale = Number.isFinite(Number(item.salePrice)) ? Number(item.salePrice) : null;
-      const pct = (d && Number.isFinite(d.percent)) ? d.percent : null;
-      const savings = (d && Number.isFinite(d.savings)) ? d.savings : null;
+      return (items || []).filter(item => {
+        // Ribbon gender rule first (All / Mens / Womens with unisex/unknown always allowed)
+        if (!passesRibbonGender(item)) return false;
 
-      return { sale, pct, savings };
-    }
+        // Existing chip behavior (kept):
+        const itemGender = normalizeEnum(item.gender);
+        const itemType = normalizeEnum(item.shoeType);
 
-    function applyFilterAndSort(items){
-      const filtered = (items || []).filter(passesGenderFilter);
+        const genderOk = !g || itemGender === g || itemGender === "unisex";
+        const typeOk = !t || itemType === t;
 
-      const mode = normalizeEnum(sortMode);
-      if (!mode || mode === "none") return filtered;
-
-      const dir = mode.endsWith("_desc") ? -1 : 1;
-
-      function cmp(a, b, key){
-        // Nulls always bottom regardless of direction
-        const va = a[key], vb = b[key];
-        const aNull = (va == null || !Number.isFinite(va));
-        const bNull = (vb == null || !Number.isFinite(vb));
-        if (aNull && bNull) return 0;
-        if (aNull) return 1;
-        if (bNull) return -1;
-        return (va - vb) * dir;
-      }
-
-      return filtered.slice().sort((A, B) => {
-        const a = sortValue(A);
-        const b = sortValue(B);
-
-        if (mode.startsWith("price_")) return cmp(a, b, "sale");
-        if (mode.startsWith("pct_")) return cmp(a, b, "pct");
-        if (mode.startsWith("save_")) return cmp(a, b, "savings");
-        return 0;
+        return genderOk && typeOk;
       });
     }
 
@@ -780,12 +847,14 @@
     }
 
     function renderFilteredResults({ resetPage = true, append = false } = {}) {
-      const filteredSorted = applyFilterAndSort(lastSearchResults);
+      // filter then sort
+      const filtered = applyFilters(lastSearchResults);
+      const sorted = sortItems(filtered);
 
       if (resetPage) pageIndex = 0;
 
       const start = pageIndex * PAGE_SIZE;
-      const slice = filteredSorted.slice(start, start + PAGE_SIZE);
+      const slice = sorted.slice(start, start + PAGE_SIZE);
 
       if (!append) resultsEl.innerHTML = "";
       slice.forEach(item => resultsEl.appendChild(createDealCard(item)));
@@ -793,22 +862,80 @@
       const displayQuery =
         [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() || "all shoes";
 
-      if (!filteredSorted.length) {
-        statusMessageEl.textContent = `No results match your current filter for ${displayQuery}.`;
+      if (!sorted.length) {
+        statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
         updateNavUI(0);
         return;
       }
 
       statusMessageEl.textContent =
-        `We found ${filteredSorted.length} deal${filteredSorted.length === 1 ? "" : "s"} on ${displayQuery} shoes.`;
+        `We found ${sorted.length} deal${sorted.length === 1 ? "" : "s"} on ${displayQuery} shoes.`;
 
-      updateNavUI(filteredSorted.length);
+      updateNavUI(sorted.length);
+    }
+
+    // NEW: re-render daily deals with current filter/sort
+    function renderDailyDealsNow(){
+      if (!dailyDealsGrid) return;
+      if (!lastDailyDeals || !lastDailyDeals.length) return;
+
+      const filtered = applyFilters(lastDailyDeals);
+      const sorted = sortItems(filtered);
+
+      dailyDealsGrid.innerHTML = "";
+      sorted.forEach(item => dailyDealsGrid.appendChild(createDealCard(item)));
+
+      if (dailyDeals) dailyDeals.style.display = sorted.length ? "block" : "none";
+    }
+
+    // NEW: ribbon dropdown behavior
+    function syncGenderChipsToRibbon(){
+      // If ribbon says mens/womens, also select chip M/W (optional), but keep your chip “off” if ribbon=all.
+      if (!genderChips) return;
+
+      if (ribbonGenderMode === "all") {
+        // do not force chips; leave as-is
+        return;
+      }
+
+      const target = ribbonGenderMode === "mens" ? "mens" : "womens";
+      const btn = genderChips.querySelector(`.chip[data-gender="${target}"]`);
+      if (btn) {
+        selectedGender = target;
+        setActiveChip(genderChips, btn);
+      }
+    }
+
+    if (ribbonFilter) {
+      ribbonFilter.addEventListener("change", () => {
+        ribbonGenderMode = String(ribbonFilter.value || "all");
+        // Keep chips + ribbon compatible (optional sync)
+        if (ribbonGenderMode === "all") {
+          // do not override chips; but reset selectedGender to "" if you want ribbon to be the only gender control
+          // selectedGender = "";
+          // if (genderChips) setActiveChip(genderChips, genderChips.querySelector('.chip[data-gender=""]'));
+        } else {
+          syncGenderChipsToRibbon();
+        }
+
+        renderDailyDealsNow();
+        renderFilteredResults({ resetPage: true, append: false });
+      });
+    }
+
+    if (ribbonSort) {
+      ribbonSort.addEventListener("change", () => {
+        currentSort = String(ribbonSort.value || "none");
+        renderDailyDealsNow();
+        renderFilteredResults({ resetPage: true, append: false });
+      });
     }
 
     if (loadMoreBtn) {
       loadMoreBtn.addEventListener("click", () => {
-        const filteredSorted = applyFilterAndSort(lastSearchResults);
-        const total = filteredSorted.length;
+        const filtered = applyFilters(lastSearchResults);
+        const sorted = sortItems(filtered);
+        const total = sorted.length;
 
         const hasMore = ((pageIndex + 1) * PAGE_SIZE) < total;
         if (!hasMore) return;
@@ -820,7 +947,8 @@
 
     if (prevPageBtn) {
       prevPageBtn.addEventListener("click", () => {
-        const filteredSorted = applyFilterAndSort(lastSearchResults);
+        const filtered = applyFilters(lastSearchResults);
+        const sorted = sortItems(filtered);
         if (pageIndex <= 0) return;
 
         runPagerTransitionThen(() => {
@@ -833,8 +961,9 @@
 
     if (nextPageBtn) {
       nextPageBtn.addEventListener("click", () => {
-        const filteredSorted = applyFilterAndSort(lastSearchResults);
-        const pages = totalPagesCount(filteredSorted.length);
+        const filtered = applyFilters(lastSearchResults);
+        const sorted = sortItems(filtered);
+        const pages = totalPagesCount(sorted.length);
         if (pageIndex >= pages - 1) return;
 
         runPagerTransitionThen(() => {
@@ -845,8 +974,30 @@
       });
     }
 
+    if (genderChips) {
+      genderChips.addEventListener("click", (e) => {
+        const btn = e.target.closest(".chip");
+        if (!btn) return;
+        selectedGender = normalizeEnum(btn.dataset.gender);
+        setActiveChip(genderChips, btn);
+        renderDailyDealsNow();
+        renderFilteredResults({ resetPage: true, append: false });
+      });
+    }
+
+    if (typeChips) {
+      typeChips.addEventListener("click", (e) => {
+        const btn = e.target.closest(".chip");
+        if (!btn) return;
+        selectedShoeType = normalizeEnum(btn.dataset.type);
+        setActiveChip(typeChips, btn);
+        renderDailyDealsNow();
+        renderFilteredResults({ resetPage: true, append: false });
+      });
+    }
+
     function createDealCard(item) {
-      const d = getDiscountInfo(item);
+      const discount = getDiscountInfo(item);
 
       const card = document.createElement("div");
       card.className = "card";
@@ -856,6 +1007,8 @@
 
       const listingUrl = item.listingURL;
       const safeLink = isValidRetailerUrl(listingUrl) ? listingUrl : "#";
+      if (safeLink === "#" && listingUrl) console.warn("Blocked untrusted retailer URL:", listingUrl);
+
       link.href = safeLink;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
@@ -868,12 +1021,44 @@
       img.alt = (item.brand && item.model) ? `${item.brand} ${item.model}` : (item.model || item.brand || "Running shoe deal");
       imgWrapper.appendChild(img);
 
-      if (d.hasDiscount && Number.isFinite(d.percent)) {
+      if (discount.hasDiscount) {
         const badge = document.createElement("div");
         badge.className = "discount-badge";
-        badge.textContent = `${d.percent}% OFF`;
+        badge.textContent = `${discount.percent}% OFF`;
         imgWrapper.appendChild(badge);
       }
+
+      const gRaw = normalizeEnum(item.gender);
+      const tRaw = normalizeEnum(item.shoeType);
+
+      const g = (gRaw && gRaw !== "unknown") ? gRaw : "";
+      const t = (tRaw && tRaw !== "unknown") ? tRaw : "";
+
+      const tagWrap = document.createElement("div");
+      tagWrap.className = "card-tags";
+
+      let hasAnyTag = false;
+
+      if (g) {
+        const genderTag = document.createElement("span");
+        genderTag.className = "card-tag";
+        genderTag.textContent = g === "mens" ? "Mens" : g === "womens" ? "Womens" : "Unisex";
+        tagWrap.appendChild(genderTag);
+        hasAnyTag = true;
+      }
+
+      if (t) {
+        const typeTag = document.createElement("span");
+        typeTag.className = "card-tag";
+        typeTag.textContent =
+          t === "road" ? "Road" :
+          t === "trail" ? "Trail" :
+          t === "track" ? "Spikes" : (item.shoeType || "");
+        tagWrap.appendChild(typeTag);
+        hasAnyTag = true;
+      }
+
+      if (hasAnyTag) imgWrapper.appendChild(tagWrap);
 
       link.appendChild(imgWrapper);
 
@@ -886,10 +1071,15 @@
       const brand = (item.brand || "").trim();
       const model = (item.model || "").trim();
 
-      if (brand && model) titleDiv.innerHTML = `<strong style="text-transform: uppercase;">${brand}</strong><br>${model}`;
-      else if (brand) titleDiv.innerHTML = `<strong style="text-transform: uppercase;">${brand}</strong>`;
-      else if (model) titleDiv.textContent = model;
-      else titleDiv.textContent = "Deal";
+      if (brand && model) {
+        titleDiv.innerHTML = `<strong style="text-transform: uppercase;">${brand}</strong><br>${model}`;
+      } else if (brand) {
+        titleDiv.innerHTML = `<strong style="text-transform: uppercase;">${brand}</strong>`;
+      } else if (model) {
+        titleDiv.textContent = model;
+      } else {
+        titleDiv.textContent = "Deal";
+      }
 
       contentDiv.appendChild(titleDiv);
 
@@ -912,10 +1102,10 @@
 
       priceRow.appendChild(priceSpan);
 
-      if (d.hasDiscount && d.original != null && Number.isFinite(d.original)) {
+      if (discount.hasDiscount && discount.original) {
         const origSpan = document.createElement("span");
         origSpan.className = "card-original-price";
-        origSpan.textContent = `$${Number(d.original).toFixed(2)}`;
+        origSpan.textContent = `$${discount.original}`;
         priceRow.appendChild(origSpan);
       }
 
@@ -939,15 +1129,14 @@
 
         const data = await res.json();
         const deals = Array.isArray(data.deals) ? data.deals : [];
-
-        if (dailyDealsGrid) dailyDealsGrid.innerHTML = "";
+        lastDailyDeals = deals.slice(); // keep a copy for ribbon sorting/filtering
 
         if (!deals.length) {
           if (dailyDeals) dailyDeals.style.display = "none";
           return;
         }
 
-        deals.forEach(item => dailyDealsGrid.appendChild(createDealCard(item)));
+        renderDailyDealsNow();
         if (dailyDeals) dailyDeals.style.display = "block";
       } catch (err) {
         console.error("Error loading daily deals:", err);
@@ -965,8 +1154,10 @@
         return;
       }
 
-      if (window.scrollY > 250) toTopBtn.classList.add("is-visible");
-      else toTopBtn.classList.remove("is-visible");
+      if (window.scrollY > 250)
+        toTopBtn.classList.add("is-visible");
+      else
+        toTopBtn.classList.remove("is-visible");
     }
 
     window.addEventListener("scroll", updateToTopVisibility, { passive: true });
@@ -974,7 +1165,9 @@
     updateToTopVisibility();
 
     if (toTopBtn){
-      toTopBtn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+      toTopBtn.addEventListener("click", () => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
     }
 
     function expandInputs(){
@@ -994,8 +1187,10 @@
       setTimeout(() => {
         const stillFocused = inputs.includes(document.activeElement);
         const anyText = inputs.some(i => (i.value || "").trim().length > 0);
+
         if (stillFocused) return;
         if (anyText) return;
+
         appEl.classList.remove("inputs-expanded");
       }, 0);
     }
@@ -1021,6 +1216,7 @@
       brandInput.value = brandTyped;
 
       const modelTyped = sanitizeInput(modelInput.value);
+
       updateFetchReady();
 
       if (!brandTyped && !modelTyped) {
@@ -1043,6 +1239,7 @@
       if (loadMoreWrap) loadMoreWrap.style.display = "none";
 
       if (dailyDeals) dailyDeals.style.display = "none";
+      if (filtersEl) filtersEl.style.display = "none";
 
       let data;
       try {
@@ -1058,17 +1255,39 @@
       const results = (data && data.results) ? data.results : [];
       lastSearchResults = results;
 
-      // reset ribbon state but keep dropdown selections as-is
-      pageIndex = 0;
+      selectedGender = "";
+      selectedShoeType = "";
+      if (genderChips) setActiveChip(genderChips, genderChips.querySelector('.chip[data-gender=""]'));
+      if (typeChips) setActiveChip(typeChips, typeChips.querySelector('.chip[data-type=""]'));
 
       if (!results.length) {
         statusMessageEl.textContent = `No results found for ${displayQuery}.`;
+        if (filtersEl) filtersEl.style.display = "none";
         if (pager) pager.style.display = "none";
         if (loadMoreWrap) loadMoreWrap.style.display = "none";
         if (dailyDeals) dailyDeals.style.display = "block";
         return;
       }
 
+      const genderRow = genderChips ? genderChips.closest(".filter-row") : null;
+      if (genderRow) genderRow.style.display = "flex";
+
+      const typeRow = typeChips ? typeChips.closest(".filter-row") : null;
+
+      const hasBrand = !!brandTyped.trim();
+      const hasModel = !!modelTyped.trim();
+
+      if (typeRow) {
+        if (hasBrand && !hasModel) {
+          typeRow.style.display = "flex";
+          if (typeChips) setActiveChip(typeChips, typeChips.querySelector('.chip[data-type=""]'));
+        } else {
+          typeRow.style.display = "none";
+          selectedShoeType = "";
+        }
+      }
+
+      if (filtersEl) filtersEl.style.display = "flex";
       renderFilteredResults({ resetPage: true, append: false });
     });
 
@@ -1077,7 +1296,7 @@
   })();
   </script>
 
-  <!-- ===== Set Alert Modal (unchanged HTML) ===== -->
+  <!-- ===== Set Alert Modal (drop-in) ===== -->
   <div id="sbAlertBackdrop" class="sb-alert-backdrop" aria-hidden="true">
     <div class="sb-alert-modal" role="dialog" aria-modal="true" aria-labelledby="sbAlertTitle">
       <button type="button" class="sb-alert-close" id="sbAlertClose" aria-label="Close">×</button>
@@ -1085,6 +1304,7 @@
       <div class="sb-alert-title" id="sbAlertTitle">Set Alert</div>
 
       <form id="sbSetAlertForm" class="sb-alert-form">
+        <!-- FORM VIEW -->
         <div id="sbAlertFormView">
           <input class="sb-input" type="email" id="sbAlertEmail" placeholder="your@email.com" required autocomplete="email">
 
@@ -1107,7 +1327,6 @@
                   <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
                   <span class="sb-gender-label">Women’s</span>
                 </div>
-
                 <div class="sb-gender-option" data-g="mens" role="radio" aria-checked="false" tabindex="0">
                   <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
                   <span class="sb-gender-label">Men’s</span>
@@ -1126,6 +1345,7 @@
                        autocomplete="off"
                        aria-label="Target price in whole dollars"
                        required>
+
                 <button type="button" class="sb-clear sb-clear-price" data-clear="#sbAlertPrice" aria-label="Clear price">×</button>
               </div>
             </div>
@@ -1143,6 +1363,7 @@
           <div id="sbStatus" class="sb-status" hidden></div>
         </div>
 
+        <!-- SUCCESS VIEW -->
         <div id="sbConfirm" class="sb-confirm" hidden>
           <div class="sb-confirm-title">✓ Alert Set Successfully!</div>
           <div id="sbConfirmDetails" class="sb-confirm-details"></div>
@@ -1152,6 +1373,7 @@
           <button type="button" class="sb-submit sb-secondary" id="sbSetAnother">Set Another Alert</button>
         </div>
 
+        <!-- MAXED OUT VIEW -->
         <div id="sbMaxed" class="sb-confirm" hidden>
           <div class="sb-confirm-title">Alert Limit Reached</div>
           <div class="sb-confirm-details" style="border-color: rgba(220,53,69,0.35);">
@@ -1166,7 +1388,7 @@
     </div>
   </div>
 
-  <!-- ===== Modal controller (your existing JS) ===== -->
+  <!-- ===== Modal controller (unchanged logic from your current working version) ===== -->
   <script>
   (() => {
     const openers = document.querySelectorAll("[data-open-alert]");
@@ -1295,7 +1517,7 @@
     genderWrap.addEventListener("click", (e) => {
       const opt = e.target.closest(".sb-gender-option");
       if (!opt) return;
-      const g = opt.getAttribute("data-g") || "both";
+      const g = opt.getAttribute("data-g") || "";
       setGender(g);
     });
 
@@ -1304,7 +1526,7 @@
       if (!opt) return;
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        const g = opt.getAttribute("data-g") || "both";
+        const g = opt.getAttribute("data-g") || "";
         setGender(g);
       }
     });
@@ -1465,7 +1687,6 @@
         err.code = code;
         throw err;
       }
-
       return data;
     }
 
@@ -1527,7 +1748,6 @@
       try {
         await postJson(API_ALERTS, { email, brand, model, targetPrice, gender });
         showSuccess(brand, model, gender, targetPrice);
-
       } catch (err) {
         const msg = (err && err.message) ? String(err.message) : "Failed to set alert.";
         const code = err && err.code ? String(err.code) : "";
@@ -1562,5 +1782,6 @@
     }
   })();
   </script>
+
 </body>
 </html>
