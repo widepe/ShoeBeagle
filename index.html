@@ -101,34 +101,33 @@
         <div class="links-ribbon-center">
           <div class="ribbon-controls" role="group" aria-label="Filter and sort">
 
-  <label class="ribbon-label" for="ribbonGender">Gender</label>
-  <select id="ribbonGender" class="ribbon-select" aria-label="Filter by gender">
-    <option value="" selected>Off</option>
-    <option value="mens">Mens</option>
-    <option value="womens">Womens</option>
-  </select>
+            <label class="ribbon-label" for="ribbonGender">Gender</label>
+            <select id="ribbonGender" class="ribbon-select" aria-label="Filter by gender">
+              <option value="" selected>Off</option>
+              <option value="mens">Mens</option>
+              <option value="womens">Womens</option>
+            </select>
 
-  <label class="ribbon-label" for="ribbonType">Shoe Type</label>
-  <select id="ribbonType" class="ribbon-select" aria-label="Filter by shoe type">
-    <option value="" selected>Off</option>
-    <option value="road">Road</option>
-    <option value="trail">Trail</option>
-    <option value="track">Track</option>
-  </select>
+            <label class="ribbon-label" for="ribbonType">Shoe Type</label>
+            <select id="ribbonType" class="ribbon-select" aria-label="Filter by shoe type">
+              <option value="" selected>Off</option>
+              <option value="road">Road</option>
+              <option value="trail">Trail</option>
+              <option value="track">Track</option>
+            </select>
 
-  <label class="ribbon-label" for="ribbonSort">Sort</label>
-  <select id="ribbonSort" class="ribbon-select" aria-label="Sort results">
-    <option value="" selected>Off</option>
-    <option value="price-asc">Price: Lo → Hi</option>
-    <option value="price-desc">Price: Hi → Lo</option>
-    <option value="pct-asc">% Off: Lo → Hi</option>
-    <option value="pct-desc">% Off: Hi → Lo</option>
-    <option value="save-asc">Savings: Lo → Hi</option>
-    <option value="save-desc">Savings: Hi → Lo</option>
-  </select>
+            <label class="ribbon-label" for="ribbonSort">Sort</label>
+            <select id="ribbonSort" class="ribbon-select" aria-label="Sort results">
+              <option value="" selected>Off</option>
+              <option value="price-asc">Price: Lo → Hi</option>
+              <option value="price-desc">Price: Hi → Lo</option>
+              <option value="pct-asc">% Off: Lo → Hi</option>
+              <option value="pct-desc">% Off: Hi → Lo</option>
+              <option value="save-asc">Savings: Lo → Hi</option>
+              <option value="save-desc">Savings: Hi → Lo</option>
+            </select>
 
-</div>
-
+          </div>
         </div>
 
         <!-- RIGHT: Favorites + close -->
@@ -142,7 +141,7 @@
 
     <div id="mainContent">
 
-      <!-- (You can keep these chips if you want — dropdown will also drive gender filtering) -->
+      <!-- (You can keep these chips if you want — dropdown will also drive filtering) -->
       <div class="filters" id="filters" style="display:none;">
         <div class="filter-row">
           <div class="filter-label">Gender:</div>
@@ -234,9 +233,10 @@
     const linksRibbon = document.getElementById("linksRibbon");
     const linksRibbonClose = linksRibbon?.querySelector(".chip-close");
 
-    // NEW: ribbon dropdowns
-    const ribbonFilter = document.getElementById("ribbonFilter");
-    const ribbonSort = document.getElementById("ribbonSort");
+    // Ribbon dropdowns
+    const ribbonGender = document.getElementById("ribbonGender");
+    const ribbonType   = document.getElementById("ribbonType");
+    const ribbonSort   = document.getElementById("ribbonSort");
 
     const filtersEl = document.getElementById("filters");
     const genderChips = document.getElementById("genderChips");
@@ -271,12 +271,12 @@
 
     let currentSearch = { brand: "", model: "" };
     let lastSearchResults = [];
-    let lastDailyDeals = []; // NEW: so sort/filter can re-render daily deals too
+    let lastDailyDeals = [];
 
-    let selectedGender = "";      // chips gender (mens/womens/"")
-    let selectedShoeType = "";    // chips shoeType (road/trail/track/"")
-    let ribbonGenderMode = "all"; // NEW: all/mens/womens (unisex/unknown always allowed)
-    let currentSort = "none";     // NEW
+    // Unified state (chips + ribbon both update these)
+    let selectedGender = "";      // "" | "mens" | "womens"
+    let selectedShoeType = "";    // "" | "road" | "trail" | "track"
+    let currentSort = "";         // "" | "price-asc" | "price-desc" | "pct-asc" | "pct-desc" | "save-asc" | "save-desc"
 
     if (footerYear) footerYear.textContent = new Date().getFullYear();
     if (logoLink) logoLink.addEventListener("click", () => location.reload());
@@ -316,16 +316,12 @@
       });
     }
 
-
-
-
-
     // make sure brandModels always exists
     const brandModels = window.brandModels || {};
 
     // --- Helpers ---
     function normalizeStr(s) { return String(s || "").trim().toLowerCase(); }
-    function normalizeEnum(s) { return String(s || "").trim().toLowerCase(); }
+    function norm(s) { return String(s || "").trim().toLowerCase(); } // <-- FIX: you were calling norm() but it didn't exist
 
     function sanitizeInput(str) {
       return String(str || "")
@@ -396,7 +392,6 @@
         return ((orig - sale) / orig) * 100;
       }
 
-      // fallback if upstream provides discountPercent
       const pct = toNum(item.discountPercent);
       if (pct != null && pct > 0 && pct < 100) return pct;
 
@@ -415,54 +410,77 @@
       return sale;
     }
 
-    function getSortValue(item, sortKey){
-      if (!sortKey || sortKey === "none") return null;
-      if (sortKey.startsWith("price_")) return computePrice(item);
-      if (sortKey.startsWith("pct_")) return computePercentOff(item);
-      if (sortKey.startsWith("save_")) return computeSavings(item);
-      return null;
+    function cmpNullsLast(a, b){
+      if (a == null && b == null) return 0;
+      if (a == null) return 1;
+      if (b == null) return -1;
+      return 0;
     }
 
-    function sortItems(items){
-      const sortKey = currentSort;
-      if (!sortKey || sortKey === "none") return (items || []).slice();
+    function applySort(items){
+      const mode = String(currentSort || "").trim();
+      if (!mode) return (items || []).slice();
 
-      const desc = sortKey.endsWith("_desc");
-      const out = (items || []).slice();
+      const arr = (items || []).slice();
 
-      out.sort((a,b) => {
-        const va = getSortValue(a, sortKey);
-        const vb = getSortValue(b, sortKey);
+      arr.sort((A, B) => {
+        if (mode === "price-asc" || mode === "price-desc"){
+          const a = computePrice(A), b = computePrice(B);
+          const nl = cmpNullsLast(a,b); if (nl) return nl;
+          return mode === "price-asc" ? (a - b) : (b - a);
+        }
 
-        // missing values go last
-        const aMissing = (va == null);
-        const bMissing = (vb == null);
-        if (aMissing && bMissing) return 0;
-        if (aMissing) return 1;
-        if (bMissing) return -1;
+        if (mode === "pct-asc" || mode === "pct-desc"){
+          const a = computePercentOff(A), b = computePercentOff(B);
+          const nl = cmpNullsLast(a,b); if (nl) return nl;
+          return mode === "pct-asc" ? (a - b) : (b - a);
+        }
 
-        if (va === vb) return 0;
-        return desc ? (vb - va) : (va - vb);
+        if (mode === "save-asc" || mode === "save-desc"){
+          const a = computeSavings(A), b = computeSavings(B);
+          const nl = cmpNullsLast(a,b); if (nl) return nl;
+          return mode === "save-asc" ? (a - b) : (b - a);
+        }
+
+        return 0;
       });
 
-      return out;
+      return arr;
     }
 
-    // ===== Ribbon gender filter rules =====
-    // Requirement: Unisex/unknown/empty gender ALWAYS display, even when filtering mens/womens.
-    function passesRibbonGender(item){
-      const mode = String(ribbonGenderMode || "all");
-      if (mode === "all") return true;
+    // ===== Filters: unified state =====
+    // Gender rules: when filtering mens/womens, still allow unisex/unknown/empty.
+    function applyFilters(items){
+      const gSel = norm(selectedGender);     // "" | mens | womens
+      const tSel = norm(selectedShoeType);   // "" | road | trail | track
 
-      const g = normalizeEnum(item.gender);
-      if (!g || g === "unknown" || g === "unisex") return true;
+      return (items || []).filter(item => {
+        const g = norm(item.gender);
+        const t = norm(item.shoeType);
 
-      if (mode === "mens") return g === "mens";
-      if (mode === "womens") return g === "womens";
-      return true;
+        const genderOk =
+          !gSel ||
+          g === gSel ||
+          g === "unisex" ||
+          g === "unknown" ||
+          g === "";
+
+        const typeOk =
+          !tSel ||
+          t === tSel ||
+          t === "unknown" ||
+          t === "";
+
+        return genderOk && typeOk;
+      });
     }
 
-    // ===== Existing discount badge helper =====
+    function getFilteredAndSorted(items){
+      const filtered = applyFilters(items);
+      return applySort(filtered);
+    }
+
+    // ===== Discount badge helper =====
     function getDiscountInfo(item) {
       const current = Number(item.salePrice);
       const original = Number(item.originalPrice);
@@ -794,74 +812,24 @@
       if (activeBtn) activeBtn.classList.add("active");
     }
 
-    // ===== Combined filtering: chips + ribbon =====
-   function applyFilters(items) {
-  const gSel = norm(selectedGender);      // from ribbon: "" | mens | womens
-  const tSel = norm(selectedShoeType);    // from ribbon: "" | road | trail | track
-
-  return (items || []).filter(item => {
-    const g = norm(item.gender);      // mens/womens/unisex/unknown/"" etc.
-    const t = norm(item.shoeType);    // road/trail/track/unknown/"" etc.
-
-    // ----- Gender rules -----
-    // Off => allow all genders
-    // On  => allow selected + unisex + unknown/empty
-    const genderOk =
-      !gSel ||
-      g === gSel ||
-      g === "unisex" ||
-      g === "unknown" ||
-      g === "";
-
-    // ----- ShoeType rules -----
-    // Off => allow all types
-    // On  => allow selected + unknown/empty
-    const typeOk =
-      !tSel ||
-      t === tSel ||
-      t === "unknown" ||
-      t === "";
-
-    return genderOk && typeOk;
-  });
-}
-function applySort(items){
-  const mode = norm((ribbonSort && ribbonSort.value) || "");
-  if (!mode) return items;
-
-  const arr = items.slice();
-
-  function cmpNullsLast(a, b){
-    if (a == null && b == null) return 0;
-    if (a == null) return 1;
-    if (b == null) return -1;
-    return 0;
-  }
-
-  arr.sort((A, B) => {
-    if (mode === "price-asc" || mode === "price-desc"){
-      const a = getPrice(A), b = getPrice(B);
-      const nl = cmpNullsLast(a,b); if (nl) return nl;
-      return mode === "price-asc" ? (a - b) : (b - a);
+    function syncChipsFromState(){
+      if (genderChips){
+        const gBtn = genderChips.querySelector(`.chip[data-gender="${selectedGender}"]`) ||
+                     genderChips.querySelector(`.chip[data-gender=""]`);
+        setActiveChip(genderChips, gBtn);
+      }
+      if (typeChips){
+        const tBtn = typeChips.querySelector(`.chip[data-type="${selectedShoeType}"]`) ||
+                     typeChips.querySelector(`.chip[data-type=""]`);
+        setActiveChip(typeChips, tBtn);
+      }
     }
 
-    if (mode === "pct-asc" || mode === "pct-desc"){
-      const a = getPctOff(A), b = getPctOff(B);
-      const nl = cmpNullsLast(a,b); if (nl) return nl;
-      return mode === "pct-asc" ? (a - b) : (b - a);
+    function syncRibbonFromState(){
+      if (ribbonGender) ribbonGender.value = selectedGender || "";
+      if (ribbonType) ribbonType.value = selectedShoeType || "";
+      if (ribbonSort) ribbonSort.value = currentSort || "";
     }
-
-    if (mode === "save-asc" || mode === "save-desc"){
-      const a = getSavings(A), b = getSavings(B);
-      const nl = cmpNullsLast(a,b); if (nl) return nl;
-      return mode === "save-asc" ? (a - b) : (b - a);
-    }
-
-    return 0;
-  });
-
-  return arr;
-}
 
     function totalPagesCount(total){
       return Math.max(1, Math.ceil((Number(total) || 0) / PAGE_SIZE));
@@ -890,29 +858,7 @@ function applySort(items){
     }
 
     function renderFilteredResults({ resetPage = true, append = false } = {}) {
-      // filter then sort
-      let filtered = applyFilters(lastSearchResults);
-filtered = applySort(filtered);
-if (ribbonGender){
-  ribbonGender.addEventListener("change", () => {
-    selectedGender = norm(ribbonGender.value);
-    renderFilteredResults({ resetPage: true, append: false });
-  });
-}
-
-if (ribbonType){
-  ribbonType.addEventListener("change", () => {
-    selectedShoeType = norm(ribbonType.value);
-    renderFilteredResults({ resetPage: true, append: false });
-  });
-}
-
-if (ribbonSort){
-  ribbonSort.addEventListener("change", () => {
-    renderFilteredResults({ resetPage: true, append: false });
-  });
-}
-      const sorted = sortItems(filtered);
+      const sorted = getFilteredAndSorted(lastSearchResults);
 
       if (resetPage) pageIndex = 0;
 
@@ -937,13 +883,11 @@ if (ribbonSort){
       updateNavUI(sorted.length);
     }
 
-    // NEW: re-render daily deals with current filter/sort
     function renderDailyDealsNow(){
       if (!dailyDealsGrid) return;
       if (!lastDailyDeals || !lastDailyDeals.length) return;
 
-      const filtered = applyFilters(lastDailyDeals);
-      const sorted = sortItems(filtered);
+      const sorted = getFilteredAndSorted(lastDailyDeals);
 
       dailyDealsGrid.innerHTML = "";
       sorted.forEach(item => dailyDealsGrid.appendChild(createDealCard(item)));
@@ -951,53 +895,62 @@ if (ribbonSort){
       if (dailyDeals) dailyDeals.style.display = sorted.length ? "block" : "none";
     }
 
-    // NEW: ribbon dropdown behavior
-    function syncGenderChipsToRibbon(){
-      // If ribbon says mens/womens, also select chip M/W (optional), but keep your chip “off” if ribbon=all.
-      if (!genderChips) return;
-
-      if (ribbonGenderMode === "all") {
-        // do not force chips; leave as-is
-        return;
-      }
-
-      const target = ribbonGenderMode === "mens" ? "mens" : "womens";
-      const btn = genderChips.querySelector(`.chip[data-gender="${target}"]`);
-      if (btn) {
-        selectedGender = target;
-        setActiveChip(genderChips, btn);
-      }
-    }
-
-    if (ribbonFilter) {
-      ribbonFilter.addEventListener("change", () => {
-        ribbonGenderMode = String(ribbonFilter.value || "all");
-        // Keep chips + ribbon compatible (optional sync)
-        if (ribbonGenderMode === "all") {
-          // do not override chips; but reset selectedGender to "" if you want ribbon to be the only gender control
-          // selectedGender = "";
-          // if (genderChips) setActiveChip(genderChips, genderChips.querySelector('.chip[data-gender=""]'));
-        } else {
-          syncGenderChipsToRibbon();
-        }
-
+    // ===== Ribbon listeners (ONLY ONCE, not inside render) =====
+    if (ribbonGender){
+      ribbonGender.addEventListener("change", () => {
+        selectedGender = norm(ribbonGender.value);
+        syncChipsFromState();
         renderDailyDealsNow();
         renderFilteredResults({ resetPage: true, append: false });
       });
     }
 
-    if (ribbonSort) {
+    if (ribbonType){
+      ribbonType.addEventListener("change", () => {
+        selectedShoeType = norm(ribbonType.value);
+        syncChipsFromState();
+        renderDailyDealsNow();
+        renderFilteredResults({ resetPage: true, append: false });
+      });
+    }
+
+    if (ribbonSort){
       ribbonSort.addEventListener("change", () => {
-        currentSort = String(ribbonSort.value || "none");
+        currentSort = String(ribbonSort.value || "").trim();
         renderDailyDealsNow();
         renderFilteredResults({ resetPage: true, append: false });
       });
     }
 
+    // ===== Chips listeners =====
+    if (genderChips) {
+      genderChips.addEventListener("click", (e) => {
+        const btn = e.target.closest(".chip");
+        if (!btn) return;
+        selectedGender = norm(btn.dataset.gender);
+        syncRibbonFromState();
+        syncChipsFromState();
+        renderDailyDealsNow();
+        renderFilteredResults({ resetPage: true, append: false });
+      });
+    }
+
+    if (typeChips) {
+      typeChips.addEventListener("click", (e) => {
+        const btn = e.target.closest(".chip");
+        if (!btn) return;
+        selectedShoeType = norm(btn.dataset.type);
+        syncRibbonFromState();
+        syncChipsFromState();
+        renderDailyDealsNow();
+        renderFilteredResults({ resetPage: true, append: false });
+      });
+    }
+
+    // ===== Paging / load more =====
     if (loadMoreBtn) {
       loadMoreBtn.addEventListener("click", () => {
-        const filtered = applyFilters(lastSearchResults);
-        const sorted = sortItems(filtered);
+        const sorted = getFilteredAndSorted(lastSearchResults);
         const total = sorted.length;
 
         const hasMore = ((pageIndex + 1) * PAGE_SIZE) < total;
@@ -1010,8 +963,7 @@ if (ribbonSort){
 
     if (prevPageBtn) {
       prevPageBtn.addEventListener("click", () => {
-        const filtered = applyFilters(lastSearchResults);
-        const sorted = sortItems(filtered);
+        const sorted = getFilteredAndSorted(lastSearchResults);
         if (pageIndex <= 0) return;
 
         runPagerTransitionThen(() => {
@@ -1024,8 +976,7 @@ if (ribbonSort){
 
     if (nextPageBtn) {
       nextPageBtn.addEventListener("click", () => {
-        const filtered = applyFilters(lastSearchResults);
-        const sorted = sortItems(filtered);
+        const sorted = getFilteredAndSorted(lastSearchResults);
         const pages = totalPagesCount(sorted.length);
         if (pageIndex >= pages - 1) return;
 
@@ -1034,28 +985,6 @@ if (ribbonSort){
           renderFilteredResults({ resetPage: false, append: false });
           resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
         });
-      });
-    }
-
-    if (genderChips) {
-      genderChips.addEventListener("click", (e) => {
-        const btn = e.target.closest(".chip");
-        if (!btn) return;
-        selectedGender = normalizeEnum(btn.dataset.gender);
-        setActiveChip(genderChips, btn);
-        renderDailyDealsNow();
-        renderFilteredResults({ resetPage: true, append: false });
-      });
-    }
-
-    if (typeChips) {
-      typeChips.addEventListener("click", (e) => {
-        const btn = e.target.closest(".chip");
-        if (!btn) return;
-        selectedShoeType = normalizeEnum(btn.dataset.type);
-        setActiveChip(typeChips, btn);
-        renderDailyDealsNow();
-        renderFilteredResults({ resetPage: true, append: false });
       });
     }
 
@@ -1091,8 +1020,8 @@ if (ribbonSort){
         imgWrapper.appendChild(badge);
       }
 
-      const gRaw = normalizeEnum(item.gender);
-      const tRaw = normalizeEnum(item.shoeType);
+      const gRaw = norm(item.gender);
+      const tRaw = norm(item.shoeType);
 
       const g = (gRaw && gRaw !== "unknown") ? gRaw : "";
       const t = (tRaw && tRaw !== "unknown") ? tRaw : "";
@@ -1192,7 +1121,7 @@ if (ribbonSort){
 
         const data = await res.json();
         const deals = Array.isArray(data.deals) ? data.deals : [];
-        lastDailyDeals = deals.slice(); // keep a copy for ribbon sorting/filtering
+        lastDailyDeals = deals.slice();
 
         if (!deals.length) {
           if (dailyDeals) dailyDeals.style.display = "none";
@@ -1318,10 +1247,12 @@ if (ribbonSort){
       const results = (data && data.results) ? data.results : [];
       lastSearchResults = results;
 
+      // Reset filters + sort on new search
       selectedGender = "";
       selectedShoeType = "";
-      if (genderChips) setActiveChip(genderChips, genderChips.querySelector('.chip[data-gender=""]'));
-      if (typeChips) setActiveChip(typeChips, typeChips.querySelector('.chip[data-type=""]'));
+      currentSort = "";
+      syncRibbonFromState();
+      syncChipsFromState();
 
       if (!results.length) {
         statusMessageEl.textContent = `No results found for ${displayQuery}.`;
@@ -1332,6 +1263,10 @@ if (ribbonSort){
         return;
       }
 
+      // show chips area
+      if (filtersEl) filtersEl.style.display = "flex";
+
+      // preserve your prior behavior: shoe-type chips row only for brand-only searches
       const genderRow = genderChips ? genderChips.closest(".filter-row") : null;
       if (genderRow) genderRow.style.display = "flex";
 
@@ -1343,14 +1278,13 @@ if (ribbonSort){
       if (typeRow) {
         if (hasBrand && !hasModel) {
           typeRow.style.display = "flex";
-          if (typeChips) setActiveChip(typeChips, typeChips.querySelector('.chip[data-type=""]'));
         } else {
           typeRow.style.display = "none";
           selectedShoeType = "";
+          if (ribbonType) ribbonType.value = "";
         }
       }
 
-      if (filtersEl) filtersEl.style.display = "flex";
       renderFilteredResults({ resetPage: true, append: false });
     });
 
@@ -1370,10 +1304,9 @@ if (ribbonSort){
         <!-- FORM VIEW -->
         <div id="sbAlertFormView">
           <div class="sb-input-wrap">
-  <input class="sb-input" type="email" id="sbAlertEmail" placeholder="your@email.com" required autocomplete="email">
-  <button type="button" class="sb-clear" data-clear="#sbAlertEmail" aria-label="Clear email">×</button>
-</div>
-
+            <input class="sb-input" type="email" id="sbAlertEmail" placeholder="your@email.com" required autocomplete="email">
+            <button type="button" class="sb-clear" data-clear="#sbAlertEmail" aria-label="Clear email">×</button>
+          </div>
 
           <div class="sb-input-wrap">
             <input class="sb-input" type="text" id="sbAlertBrand" placeholder="Enter shoe brand..." autocomplete="off" required>
@@ -1455,7 +1388,7 @@ if (ribbonSort){
     </div>
   </div>
 
-  <!-- ===== Modal controller (unchanged logic from your current working version) ===== -->
+  <!-- ===== Modal controller (same as your working version + your email-X fix kept) ===== -->
   <script>
   (() => {
     const openers = document.querySelectorAll("[data-open-alert]");
@@ -1537,10 +1470,12 @@ if (ribbonSort){
       brandEl.value = "";
       modelEl.value = "";
       priceEl.value = "";
-  toggleClear(emailEl);
-  toggleClear(brandEl);
-  toggleClear(modelEl);
-  // (price has its own clear too, but you can add toggleClear(priceEl) if desired)
+
+      toggleClear(emailEl);
+      toggleClear(brandEl);
+      toggleClear(modelEl);
+      // (price has its own clear too, but you can add toggleClear(priceEl) if desired)
+
       setGender("");
 
       backdrop.classList.add("open");
@@ -1567,9 +1502,6 @@ if (ribbonSort){
     });
 
     closeBtn.addEventListener("click", closeModal);
-
-
-
     if (maxedClose) maxedClose.addEventListener("click", closeModal);
 
     function setGender(g){
@@ -1610,7 +1542,8 @@ if (ribbonSort){
       if (!input) return;
 
       input.value = "";
-      toggleClear(input);      hideStatus();
+      toggleClear(input);
+      hideStatus();
       closeSuggestions(input === brandEl ? "brand" : input === modelEl ? "model" : null);
       input.focus();
     });
@@ -1695,12 +1628,14 @@ if (ribbonSort){
       if (!c) return;
       c.style.display = input.value.trim() ? "flex" : "none";
     }
-emailEl.addEventListener("input", () => {
-  toggleClear(emailEl);
-  hideStatus(); // optional: clears error message while user edits
-});
 
-emailEl.addEventListener("focus", () => toggleClear(emailEl));
+    emailEl.addEventListener("input", () => {
+      toggleClear(emailEl);
+      hideStatus();
+    });
+
+    emailEl.addEventListener("focus", () => toggleClear(emailEl));
+
     brandEl.addEventListener("input", () => {
       const t = brandEl.value.trim();
       toggleClear(brandEl);
