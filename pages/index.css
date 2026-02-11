@@ -423,8 +423,11 @@ button{
 }
 
 .ribbon-select{
-  height:36px;
+  height:fit-content;
 
+
+width: 64px;
+   
   /* match brand/model input radius */
   border-radius:calc(0.5rem * var(--top-scale));
 
