@@ -16,7 +16,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- CSS split -->
-  <link rel="stylesheet" href="/pages/index.css?v=86">
+  <link rel="stylesheet" href="/pages/index.css?v=87">
 
   <!--
     IMPORTANT:
@@ -89,46 +89,46 @@
 
     <!-- Links ribbon (hidden by default; toggled by the button above) -->
     <div id="linksRibbon" class="links-ribbon" style="display:none;">
-     <div class="links-ribbon-inner">
-  <div class="links-ribbon-links">
-    <a href="#" data-open-alert>Set Alert</a>
-    <a href="/pages/myalerts.html">Filter</a>
-    <a href="/pages/setalert.html">Sort</a>
-    <a href="#" aria-disabled="true" tabindex="0">Favorites</a>
-  </div>
+      <div class="links-ribbon-inner">
+        <div class="links-ribbon-links">
+          <a href="#" data-open-alert>Set Alert</a>
 
-  <button type="button" class="chip-close" aria-label="Close links">×</button>
-</div>
+          <!-- Filter dropdown -->
+          <div class="ribbon-control">
+            <label class="ribbon-label" for="genderFilterSelect">Filter:</label>
+            <select id="genderFilterSelect" class="ribbon-select" aria-label="Gender filter">
+              <option value="all">All</option>
+              <option value="mens">Mens only</option>
+              <option value="womens">Womens only</option>
+            </select>
+          </div>
 
+          <!-- Sort dropdown -->
+          <div class="ribbon-control">
+            <label class="ribbon-label" for="sortSelect">Sort:</label>
+            <select id="sortSelect" class="ribbon-select" aria-label="Sort results">
+              <option value="none">None</option>
+
+              <option value="price_asc">Price: Low → High</option>
+              <option value="price_desc">Price: High → Low</option>
+
+              <option value="pct_asc">% Off: Low → High</option>
+              <option value="pct_desc">% Off: High → Low</option>
+
+              <option value="save_asc">$ Savings: Low → High</option>
+              <option value="save_desc">$ Savings: High → Low</option>
+            </select>
+          </div>
+
+          <a href="#" aria-disabled="true" tabindex="0">Favorites</a>
+        </div>
+
+        <button type="button" class="chip-close" aria-label="Close links">×</button>
+      </div>
     </div>
 
     <div id="mainContent">
-
-      <!-- Filters should be ABOVE the status line -->
-      <div class="filters" id="filters" style="display:none;">
-        <div class="filter-row">
-          <div class="filter-label">Gender:</div>
-          <div class="chip-group" id="genderChips">
-            <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
-            <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
-            <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
-          </div>
-        </div>
-
-        <div class="filter-row">
-          <div class="filter-label">Shoe type:</div>
-          <div class="chip-group" id="typeChips">
-            <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
-            <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
-            <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
-            <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="status-message" id="statusMessage">
-        Marty’s Daily Deals
-      </div>
+      <div class="status-message" id="statusMessage">Marty’s Daily Deals</div>
 
       <div class="daily-deals" id="dailyDeals">
         <div class="shoe-grid" id="dailyDealsGrid"></div>
@@ -151,7 +151,6 @@
         We do not sell products directly and are not responsible for changes in price, availability,
         or shipping terms on retailer sites.
       </p>
-
     </div>
 
     <div class="footer">
@@ -173,7 +172,7 @@
   <!-- Load brand/models once (root) -->
   <script src="/brandModels.js"></script>
 
-  <!-- ===== Your existing page script (unchanged) ===== -->
+  <!-- ===== Page script ===== -->
   <script>
   (() => {
     const form = document.getElementById("search-form");
@@ -191,14 +190,12 @@
     const footerYear = document.getElementById("footerYear");
     const appEl = document.querySelector(".app");
 
-    // Links toggle button + ribbon
+    // Ribbon elements
     const menuBtn = document.getElementById("menuBtn");
     const linksRibbon = document.getElementById("linksRibbon");
     const linksRibbonClose = linksRibbon?.querySelector(".chip-close");
-
-    const filtersEl = document.getElementById("filters");
-    const genderChips = document.getElementById("genderChips");
-    const typeChips = document.getElementById("typeChips");
+    const genderFilterSelect = document.getElementById("genderFilterSelect");
+    const sortSelect = document.getElementById("sortSelect");
 
     const PAGE_SIZE = 12;
     let pageIndex = 0;
@@ -207,7 +204,6 @@
     const nextPageBtn = document.getElementById("nextPage");
     const pageLabelEl = document.getElementById("pageLabel");
 
-    // ✅ Load more elements
     const loadMoreWrap = document.getElementById("loadMoreWrap");
     const loadMoreBtn = document.getElementById("loadMoreBtn");
     const toTopBtn = document.getElementById("toTopBtn");
@@ -221,37 +217,32 @@
       resultsEl.classList.add("is-switching");
       setTimeout(() => {
         fn();
-        requestAnimationFrame(() => {
-          resultsEl.classList.remove("is-switching");
-        });
+        requestAnimationFrame(() => resultsEl.classList.remove("is-switching"));
       }, 160);
     }
 
     let currentSearch = { brand: "", model: "" };
     let lastSearchResults = [];
-    let selectedGender = "";
-    let selectedShoeType = "";
+
+    // Ribbon state
+    let genderFilterMode = "all";   // all | mens | womens
+    let sortMode = "none";          // none | price_asc | ... etc
 
     if (footerYear) footerYear.textContent = new Date().getFullYear();
     if (logoLink) logoLink.addEventListener("click", () => location.reload());
 
-    // --- Links ribbon toggle ---
-    function isRibbonOpen(){
-      return !!(linksRibbon && linksRibbon.style.display !== "none");
-    }
-
+    // --- Ribbon open/close ---
+    function isRibbonOpen(){ return !!(linksRibbon && linksRibbon.style.display !== "none"); }
     function openRibbon(){
       if (!linksRibbon) return;
       linksRibbon.style.display = "block";
       if (menuBtn) menuBtn.setAttribute("aria-expanded", "true");
     }
-
     function closeRibbon(){
       if (!linksRibbon) return;
       linksRibbon.style.display = "none";
       if (menuBtn) menuBtn.setAttribute("aria-expanded", "false");
     }
-
     function toggleRibbon(){
       if (!linksRibbon) return;
       if (isRibbonOpen()) closeRibbon();
@@ -265,24 +256,19 @@
         toggleRibbon();
       });
     }
-
     if (linksRibbonClose) {
       linksRibbonClose.addEventListener("click", (e) => {
         e.preventDefault();
         closeRibbon();
       });
     }
-
     document.addEventListener("click", (e) => {
       if (!linksRibbon || linksRibbon.style.display === "none") return;
       const clickedInsideRibbon = linksRibbon.contains(e.target);
       const clickedButton = menuBtn && menuBtn.contains(e.target);
       if (!clickedInsideRibbon && !clickedButton) closeRibbon();
     });
-
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeRibbon();
-    });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeRibbon(); });
 
     if (linksRibbon) {
       linksRibbon.addEventListener("click", (e) => {
@@ -291,12 +277,27 @@
       });
     }
 
+    // --- Dropdown handlers ---
+    function normalizeEnum(s){ return String(s || "").trim().toLowerCase(); }
+
+    if (genderFilterSelect) {
+      genderFilterSelect.addEventListener("change", () => {
+        genderFilterMode = normalizeEnum(genderFilterSelect.value || "all");
+        renderFilteredResults({ resetPage: true, append: false });
+      });
+    }
+
+    if (sortSelect) {
+      sortSelect.addEventListener("change", () => {
+        sortMode = normalizeEnum(sortSelect.value || "none");
+        renderFilteredResults({ resetPage: true, append: false });
+      });
+    }
+
     // make sure brandModels always exists
     const brandModels = window.brandModels || {};
 
-    // --- Helpers ---
     function normalizeStr(s) { return String(s || "").trim().toLowerCase(); }
-    function normalizeEnum(s) { return String(s || "").trim().toLowerCase(); }
 
     function sanitizeInput(str) {
       return String(str || "")
@@ -346,38 +347,54 @@
       if (fromMeta && !looksLikePlaceholder) return fromMeta.replace(/\/+$/, "");
       return "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
     }
-
     function blobUrl(path) {
       const base = getBlobBase();
       const cleanPath = String(path || "").replace(/^\/+/, "");
       return base.replace(/\/+$/, "") + "/" + cleanPath;
     }
 
-
-
+    // --- Discount helpers (for card badge + sorting) ---
     function getDiscountInfo(item) {
       const current = Number(item.salePrice);
       const original = Number(item.originalPrice);
 
       if (Number.isFinite(current) && Number.isFinite(original) && original > 0 && current < original) {
         const pct = Math.round(((original - current) / original) * 100);
-        return { hasDiscount: true, current: current.toFixed(2), original: original.toFixed(2), percent: pct };
+        return {
+          hasDiscount: true,
+          current,
+          original,
+          percent: pct,
+          savings: (original - current)
+        };
       }
 
       const pct2 = Number(item.discountPercent);
       if (Number.isFinite(current) && Number.isFinite(pct2) && pct2 > 0 && pct2 < 100) {
         const origGuess = current / (1 - pct2 / 100);
         if (Number.isFinite(origGuess) && origGuess > current) {
-          return { hasDiscount: true, current: current.toFixed(2), original: origGuess.toFixed(2), percent: Math.round(pct2) };
+          return {
+            hasDiscount: true,
+            current,
+            original: origGuess,
+            percent: Math.round(pct2),
+            savings: (origGuess - current)
+          };
         }
-        return { hasDiscount: true, current: current.toFixed(2), original: "", percent: Math.round(pct2) };
+        return {
+          hasDiscount: true,
+          current,
+          original: null,
+          percent: Math.round(pct2),
+          savings: null
+        };
       }
 
-      return { hasDiscount: false };
+      return { hasDiscount: false, current: Number.isFinite(current) ? current : null, original: Number.isFinite(original) ? original : null, percent: null, savings: null };
     }
 
+    // ---- Suggestion plumbing (unchanged) ----
     const brands = Object.keys(brandModels).sort((a,b) => a.localeCompare(b));
-
     function squashStr(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
 
     function scoreSuggestion(candidate, query) {
@@ -523,7 +540,6 @@
 
     function renderSuggestions(container, items, which, onPick) {
       container.innerHTML = "";
-
       if (!items.length) {
         container.style.display = "none";
         if (suggestionState.openFor === which) {
@@ -669,7 +685,6 @@
     });
 
     modelInput.addEventListener("blur", () => setTimeout(() => closeSuggestions("model"), 140));
-
     brandInput.addEventListener("click", () => brandInput.select());
     modelInput.addEventListener("click", () => modelInput.select());
 
@@ -680,24 +695,61 @@
       if (!insideModel) closeSuggestions("model");
     });
 
-    function setActiveChip(groupEl, activeBtn) {
-      if (!groupEl) return;
-      groupEl.querySelectorAll(".chip").forEach(btn => btn.classList.remove("active"));
-      if (activeBtn) activeBtn.classList.add("active");
+    // ===== FILTER + SORT PIPELINE =====
+    // Gender filter rule:
+    // - All => no filtering
+    // - Mens only => show mens + ALSO always show unisex/unknown/empty
+    // - Womens only => show womens + ALSO always show unisex/unknown/empty
+    function passesGenderFilter(item){
+      const mode = normalizeEnum(genderFilterMode);
+      if (!mode || mode === "all") return true;
+
+      const g = normalizeEnum(item.gender);
+      const alwaysShow = (!g || g === "unknown" || g === "unisex");
+
+      if (alwaysShow) return true;
+      if (mode === "mens") return g === "mens";
+      if (mode === "womens") return g === "womens";
+      return true;
     }
 
-    function applyFilters(items) {
-      const g = normalizeEnum(selectedGender);
-      const t = normalizeEnum(selectedShoeType);
+    function sortValue(item){
+      const d = getDiscountInfo(item);
 
-      return (items || []).filter(item => {
-        const itemGender = normalizeEnum(item.gender);
-        const itemType = normalizeEnum(item.shoeType);
+      const sale = Number.isFinite(Number(item.salePrice)) ? Number(item.salePrice) : null;
+      const pct = (d && Number.isFinite(d.percent)) ? d.percent : null;
+      const savings = (d && Number.isFinite(d.savings)) ? d.savings : null;
 
-        const genderOk = !g || itemGender === g || itemGender === "unisex";
-        const typeOk = !t || itemType === t;
+      return { sale, pct, savings };
+    }
 
-        return genderOk && typeOk;
+    function applyFilterAndSort(items){
+      const filtered = (items || []).filter(passesGenderFilter);
+
+      const mode = normalizeEnum(sortMode);
+      if (!mode || mode === "none") return filtered;
+
+      const dir = mode.endsWith("_desc") ? -1 : 1;
+
+      function cmp(a, b, key){
+        // Nulls always bottom regardless of direction
+        const va = a[key], vb = b[key];
+        const aNull = (va == null || !Number.isFinite(va));
+        const bNull = (vb == null || !Number.isFinite(vb));
+        if (aNull && bNull) return 0;
+        if (aNull) return 1;
+        if (bNull) return -1;
+        return (va - vb) * dir;
+      }
+
+      return filtered.slice().sort((A, B) => {
+        const a = sortValue(A);
+        const b = sortValue(B);
+
+        if (mode.startsWith("price_")) return cmp(a, b, "sale");
+        if (mode.startsWith("pct_")) return cmp(a, b, "pct");
+        if (mode.startsWith("save_")) return cmp(a, b, "savings");
+        return 0;
       });
     }
 
@@ -728,12 +780,12 @@
     }
 
     function renderFilteredResults({ resetPage = true, append = false } = {}) {
-      const filtered = applyFilters(lastSearchResults);
+      const filteredSorted = applyFilterAndSort(lastSearchResults);
 
       if (resetPage) pageIndex = 0;
 
       const start = pageIndex * PAGE_SIZE;
-      const slice = filtered.slice(start, start + PAGE_SIZE);
+      const slice = filteredSorted.slice(start, start + PAGE_SIZE);
 
       if (!append) resultsEl.innerHTML = "";
       slice.forEach(item => resultsEl.appendChild(createDealCard(item)));
@@ -741,22 +793,22 @@
       const displayQuery =
         [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() || "all shoes";
 
-      if (!filtered.length) {
-        statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
+      if (!filteredSorted.length) {
+        statusMessageEl.textContent = `No results match your current filter for ${displayQuery}.`;
         updateNavUI(0);
         return;
       }
 
       statusMessageEl.textContent =
-        `We found ${filtered.length} deal${filtered.length === 1 ? "" : "s"} on ${displayQuery} shoes.`;
+        `We found ${filteredSorted.length} deal${filteredSorted.length === 1 ? "" : "s"} on ${displayQuery} shoes.`;
 
-      updateNavUI(filtered.length);
+      updateNavUI(filteredSorted.length);
     }
 
     if (loadMoreBtn) {
       loadMoreBtn.addEventListener("click", () => {
-        const filtered = applyFilters(lastSearchResults);
-        const total = filtered.length;
+        const filteredSorted = applyFilterAndSort(lastSearchResults);
+        const total = filteredSorted.length;
 
         const hasMore = ((pageIndex + 1) * PAGE_SIZE) < total;
         if (!hasMore) return;
@@ -768,7 +820,7 @@
 
     if (prevPageBtn) {
       prevPageBtn.addEventListener("click", () => {
-        const filtered = applyFilters(lastSearchResults);
+        const filteredSorted = applyFilterAndSort(lastSearchResults);
         if (pageIndex <= 0) return;
 
         runPagerTransitionThen(() => {
@@ -781,8 +833,8 @@
 
     if (nextPageBtn) {
       nextPageBtn.addEventListener("click", () => {
-        const filtered = applyFilters(lastSearchResults);
-        const pages = totalPagesCount(filtered.length);
+        const filteredSorted = applyFilterAndSort(lastSearchResults);
+        const pages = totalPagesCount(filteredSorted.length);
         if (pageIndex >= pages - 1) return;
 
         runPagerTransitionThen(() => {
@@ -793,28 +845,8 @@
       });
     }
 
-    if (genderChips) {
-      genderChips.addEventListener("click", (e) => {
-        const btn = e.target.closest(".chip");
-        if (!btn) return;
-        selectedGender = normalizeEnum(btn.dataset.gender);
-        setActiveChip(genderChips, btn);
-        renderFilteredResults({ resetPage: true, append: false });
-      });
-    }
-
-    if (typeChips) {
-      typeChips.addEventListener("click", (e) => {
-        const btn = e.target.closest(".chip");
-        if (!btn) return;
-        selectedShoeType = normalizeEnum(btn.dataset.type);
-        setActiveChip(typeChips, btn);
-        renderFilteredResults({ resetPage: true, append: false });
-      });
-    }
-
     function createDealCard(item) {
-      const discount = getDiscountInfo(item);
+      const d = getDiscountInfo(item);
 
       const card = document.createElement("div");
       card.className = "card";
@@ -824,8 +856,6 @@
 
       const listingUrl = item.listingURL;
       const safeLink = isValidRetailerUrl(listingUrl) ? listingUrl : "#";
-      if (safeLink === "#" && listingUrl) console.warn("Blocked untrusted retailer URL:", listingUrl);
-
       link.href = safeLink;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
@@ -838,44 +868,12 @@
       img.alt = (item.brand && item.model) ? `${item.brand} ${item.model}` : (item.model || item.brand || "Running shoe deal");
       imgWrapper.appendChild(img);
 
-      if (discount.hasDiscount) {
+      if (d.hasDiscount && Number.isFinite(d.percent)) {
         const badge = document.createElement("div");
         badge.className = "discount-badge";
-        badge.textContent = `${discount.percent}% OFF`;
+        badge.textContent = `${d.percent}% OFF`;
         imgWrapper.appendChild(badge);
       }
-
-      const gRaw = normalizeEnum(item.gender);
-      const tRaw = normalizeEnum(item.shoeType);
-
-      const g = (gRaw && gRaw !== "unknown") ? gRaw : "";
-      const t = (tRaw && tRaw !== "unknown") ? tRaw : "";
-
-      const tagWrap = document.createElement("div");
-      tagWrap.className = "card-tags";
-
-      let hasAnyTag = false;
-
-      if (g) {
-        const genderTag = document.createElement("span");
-        genderTag.className = "card-tag";
-        genderTag.textContent = g === "mens" ? "Mens" : g === "womens" ? "Womens" : "Unisex";
-        tagWrap.appendChild(genderTag);
-        hasAnyTag = true;
-      }
-
-      if (t) {
-        const typeTag = document.createElement("span");
-        typeTag.className = "card-tag";
-        typeTag.textContent =
-          t === "road" ? "Road" :
-          t === "trail" ? "Trail" :
-          t === "track" ? "Spikes" : (item.shoeType || "");
-        tagWrap.appendChild(typeTag);
-        hasAnyTag = true;
-      }
-
-      if (hasAnyTag) imgWrapper.appendChild(tagWrap);
 
       link.appendChild(imgWrapper);
 
@@ -888,15 +886,10 @@
       const brand = (item.brand || "").trim();
       const model = (item.model || "").trim();
 
-      if (brand && model) {
-        titleDiv.innerHTML = `<strong style="text-transform: uppercase;">${brand}</strong><br>${model}`;
-      } else if (brand) {
-        titleDiv.innerHTML = `<strong style="text-transform: uppercase;">${brand}</strong>`;
-      } else if (model) {
-        titleDiv.textContent = model;
-      } else {
-        titleDiv.textContent = "Deal";
-      }
+      if (brand && model) titleDiv.innerHTML = `<strong style="text-transform: uppercase;">${brand}</strong><br>${model}`;
+      else if (brand) titleDiv.innerHTML = `<strong style="text-transform: uppercase;">${brand}</strong>`;
+      else if (model) titleDiv.textContent = model;
+      else titleDiv.textContent = "Deal";
 
       contentDiv.appendChild(titleDiv);
 
@@ -919,10 +912,10 @@
 
       priceRow.appendChild(priceSpan);
 
-      if (discount.hasDiscount && discount.original) {
+      if (d.hasDiscount && d.original != null && Number.isFinite(d.original)) {
         const origSpan = document.createElement("span");
         origSpan.className = "card-original-price";
-        origSpan.textContent = `$${discount.original}`;
+        origSpan.textContent = `$${Number(d.original).toFixed(2)}`;
         priceRow.appendChild(origSpan);
       }
 
@@ -935,7 +928,7 @@
 
     async function loadDailyDeals() {
       try {
-const url = blobUrl("twelve_daily_deals.json");
+        const url = blobUrl("twelve_daily_deals.json");
         const res = await fetch(url);
 
         if (!res.ok) {
@@ -955,7 +948,6 @@ const url = blobUrl("twelve_daily_deals.json");
         }
 
         deals.forEach(item => dailyDealsGrid.appendChild(createDealCard(item)));
-
         if (dailyDeals) dailyDeals.style.display = "block";
       } catch (err) {
         console.error("Error loading daily deals:", err);
@@ -973,10 +965,8 @@ const url = blobUrl("twelve_daily_deals.json");
         return;
       }
 
-      if (window.scrollY > 250)
-        toTopBtn.classList.add("is-visible");
-      else
-        toTopBtn.classList.remove("is-visible");
+      if (window.scrollY > 250) toTopBtn.classList.add("is-visible");
+      else toTopBtn.classList.remove("is-visible");
     }
 
     window.addEventListener("scroll", updateToTopVisibility, { passive: true });
@@ -984,9 +974,7 @@ const url = blobUrl("twelve_daily_deals.json");
     updateToTopVisibility();
 
     if (toTopBtn){
-      toTopBtn.addEventListener("click", () => {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      });
+      toTopBtn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
     }
 
     function expandInputs(){
@@ -1006,10 +994,8 @@ const url = blobUrl("twelve_daily_deals.json");
       setTimeout(() => {
         const stillFocused = inputs.includes(document.activeElement);
         const anyText = inputs.some(i => (i.value || "").trim().length > 0);
-
         if (stillFocused) return;
         if (anyText) return;
-
         appEl.classList.remove("inputs-expanded");
       }, 0);
     }
@@ -1035,7 +1021,6 @@ const url = blobUrl("twelve_daily_deals.json");
       brandInput.value = brandTyped;
 
       const modelTyped = sanitizeInput(modelInput.value);
-
       updateFetchReady();
 
       if (!brandTyped && !modelTyped) {
@@ -1058,7 +1043,6 @@ const url = blobUrl("twelve_daily_deals.json");
       if (loadMoreWrap) loadMoreWrap.style.display = "none";
 
       if (dailyDeals) dailyDeals.style.display = "none";
-      if (filtersEl) filtersEl.style.display = "none";
 
       let data;
       try {
@@ -1074,39 +1058,17 @@ const url = blobUrl("twelve_daily_deals.json");
       const results = (data && data.results) ? data.results : [];
       lastSearchResults = results;
 
-      selectedGender = "";
-      selectedShoeType = "";
-      if (genderChips) setActiveChip(genderChips, genderChips.querySelector('.chip[data-gender=""]'));
-      if (typeChips) setActiveChip(typeChips, typeChips.querySelector('.chip[data-type=""]'));
+      // reset ribbon state but keep dropdown selections as-is
+      pageIndex = 0;
 
       if (!results.length) {
         statusMessageEl.textContent = `No results found for ${displayQuery}.`;
-        if (filtersEl) filtersEl.style.display = "none";
         if (pager) pager.style.display = "none";
         if (loadMoreWrap) loadMoreWrap.style.display = "none";
         if (dailyDeals) dailyDeals.style.display = "block";
         return;
       }
 
-      const genderRow = genderChips ? genderChips.closest(".filter-row") : null;
-      if (genderRow) genderRow.style.display = "flex";
-
-      const typeRow = typeChips ? typeChips.closest(".filter-row") : null;
-
-      const hasBrand = !!brandTyped.trim();
-      const hasModel = !!modelTyped.trim();
-
-      if (typeRow) {
-        if (hasBrand && !hasModel) {
-          typeRow.style.display = "flex";
-          if (typeChips) setActiveChip(typeChips, typeChips.querySelector('.chip[data-type=""]'));
-        } else {
-          typeRow.style.display = "none";
-          selectedShoeType = "";
-        }
-      }
-
-      if (filtersEl) filtersEl.style.display = "flex";
       renderFilteredResults({ resetPage: true, append: false });
     });
 
@@ -1115,7 +1077,7 @@ const url = blobUrl("twelve_daily_deals.json");
   })();
   </script>
 
-  <!-- ===== Set Alert Modal (drop-in) ===== -->
+  <!-- ===== Set Alert Modal (unchanged HTML) ===== -->
   <div id="sbAlertBackdrop" class="sb-alert-backdrop" aria-hidden="true">
     <div class="sb-alert-modal" role="dialog" aria-modal="true" aria-labelledby="sbAlertTitle">
       <button type="button" class="sb-alert-close" id="sbAlertClose" aria-label="Close">×</button>
@@ -1123,19 +1085,15 @@ const url = blobUrl("twelve_daily_deals.json");
       <div class="sb-alert-title" id="sbAlertTitle">Set Alert</div>
 
       <form id="sbSetAlertForm" class="sb-alert-form">
-        <!-- FORM VIEW -->
         <div id="sbAlertFormView">
-    <!--   <label class="sb-label" for="sbAlertEmail">Email Address:</label>   -->
           <input class="sb-input" type="email" id="sbAlertEmail" placeholder="your@email.com" required autocomplete="email">
 
-    <!--      <label class="sb-label" for="sbAlertBrand">Shoe Brand:</label>    -->
           <div class="sb-input-wrap">
             <input class="sb-input" type="text" id="sbAlertBrand" placeholder="Enter shoe brand..." autocomplete="off" required>
             <button type="button" class="sb-clear" data-clear="#sbAlertBrand" aria-label="Clear brand">×</button>
             <div id="sbBrandSug" class="sb-sug" hidden></div>
           </div>
 
-     <!--     <label class="sb-label" for="sbAlertModel">Shoe Model:</label>     -->
           <div class="sb-input-wrap">
             <input class="sb-input" type="text" id="sbAlertModel" placeholder="Enter shoe model..." autocomplete="off" required>
             <button type="button" class="sb-clear" data-clear="#sbAlertModel" aria-label="Clear model">×</button>
@@ -1144,7 +1102,6 @@ const url = blobUrl("twelve_daily_deals.json");
 
           <div class="sb-row">
             <div class="sb-col">
-              <!-- Your “checkbox + label” vertical list -->
               <div class="sb-gender" id="sbGender">
                 <div class="sb-gender-option" data-g="womens" role="radio" aria-checked="false" tabindex="0">
                   <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
@@ -1155,10 +1112,10 @@ const url = blobUrl("twelve_daily_deals.json");
                   <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
                   <span class="sb-gender-label">Men’s</span>
                 </div>
+              </div>
             </div>
-            </div>
+
             <div class="sb-col sb-price-col">
-         <!--     <label class="sb-label" for="sbAlertPrice">Target Price:</label>  -->
               <div class="sb-price-wrap">
                 <span class="sb-dollar">$</span>
                 <input class="sb-input sb-price"
@@ -1169,7 +1126,6 @@ const url = blobUrl("twelve_daily_deals.json");
                        autocomplete="off"
                        aria-label="Target price in whole dollars"
                        required>
-
                 <button type="button" class="sb-clear sb-clear-price" data-clear="#sbAlertPrice" aria-label="Clear price">×</button>
               </div>
             </div>
@@ -1187,7 +1143,6 @@ const url = blobUrl("twelve_daily_deals.json");
           <div id="sbStatus" class="sb-status" hidden></div>
         </div>
 
-        <!-- SUCCESS VIEW (clears/overrides the previous screen) -->
         <div id="sbConfirm" class="sb-confirm" hidden>
           <div class="sb-confirm-title">✓ Alert Set Successfully!</div>
           <div id="sbConfirmDetails" class="sb-confirm-details"></div>
@@ -1197,7 +1152,6 @@ const url = blobUrl("twelve_daily_deals.json");
           <button type="button" class="sb-submit sb-secondary" id="sbSetAnother">Set Another Alert</button>
         </div>
 
-        <!-- MAXED OUT VIEW (clears/overrides the previous screen) -->
         <div id="sbMaxed" class="sb-confirm" hidden>
           <div class="sb-confirm-title">Alert Limit Reached</div>
           <div class="sb-confirm-details" style="border-color: rgba(220,53,69,0.35);">
@@ -1212,7 +1166,7 @@ const url = blobUrl("twelve_daily_deals.json");
     </div>
   </div>
 
-  <!-- ===== Modal controller (edited to: single-select gender + success/max screens clear prior view) ===== -->
+  <!-- ===== Modal controller (your existing JS) ===== -->
   <script>
   (() => {
     const openers = document.querySelectorAll("[data-open-alert]");
@@ -1284,20 +1238,17 @@ const url = blobUrl("twelve_daily_deals.json");
     function openModal(prefillEmail){
       lastFocus = document.activeElement;
 
-      // Reset views
       hideStatus();
       if (confirmBox) confirmBox.hidden = true;
       if (maxedBox) maxedBox.hidden = true;
       if (formView) formView.hidden = false;
 
-      // Reset inputs (keep email if already present or prefilled)
       if (prefillEmail) emailEl.value = String(prefillEmail).trim().toLowerCase();
 
       brandEl.value = "";
       modelEl.value = "";
       priceEl.value = "";
 
-      // Default gender = both (single select)
       setGender("");
 
       backdrop.classList.add("open");
@@ -1331,17 +1282,15 @@ const url = blobUrl("twelve_daily_deals.json");
 
     if (maxedClose) maxedClose.addEventListener("click", closeModal);
 
-    // ===== Gender: single select ONLY =====
     function setGender(g){
-  selectedGender = String(g || "");
-  const opts = genderWrap.querySelectorAll(".sb-gender-option");
-  opts.forEach(o => {
-    const on = (o.getAttribute("data-g") || "") === selectedGender;
-    o.classList.toggle("active", on);
-    o.setAttribute("aria-checked", on ? "true" : "false");
-  });
-}
-
+      selectedGender = String(g || "");
+      const opts = genderWrap.querySelectorAll(".sb-gender-option");
+      opts.forEach(o => {
+        const on = (o.getAttribute("data-g") || "") === selectedGender;
+        o.classList.toggle("active", on);
+        o.setAttribute("aria-checked", on ? "true" : "false");
+      });
+    }
 
     genderWrap.addEventListener("click", (e) => {
       const opt = e.target.closest(".sb-gender-option");
@@ -1350,7 +1299,6 @@ const url = blobUrl("twelve_daily_deals.json");
       setGender(g);
     });
 
-    // Keyboard accessibility (optional but small)
     genderWrap.addEventListener("keydown", (e) => {
       const opt = e.target.closest(".sb-gender-option");
       if (!opt) return;
@@ -1361,7 +1309,6 @@ const url = blobUrl("twelve_daily_deals.json");
       }
     });
 
-    // ===== Clear buttons =====
     document.addEventListener("click", (e) => {
       if (!backdrop.classList.contains("open")) return;
       const c = e.target.closest("[data-clear]");
@@ -1378,12 +1325,11 @@ const url = blobUrl("twelve_daily_deals.json");
       input.focus();
     });
 
-    // ===== Price: whole digits only (max 4 digits) =====
     function normalizeWholeDollars(v){
       let s = String(v || "").replace(/[^0-9]/g, "");
       s = s.replace(/^0+(?=\d)/, "");
       if (!s) s = "";
-      return s.slice(0, 4); // <= you asked for 4
+      return s.slice(0, 4);
     }
 
     priceEl.addEventListener("input", () => {
@@ -1394,7 +1340,6 @@ const url = blobUrl("twelve_daily_deals.json");
       if (e.key && !/[0-9]/.test(e.key)) e.preventDefault();
     });
 
-    // ===== Suggestions =====
     const S = { open: null, items: [], idx: -1 };
     const squash = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -1488,7 +1433,6 @@ const url = blobUrl("twelve_daily_deals.json");
     brandEl.addEventListener("focus", () => toggleClear(brandEl));
     modelEl.addEventListener("focus", () => toggleClear(modelEl));
 
-    // ===== API submit =====
     function sanitize(str){
       return String(str||"")
         .replace(/[<>'"]/g, "")
@@ -1515,7 +1459,6 @@ const url = blobUrl("twelve_daily_deals.json");
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        // If your API sends { code: "MAX_ALERTS" } or similar, we respect it.
         const code = data && data.code ? String(data.code) : "";
         const msg = data && data.error ? String(data.error) : `HTTP ${res.status}: Failed to create alert`;
         const err = new Error(msg);
@@ -1527,20 +1470,18 @@ const url = blobUrl("twelve_daily_deals.json");
     }
 
     function showSuccess(brand, model, gender, price){
-const genderText = gender === "mens" ? "Men’s" : "Women’s";
+      const genderText = gender === "mens" ? "Men’s" : "Women’s";
       confirmDetails.innerHTML =
         `<div><strong>Shoe:</strong> ${esc(brand)} ${esc(model)}</div>
          <div><strong>Gender:</strong> ${esc(genderText)}</div>
          <div><strong>Target Price:</strong> $${esc(String(price))} or less</div>`;
 
-      // Clear/override previous screen
       hideStatus();
       closeSuggestions();
       if (formView) formView.hidden = true;
       if (maxedBox) maxedBox.hidden = true;
       if (confirmBox) confirmBox.hidden = false;
 
-      // Clear the prior inputs so it feels “reset”
       brandEl.value = "";
       modelEl.value = "";
       priceEl.value = "";
@@ -1555,7 +1496,6 @@ const genderText = gender === "mens" ? "Men’s" : "Women’s";
       if (confirmBox) confirmBox.hidden = true;
       if (maxedBox) maxedBox.hidden = false;
 
-      // Clear prior inputs (per your requirement)
       brandEl.value = "";
       modelEl.value = "";
       priceEl.value = "";
@@ -1590,19 +1530,14 @@ const genderText = gender === "mens" ? "Men’s" : "Women’s";
 
       } catch (err) {
         const msg = (err && err.message) ? String(err.message) : "Failed to set alert.";
-
-        // Detect max alerts: either API error code, or message contains "max"
         const code = err && err.code ? String(err.code) : "";
         const looksMax =
           code.toUpperCase().includes("MAX") ||
           msg.toLowerCase().includes("max") ||
           msg.toLowerCase().includes("limit");
 
-        if (looksMax) {
-          showMaxedOut();
-        } else {
-          showStatus(msg);
-        }
+        if (looksMax) showMaxedOut();
+        else showStatus(msg);
       } finally {
         setBusy(false);
       }
@@ -1610,7 +1545,6 @@ const genderText = gender === "mens" ? "Men’s" : "Women’s";
 
     if (setAnother) {
       setAnother.addEventListener("click", () => {
-        // Return to form view, keep email + gender selection
         if (confirmBox) confirmBox.hidden = true;
         if (maxedBox) maxedBox.hidden = true;
         if (formView) formView.hidden = false;
@@ -1628,6 +1562,5 @@ const genderText = gender === "mens" ? "Men’s" : "Women’s";
     }
   })();
   </script>
-
 </body>
 </html>
