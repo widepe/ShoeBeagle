@@ -873,7 +873,7 @@ button{
 
   .links-ribbon-link{ font-size:0.75rem; }
   .ribbon-label{ font-size:0.75rem; }
-@media (max-width:560px){
+@media (max-width:560px){          /* maybe a problem */
   .ribbon-select{
     height:32px;
     font-size:0.8rem;
@@ -991,7 +991,7 @@ button{
 
   .card img{
     width:100%;
-    height:auto;
+    height:100%;
     object-fit:contain;
     background:#fff;
     border:1px solid var(--sb-blue);
@@ -1237,7 +1237,7 @@ button{
   border-radius:5px;
   border:1px solid #214478ff;
   background:#fafdf4;
-  padding:0 12px;
+  padding:0 17px;
   font-size:1rem;
   box-sizing:border-box;
 }
