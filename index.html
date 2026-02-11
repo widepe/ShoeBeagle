@@ -308,12 +308,7 @@
       });
     }
 
-    document.addEventListener("click", (e) => {
-      if (!linksRibbon || linksRibbon.style.display === "none") return;
-      const clickedInsideRibbon = linksRibbon.contains(e.target);
-      const clickedButton = menuBtn && menuBtn.contains(e.target);
-      if (!clickedInsideRibbon && !clickedButton) closeRibbon();
-    });
+
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeRibbon();
