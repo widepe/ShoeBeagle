@@ -377,39 +377,46 @@ const dealsSuggest = {
         dealsSuggest.allModelsNormToDisplay.clear();
 dealsSuggest.modelNormToBrandDisplay.clear();
 
-        for (const d of deals) {
-          const brandRaw = String(d?.brand || "").trim();
-          const modelRaw = String(d?.model || "").trim();
+for (const d of deals) {
+  const brandRaw = String(d?.brand || "").trim();
+  const modelRaw = String(d?.model || "").trim();
 
-          if (brandRaw) {
-            const bNorm = normalizeStr(brandRaw);
-            if (!dealsSuggest.brandNormToDisplay.has(bNorm)) {
-              dealsSuggest.brandNormToDisplay.set(bNorm, brandRaw);
-            }
-            const bDisplay = dealsSuggest.brandNormToDisplay.get(bNorm);
+  // Brand -> models + model -> brand
+  if (brandRaw) {
+    const bNorm = normalizeStr(brandRaw);
 
-  if (!dealsSuggest.brandToModels.has(bDisplay)) {
-  dealsSuggest.brandToModels.set(bDisplay, new Map());
-}
-if (modelRaw) {
-  const mNorm = normalizeStr(modelRaw);
-  const modelMap = dealsSuggest.brandToModels.get(bDisplay);
-  if (!modelMap.has(mNorm)) modelMap.set(mNorm, modelRaw);
+    if (!dealsSuggest.brandNormToDisplay.has(bNorm)) {
+      dealsSuggest.brandNormToDisplay.set(bNorm, brandRaw);
+    }
 
-  // NEW: allow model -> brand autofill (first brand wins)
-  if (!dealsSuggest.modelNormToBrandDisplay.has(mNorm)) {
-    dealsSuggest.modelNormToBrandDisplay.set(mNorm, bDisplay);
+    const bDisplay = dealsSuggest.brandNormToDisplay.get(bNorm);
+
+    if (!dealsSuggest.brandToModels.has(bDisplay)) {
+      dealsSuggest.brandToModels.set(bDisplay, new Map());
+    }
+
+    if (modelRaw) {
+      const mNorm = normalizeStr(modelRaw);
+      const modelMap = dealsSuggest.brandToModels.get(bDisplay);
+      if (!modelMap.has(mNorm)) modelMap.set(mNorm, modelRaw);
+
+      // model -> brand autofill (first brand wins)
+      if (!dealsSuggest.modelNormToBrandDisplay.has(mNorm)) {
+        dealsSuggest.modelNormToBrandDisplay.set(mNorm, bDisplay);
+      }
+    }
+  }
+
+  // All models (independent of brand)
+  if (modelRaw) {
+    const mNorm = normalizeStr(modelRaw);
+    if (!dealsSuggest.allModelsNormToDisplay.has(mNorm)) {
+      dealsSuggest.allModelsNormToDisplay.set(mNorm, modelRaw);
+    }
   }
 }
 
 
-          if (modelRaw) {
-            const mNorm = normalizeStr(modelRaw);
-            if (!dealsSuggest.allModelsNormToDisplay.has(mNorm)) {
-              dealsSuggest.allModelsNormToDisplay.set(mNorm, modelRaw);
-            }
-          }
-        }
 
         dealsSuggest.brands = Array.from(dealsSuggest.brandNormToDisplay.values()).sort((a,b) => a.localeCompare(b));
         dealsSuggest.allModels = Array.from(dealsSuggest.allModelsNormToDisplay.values()).sort((a,b) => a.localeCompare(b));
@@ -705,12 +712,20 @@ if (modelRaw) {
       }
 
       const matches = filterSuggestions(pool, text, 12);
-   renderSuggestions(modelSuggestions, matches, "model", (value) => {
+renderSuggestions(modelSuggestions, matches, "model", (value) => {
   modelInput.value = value;
+
+  // AUTO-FILL brand if empty
+  if (!brandInput.value.trim() && dealsSuggest.ready) {
+    const inferred = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(value)) || "";
+    if (inferred) brandInput.value = inferred;
+  }
+
   closeSuggestions("model");
   setTimeout(() => fetchBtn.focus(), 0);
   updateFetchReady();
 });
+
 
 
       updateFetchReady();
@@ -1228,6 +1243,18 @@ if (modelRaw) {
 
       const modelTyped = sanitizeInput(modelInput.value);
 
+// AUTO-FILL brand if empty (user typed model + Enter/FETCH)
+if (!brandTyped && modelTyped && dealsSuggest.ready) {
+  const inferred = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(modelTyped)) || "";
+  if (inferred) {
+    brandTyped = inferred;
+    brandInput.value = brandTyped;
+  }
+}
+
+
+
+      
       updateFetchReady();
 
       if (!brandTyped && !modelTyped) {
