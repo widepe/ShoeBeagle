@@ -1143,6 +1143,23 @@ width: 64px;
    SET ALERT MODAL  (includes the edits you requested)
 ========================================================= */
 
+/* Alert modal: highlight the next field to fill */
+.sb-next .sb-input,
+.sb-gender.sb-next,
+.sb-price-wrap.sb-next{
+  outline: 3px solid rgba(33,68,120,0.35);
+  box-shadow: 0 0 0 6px rgba(33,68,120,0.10);
+  border-radius: 14px;
+}
+
+/* Disable gender block until it's time */
+.sb-gender.sb-disabled{
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+
+
 /* Backdrop tint + blur */
 .sb-alert-backdrop{
   position:fixed;
