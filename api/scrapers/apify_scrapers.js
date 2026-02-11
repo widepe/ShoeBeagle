@@ -1,295 +1,44 @@
 // api/apify_scrapers.js
-// Daily scraper for running shoe deals (APIFY ONLY)
-// Runs via Vercel Cron
+// Trigger-only runner for Apify Actors
+// - Starts actor runs (one per store) and returns run IDs / status.
+// - NO dataset reads
+// - NO mapping
+// - NO put() / blob writes
 //
-// NEW (per your change):
-// - We DO NOT write apify-deals_blob.json anymore.
-// - Each store writes to its OWN blob path, derived from env var URL:
-//
-//   Brooks Running:      BROOKS_DEALS_BLOB_URL
-//   REI Outlet:          REI_DEALS_BLOB_URL
-//   Road Runner Sports:  ROADRUNNER_DEALS_BLOB_URL
-//   Zappos:              ZAPPOS_DEALS_BLOB_URL
-//   Foot Locker:         FOOTLOCKER_DEALS_BLOB_URL
-//   RnJ Sports:          RNJSPORTS_DEALS_BLOB_URL
-//
-// IMPORTANT:
-// - The env vars above should contain the FULL PUBLIC blob URL
-//   (e.g. https://<your>.public.blob.vercel-storage.com/<filename>.json)
-// - We parse the filename/path from that URL and write to that blob path via put().
-// - Each blob payload top-level:
-//     { lastUpdated, scrapeDurationMs, scraperResult, deals }
-//
-// Deal schema (per deal) - 11 fields:
-//   listingName, brand, model, salePrice, originalPrice, discountPercent,
-//   store, listingURL, imageURL, gender, shoeType
+// Assumption (your current architecture):
+// ✅ Each Apify actor is responsible for scraping + writing its OWN Vercel Blob.
+// Vercel only triggers the runs (this file) + later merge-deals reads blobs.
 
-const { put } = require("@vercel/blob");
 const { ApifyClient } = require("apify-client");
 
 const apifyClient = new ApifyClient({
   token: process.env.APIFY_TOKEN,
 });
 
-/** -------------------- Small helpers -------------------- **/
-
 function nowIso() {
   return new Date().toISOString();
 }
 
-function computeDiscountPercent(originalPrice, salePrice) {
-  if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return null;
-  if (originalPrice <= 0 || salePrice <= 0) return null;
-  if (salePrice >= originalPrice) return 0;
-  return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+function requireEnv(name) {
+  const v = String(process.env[name] || "").trim();
+  return v || null;
 }
 
-function toFiniteNumber(x) {
-  if (x == null) return null;
-  const n = typeof x === "string" ? parseFloat(String(x).replace(/[^0-9.]/g, "")) : x;
-  return Number.isFinite(n) ? n : null;
-}
-
-/**
- * Canonical-first price normalization.
- * Prefers canonical keys:
- *   salePrice, originalPrice
- * Then falls back to common alternates used by different actors:
- *   currentPrice, price, msrp, listPrice, wasPrice, compareAtPrice, etc.
- */
-function normalizeApifyPrices(item) {
-  // 1) Prefer canonical (your 11-field schema)
-  const canonicalSale = toFiniteNumber(item?.salePrice);
-  const canonicalOrig = toFiniteNumber(item?.originalPrice);
-  if (canonicalSale != null || canonicalOrig != null) {
-    return { salePrice: canonicalSale, originalPrice: canonicalOrig };
-  }
-
-  // 2) Common alternates (varies by actor/site)
-  const sale =
-    toFiniteNumber(item?.currentPrice) ??
-    toFiniteNumber(item?.sale_price) ??
-    toFiniteNumber(item?.sale) ??
-    toFiniteNumber(item?.price) ?? // often current/sale
-    null;
-
-  const orig =
-    toFiniteNumber(item?.msrp) ??
-    toFiniteNumber(item?.listPrice) ??
-    toFiniteNumber(item?.wasPrice) ??
-    toFiniteNumber(item?.compareAtPrice) ??
-    toFiniteNumber(item?.compare_at_price) ??
-    toFiniteNumber(item?.original_price) ??
-    null;
-
-  return { salePrice: sale, originalPrice: orig };
-}
-
-/**
- * Canonical-first field pickers.
- * These prevent the “good in dataset, bad in blob” problem.
- */
-function pickListingName(item, brand, model, fallback) {
-  return (
-    item?.listingName ||
-    item?.title ||
-    item?.name ||
-    item?.productName ||
-    (brand || model ? `${brand || ""} ${model || ""}`.trim() : "") ||
-    fallback ||
-    "Running Shoe"
-  );
-}
-
-function pickListingURL(item) {
-  return item?.listingURL || item?.listingUrl || item?.url || item?.href || item?.link || "#";
-}
-
-function pickImageURL(item) {
-  return item?.imageURL || item?.imageUrl || item?.image || item?.img || item?.thumbnail || item?.imageSrc || null;
-}
-
-// Detect gender from URL or listing text
-function detectGender(listingURL, listingName) {
-  const urlLower = (listingURL || "").toLowerCase();
-  const nameLower = (listingName || "").toLowerCase();
-  const combined = urlLower + " " + nameLower;
-
-  if (/\/mens?[\/-]|\/men\/|men-/.test(urlLower)) return "mens";
-  if (/\/womens?[\/-]|\/women\/|women-/.test(urlLower)) return "womens";
-
-  if (/\b(men'?s?|male)\b/i.test(combined)) return "mens";
-  if (/\b(women'?s?|female|ladies)\b/i.test(combined)) return "womens";
-  if (/\bunisex\b/i.test(combined)) return "unisex";
-
-  return "unknown";
-}
-
-// Detect shoe type from listing text or model
-function detectShoeType(listingName, model) {
-  const combined = ((listingName || "") + " " + (model || "")).toLowerCase();
-
-  if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross|ultra|summit)\b/i.test(combined)) {
-    return "trail";
-  }
-
-  if (/\b(track|spike|dragonfly|zoom.*victory|ja fly|ld|md)\b/i.test(combined)) {
-    return "track";
-  }
-
-  if (
-    /\b(road|kayano|clifton|ghost|pegasus|nimbus|cumulus|gel|glycerin|kinvara|ride|triumph|novablast)\b/i.test(
-      combined
-    )
-  ) {
-    return "road";
-  }
-
-  // IMPORTANT: if unstated, keep unknown (safer)
-  return "unknown";
-}
-
-/**
- * Env var holds the *public blob URL*.
- * We need the blob "pathname" to pass to put(), e.g.:
- *   https://.../brooks.json  ->  "brooks.json"
- *   https://.../folder/brooks.json -> "folder/brooks.json"
- *
- * Accepts either:
- * - full URL, or
- * - a plain pathname like "brooks.json"
- */
-function blobPathFromEnv(envVal) {
-  const raw = String(envVal || "").trim();
-  if (!raw) return null;
-
-  // If it's already a relative-ish path, just use it
-  if (!/^https?:\/\//i.test(raw)) {
-    const p = raw.replace(/^\/+/, "").trim();
-    return p || null;
-  }
-
-  try {
-    const u = new URL(raw);
-    const p = String(u.pathname || "").replace(/^\/+/, "").trim();
-    return p || null;
-  } catch {
-    return null;
-  }
-}
-
-async function fetchActorDatasetItems(actorId, storeName) {
-  if (!actorId) throw new Error(`Actor ID missing for ${storeName}`);
-
-  const run = await apifyClient.actor(actorId).call({});
-
-  const allItems = [];
-  let offset = 0;
-  const limit = 500;
-
-  while (true) {
-    const { items, total } = await apifyClient.dataset(run.defaultDatasetId).listItems({
-      offset,
-      limit,
-    });
-
-    allItems.push(...items);
-    offset += items.length;
-    if (offset >= total || items.length === 0) break;
-  }
-
-  // Ensure store name
-  for (const d of allItems) {
-    if (!d.store) d.store = storeName;
-  }
-
-  return allItems;
-}
-
-/** -------------------- Apify fetchers -------------------- **/
-
-function mapToCanonicalDeal(item, STORE, brandDefault) {
-  const { salePrice, originalPrice } = normalizeApifyPrices(item);
-
-  const brand = item?.brand || brandDefault || "Unknown";
-  const model = item?.model || "";
-
-  const listingName = pickListingName(item, brand, model, `${STORE} Shoe`);
-  const listingURL = pickListingURL(item);
-  const imageURL = pickImageURL(item);
-
-  const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-
+async function callActor(actorId, actorName, input) {
+  // .call() waits for the run to finish. That's okay if your actors usually finish
+  // within Vercel's function timeout. If they might take longer, switch to .start()
+  // (see NOTE below).
+  const run = await apifyClient.actor(actorId).call(input || {});
   return {
-    listingName,
-    brand,
-    model,
-    salePrice: salePrice ?? null,
-    originalPrice: originalPrice ?? null,
-    discountPercent,
-    store: item?.store || STORE,
-    listingURL,
-    imageURL,
-    gender: item?.gender || detectGender(listingURL, listingName),
-    shoeType: item?.shoeType || detectShoeType(listingName, model),
+    actorName,
+    actorId,
+    runId: run.id,
+    status: run.status,
+    startedAt: run.startedAt || null,
+    finishedAt: run.finishedAt || null,
+    defaultDatasetId: run.defaultDatasetId || null, // informational only
   };
 }
-
-async function fetchBrooksDeals() {
-  const STORE = "Brooks Running";
-  const actorId = process.env.APIFY_BROOKS_ACTOR_ID;
-  if (!actorId) throw new Error("APIFY_BROOKS_ACTOR_ID is not set");
-
-  const items = await fetchActorDatasetItems(actorId, STORE);
-  return items.map((item) => mapToCanonicalDeal(item, STORE, "Brooks"));
-}
-
-async function fetchReiDeals() {
-  const STORE = "REI Outlet";
-  const actorId = process.env.APIFY_REI_ACTOR_ID;
-  if (!actorId) throw new Error("APIFY_REI_ACTOR_ID is not set");
-
-  const items = await fetchActorDatasetItems(actorId, STORE);
-  return items.map((item) => mapToCanonicalDeal(item, STORE, null));
-}
-
-async function fetchRoadRunnerDeals() {
-  const STORE = "Road Runner Sports";
-  const actorId = process.env.APIFY_ROADRUNNER_ACTOR_ID;
-  if (!actorId) throw new Error("APIFY_ROADRUNNER_ACTOR_ID is not set");
-
-  const items = await fetchActorDatasetItems(actorId, STORE);
-  return items.map((item) => mapToCanonicalDeal(item, STORE, null));
-}
-
-async function fetchZapposDeals() {
-  const STORE = "Zappos";
-  const actorId = process.env.APIFY_ZAPPOS_ACTOR_ID;
-  if (!actorId) throw new Error("APIFY_ZAPPOS_ACTOR_ID is not set");
-
-  const items = await fetchActorDatasetItems(actorId, STORE);
-  return items.map((item) => mapToCanonicalDeal(item, STORE, null));
-}
-
-async function fetchFootlockerDeals() {
-  const STORE = "Foot Locker";
-  const actorId = process.env.APIFY_FOOTLOCKER_ACTOR_ID;
-  if (!actorId) throw new Error("APIFY_FOOTLOCKER_ACTOR_ID is not set");
-
-  const items = await fetchActorDatasetItems(actorId, STORE);
-  return items.map((item) => mapToCanonicalDeal(item, STORE, null));
-}
-
-async function fetchRnjSportsDeals() {
-  const STORE = "RnJ Sports";
-  const actorId = process.env.APIFY_RNJSPORTS_ACTOR_ID;
-  if (!actorId) throw new Error("APIFY_RNJSPORTS_ACTOR_ID is not set");
-
-  const items = await fetchActorDatasetItems(actorId, STORE);
-  return items.map((item) => mapToCanonicalDeal(item, STORE, null));
-}
-
-/** -------------------- Main handler -------------------- **/
 
 module.exports = async (req, res) => {
   if (req.method !== "GET") {
@@ -297,105 +46,97 @@ module.exports = async (req, res) => {
   }
 
   // Optional cron auth (recommended)
-  // const cronSecret = process.env.CRON_SECRET;
-  // if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
-  //   return res.status(401).json({ success: false, error: "Unauthorized" });
-  // }
+  const cronSecret = String(process.env.CRON_SECRET || "").trim();
+  if (cronSecret) {
+    const provided = req.headers["x-cron-secret"];
+    if (provided !== cronSecret) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+  }
 
-  const overallStartTime = Date.now();
-  const runTimestamp = nowIso();
+  const startedAtIso = nowIso();
+  const overallStart = Date.now();
 
-  // Store -> env var containing blob URL (or pathname)
+  // Only actor IDs matter now.
+  // (You can keep/remove the *_DEALS_BLOB_URL env vars elsewhere; this file does not use them.)
   const TARGETS = [
-    { name: "Brooks Running", env: "BROOKS_DEALS_BLOB_URL", fn: fetchBrooksDeals },
-    { name: "REI Outlet", env: "REI_DEALS_BLOB_URL", fn: fetchReiDeals },
-    { name: "Road Runner Sports", env: "ROADRUNNER_DEALS_BLOB_URL", fn: fetchRoadRunnerDeals },
-    { name: "Zappos", env: "ZAPPOS_DEALS_BLOB_URL", fn: fetchZapposDeals },
-
-    { name: "Foot Locker", env: "FOOTLOCKER_DEALS_BLOB_URL", fn: fetchFootlockerDeals },
-    { name: "RnJ Sports", env: "RNJSPORTS_DEALS_BLOB_URL", fn: fetchRnjSportsDeals },
+    { name: "Brooks Running", actorEnv: "APIFY_BROOKS_ACTOR_ID", inputEnv: "APIFY_BROOKS_INPUT_JSON" },
+    { name: "REI Outlet", actorEnv: "APIFY_REI_ACTOR_ID", inputEnv: "APIFY_REI_INPUT_JSON" },
+    { name: "Road Runner Sports", actorEnv: "APIFY_ROADRUNNER_ACTOR_ID", inputEnv: "APIFY_ROADRUNNER_INPUT_JSON" },
+    { name: "Zappos", actorEnv: "APIFY_ZAPPOS_ACTOR_ID", inputEnv: "APIFY_ZAPPOS_INPUT_JSON" },
+    { name: "Foot Locker", actorEnv: "APIFY_FOOTLOCKER_ACTOR_ID", inputEnv: "APIFY_FOOTLOCKER_INPUT_JSON" },
+    { name: "RnJ Sports", actorEnv: "APIFY_RNJSPORTS_ACTOR_ID", inputEnv: "APIFY_RNJSPORTS_INPUT_JSON" },
   ];
 
-  try {
-    const scraperResults = {};
+  // Small helper: allow optional per-actor input via env as JSON (optional)
+  function parseOptionalJsonEnv(envName) {
+    const raw = String(process.env[envName] || "").trim();
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      return { __error: `Invalid JSON in ${envName}: ${e?.message || "parse error"}` };
+    }
+  }
 
-    async function runStore({ name, env, fn }) {
-      const timestamp = nowIso();
-      const scraperStart = Date.now();
+  try {
+    if (!requireEnv("APIFY_TOKEN")) {
+      return res.status(500).json({ success: false, error: "Missing APIFY_TOKEN env var" });
+    }
+
+    const results = {};
+
+    // Sequential trigger (safer, fewer concurrent runs). You can parallelize later if desired.
+    for (const t of TARGETS) {
+      const actorId = requireEnv(t.actorEnv);
+
+      if (!actorId) {
+        results[t.name] = {
+          ok: false,
+          error: `${t.actorEnv} is not set`,
+          actorEnv: t.actorEnv,
+        };
+        continue;
+      }
+
+      const maybeInput = parseOptionalJsonEnv(t.inputEnv);
+      if (maybeInput && maybeInput.__error) {
+        results[t.name] = {
+          ok: false,
+          error: maybeInput.__error,
+          actorId,
+          actorEnv: t.actorEnv,
+          inputEnv: t.inputEnv,
+        };
+        continue;
+      }
 
       try {
-        const blobPath = blobPathFromEnv(process.env[env]);
-        if (!blobPath) {
-          throw new Error(`${env} is not set (or not a valid blob URL/path).`);
-        }
-
-        const deals = await fn();
-        const durationMs = Date.now() - scraperStart;
-
-        const payload = {
-          lastUpdated: timestamp,
-          scrapeDurationMs: durationMs,
-          scraperResult: {
-            scraper: name,
-            ok: true,
-            count: Array.isArray(deals) ? deals.length : 0,
-            durationMs,
-            timestamp,
-            via: "apify",
-            error: null,
-          },
-          deals: Array.isArray(deals) ? deals : [],
-        };
-
-        const blob = await put(blobPath, JSON.stringify(payload, null, 2), {
-          access: "public",
-          addRandomSuffix: false,
-        });
-
-        scraperResults[name] = {
-          scraper: name,
+        const runInfo = await callActor(actorId, t.name, maybeInput || {});
+        results[t.name] = {
           ok: true,
-          count: payload.scraperResult.count,
-          durationMs,
-          timestamp,
-          via: "apify",
-          error: null,
-          blobUrl: blob.url,
-          blobPath,
-          env,
+          ...runInfo,
         };
       } catch (err) {
-        const durationMs = Date.now() - scraperStart;
-
-        scraperResults[name] = {
-          scraper: name,
+        results[t.name] = {
           ok: false,
-          count: 0,
-          durationMs,
-          timestamp,
-          via: "apify",
+          actorId,
+          actorEnv: t.actorEnv,
           error: err?.message || "Unknown error",
-          blobUrl: null,
-          blobPath: blobPathFromEnv(process.env[env]),
-          env,
         };
       }
     }
 
-    // Run sequentially (safer for rate limits); can be parallelized later if you want.
-    for (const t of TARGETS) {
-      // eslint-disable-next-line no-await-in-loop
-      await runStore(t);
-    }
-
-    const scrapeDurationMs = Date.now() - overallStartTime;
+    const durationMs = Date.now() - overallStart;
 
     return res.status(200).json({
       success: true,
-      timestamp: runTimestamp,
-      duration: `${scrapeDurationMs}ms`,
-      scraperResults,
-      note: "Per-store blobs written (no apify-deals_blob.json).",
+      mode: "trigger-only",
+      startedAt: startedAtIso,
+      durationMs,
+      results,
+      note:
+        "This endpoint only triggers Apify actor runs. Actors are expected to write their own Vercel blobs.",
     });
   } catch (error) {
     return res.status(500).json({
@@ -405,3 +146,16 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+/**
+ * NOTE (important):
+ * - This uses apifyClient.actor(actorId).call(), which WAITS until the actor run finishes.
+ *   If your actors sometimes take longer than your Vercel function timeout, switch to:
+ *
+ *     const run = await apifyClient.actor(actorId).start(input || {});
+ *
+ *   and then return run.id/status immediately.
+ *
+ * If you want, tell me your typical actor run times and your Vercel function limit,
+ * and I’ll swap it to .start() safely.
+ */
