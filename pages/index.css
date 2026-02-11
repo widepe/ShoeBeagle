@@ -1177,22 +1177,24 @@ button{
   position:absolute;
   top:10px;
   right:12px;
-  left:auto;
 
   border:0;
   background:transparent;
   padding:0;
   margin:0;
+
   cursor:pointer;
 
-  font-size:30px;
+  font-size:32px;
   line-height:1;
   font-weight:900;
 
+  /* ✅ match the gray */
   color:#888;
-  opacity:.90;
+  opacity:.9;
 }
-.sb-alert-close:hover{ opacity:1; }
+.sb-alert-close:hover{ color:#555; opacity:1; }
+
 
 /* title: higher + light padding */
 .sb-alert-title{
@@ -1201,16 +1203,21 @@ button{
   font-weight:900;
   font-size:1.35rem;
 
+  /* ✅ closer to top */
   margin:0 40px 10px;
   padding-top:2px;
 }
+
 
 /* form wrapper */
 .sb-alert-form{
   display:flex;
   flex-direction:column;
-  gap:10px;
+
+  /* ✅ match main form “gap” feel */
+  gap:14px;
 }
+
 
 /* IMPORTANT: spacing BETWEEN inputs + button inside the form view */
 #sbAlertFormView{
@@ -1250,18 +1257,30 @@ button{
   right:8px;
   top:50%;
   transform:translateY(-50%);
+
   border:none;
   background:transparent;
   padding:0;
   margin:0;
+
   cursor:pointer;
-  display:none;
+  display:none; /* JS controls this */
+
   font-size:26px;
   line-height:1;
   font-weight:800;
-  color:inherit;
+
+  /* ✅ make it gray like the other close X’s */
+  color:#888;
+  opacity:0.9;
 }
-.sb-clear:hover{ opacity:0.85; }
+
+.sb-clear:hover{
+  /* ✅ don’t add dark background; just slightly darker gray */
+  color:#555;
+  opacity:1;
+}
+
 
 .sb-sug{
   position:absolute;
