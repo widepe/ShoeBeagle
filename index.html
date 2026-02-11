@@ -436,7 +436,24 @@ for (const d of deals) {
     }
 
     function squashStr(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+function inferDefinitiveBrandFromPartialModel(modelTyped){
+  if (!dealsSuggest.ready) return "";
 
+  const q = squashStr(modelTyped);
+  if (!q) return "";
+
+  const brandsFound = new Set();
+
+  for (const [mNorm, bDisplay] of dealsSuggest.modelNormToBrandDisplay.entries()) {
+    const mSquash = squashStr(mNorm);
+    if (mSquash.includes(q)) {
+      brandsFound.add(bDisplay);
+      if (brandsFound.size > 1) return ""; // ambiguous
+    }
+  }
+
+  return brandsFound.size === 1 ? Array.from(brandsFound)[0] : "";
+}
     function scoreSuggestion(candidate, query) {
       const c = String(candidate || "");
       const cl = c.toLowerCase();
@@ -715,11 +732,18 @@ for (const d of deals) {
 renderSuggestions(modelSuggestions, matches, "model", (value) => {
   modelInput.value = value;
 
-  // AUTO-FILL brand if empty
-  if (!brandInput.value.trim() && dealsSuggest.ready) {
-    const inferred = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(value)) || "";
-    if (inferred) brandInput.value = inferred;
-  }
+// AUTO-FILL brand if empty (definitive only)
+if (!brandInput.value.trim() && dealsSuggest.ready) {
+
+  const exact =
+    dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(value)) || "";
+
+  const inferred =
+    exact || inferDefinitiveBrandFromPartialModel(value);
+
+  if (inferred) brandInput.value = inferred;
+}
+
 
   closeSuggestions("model");
   setTimeout(() => fetchBtn.focus(), 0);
@@ -1243,14 +1267,21 @@ modelInput.addEventListener("keydown", (e) => {
 
       const modelTyped = sanitizeInput(modelInput.value);
 
-// AUTO-FILL brand if empty (user typed model + Enter/FETCH)
+// AUTO-FILL brand if empty (definitive only)
 if (!brandTyped && modelTyped && dealsSuggest.ready) {
-  const inferred = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(modelTyped)) || "";
+
+  const exact =
+    dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(modelTyped)) || "";
+
+  const inferred =
+    exact || inferDefinitiveBrandFromPartialModel(modelTyped);
+
   if (inferred) {
     brandTyped = inferred;
     brandInput.value = brandTyped;
   }
 }
+
 
 
 
