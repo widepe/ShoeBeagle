@@ -141,27 +141,7 @@
 
     <div id="mainContent">
 
-      <!-- (You can keep these chips if you want — dropdown will also drive filtering) -->
-      <div class="filters" id="filters" style="display:none;">
-        <div class="filter-row">
-          <div class="filter-label">Gender:</div>
-          <div class="chip-group" id="genderChips">
-            <button type="button" class="chip active" data-gender="" aria-label="Filter off">&times;</button>
-            <button type="button" class="chip" data-gender="mens" aria-label="Men's">M</button>
-            <button type="button" class="chip" data-gender="womens" aria-label="Women's">W</button>
-          </div>
-        </div>
-
-        <div class="filter-row">
-          <div class="filter-label">Shoe type:</div>
-          <div class="chip-group" id="typeChips">
-            <button type="button" class="chip active" data-type="" aria-label="Filter off">&times;</button>
-            <button type="button" class="chip" data-type="road" aria-label="Road">R</button>
-            <button type="button" class="chip" data-type="trail" aria-label="Trail">T</button>
-            <button type="button" class="chip" data-type="track" aria-label="Spikes">S</button>
-          </div>
-        </div>
-      </div>
+ 
 
       <div class="status-message" id="statusMessage">
         Marty’s Daily Deals
@@ -238,9 +218,7 @@
     const ribbonType   = document.getElementById("ribbonType");
     const ribbonSort   = document.getElementById("ribbonSort");
 
-    const filtersEl = document.getElementById("filters");
-    const genderChips = document.getElementById("genderChips");
-    const typeChips = document.getElementById("typeChips");
+
 
     const PAGE_SIZE = 12;
     let pageIndex = 0;
@@ -273,7 +251,7 @@
     let lastSearchResults = [];
     let lastDailyDeals = [];
 
-    // Unified state (chips + ribbon both update these)
+// Unified state (ribbon dropdowns update these)
     let selectedGender = "";      // "" | "mens" | "womens"
     let selectedShoeType = "";    // "" | "road" | "trail" | "track"
     let currentSort = "";         // "" | "price-asc" | "price-desc" | "pct-asc" | "pct-desc" | "save-asc" | "save-desc"
@@ -806,24 +784,8 @@
       if (!insideModel) closeSuggestions("model");
     });
 
-    function setActiveChip(groupEl, activeBtn) {
-      if (!groupEl) return;
-      groupEl.querySelectorAll(".chip").forEach(btn => btn.classList.remove("active"));
-      if (activeBtn) activeBtn.classList.add("active");
-    }
 
-    function syncChipsFromState(){
-      if (genderChips){
-        const gBtn = genderChips.querySelector(`.chip[data-gender="${selectedGender}"]`) ||
-                     genderChips.querySelector(`.chip[data-gender=""]`);
-        setActiveChip(genderChips, gBtn);
-      }
-      if (typeChips){
-        const tBtn = typeChips.querySelector(`.chip[data-type="${selectedShoeType}"]`) ||
-                     typeChips.querySelector(`.chip[data-type=""]`);
-        setActiveChip(typeChips, tBtn);
-      }
-    }
+
 
     function syncRibbonFromState(){
       if (ribbonGender) ribbonGender.value = selectedGender || "";
@@ -899,7 +861,7 @@
     if (ribbonGender){
       ribbonGender.addEventListener("change", () => {
         selectedGender = norm(ribbonGender.value);
-        syncChipsFromState();
+
         renderDailyDealsNow();
         renderFilteredResults({ resetPage: true, append: false });
       });
@@ -908,7 +870,7 @@
     if (ribbonType){
       ribbonType.addEventListener("change", () => {
         selectedShoeType = norm(ribbonType.value);
-        syncChipsFromState();
+  
         renderDailyDealsNow();
         renderFilteredResults({ resetPage: true, append: false });
       });
@@ -922,30 +884,6 @@
       });
     }
 
-    // ===== Chips listeners =====
-    if (genderChips) {
-      genderChips.addEventListener("click", (e) => {
-        const btn = e.target.closest(".chip");
-        if (!btn) return;
-        selectedGender = norm(btn.dataset.gender);
-        syncRibbonFromState();
-        syncChipsFromState();
-        renderDailyDealsNow();
-        renderFilteredResults({ resetPage: true, append: false });
-      });
-    }
-
-    if (typeChips) {
-      typeChips.addEventListener("click", (e) => {
-        const btn = e.target.closest(".chip");
-        if (!btn) return;
-        selectedShoeType = norm(btn.dataset.type);
-        syncRibbonFromState();
-        syncChipsFromState();
-        renderDailyDealsNow();
-        renderFilteredResults({ resetPage: true, append: false });
-      });
-    }
 
     // ===== Paging / load more =====
     if (loadMoreBtn) {
@@ -1231,7 +1169,7 @@
       if (loadMoreWrap) loadMoreWrap.style.display = "none";
 
       if (dailyDeals) dailyDeals.style.display = "none";
-      if (filtersEl) filtersEl.style.display = "none";
+  
 
       let data;
       try {
@@ -1252,38 +1190,17 @@
       selectedShoeType = "";
       currentSort = "";
       syncRibbonFromState();
-      syncChipsFromState();
 
       if (!results.length) {
         statusMessageEl.textContent = `No results found for ${displayQuery}.`;
-        if (filtersEl) filtersEl.style.display = "none";
+  
         if (pager) pager.style.display = "none";
         if (loadMoreWrap) loadMoreWrap.style.display = "none";
         if (dailyDeals) dailyDeals.style.display = "block";
         return;
       }
 
-      // show chips area
-      if (filtersEl) filtersEl.style.display = "flex";
 
-      // preserve your prior behavior: shoe-type chips row only for brand-only searches
-      const genderRow = genderChips ? genderChips.closest(".filter-row") : null;
-      if (genderRow) genderRow.style.display = "flex";
-
-      const typeRow = typeChips ? typeChips.closest(".filter-row") : null;
-
-      const hasBrand = !!brandTyped.trim();
-      const hasModel = !!modelTyped.trim();
-
-      if (typeRow) {
-        if (hasBrand && !hasModel) {
-          typeRow.style.display = "flex";
-        } else {
-          typeRow.style.display = "none";
-          selectedShoeType = "";
-          if (ribbonType) ribbonType.value = "";
-        }
-      }
 
       renderFilteredResults({ resetPage: true, append: false });
     });
