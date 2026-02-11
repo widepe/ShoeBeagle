@@ -1282,23 +1282,32 @@ color:#888;
   background:#ffffffee;
   border:2px solid #214478ff;
   border-radius:14px;
-  padding:16px;
+
+  /* was padding:16px; */
+  padding:12px 16px 16px;   /* a little top padding */
+
   box-shadow:0 12px 30px rgba(0,0,0,0.18);
   position:relative;
 }
 
 .sb-alert-close{
+  position:absolute;
+  top:10px;
+  right:12px;     /* move to right */
+  left:auto;
+
   border:0;
   background:transparent;
   padding:0;
   margin:0;
   cursor:pointer;
 
-  font-size:32px;
+  font-size:30px;
   line-height:1;
   font-weight:900;
 
-  opacity:.85;
+  color:#888;     /* match your other close X (gray) */
+  opacity:.90;
 }
 .sb-alert-close:hover{ opacity:1; }
 
@@ -1308,7 +1317,10 @@ color:#888;
   color:#214478ff;
   font-weight:900;
   font-size:1.35rem;
-  margin:2px 40px 12px;
+
+  /* was margin:2px 40px 12px; */
+  margin:0 40px 10px;       /* title sits higher */
+  padding-top:2px;
 }
 
 .sb-alert-form{
@@ -1316,7 +1328,23 @@ color:#888;
   flex-direction:column;
   gap:10px;
 }
+.sb-alert-form{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
 
+/* Space the actual fields inside the form view */
+#sbAlertFormView{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+/* Remove extra top margin so spacing is controlled by the gap */
+.sb-submit{ margin-top:0; }
+.sb-note{ margin-top:0; }
+.sb-confirm{ margin-top:0; }
 .sb-label{
   font-size:0.88rem;
   font-weight:700;
@@ -1562,6 +1590,3 @@ color:#888;
   .sb-price-col{ flex:1; min-width:0; }
 }
 
-.card-image-wrapper{                      /*  TESTING  */
-  outline:6px solid red !important;
-}
