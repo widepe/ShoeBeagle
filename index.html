@@ -731,22 +731,23 @@ renderSuggestions(modelSuggestions, matches, "model", (value) => {
       updateFetchReady();
     });
 
-    modelInput.addEventListener("keydown", (e) => {
-      handleSuggestionKeys(e, "model", modelSuggestions, (value) => {
-  modelInput.value = value;
+modelInput.addEventListener("keydown", (e) => {
+  handleSuggestionKeys(e, "model", modelSuggestions, (value) => {
+    modelInput.value = value;
 
-  // NEW: if brand empty, auto-fill brand from the selected model
-  if (brandInput && !brandInput.value.trim() && dealsSuggest.ready) {
-    const mNorm = normalizeStr(value);
-    const inferredBrand = dealsSuggest.modelNormToBrandDisplay.get(mNorm) || "";
-    if (inferredBrand) brandInput.value = inferredBrand;
-  }
+    // NEW: if brand empty, auto-fill brand from the selected model
+    if (brandInput && !brandInput.value.trim() && dealsSuggest.ready) {
+      const mNorm = normalizeStr(value);
+      const inferredBrand = dealsSuggest.modelNormToBrandDisplay.get(mNorm) || "";
+      if (inferredBrand) brandInput.value = inferredBrand;
+    }
 
-  closeSuggestions("model");
-  setTimeout(() => fetchBtn.focus(), 0);
-  updateFetchReady();
+    closeSuggestions("model");
+    setTimeout(() => fetchBtn.focus(), 0);
+    updateFetchReady();
+  });
 });
-});
+
     modelInput.addEventListener("blur", () => setTimeout(() => closeSuggestions("model"), 140));
 
     brandInput.addEventListener("click", () => brandInput.select());
