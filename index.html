@@ -352,14 +352,16 @@
     // ===============================
     // MAIN PAGE suggestions = deals.json ONLY
     // ===============================
-    const dealsSuggest = {
-      ready: false,
-      brandNormToDisplay: new Map(),     // normBrand -> "Adidas"
-      brandToModels: new Map(),          // "Adidas" -> Map(normModel -> "Pureboost Jet")
-      allModelsNormToDisplay: new Map(), // normModel -> "Pureboost Jet"
-      brands: [],                        // ["Adidas", ...]
-      allModels: [],                     // ["Pureboost Jet", ...]
-    };
+const dealsSuggest = {
+  ready: false,
+  brandNormToDisplay: new Map(),      // normBrand -> "Adidas"
+  brandToModels: new Map(),           // "Adidas" -> Map(normModel -> "Pureboost Jet")
+  allModelsNormToDisplay: new Map(),  // normModel -> "Pureboost Jet"
+  modelNormToBrandDisplay: new Map(), // normModel -> "Adidas"   (NEW: for auto-fill)
+  brands: [],
+  allModels: [],
+};
+
 
     async function loadDealsSuggestionIndex(){
       try {
@@ -373,6 +375,7 @@
         dealsSuggest.brandNormToDisplay.clear();
         dealsSuggest.brandToModels.clear();
         dealsSuggest.allModelsNormToDisplay.clear();
+dealsSuggest.modelNormToBrandDisplay.clear();
 
         for (const d of deals) {
           const brandRaw = String(d?.brand || "").trim();
@@ -385,15 +388,20 @@
             }
             const bDisplay = dealsSuggest.brandNormToDisplay.get(bNorm);
 
-            if (!dealsSuggest.brandToModels.has(bDisplay)) {
-              dealsSuggest.brandToModels.set(bDisplay, new Map());
-            }
-            if (modelRaw) {
-              const mNorm = normalizeStr(modelRaw);
-              const modelMap = dealsSuggest.brandToModels.get(bDisplay);
-              if (!modelMap.has(mNorm)) modelMap.set(mNorm, modelRaw);
-            }
-          }
+  if (!dealsSuggest.brandToModels.has(bDisplay)) {
+  dealsSuggest.brandToModels.set(bDisplay, new Map());
+}
+if (modelRaw) {
+  const mNorm = normalizeStr(modelRaw);
+  const modelMap = dealsSuggest.brandToModels.get(bDisplay);
+  if (!modelMap.has(mNorm)) modelMap.set(mNorm, modelRaw);
+
+  // NEW: allow model -> brand autofill (first brand wins)
+  if (!dealsSuggest.modelNormToBrandDisplay.has(mNorm)) {
+    dealsSuggest.modelNormToBrandDisplay.set(mNorm, bDisplay);
+  }
+}
+
 
           if (modelRaw) {
             const mNorm = normalizeStr(modelRaw);
@@ -697,24 +705,33 @@
       }
 
       const matches = filterSuggestions(pool, text, 12);
-      renderSuggestions(modelSuggestions, matches, "model", (value) => {
-        modelInput.value = value;
-        closeSuggestions("model");
-        setTimeout(() => fetchBtn.focus(), 0);
-        updateFetchReady();
-      });
+   renderSuggestions(modelSuggestions, matches, "model", (value) => {
+  modelInput.value = value;
+  closeSuggestions("model");
+  setTimeout(() => fetchBtn.focus(), 0);
+  updateFetchReady();
+});
+
 
       updateFetchReady();
     });
 
     modelInput.addEventListener("keydown", (e) => {
       handleSuggestionKeys(e, "model", modelSuggestions, (value) => {
-        modelInput.value = value;
-        closeSuggestions("model");
-        setTimeout(() => fetchBtn.focus(), 0);
-        updateFetchReady();
-      });
-    });
+  modelInput.value = value;
+
+  // NEW: if brand empty, auto-fill brand from the selected model
+  if (brandInput && !brandInput.value.trim() && dealsSuggest.ready) {
+    const mNorm = normalizeStr(value);
+    const inferredBrand = dealsSuggest.modelNormToBrandDisplay.get(mNorm) || "";
+    if (inferredBrand) brandInput.value = inferredBrand;
+  }
+
+  closeSuggestions("model");
+  setTimeout(() => fetchBtn.focus(), 0);
+  updateFetchReady();
+});
+
 
     modelInput.addEventListener("blur", () => setTimeout(() => closeSuggestions("model"), 140));
 
@@ -1398,6 +1415,17 @@
 
     const brandModels = window.brandModels || {};
     const brands = Object.keys(brandModels).sort((a,b) => a.localeCompare(b));
+    // NEW: model -> brand (first brand in alphabetical order wins)
+const modelToBrand = new Map(); // normModel -> "Adidas"
+for (const b of brands) {
+  const arr = brandModels[b];
+  if (!Array.isArray(arr)) continue;
+  for (const m of arr) {
+    const mNorm = String(m || "").trim().toLowerCase();
+    if (!mNorm) continue;
+    if (!modelToBrand.has(mNorm)) modelToBrand.set(mNorm, b);
+  }
+}
     const allModels = (() => {
       const flat = [];
       for (const b of Object.keys(brandModels)) {
@@ -1628,11 +1656,23 @@
       if (!t) return closeSuggestions("model");
       const bk = resolveBrandKey(brandEl.value);
       const pool = (bk && Array.isArray(brandModels[bk])) ? brandModels[bk] : allModels;
-      renderSug(modelSug, topMatches(pool, t, 12), "model", (v) => {
-        modelEl.value = v; toggleClear(modelEl);
-        closeSuggestions("model");
-        setTimeout(() => priceEl.focus(), 0);
-      });
+  renderSug(modelSug, topMatches(pool, t, 12), "model", (v) => {
+  modelEl.value = v;
+  toggleClear(modelEl);
+
+  // NEW: if brand empty, auto-fill brand from selected model
+  if (!brandEl.value.trim()) {
+    const inferred = modelToBrand.get(String(v || "").trim().toLowerCase()) || "";
+    if (inferred) {
+      brandEl.value = inferred;
+      toggleClear(brandEl);
+    }
+  }
+
+  closeSuggestions("model");
+  setTimeout(() => priceEl.focus(), 0);
+});
+
     });
 
     brandEl.addEventListener("focus", () => toggleClear(brandEl));
