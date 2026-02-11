@@ -100,25 +100,25 @@
         <!-- CENTER: Filter + Sort dropdowns -->
         <div class="links-ribbon-center">
           <div class="ribbon-controls" role="group" aria-label="Filter and sort">
-            <label class="ribbon-label" for="ribbonFilter">Filter:</label>
+            <label class="ribbon-label" for="ribbonFilter">Gender:</label>
             <select id="ribbonFilter" class="ribbon-select" aria-label="Filter by gender">
-              <option value="all" selected>All</option>
-              <option value="mens">Mens only</option>
-              <option value="womens">Womens only</option>
+              <option value="all" selected>Off</option>
+              <option value="mens">Mens</option>
+              <option value="womens">Womens</option>
             </select>
 
             <label class="ribbon-label" for="ribbonSort">Sort:</label>
             <select id="ribbonSort" class="ribbon-select" aria-label="Sort results">
-              <option value="none" selected>None</option>
+              <option value="none" selected>Off</option>
 
-              <option value="price_asc">Price: Low → High</option>
-              <option value="price_desc">Price: High → Low</option>
+              <option value="price_asc">Price: Lo → Hi</option>
+              <option value="price_desc">Price: Hi → Lo</option>
 
-              <option value="pct_asc">% Off: Low → High</option>
-              <option value="pct_desc">% Off: High → Low</option>
+              <option value="pct_asc">% Off: Lo → Hi</option>
+              <option value="pct_desc">% Off: Hi → Lo</option>
 
-              <option value="save_asc">$ Savings: Low → High</option>
-              <option value="save_desc">$ Savings: High → Low</option>
+              <option value="save_asc">Savings: Lo → Hi</option>
+              <option value="save_desc">Savings: Hi → Lo</option>
             </select>
           </div>
         </div>
@@ -1301,7 +1301,11 @@
       <form id="sbSetAlertForm" class="sb-alert-form">
         <!-- FORM VIEW -->
         <div id="sbAlertFormView">
-          <input class="sb-input" type="email" id="sbAlertEmail" placeholder="your@email.com" required autocomplete="email">
+          <div class="sb-input-wrap">
+  <input class="sb-input" type="email" id="sbAlertEmail" placeholder="your@email.com" required autocomplete="email">
+  <button type="button" class="sb-clear" data-clear="#sbAlertEmail" aria-label="Clear email">×</button>
+</div>
+
 
           <div class="sb-input-wrap">
             <input class="sb-input" type="text" id="sbAlertBrand" placeholder="Enter shoe brand..." autocomplete="off" required>
@@ -1351,7 +1355,7 @@
           <div class="sb-note">
             <div class="sb-note-title">Important</div>
             <ul>
-              <li>Your email will never be sold or shared by Shoe Beagle, and will only be used for alert confirmation and notifications.</li>
+              <li>Your email will never be sold or shared by Shoe Beagle, and will only be used for alert confirmation and notification.</li>
             </ul>
           </div>
 
