@@ -140,9 +140,6 @@
     </div>
 
     <div id="mainContent">
-
- 
-
       <div class="status-message" id="statusMessage">
         Marty’s Daily Deals
       </div>
@@ -168,7 +165,6 @@
         We do not sell products directly and are not responsible for changes in price, availability,
         or shipping terms on retailer sites.
       </p>
-
     </div>
 
     <div class="footer">
@@ -188,6 +184,8 @@
   </div>
 
   <!-- Load brand/models once (root) -->
+  <!-- NOTE: main page no longer uses brandModels.js for suggestions.
+       Modal still uses it (by design). -->
   <script src="/brandModels.js"></script>
 
   <!-- ===== Main Page Script ===== -->
@@ -217,8 +215,6 @@
     const ribbonGender = document.getElementById("ribbonGender");
     const ribbonType   = document.getElementById("ribbonType");
     const ribbonSort   = document.getElementById("ribbonSort");
-
-
 
     const PAGE_SIZE = 12;
     let pageIndex = 0;
@@ -251,7 +247,7 @@
     let lastSearchResults = [];
     let lastDailyDeals = [];
 
-// Unified state (ribbon dropdowns update these)
+    // Unified state (ribbon dropdowns update these)
     let selectedGender = "";      // "" | "mens" | "womens"
     let selectedShoeType = "";    // "" | "road" | "trail" | "track"
     let currentSort = "";         // "" | "price-asc" | "price-desc" | "pct-asc" | "pct-desc" | "save-asc" | "save-desc"
@@ -294,12 +290,9 @@
       });
     }
 
-    // make sure brandModels always exists
-    const brandModels = window.brandModels || {};
-
     // --- Helpers ---
     function normalizeStr(s) { return String(s || "").trim().toLowerCase(); }
-    function norm(s) { return String(s || "").trim().toLowerCase(); } // <-- FIX: you were calling norm() but it didn't exist
+    function norm(s) { return String(s || "").trim().toLowerCase(); }
 
     function sanitizeInput(str) {
       return String(str || "")
@@ -356,131 +349,76 @@
       return base.replace(/\/+$/, "") + "/" + cleanPath;
     }
 
-    // ===== Sort math helpers (price / % off / $ savings) =====
-    function toNum(x){
-      const n = Number(x);
-      return Number.isFinite(n) ? n : null;
-    }
+    // ===============================
+    // MAIN PAGE suggestions = deals.json ONLY
+    // ===============================
+    const dealsSuggest = {
+      ready: false,
+      brandNormToDisplay: new Map(),     // normBrand -> "Adidas"
+      brandToModels: new Map(),          // "Adidas" -> Map(normModel -> "Pureboost Jet")
+      allModelsNormToDisplay: new Map(), // normModel -> "Pureboost Jet"
+      brands: [],                        // ["Adidas", ...]
+      allModels: [],                     // ["Pureboost Jet", ...]
+    };
 
-    function computePercentOff(item){
-      const sale = toNum(item.salePrice);
-      const orig = toNum(item.originalPrice);
+    async function loadDealsSuggestionIndex(){
+      try {
+        const url = blobUrl("deals.json");
+        const res = await fetch(`${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`deals.json fetch failed: ${res.status}`);
 
-      if (sale != null && orig != null && orig > 0 && sale < orig) {
-        return ((orig - sale) / orig) * 100;
+        const data = await res.json();
+        const deals = Array.isArray(data?.deals) ? data.deals : [];
+
+        dealsSuggest.brandNormToDisplay.clear();
+        dealsSuggest.brandToModels.clear();
+        dealsSuggest.allModelsNormToDisplay.clear();
+
+        for (const d of deals) {
+          const brandRaw = String(d?.brand || "").trim();
+          const modelRaw = String(d?.model || "").trim();
+
+          if (brandRaw) {
+            const bNorm = normalizeStr(brandRaw);
+            if (!dealsSuggest.brandNormToDisplay.has(bNorm)) {
+              dealsSuggest.brandNormToDisplay.set(bNorm, brandRaw);
+            }
+            const bDisplay = dealsSuggest.brandNormToDisplay.get(bNorm);
+
+            if (!dealsSuggest.brandToModels.has(bDisplay)) {
+              dealsSuggest.brandToModels.set(bDisplay, new Map());
+            }
+            if (modelRaw) {
+              const mNorm = normalizeStr(modelRaw);
+              const modelMap = dealsSuggest.brandToModels.get(bDisplay);
+              if (!modelMap.has(mNorm)) modelMap.set(mNorm, modelRaw);
+            }
+          }
+
+          if (modelRaw) {
+            const mNorm = normalizeStr(modelRaw);
+            if (!dealsSuggest.allModelsNormToDisplay.has(mNorm)) {
+              dealsSuggest.allModelsNormToDisplay.set(mNorm, modelRaw);
+            }
+          }
+        }
+
+        dealsSuggest.brands = Array.from(dealsSuggest.brandNormToDisplay.values()).sort((a,b) => a.localeCompare(b));
+        dealsSuggest.allModels = Array.from(dealsSuggest.allModelsNormToDisplay.values()).sort((a,b) => a.localeCompare(b));
+        dealsSuggest.ready = true;
+      } catch (e) {
+        console.error("[suggestions] Failed to build deals.json suggestion index:", e?.message || String(e));
+        dealsSuggest.ready = false;
+        dealsSuggest.brands = [];
+        dealsSuggest.allModels = [];
       }
-
-      const pct = toNum(item.discountPercent);
-      if (pct != null && pct > 0 && pct < 100) return pct;
-
-      return null;
     }
 
-    function computeSavings(item){
-      const sale = toNum(item.salePrice);
-      const orig = toNum(item.originalPrice);
-      if (sale != null && orig != null && orig > sale) return (orig - sale);
-      return null;
+    function resolveBrandFromDeals(input){
+      if (!dealsSuggest.ready) return "";
+      const n = normalizeStr(input);
+      return dealsSuggest.brandNormToDisplay.get(n) || "";
     }
-
-    function computePrice(item){
-      const sale = toNum(item.salePrice);
-      return sale;
-    }
-
-    function cmpNullsLast(a, b){
-      if (a == null && b == null) return 0;
-      if (a == null) return 1;
-      if (b == null) return -1;
-      return 0;
-    }
-
-    function applySort(items){
-      const mode = String(currentSort || "").trim();
-      if (!mode) return (items || []).slice();
-
-      const arr = (items || []).slice();
-
-      arr.sort((A, B) => {
-        if (mode === "price-asc" || mode === "price-desc"){
-          const a = computePrice(A), b = computePrice(B);
-          const nl = cmpNullsLast(a,b); if (nl) return nl;
-          return mode === "price-asc" ? (a - b) : (b - a);
-        }
-
-        if (mode === "pct-asc" || mode === "pct-desc"){
-          const a = computePercentOff(A), b = computePercentOff(B);
-          const nl = cmpNullsLast(a,b); if (nl) return nl;
-          return mode === "pct-asc" ? (a - b) : (b - a);
-        }
-
-        if (mode === "save-asc" || mode === "save-desc"){
-          const a = computeSavings(A), b = computeSavings(B);
-          const nl = cmpNullsLast(a,b); if (nl) return nl;
-          return mode === "save-asc" ? (a - b) : (b - a);
-        }
-
-        return 0;
-      });
-
-      return arr;
-    }
-
-    // ===== Filters: unified state =====
-    // Gender rules: when filtering mens/womens, still allow unisex/unknown/empty.
-    function applyFilters(items){
-      const gSel = norm(selectedGender);     // "" | mens | womens
-      const tSel = norm(selectedShoeType);   // "" | road | trail | track
-
-      return (items || []).filter(item => {
-        const g = norm(item.gender);
-        const t = norm(item.shoeType);
-
-        const genderOk =
-          !gSel ||
-          g === gSel ||
-          g === "unisex" ||
-          g === "unknown" ||
-          g === "";
-
-        const typeOk =
-          !tSel ||
-          t === tSel ||
-          t === "unknown" ||
-          t === "";
-
-        return genderOk && typeOk;
-      });
-    }
-
-    function getFilteredAndSorted(items){
-      const filtered = applyFilters(items);
-      return applySort(filtered);
-    }
-
-    // ===== Discount badge helper =====
-    function getDiscountInfo(item) {
-      const current = Number(item.salePrice);
-      const original = Number(item.originalPrice);
-
-      if (Number.isFinite(current) && Number.isFinite(original) && original > 0 && current < original) {
-        const pct = Math.round(((original - current) / original) * 100);
-        return { hasDiscount: true, current: current.toFixed(2), original: original.toFixed(2), percent: pct };
-      }
-
-      const pct2 = Number(item.discountPercent);
-      if (Number.isFinite(current) && Number.isFinite(pct2) && pct2 > 0 && pct2 < 100) {
-        const origGuess = current / (1 - pct2 / 100);
-        if (Number.isFinite(origGuess) && origGuess > current) {
-          return { hasDiscount: true, current: current.toFixed(2), original: origGuess.toFixed(2), percent: Math.round(pct2) };
-        }
-        return { hasDiscount: true, current: current.toFixed(2), original: "", percent: Math.round(pct2) };
-      }
-
-      return { hasDiscount: false };
-    }
-
-    const brands = Object.keys(brandModels).sort((a,b) => a.localeCompare(b));
 
     function squashStr(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
 
@@ -535,11 +473,13 @@
       return dp[n];
     }
 
+    // "closest brand" is now based ONLY on deals.json brands
     function resolveClosestBrand(input) {
       const raw = String(input || "").trim();
       if (!raw) return "";
+      if (!dealsSuggest.ready || !dealsSuggest.brands.length) return raw;
 
-      const exact = brands.find(b => normalizeStr(b) === normalizeStr(raw));
+      const exact = dealsSuggest.brands.find(b => normalizeStr(b) === normalizeStr(raw));
       if (exact) return exact;
 
       const q = squashStr(raw);
@@ -548,7 +488,7 @@
       let best = null;
       let bestDist = Infinity;
 
-      for (const b of brands) {
+      for (const b of dealsSuggest.brands) {
         const bs = squashStr(b);
         const d = levenshtein(q, bs);
         if (d < bestDist) {
@@ -586,21 +526,6 @@
 
       return Array.from(new Set(scored));
     }
-
-    const allModels = (() => {
-      const flat = [];
-      for (const b of Object.keys(brandModels)) {
-        const arr = brandModels[b];
-        if (Array.isArray(arr)) flat.push(...arr);
-      }
-      return Array.from(new Set(flat)).sort((a, b) => a.localeCompare(b));
-    })();
-
-    function resolveBrandKey(input) {
-      const normalized = normalizeStr(input);
-      return brands.find(b => normalizeStr(b) === normalized) || "";
-    }
-    function resolveBrand() { return resolveBrandKey(brandInput.value.trim()); }
 
     const suggestionState = { openFor: null, items: [], activeIndex: -1 };
 
@@ -711,6 +636,7 @@
       }
     }
 
+    // BRAND suggestions (deals.json)
     brandInput.addEventListener("input", () => {
       const typed = brandInput.value.trim();
       if (typed.length < 1) {
@@ -719,7 +645,13 @@
         return;
       }
 
-      const matches = filterSuggestions(brands, typed, 12);
+      if (!dealsSuggest.ready) {
+        closeSuggestions("brand");
+        updateFetchReady();
+        return;
+      }
+
+      const matches = filterSuggestions(dealsSuggest.brands, typed, 12);
       renderSuggestions(brandSuggestions, matches, "brand", (value) => {
         brandInput.value = value;
         closeSuggestions("brand");
@@ -741,6 +673,7 @@
 
     brandInput.addEventListener("blur", () => setTimeout(() => closeSuggestions("brand"), 140));
 
+    // MODEL suggestions (deals.json)
     modelInput.addEventListener("input", () => {
       const text = modelInput.value.trim();
       if (text.length < 1) {
@@ -749,8 +682,19 @@
         return;
       }
 
-      const brandKey = resolveBrand();
-      const pool = (brandKey && Array.isArray(brandModels[brandKey])) ? brandModels[brandKey] : allModels;
+      if (!dealsSuggest.ready) {
+        closeSuggestions("model");
+        updateFetchReady();
+        return;
+      }
+
+      const brandDisplay = resolveBrandFromDeals(brandInput.value.trim());
+
+      let pool = dealsSuggest.allModels;
+      if (brandDisplay && dealsSuggest.brandToModels.has(brandDisplay)) {
+        pool = Array.from(dealsSuggest.brandToModels.get(brandDisplay).values())
+          .sort((a,b) => a.localeCompare(b));
+      }
 
       const matches = filterSuggestions(pool, text, 12);
       renderSuggestions(modelSuggestions, matches, "model", (value) => {
@@ -784,9 +728,6 @@
       if (!insideModel) closeSuggestions("model");
     });
 
-
-
-
     function syncRibbonFromState(){
       if (ribbonGender) ribbonGender.value = selectedGender || "";
       if (ribbonType) ribbonType.value = selectedShoeType || "";
@@ -817,6 +758,130 @@
       if (nextPageBtn) nextPageBtn.disabled = (pageIndex + 1) >= pages;
 
       if (pager) pager.style.display = (pages > 1) ? "flex" : "none";
+    }
+
+    // ===== Sort math helpers (price / % off / $ savings) =====
+    function toNum(x){
+      const n = Number(x);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function computePercentOff(item){
+      const sale = toNum(item.salePrice);
+      const orig = toNum(item.originalPrice);
+
+      if (sale != null && orig != null && orig > 0 && sale < orig) {
+        return ((orig - sale) / orig) * 100;
+      }
+
+      const pct = toNum(item.discountPercent);
+      if (pct != null && pct > 0 && pct < 100) return pct;
+
+      return null;
+    }
+
+    function computeSavings(item){
+      const sale = toNum(item.salePrice);
+      const orig = toNum(item.originalPrice);
+      if (sale != null && orig != null && orig > sale) return (orig - sale);
+      return null;
+    }
+
+    function computePrice(item){
+      const sale = toNum(item.salePrice);
+      return sale;
+    }
+
+    function cmpNullsLast(a, b){
+      if (a == null && b == null) return 0;
+      if (a == null) return 1;
+      if (b == null) return -1;
+      return 0;
+    }
+
+    function applySort(items){
+      const mode = String(currentSort || "").trim();
+      if (!mode) return (items || []).slice();
+
+      const arr = (items || []).slice();
+
+      arr.sort((A, B) => {
+        if (mode === "price-asc" || mode === "price-desc"){
+          const a = computePrice(A), b = computePrice(B);
+          const nl = cmpNullsLast(a,b); if (nl) return nl;
+          return mode === "price-asc" ? (a - b) : (b - a);
+        }
+
+        if (mode === "pct-asc" || mode === "pct-desc"){
+          const a = computePercentOff(A), b = computePercentOff(B);
+          const nl = cmpNullsLast(a,b); if (nl) return nl;
+          return mode === "pct-asc" ? (a - b) : (b - a);
+        }
+
+        if (mode === "save-asc" || mode === "save-desc"){
+          const a = computeSavings(A), b = computeSavings(B);
+          const nl = cmpNullsLast(a,b); if (nl) return nl;
+          return mode === "save-asc" ? (a - b) : (b - a);
+        }
+
+        return 0;
+      });
+
+      return arr;
+    }
+
+    // ===== Filters: unified state =====
+    // Gender rules: when filtering mens/womens, still allow unisex/unknown/empty.
+    function applyFilters(items){
+      const gSel = norm(selectedGender);
+      const tSel = norm(selectedShoeType);
+
+      return (items || []).filter(item => {
+        const g = norm(item.gender);
+        const t = norm(item.shoeType);
+
+        const genderOk =
+          !gSel ||
+          g === gSel ||
+          g === "unisex" ||
+          g === "unknown" ||
+          g === "";
+
+        const typeOk =
+          !tSel ||
+          t === tSel ||
+          t === "unknown" ||
+          t === "";
+
+        return genderOk && typeOk;
+      });
+    }
+
+    function getFilteredAndSorted(items){
+      const filtered = applyFilters(items);
+      return applySort(filtered);
+    }
+
+    // ===== Discount badge helper =====
+    function getDiscountInfo(item) {
+      const current = Number(item.salePrice);
+      const original = Number(item.originalPrice);
+
+      if (Number.isFinite(current) && Number.isFinite(original) && original > 0 && current < original) {
+        const pct = Math.round(((original - current) / original) * 100);
+        return { hasDiscount: true, current: current.toFixed(2), original: original.toFixed(2), percent: pct };
+      }
+
+      const pct2 = Number(item.discountPercent);
+      if (Number.isFinite(current) && Number.isFinite(pct2) && pct2 > 0 && pct2 < 100) {
+        const origGuess = current / (1 - pct2 / 100);
+        if (Number.isFinite(origGuess) && origGuess > current) {
+          return { hasDiscount: true, current: current.toFixed(2), original: origGuess.toFixed(2), percent: Math.round(pct2) };
+        }
+        return { hasDiscount: true, current: current.toFixed(2), original: "", percent: Math.round(pct2) };
+      }
+
+      return { hasDiscount: false };
     }
 
     function renderFilteredResults({ resetPage = true, append = false } = {}) {
@@ -861,7 +926,6 @@
     if (ribbonGender){
       ribbonGender.addEventListener("change", () => {
         selectedGender = norm(ribbonGender.value);
-
         renderDailyDealsNow();
         renderFilteredResults({ resetPage: true, append: false });
       });
@@ -870,7 +934,6 @@
     if (ribbonType){
       ribbonType.addEventListener("change", () => {
         selectedShoeType = norm(ribbonType.value);
-  
         renderDailyDealsNow();
         renderFilteredResults({ resetPage: true, append: false });
       });
@@ -883,7 +946,6 @@
         renderFilteredResults({ resetPage: true, append: false });
       });
     }
-
 
     // ===== Paging / load more =====
     if (loadMoreBtn) {
@@ -901,7 +963,6 @@
 
     if (prevPageBtn) {
       prevPageBtn.addEventListener("click", () => {
-        const sorted = getFilteredAndSorted(lastSearchResults);
         if (pageIndex <= 0) return;
 
         runPagerTransitionThen(() => {
@@ -1076,6 +1137,9 @@
 
     loadDailyDeals();
 
+    // Build suggestions from deals.json (main page)
+    loadDealsSuggestionIndex();
+
     function updateToTopVisibility(){
       if (!toTopBtn) return;
 
@@ -1167,9 +1231,7 @@
       const pager = document.querySelector(".pager");
       if (pager) pager.style.display = "none";
       if (loadMoreWrap) loadMoreWrap.style.display = "none";
-
       if (dailyDeals) dailyDeals.style.display = "none";
-  
 
       let data;
       try {
@@ -1193,14 +1255,11 @@
 
       if (!results.length) {
         statusMessageEl.textContent = `No results found for ${displayQuery}.`;
-  
         if (pager) pager.style.display = "none";
         if (loadMoreWrap) loadMoreWrap.style.display = "none";
         if (dailyDeals) dailyDeals.style.display = "block";
         return;
       }
-
-
 
       renderFilteredResults({ resetPage: true, append: false });
     });
@@ -1305,7 +1364,7 @@
     </div>
   </div>
 
-  <!-- ===== Modal controller (same as your working version + your email-X fix kept) ===== -->
+  <!-- ===== Modal controller (UNCHANGED: continues to use brandModels.js) ===== -->
   <script>
   (() => {
     const openers = document.querySelectorAll("[data-open-alert]");
@@ -1391,7 +1450,6 @@
       toggleClear(emailEl);
       toggleClear(brandEl);
       toggleClear(modelEl);
-      // (price has its own clear too, but you can add toggleClear(priceEl) if desired)
 
       setGender("");
 
