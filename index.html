@@ -100,27 +100,35 @@
         <!-- CENTER: Filter + Sort dropdowns -->
         <div class="links-ribbon-center">
           <div class="ribbon-controls" role="group" aria-label="Filter and sort">
-            <label class="ribbon-label" for="ribbonFilter">Gender:</label>
-            <select id="ribbonFilter" class="ribbon-select" aria-label="Filter by gender">
-              <option value="all" selected>Off</option>
-              <option value="mens">Mens</option>
-              <option value="womens">Womens</option>
-            </select>
 
-            <label class="ribbon-label" for="ribbonSort">Sort:</label>
-            <select id="ribbonSort" class="ribbon-select" aria-label="Sort results">
-              <option value="none" selected>Off</option>
+  <label class="ribbon-label" for="ribbonGender">Gender</label>
+  <select id="ribbonGender" class="ribbon-select" aria-label="Filter by gender">
+    <option value="" selected>Off</option>
+    <option value="mens">Mens</option>
+    <option value="womens">Womens</option>
+  </select>
 
-              <option value="price_asc">Price: Lo → Hi</option>
-              <option value="price_desc">Price: Hi → Lo</option>
+  <label class="ribbon-label" for="ribbonType">Shoe Type</label>
+  <select id="ribbonType" class="ribbon-select" aria-label="Filter by shoe type">
+    <option value="" selected>Off</option>
+    <option value="road">Road</option>
+    <option value="trail">Trail</option>
+    <option value="track">Track</option>
+  </select>
 
-              <option value="pct_asc">% Off: Lo → Hi</option>
-              <option value="pct_desc">% Off: Hi → Lo</option>
+  <label class="ribbon-label" for="ribbonSort">Sort</label>
+  <select id="ribbonSort" class="ribbon-select" aria-label="Sort results">
+    <option value="" selected>Off</option>
+    <option value="price-asc">Price: Lo → Hi</option>
+    <option value="price-desc">Price: Hi → Lo</option>
+    <option value="pct-asc">% Off: Lo → Hi</option>
+    <option value="pct-desc">% Off: Hi → Lo</option>
+    <option value="save-asc">Savings: Lo → Hi</option>
+    <option value="save-desc">Savings: Hi → Lo</option>
+  </select>
 
-              <option value="save_asc">Savings: Lo → Hi</option>
-              <option value="save_desc">Savings: Hi → Lo</option>
-            </select>
-          </div>
+</div>
+
         </div>
 
         <!-- RIGHT: Favorites + close -->
@@ -310,16 +318,7 @@
 
 
 
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeRibbon();
-    });
 
-    if (linksRibbon) {
-      linksRibbon.addEventListener("click", (e) => {
-        const a = e.target.closest("a");
-        if (a) closeRibbon();
-      });
-    }
 
     // make sure brandModels always exists
     const brandModels = window.brandModels || {};
@@ -796,24 +795,73 @@
     }
 
     // ===== Combined filtering: chips + ribbon =====
-    function applyFilters(items) {
-      const g = normalizeEnum(selectedGender);
-      const t = normalizeEnum(selectedShoeType);
+   function applyFilters(items) {
+  const gSel = norm(selectedGender);      // from ribbon: "" | mens | womens
+  const tSel = norm(selectedShoeType);    // from ribbon: "" | road | trail | track
 
-      return (items || []).filter(item => {
-        // Ribbon gender rule first (All / Mens / Womens with unisex/unknown always allowed)
-        if (!passesRibbonGender(item)) return false;
+  return (items || []).filter(item => {
+    const g = norm(item.gender);      // mens/womens/unisex/unknown/"" etc.
+    const t = norm(item.shoeType);    // road/trail/track/unknown/"" etc.
 
-        // Existing chip behavior (kept):
-        const itemGender = normalizeEnum(item.gender);
-        const itemType = normalizeEnum(item.shoeType);
+    // ----- Gender rules -----
+    // Off => allow all genders
+    // On  => allow selected + unisex + unknown/empty
+    const genderOk =
+      !gSel ||
+      g === gSel ||
+      g === "unisex" ||
+      g === "unknown" ||
+      g === "";
 
-        const genderOk = !g || itemGender === g || itemGender === "unisex";
-        const typeOk = !t || itemType === t;
+    // ----- ShoeType rules -----
+    // Off => allow all types
+    // On  => allow selected + unknown/empty
+    const typeOk =
+      !tSel ||
+      t === tSel ||
+      t === "unknown" ||
+      t === "";
 
-        return genderOk && typeOk;
-      });
+    return genderOk && typeOk;
+  });
+}
+function applySort(items){
+  const mode = norm((ribbonSort && ribbonSort.value) || "");
+  if (!mode) return items;
+
+  const arr = items.slice();
+
+  function cmpNullsLast(a, b){
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return 0;
+  }
+
+  arr.sort((A, B) => {
+    if (mode === "price-asc" || mode === "price-desc"){
+      const a = getPrice(A), b = getPrice(B);
+      const nl = cmpNullsLast(a,b); if (nl) return nl;
+      return mode === "price-asc" ? (a - b) : (b - a);
     }
+
+    if (mode === "pct-asc" || mode === "pct-desc"){
+      const a = getPctOff(A), b = getPctOff(B);
+      const nl = cmpNullsLast(a,b); if (nl) return nl;
+      return mode === "pct-asc" ? (a - b) : (b - a);
+    }
+
+    if (mode === "save-asc" || mode === "save-desc"){
+      const a = getSavings(A), b = getSavings(B);
+      const nl = cmpNullsLast(a,b); if (nl) return nl;
+      return mode === "save-asc" ? (a - b) : (b - a);
+    }
+
+    return 0;
+  });
+
+  return arr;
+}
 
     function totalPagesCount(total){
       return Math.max(1, Math.ceil((Number(total) || 0) / PAGE_SIZE));
@@ -843,7 +891,27 @@
 
     function renderFilteredResults({ resetPage = true, append = false } = {}) {
       // filter then sort
-      const filtered = applyFilters(lastSearchResults);
+      let filtered = applyFilters(lastSearchResults);
+filtered = applySort(filtered);
+if (ribbonGender){
+  ribbonGender.addEventListener("change", () => {
+    selectedGender = norm(ribbonGender.value);
+    renderFilteredResults({ resetPage: true, append: false });
+  });
+}
+
+if (ribbonType){
+  ribbonType.addEventListener("change", () => {
+    selectedShoeType = norm(ribbonType.value);
+    renderFilteredResults({ resetPage: true, append: false });
+  });
+}
+
+if (ribbonSort){
+  ribbonSort.addEventListener("change", () => {
+    renderFilteredResults({ resetPage: true, append: false });
+  });
+}
       const sorted = sortItems(filtered);
 
       if (resetPage) pageIndex = 0;
@@ -1469,7 +1537,10 @@
       brandEl.value = "";
       modelEl.value = "";
       priceEl.value = "";
-
+  toggleClear(emailEl);
+  toggleClear(brandEl);
+  toggleClear(modelEl);
+  // (price has its own clear too, but you can add toggleClear(priceEl) if desired)
       setGender("");
 
       backdrop.classList.add("open");
@@ -1496,10 +1567,8 @@
     });
 
     closeBtn.addEventListener("click", closeModal);
-    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) closeModal(); });
-    document.addEventListener("keydown", (e) => {
-      if (backdrop.classList.contains("open") && e.key === "Escape") closeModal();
-    });
+
+
 
     if (maxedClose) maxedClose.addEventListener("click", closeModal);
 
@@ -1541,7 +1610,7 @@
       if (!input) return;
 
       input.value = "";
-      hideStatus();
+      toggleClear(input);      hideStatus();
       closeSuggestions(input === brandEl ? "brand" : input === modelEl ? "model" : null);
       input.focus();
     });
@@ -1626,7 +1695,12 @@
       if (!c) return;
       c.style.display = input.value.trim() ? "flex" : "none";
     }
+emailEl.addEventListener("input", () => {
+  toggleClear(emailEl);
+  hideStatus(); // optional: clears error message while user edits
+});
 
+emailEl.addEventListener("focus", () => toggleClear(emailEl));
     brandEl.addEventListener("input", () => {
       const t = brandEl.value.trim();
       toggleClear(brandEl);
