@@ -424,7 +424,10 @@ button{
 
 .ribbon-select{
   height:36px;
-  border-radius:10px;
+
+  /* match brand/model input radius */
+  border-radius:calc(0.5rem * var(--top-scale));
+
   border:1px solid rgba(33,68,120,0.65);
   background:#fafdf4;
   color:#214478ff;
@@ -433,6 +436,7 @@ button{
   font-size:0.95rem;
   cursor:pointer;
 }
+
 
 .links-ribbon .chip-close{
   border:0;
@@ -869,11 +873,17 @@ button{
 
   .links-ribbon-link{ font-size:0.75rem; }
   .ribbon-label{ font-size:0.75rem; }
+@media (max-width:560px){
   .ribbon-select{
     height:32px;
     font-size:0.8rem;
     padding:0 8px;
+
+    /* match brand/model input radius */
+    border-radius:calc(0.5rem * var(--top-scale));
   }
+}
+
 
   .top-left{
     order:1;
