@@ -19,10 +19,10 @@
 // - The API response will still include a "skipped" entry for disabled stores.
 // -----------------------------------------------------------------------------
 const SCRAPER_TOGGLES = {
-  RUNNING_WAREHOUSE: true,
-  FLEET_FEET: true,
+  RUNNING_WAREHOUSE: false,
+  FLEET_FEET: false,
   LUKES_LOCKER: true,
-  MARATHON_SPORTS: true,
+  MARATHON_SPORTS: false,
 };
 
 const axios = require("axios");
@@ -539,13 +539,26 @@ async function scrapeLukesLocker() {
       if (seenUrls.has(listingURL)) continue;
       seenUrls.add(listingURL);
 
-      // image
+        // image (Shopify products.json returns image objects, not strings)
       let imageURL = null;
-      if (Array.isArray(p?.images) && p.images.length) {
-        imageURL = String(p.images[0]).trim() || null;
-      } else if (p?.image && p.image.src) {
-        imageURL = String(p.image.src).trim() || null;
+
+      const rawImg =
+        p?.image?.src ||
+        p?.images?.[0]?.src ||
+        p?.images?.[0] || // fallback if a theme returns strings
+        null;
+
+      if (rawImg) {
+        let u = String(rawImg).trim();
+
+        // normalize to absolute https URL
+        if (u.startsWith("//")) u = "https:" + u;
+        else if (u.startsWith("/")) u = base + u;
+        else if (/^cdn\.shopify\.com/i.test(u)) u = "https://" + u;
+
+        imageURL = u || null;
       }
+
 
       // prices from variants: choose the best "on sale" variant
       // requirement: must have BOTH sale + original and original > sale
