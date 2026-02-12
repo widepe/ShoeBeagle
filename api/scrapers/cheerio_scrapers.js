@@ -19,10 +19,10 @@
 // - The API response will still include a "skipped" entry for disabled stores.
 // -----------------------------------------------------------------------------
 const SCRAPER_TOGGLES = {
-  RUNNING_WAREHOUSE: true,
-  FLEET_FEET: true,
+  RUNNING_WAREHOUSE: false,
+  FLEET_FEET: false,
   LUKES_LOCKER: true,
-  MARATHON_SPORTS: true,
+  MARATHON_SPORTS: false,
 };
 
 const axios = require("axios");
@@ -352,7 +352,7 @@ function extractPrices($, $element, fullText) {
 
 /** -------------------- Site scrapers (CHEERIO) -------------------- **/
 
-async function scrapeRunningWarehouse() {
+ function scrapeRunningWarehouse() {
   const STORE = "Running Warehouse";
 
   const urls = [
@@ -430,7 +430,7 @@ async function scrapeRunningWarehouse() {
   return deals;
 }
 
-async function scrapeFleetFeet() {
+ function scrapeFleetFeet() {
   const STORE = "Fleet Feet";
 
   const urls = [
@@ -500,101 +500,109 @@ async function scrapeFleetFeet() {
 
 async function scrapeLukesLocker() {
   const STORE = "Luke's Locker";
-  const pageUrl = "https://lukeslocker.com/collections/closeout";
+  const base = "https://lukeslocker.com";
+  const handle = "closeout";
+
   const deals = [];
   const seenUrls = new Set();
 
-  const response = await axios.get(pageUrl, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.9",
-    },
-    timeout: 30000,
-  });
+  // Shopify collection JSON endpoint (does NOT require the page to be server-rendered)
+  // Pages are 1-based. Stop when we get < limit products.
+  const limit = 250;
 
-  const $ = cheerio.load(response.data);
+  for (let page = 1; page <= 10; page++) {
+    const url = `${base}/collections/${handle}/products.json?limit=${limit}&page=${page}`;
 
-  // Luke's Locker product cards (matches what you highlighted)
-  // Title:  .grid-product__title
-  // Brand:  .grid-product__vendor
-  // Prices: .grid-product__price--current / .grid-product__price--original
-  $(".grid-product__content, .grid-product__meta").each((_, el) => {
-    const $content = $(el);
-
-    // Get the card root (so we can find link + image reliably)
-    const $card = $content.closest(".grid-product, .grid__item, .product-grid-item, [data-product-id]");
-    const $link = $card.find('a[href*="/products/"]').first();
-    const href = ($link.attr("href") || "").trim();
-    if (!href) return;
-
-    const listingURL = absolutizeUrl(href, "https://lukeslocker.com");
-    if (seenUrls.has(listingURL)) return;
-    seenUrls.add(listingURL);
-
-    // Title + brand from dedicated nodes (not anchor text)
-    const rawTitle =
-      $card.find(".grid-product__title").first().text() ||
-      $content.find(".grid-product__title").first().text() ||
-      "";
-    const listingName = cleanTitleText(rawTitle);
-    if (!listingName) return;
-
-    const rawBrand =
-      $card.find(".grid-product__vendor").first().text() ||
-      $content.find(".grid-product__vendor").first().text() ||
-      "";
-    const brand = normalizeWhitespace(rawBrand) || "Unknown";
-
-    // Extract sale + original using the actual price spans
-    const currentText = normalizeWhitespace($card.find(".grid-product__price--current").first().text());
-    const originalText = normalizeWhitespace($card.find(".grid-product__price--original").first().text());
-
-    const saleCandidates = extractDollarAmounts(currentText);
-    const origCandidates = extractDollarAmounts(originalText);
-
-    const salePrice = saleCandidates.length ? saleCandidates[0] : null;
-    const originalPrice = origCandidates.length ? origCandidates[0] : null;
-
-    if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
-    if (!(salePrice > 0 && originalPrice > salePrice)) return;
-
-    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-    if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
-
-    // Model: prefer "title minus brand" then clean with modelNameCleaner
-    let model = listingName;
-    if (brand && brand !== "Unknown") {
-      const escaped = escapeRegExp(brand);
-      model = model.replace(new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i"), " ");
-      model = normalizeWhitespace(model);
-    }
-    model = cleanModelName(model);
-
-    // Image: use the card image, not link text
-    let imageURL = null;
-    const $img = $card.find("img").first();
-    imageURL = pickBestImgUrl($, $img, "https://lukeslocker.com");
-
-    deals.push({
-      listingName,
-      brand,
-      model,
-      salePrice,
-      originalPrice,
-      discountPercent,
-      store: STORE,
-      listingURL,
-      imageURL,
-
-      // ✅ title-only gender (Luke's mixes genders on same page)
-      gender: detectGender("", listingName),
-
-      // ✅ per your requirement (don't guess)
-      shoeType: "unknown",
+    const resp = await axios.get(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        Accept: "application/json,text/plain,*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      timeout: 30000,
     });
-  });
+
+    const products = resp?.data?.products;
+    if (!Array.isArray(products) || products.length === 0) break;
+
+    for (const p of products) {
+      const titleRaw = normalizeWhitespace(p?.title || "");
+      const listingName = cleanTitleText(titleRaw);
+      if (!listingName) continue;
+
+      // Shopify vendor is the brand line you said is on the page
+      const brand = normalizeWhitespace(p?.vendor || "") || "Unknown";
+
+      const listingURL = `${base}/products/${p?.handle || ""}`;
+      if (!p?.handle) continue;
+      if (seenUrls.has(listingURL)) continue;
+      seenUrls.add(listingURL);
+
+      // image
+      let imageURL = null;
+      if (Array.isArray(p?.images) && p.images.length) {
+        imageURL = String(p.images[0]).trim() || null;
+      } else if (p?.image && p.image.src) {
+        imageURL = String(p.image.src).trim() || null;
+      }
+
+      // prices from variants: choose the best "on sale" variant
+      // requirement: must have BOTH sale + original and original > sale
+      let bestSale = null;
+      let bestOriginal = null;
+
+      const variants = Array.isArray(p?.variants) ? p.variants : [];
+      for (const v of variants) {
+        const sale = parseFloat(String(v?.price ?? "").replace(/[^0-9.]/g, ""));
+        const orig = parseFloat(String(v?.compare_at_price ?? "").replace(/[^0-9.]/g, ""));
+
+        if (!Number.isFinite(sale) || !Number.isFinite(orig)) continue;
+        if (!(orig > sale && sale > 0)) continue;
+
+        // pick the lowest sale (best deal for users)
+        if (bestSale == null || sale < bestSale) {
+          bestSale = sale;
+          bestOriginal = orig;
+        }
+      }
+
+      if (!Number.isFinite(bestSale) || !Number.isFinite(bestOriginal)) continue;
+
+      const discountPercent = computeDiscountPercent(bestOriginal, bestSale);
+      if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) continue;
+
+      // model: title minus brand, then cleaned
+      let model = listingName;
+      if (brand && brand !== "Unknown") {
+        const escaped = escapeRegExp(brand);
+        model = model.replace(new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i"), " ");
+        model = normalizeWhitespace(model);
+      }
+      model = cleanModelName(model);
+
+      deals.push({
+        listingName,
+        brand,
+        model,
+        salePrice: bestSale,
+        originalPrice: bestOriginal,
+        discountPercent,
+        store: STORE,
+        listingURL,
+        imageURL,
+
+        // Gender is mixed on page: detect from title ONLY
+        gender: detectGender("", listingName),
+
+        // per your requirement
+        shoeType: "unknown",
+      });
+    }
+
+    if (products.length < limit) break;
+    await randomDelay(800, 1400); // lighter delay for JSON paging
+  }
 
   return deals;
 }
