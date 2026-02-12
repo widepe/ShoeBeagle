@@ -440,20 +440,24 @@ function inferDefinitiveBrandFromPartialModel(modelTyped){
   if (!dealsSuggest.ready) return "";
 
   const q = squashStr(modelTyped);
-  if (!q) return "";
+  if (!q || q.length < 3) return "";
 
   const brandsFound = new Set();
 
-  for (const [mNorm, bDisplay] of dealsSuggest.modelNormToBrandDisplay.entries()) {
-    const mSquash = squashStr(mNorm);
-    if (mSquash.includes(q)) {
-      brandsFound.add(bDisplay);
-      if (brandsFound.size > 1) return ""; // ambiguous
-    }
+  // Iterate over *display* model names so partials like "metaspeed" match
+  for (const modelDisplay of dealsSuggest.allModels) {
+    const mSquash = squashStr(modelDisplay);
+    if (!mSquash.includes(q)) continue;
+
+    const b = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(modelDisplay)) || "";
+    if (b) brandsFound.add(b);
+
+    if (brandsFound.size > 1) return ""; // ambiguous
   }
 
   return brandsFound.size === 1 ? Array.from(brandsFound)[0] : "";
 }
+
     function scoreSuggestion(candidate, query) {
       const c = String(candidate || "");
       const cl = c.toLowerCase();
@@ -760,11 +764,13 @@ modelInput.addEventListener("keydown", (e) => {
     modelInput.value = value;
 
     // NEW: if brand empty, auto-fill brand from the selected model
+    // If brand empty, auto-fill brand (exact first, then definitive partial)
     if (brandInput && !brandInput.value.trim() && dealsSuggest.ready) {
-      const mNorm = normalizeStr(value);
-      const inferredBrand = dealsSuggest.modelNormToBrandDisplay.get(mNorm) || "";
-      if (inferredBrand) brandInput.value = inferredBrand;
+      const exact = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(value)) || "";
+      const inferred = exact || inferDefinitiveBrandFromPartialModel(value);
+      if (inferred) brandInput.value = inferred;
     }
+
 
     closeSuggestions("model");
     setTimeout(() => fetchBtn.focus(), 0);
