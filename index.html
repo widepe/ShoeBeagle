@@ -46,22 +46,23 @@
               <div id="qSuggestions" class="suggestions"></div>
             </div>
 
-            <div class="button-wrapper">
-              <button id="menuBtn"
-                      type="button"
-                      class="btn-eq"
-                      aria-label="Links"
-                      aria-expanded="false"
-                      aria-controls="linksRibbon">
-                <img src="/images/menu.svg" class="btn-icon" alt="Links">
-              </button>
-            </div>
+   <div class="button-wrapper">
+  <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
+    <img src="/images/fetch.svg" class="btn-icon" alt="Fetch">
+  </button>
+</div>
 
-            <div class="button-wrapper">
-              <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
-                <img src="/images/fetch.svg" class="btn-icon" alt="Fetch">
-              </button>
-            </div>
+<div class="button-wrapper">
+  <button id="menuBtn"
+          type="button"
+          class="btn-eq"
+          aria-label="Links"
+          aria-expanded="false"
+          aria-controls="linksRibbon">
+    <img src="/images/menu.svg" class="btn-icon" alt="Links">
+  </button>
+</div>
+
           </div>
 
         </form>
@@ -1437,11 +1438,574 @@
     </div>
   </div>
 
-  <!-- ===== Modal controller (UNCHANGED) ===== -->
-  <script>
-  /* KEEP your existing modal controller script exactly as-is.
-     Paste it here unchanged (I omitted it in this snippet to keep focus on the main-page change). */
-  </script>
+  <!-- ===== Modal controller (ORDER ENFORCED) ===== -->
+<script>
+(() => {
+  const openers = document.querySelectorAll("[data-open-alert]");
+
+  const backdrop = document.getElementById("sbAlertBackdrop");
+  const closeBtn = document.getElementById("sbAlertClose");
+  const form = document.getElementById("sbSetAlertForm");
+
+  const formView = document.getElementById("sbAlertFormView");
+  const confirmBox = document.getElementById("sbConfirm");
+  const confirmDetails = document.getElementById("sbConfirmDetails");
+  const setAnother = document.getElementById("sbSetAnother");
+
+  const maxedBox = document.getElementById("sbMaxed");
+  const maxedClose = document.getElementById("sbMaxedClose");
+
+  const emailEl = document.getElementById("sbAlertEmail");
+  const brandEl = document.getElementById("sbAlertBrand");
+  const modelEl = document.getElementById("sbAlertModel");
+  const priceEl = document.getElementById("sbAlertPrice");
+
+  const brandSug = document.getElementById("sbBrandSug");
+  const modelSug = document.getElementById("sbModelSug");
+
+  const genderWrap = document.getElementById("sbGender");
+  const btn = document.getElementById("sbSetAlertBtn");
+  const status = document.getElementById("sbStatus");
+
+  const API_ALERTS = "/api/alerts";
+
+  const brandModels = window.brandModels || {};
+  const brands = Object.keys(brandModels).sort((a,b) => a.localeCompare(b));
+
+  if (!backdrop || !closeBtn || !form || !emailEl || !brandEl || !modelEl || !priceEl || !genderWrap || !btn) return;
+
+  let lastFocus = null;
+  let busy = false;
+  let selectedGender = "";
+
+  // ---------- tiny helpers ----------
+  function setBusy(v){
+    busy = v;
+    btn.disabled = v;
+    btn.textContent = v ? "Setting..." : "Set Alert";
+  }
+
+  function hideStatus(){
+    if (!status) return;
+    status.hidden = true;
+    status.textContent = "";
+    status.className = "sb-status";
+  }
+
+  function showStatus(msg, ok=false){
+    if (!status) return;
+    status.hidden = false;
+    status.className = "sb-status " + (ok ? "ok" : "err");
+    status.textContent = msg;
+  }
+
+  function sanitize(str){
+    return String(str||"")
+      .replace(/[<>'"]/g, "")
+      .replace(/script/gi, "")
+      .replace(/javascript:/gi, "")
+      .replace(/on\w+=/gi, "")
+      .trim()
+      .slice(0, 100);
+  }
+
+  function esc(s){
+    return String(s||"")
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+  }
+
+  function normalizeWholeDollars(v){
+    let s = String(v || "").replace(/[^0-9]/g, "");
+    s = s.replace(/^0+(?=\d)/, "");
+    if (!s) s = "";
+    return s.slice(0, 4);
+  }
+
+  function resolveBrandKey(input){
+    const n = String(input||"").trim().toLowerCase();
+    return brands.find(b => String(b).trim().toLowerCase() === n) || "";
+  }
+
+  function toggleClear(input){
+    const wrap = input.closest(".sb-input-wrap");
+    if (!wrap) return;
+    const c = wrap.querySelector(".sb-clear");
+    if (!c) return;
+    c.style.display = input.value.trim() ? "flex" : "none";
+  }
+
+  function wrapOf(el){ return el ? el.closest(".sb-input-wrap") : null; }
+  const emailWrap = wrapOf(emailEl);
+  const brandWrap = wrapOf(brandEl);
+  const modelWrap = wrapOf(modelEl);
+  const priceWrap = priceEl ? priceEl.closest(".sb-price-wrap") : null;
+
+  function clearNextHighlight(){
+    [emailWrap, brandWrap, modelWrap].forEach(w => w && w.classList.remove("sb-next"));
+    if (genderWrap) genderWrap.classList.remove("sb-next");
+    if (priceWrap) priceWrap.classList.remove("sb-next");
+  }
+
+  function markNext(target){
+    clearNextHighlight();
+    if (!target) return;
+    if (target === "email" && emailWrap) emailWrap.classList.add("sb-next");
+    if (target === "brand" && brandWrap) brandWrap.classList.add("sb-next");
+    if (target === "model" && modelWrap) modelWrap.classList.add("sb-next");
+    if (target === "gender" && genderWrap) genderWrap.classList.add("sb-next");
+    if (target === "price" && priceWrap) priceWrap.classList.add("sb-next");
+  }
+
+  function setGender(g){
+    selectedGender = String(g || "");
+    const opts = genderWrap.querySelectorAll(".sb-gender-option");
+    opts.forEach(o => {
+      const on = (o.getAttribute("data-g") || "") === selectedGender;
+      o.classList.toggle("active", on);
+      o.setAttribute("aria-checked", on ? "true" : "false");
+    });
+  }
+
+  function setEnabled(el, on){
+    if (!el) return;
+    el.disabled = !on;
+    if (!on) {
+      el.value = "";
+      toggleClear(el);
+    }
+  }
+
+  // ---------- suggestions ----------
+  const S = { open: null, items: [], idx: -1 };
+  const squash = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  function score(cand, q){
+    const c = String(cand||"");
+    const cl = c.toLowerCase();
+    q = String(q||"").trim().toLowerCase();
+    if (!q) return 0;
+    const cs = squash(c), qs = squash(q);
+    let s = 0;
+    if (cl.startsWith(q)) s += 120;
+    if (cl.includes(q)) s += 80;
+    if (qs.length >= 3 && cs.includes(qs)) s += 110;
+    s -= Math.min(c.length, 30) * 0.25;
+    return s;
+  }
+
+  function topMatches(list, typed, limit=10){
+    const q = String(typed||"").trim();
+    if (!q) return [];
+    return list
+      .map(v => ({ v, s: score(v, q) }))
+      .filter(x => x.s > 0)
+      .sort((a,b) => b.s - a.s)
+      .slice(0, limit)
+      .map(x => x.v);
+  }
+
+  function renderSug(box, items, which, onPick){
+    box.innerHTML = "";
+    if (!items.length){
+      box.hidden = true;
+      if (S.open === which) S.open = null;
+      return;
+    }
+    S.open = which; S.items = items; S.idx = -1;
+    items.forEach((v) => {
+      const d = document.createElement("div");
+      d.className = "item";
+      d.textContent = v;
+      d.addEventListener("mousedown", (e) => { e.preventDefault(); onPick(v); });
+      box.appendChild(d);
+    });
+    box.hidden = false;
+  }
+
+  function closeSuggestions(which){
+    if (!which || which === "brand"){ brandSug.hidden = true; brandSug.innerHTML = ""; }
+    if (!which || which === "model"){ modelSug.hidden = true; modelSug.innerHTML = ""; }
+    if (!which){ S.open = null; S.items = []; S.idx = -1; }
+    else if (S.open === which){ S.open = null; S.items = []; S.idx = -1; }
+  }
+
+  // ---------- ORDER ENFORCEMENT ----------
+  // Required order:
+  // 1 email -> 2 brand -> 3 model -> 4 gender -> 5 price -> submit
+  function isEmailOk(){
+    const email = sanitize(emailEl.value).toLowerCase();
+    return !!(email && email.includes("@"));
+  }
+
+  function isBrandOk(){
+    const b = sanitize(brandEl.value);
+    return !!resolveBrandKey(b);
+  }
+
+  function isModelOk(){
+    const bk = resolveBrandKey(sanitize(brandEl.value));
+    if (!bk) return false;
+    const m = sanitize(modelEl.value);
+    if (!m) return false;
+    const pool = Array.isArray(brandModels[bk]) ? brandModels[bk] : [];
+    const mNorm = String(m).trim().toLowerCase();
+    return pool.some(x => String(x).trim().toLowerCase() === mNorm);
+  }
+
+  function isGenderOk(){
+    return selectedGender === "mens" || selectedGender === "womens";
+  }
+
+  function isPriceOk(){
+    const p = parseInt(String(priceEl.value || ""), 10);
+    return Number.isFinite(p) && p > 0;
+  }
+
+  function syncStepUI({ focusNext = false } = {}){
+    const emailOk = isEmailOk();
+    const brandOk = isBrandOk();
+    const modelOk = isModelOk();
+    const genderOk = isGenderOk();
+    const priceOk = isPriceOk();
+
+    // Enable/disable downstream fields
+    setEnabled(brandEl, emailOk);
+    if (!emailOk) { setEnabled(modelEl, false); setGender(""); setEnabled(priceEl, false); }
+
+    setEnabled(modelEl, emailOk && brandOk);
+    if (!(emailOk && brandOk)) { setGender(""); setEnabled(priceEl, false); }
+
+    // gender block is "enabled" by allowing interaction
+    const genderEnabled = emailOk && brandOk && modelOk;
+    genderWrap.classList.toggle("sb-disabled", !genderEnabled);
+    if (!genderEnabled) { setGender(""); setEnabled(priceEl, false); }
+
+    setEnabled(priceEl, emailOk && brandOk && modelOk && genderOk);
+    if (!(emailOk && brandOk && modelOk && genderOk)) { priceEl.value = ""; toggleClear(priceEl); }
+
+    // Button only when complete
+    btn.disabled = busy || !(emailOk && brandOk && modelOk && genderOk && priceOk);
+
+    // Highlight the NEXT thing needed
+    if (!emailOk) markNext("email");
+    else if (!brandOk) markNext("brand");
+    else if (!modelOk) markNext("model");
+    else if (!genderOk) markNext("gender");
+    else if (!priceOk) markNext("price");
+    else markNext(null);
+
+    if (focusNext){
+      if (!emailOk) emailEl.focus();
+      else if (!brandOk) brandEl.focus();
+      else if (!modelOk) modelEl.focus();
+      else if (!genderOk) genderWrap.querySelector(".sb-gender-option")?.focus();
+      else if (!priceOk) priceEl.focus();
+    }
+  }
+
+  // ---------- modal open/close ----------
+  function openModal(prefillEmail){
+    lastFocus = document.activeElement;
+
+    hideStatus();
+    if (confirmBox) confirmBox.hidden = true;
+    if (maxedBox) maxedBox.hidden = true;
+    if (formView) formView.hidden = false;
+
+    emailEl.value = prefillEmail ? String(prefillEmail).trim().toLowerCase() : "";
+    brandEl.value = "";
+    modelEl.value = "";
+    priceEl.value = "";
+    setGender("");
+
+    toggleClear(emailEl);
+    toggleClear(brandEl);
+    toggleClear(modelEl);
+    toggleClear(priceEl);
+
+    closeSuggestions();
+
+    backdrop.classList.add("open");
+    backdrop.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+
+    // start step UI (brand/model/price disabled until allowed)
+    syncStepUI({ focusNext: true });
+  }
+
+  function closeModal(){
+    closeSuggestions();
+    backdrop.classList.remove("open");
+    backdrop.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+    clearNextHighlight();
+    if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
+  }
+
+  openers.forEach(el => {
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      const emailFromQS = new URLSearchParams(location.search).get("email");
+      openModal(emailFromQS);
+    });
+  });
+
+  closeBtn.addEventListener("click", closeModal);
+  if (maxedClose) maxedClose.addEventListener("click", closeModal);
+
+  // ---------- clear buttons ----------
+  document.addEventListener("click", (e) => {
+    if (!backdrop.classList.contains("open")) return;
+    const c = e.target.closest("[data-clear]");
+    if (!c) return;
+
+    e.preventDefault();
+    const sel = c.getAttribute("data-clear");
+    const input = sel ? document.querySelector(sel) : null;
+    if (!input) return;
+
+    input.value = "";
+    toggleClear(input);
+    hideStatus();
+    closeSuggestions(input === brandEl ? "brand" : input === modelEl ? "model" : null);
+
+    syncStepUI({ focusNext: true });
+  });
+
+  // ---------- inputs enforce order ----------
+  emailEl.addEventListener("input", () => { toggleClear(emailEl); hideStatus(); syncStepUI(); });
+  emailEl.addEventListener("blur", () => syncStepUI());
+
+  brandEl.addEventListener("input", () => {
+    toggleClear(brandEl);
+    hideStatus();
+
+    // if brand becomes invalid, clear model + downstream
+    const bk = resolveBrandKey(brandEl.value);
+    if (!bk) {
+      modelEl.value = "";
+      toggleClear(modelEl);
+      closeSuggestions("model");
+      setGender("");
+      priceEl.value = "";
+      toggleClear(priceEl);
+    }
+
+    // only show brand suggestions once email is ok
+    if (!isEmailOk()) {
+      closeSuggestions("brand");
+      syncStepUI();
+      return;
+    }
+
+    const t = brandEl.value.trim();
+    if (!t) { closeSuggestions("brand"); syncStepUI(); return; }
+
+    renderSug(brandSug, topMatches(brands, t, 12), "brand", (v) => {
+      brandEl.value = v;
+      toggleClear(brandEl);
+      closeSuggestions("brand");
+      syncStepUI({ focusNext: true });
+    });
+
+    syncStepUI();
+  });
+
+  modelEl.addEventListener("input", () => {
+    toggleClear(modelEl);
+    hideStatus();
+
+    const emailOk = isEmailOk();
+    const brandOk = isBrandOk();
+    if (!emailOk || !brandOk) {
+      modelEl.value = "";
+      toggleClear(modelEl);
+      closeSuggestions("model");
+      syncStepUI({ focusNext: true });
+      return;
+    }
+
+    const bk = resolveBrandKey(brandEl.value);
+    const pool = Array.isArray(brandModels[bk]) ? brandModels[bk] : [];
+
+    const t = modelEl.value.trim();
+    if (!t) { closeSuggestions("model"); syncStepUI(); return; }
+
+    renderSug(modelSug, topMatches(pool, t, 12), "model", (v) => {
+      modelEl.value = v;
+      toggleClear(modelEl);
+      closeSuggestions("model");
+      syncStepUI({ focusNext: true });
+    });
+
+    syncStepUI();
+  });
+
+  priceEl.addEventListener("input", () => {
+    priceEl.value = normalizeWholeDollars(priceEl.value);
+    toggleClear(priceEl);
+    hideStatus();
+    syncStepUI();
+  });
+
+  priceEl.addEventListener("keypress", (e) => {
+    if (e.key && !/[0-9]/.test(e.key)) e.preventDefault();
+  });
+
+  // ---------- gender selection (only after model valid) ----------
+  genderWrap.addEventListener("click", (e) => {
+    if (genderWrap.classList.contains("sb-disabled")) {
+      showStatus("Fill out the fields above first.", false);
+      syncStepUI({ focusNext: true });
+      return;
+    }
+    const opt = e.target.closest(".sb-gender-option");
+    if (!opt) return;
+    setGender(opt.getAttribute("data-g") || "");
+    hideStatus();
+    syncStepUI({ focusNext: true });
+  });
+
+  genderWrap.addEventListener("keydown", (e) => {
+    if (genderWrap.classList.contains("sb-disabled")) return;
+    const opt = e.target.closest(".sb-gender-option");
+    if (!opt) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      setGender(opt.getAttribute("data-g") || "");
+      hideStatus();
+      syncStepUI({ focusNext: true });
+    }
+  });
+
+  // ---------- submit ----------
+  async function postJson(url, payload){
+    const res = await fetch(url, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const code = data && data.code ? String(data.code) : "";
+      const msg = data && data.error ? String(data.error) : `HTTP ${res.status}: Failed to create alert`;
+      const err = new Error(msg);
+      err.code = code;
+      throw err;
+    }
+    return data;
+  }
+
+  function showSuccess(brand, model, gender, price){
+    const genderText = gender === "mens" ? "Men’s" : "Women’s";
+    confirmDetails.innerHTML =
+      `<div><strong>Shoe:</strong> ${esc(brand)} ${esc(model)}</div>
+       <div><strong>Gender:</strong> ${esc(genderText)}</div>
+       <div><strong>Target Price:</strong> $${esc(String(price))} or less</div>`;
+
+    hideStatus();
+    closeSuggestions();
+    if (formView) formView.hidden = true;
+    if (maxedBox) maxedBox.hidden = true;
+    if (confirmBox) confirmBox.hidden = false;
+
+    // reset form values for next run
+    emailEl.value = emailEl.value; // keep email
+    brandEl.value = "";
+    modelEl.value = "";
+    priceEl.value = "";
+    setGender("");
+    toggleClear(brandEl);
+    toggleClear(modelEl);
+    toggleClear(priceEl);
+    syncStepUI();
+  }
+
+  function showMaxedOut(){
+    hideStatus();
+    closeSuggestions();
+    if (formView) formView.hidden = true;
+    if (confirmBox) confirmBox.hidden = true;
+    if (maxedBox) maxedBox.hidden = false;
+
+    brandEl.value = "";
+    modelEl.value = "";
+    priceEl.value = "";
+    setGender("");
+    toggleClear(brandEl);
+    toggleClear(modelEl);
+    toggleClear(priceEl);
+    syncStepUI();
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (busy) return;
+
+    hideStatus();
+    if (confirmBox) confirmBox.hidden = true;
+    if (maxedBox) maxedBox.hidden = true;
+
+    // enforce order one last time
+    syncStepUI({ focusNext: false });
+
+    if (!isEmailOk()) { showStatus("Please enter a valid email address."); return syncStepUI({ focusNext: true }); }
+    if (!isBrandOk()) { showStatus("Please choose a brand from the list."); return syncStepUI({ focusNext: true }); }
+    if (!isModelOk()) { showStatus("Please choose a model from the list."); return syncStepUI({ focusNext: true }); }
+    if (!isGenderOk()) { showStatus("Select a gender."); return syncStepUI({ focusNext: true }); }
+    if (!isPriceOk()) { showStatus("Please enter a valid target price (whole dollars)."); return syncStepUI({ focusNext: true }); }
+
+    const email = sanitize(emailEl.value).toLowerCase();
+    const brand = resolveBrandKey(sanitize(brandEl.value)) || sanitize(brandEl.value);
+    const model = sanitize(modelEl.value);
+    const targetPrice = parseInt(String(priceEl.value || ""), 10);
+    const gender = selectedGender;
+
+    setBusy(true);
+    try {
+      await postJson(API_ALERTS, { email, brand, model, targetPrice, gender });
+      showSuccess(brand, model, gender, targetPrice);
+    } catch (err) {
+      const msg = (err && err.message) ? String(err.message) : "Failed to set alert.";
+      const code = err && err.code ? String(err.code) : "";
+      const looksMax =
+        code.toUpperCase().includes("MAX") ||
+        msg.toLowerCase().includes("max") ||
+        msg.toLowerCase().includes("limit");
+
+      if (looksMax) showMaxedOut();
+      else showStatus(msg);
+    } finally {
+      setBusy(false);
+      syncStepUI();
+    }
+  });
+
+  if (setAnother) {
+    setAnother.addEventListener("click", () => {
+      if (confirmBox) confirmBox.hidden = true;
+      if (maxedBox) maxedBox.hidden = true;
+      if (formView) formView.hidden = false;
+      hideStatus();
+
+      brandEl.value = "";
+      modelEl.value = "";
+      priceEl.value = "";
+      setGender("");
+      toggleClear(brandEl);
+      toggleClear(modelEl);
+      toggleClear(priceEl);
+      closeSuggestions();
+
+      syncStepUI({ focusNext: true });
+    });
+  }
+})();
+</script>
+
 
 </body>
 </html>
