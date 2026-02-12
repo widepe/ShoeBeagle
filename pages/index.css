@@ -36,6 +36,10 @@ html{ -webkit-text-size-adjust:100%; }
 
   --logo-scale:calc(1.5 * var(--top-scale));
 
+  /* ✅ NEW: number of input rows in the top cluster
+     (combined search = 1 row; old double search was 2) */
+  --top-rows:1;
+
   --cols:6;
 
   --card-w:calc(260px * var(--grid-scale));
@@ -187,8 +191,9 @@ body{
    LOGO
 ========================================================= */
 .brand-logo{
-  height:calc((max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * var(--logo-scale));
-  max-height:calc((max(var(--input-h), var(--btn-h)) * 2 + var(--gap)) * var(--logo-scale));
+  /* ✅ now scales with 1-row combined search (via --top-rows) */
+  height:calc((max(var(--input-h), var(--btn-h)) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1))) * var(--logo-scale));
+  max-height:calc((max(var(--input-h), var(--btn-h)) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1))) * var(--logo-scale));
   width:auto;
   max-width:100%;
   object-fit:contain;
@@ -424,13 +429,9 @@ button{
 
 .ribbon-select{
   height:fit-content;
+  width:64px;
 
-
-width: 64px;
-   
-  /* match brand/model input radius */
   border-radius:calc(0.5rem * var(--top-scale));
-
   border:1px solid rgba(33,68,120,0.65);
   background:#fafdf4;
   color:#214478ff;
@@ -439,7 +440,6 @@ width: 64px;
   font-size:0.95rem;
   cursor:pointer;
 }
-
 
 .links-ribbon .chip-close{
   border:0;
@@ -785,8 +785,8 @@ width: 64px;
 
   .brand-logo{
     content:url("/images/logoV2.svg");
-    height:calc(var(--input-h) * 2 + var(--gap));
-    max-height:calc(var(--input-h) * 2 + var(--gap));
+    height:calc(var(--input-h) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1)));
+    max-height:calc(var(--input-h) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1)));
     width:auto;
   }
 }
@@ -801,8 +801,8 @@ width: 64px;
 
   .brand-logo{
     content:url("/images/logoV2.svg");
-    height:calc(var(--input-h) * 2 + var(--gap));
-    max-height:calc(var(--input-h) * 2 + var(--gap));
+    height:calc(var(--input-h) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1)));
+    max-height:calc(var(--input-h) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1)));
     width:auto;
   }
 }
@@ -876,17 +876,14 @@ width: 64px;
 
   .links-ribbon-link{ font-size:0.75rem; }
   .ribbon-label{ font-size:0.75rem; }
-@media (max-width:560px){          /* maybe a problem */
+
+  /* ✅ FIXED: removed invalid nested @media */
   .ribbon-select{
     height:32px;
     font-size:0.8rem;
     padding:0 8px;
-
-    /* match brand/model input radius */
     border-radius:calc(0.5rem * var(--top-scale));
   }
-}
-
 
   .top-left{
     order:1;
@@ -940,8 +937,8 @@ width: 64px;
 
   .brand-logo{
     content:url("/images/logoV2.svg");
-    height:calc(var(--input-h) * 2 + var(--gap));
-    max-height:calc(var(--input-h) * 2 + var(--gap));
+    height:calc(var(--input-h) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1)));
+    max-height:calc(var(--input-h) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1)));
     width:auto;
     max-width:none;
     display:block;
@@ -1158,8 +1155,6 @@ width: 64px;
   pointer-events: none;
 }
 
-
-
 /* Backdrop tint + blur */
 .sb-alert-backdrop{
   position:fixed;
@@ -1185,7 +1180,6 @@ width: 64px;
   border:2px solid #214478ff;
   border-radius:14px;
 
-  /* moved title up: slightly less top padding */
   padding:12px 16px 16px;
 
   box-shadow:0 12px 30px rgba(0,0,0,0.18);
@@ -1209,12 +1203,10 @@ width: 64px;
   line-height:1;
   font-weight:900;
 
-  /* ✅ match the gray */
   color:#888;
   opacity:.9;
 }
 .sb-alert-close:hover{ color:#555; opacity:1; }
-
 
 /* title: higher + light padding */
 .sb-alert-title{
@@ -1223,23 +1215,18 @@ width: 64px;
   font-weight:900;
   font-size:1.35rem;
 
-  /* ✅ closer to top */
   margin:0 40px 10px;
   padding-top:2px;
 }
-
 
 /* form wrapper */
 .sb-alert-form{
   display:flex;
   flex-direction:column;
-
-  /* ✅ match main form “gap” feel */
   gap:14px;
 }
 
-
-/* IMPORTANT: spacing BETWEEN inputs + button inside the form view */
+/* spacing between inputs + button inside the form view */
 #sbAlertFormView{
   display:flex;
   flex-direction:column;
@@ -1290,17 +1277,14 @@ width: 64px;
   line-height:1;
   font-weight:800;
 
-  /* ✅ make it gray like the other close X’s */
   color:#888;
   opacity:0.9;
 }
 
 .sb-clear:hover{
-  /* ✅ don’t add dark background; just slightly darker gray */
   color:#555;
   opacity:1;
 }
-
 
 .sb-sug{
   position:absolute;
