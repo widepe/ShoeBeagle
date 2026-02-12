@@ -19,10 +19,10 @@
 // - The API response will still include a "skipped" entry for disabled stores.
 // -----------------------------------------------------------------------------
 const SCRAPER_TOGGLES = {
-  RUNNING_WAREHOUSE: false,
-  FLEET_FEET: false,
+  RUNNING_WAREHOUSE: true,
+  FLEET_FEET: true,
   LUKES_LOCKER: true,
-  MARATHON_SPORTS: false,
+  MARATHON_SPORTS: true,
 };
 
 const axios = require("axios");
