@@ -497,7 +497,7 @@ function extractPrices($, $element, fullText) {
 
   return deals;
 }
-
+/* --------------------LUKES LOCKER -------------------------------*/
 async function scrapeLukesLocker() {
   const STORE = "Luke's Locker";
   const base = "https://lukeslocker.com";
@@ -539,25 +539,42 @@ async function scrapeLukesLocker() {
       if (seenUrls.has(listingURL)) continue;
       seenUrls.add(listingURL);
 
-        // image (Shopify products.json returns image objects, not strings)
+             // image (Shopify products.json: image/images are usually OBJECTS with .src)
       let imageURL = null;
 
-      const rawImg =
-        p?.image?.src ||
-        p?.images?.[0]?.src ||
-        p?.images?.[0] || // fallback if a theme returns strings
-        null;
+      const pickSrc = (img) => {
+        if (!img) return null;
+        if (typeof img === "string") return img;
+        if (typeof img === "object") return img.src || img.url || null;
+        return null;
+      };
 
-      if (rawImg) {
-        let u = String(rawImg).trim();
+      let src =
+        pickSrc(p?.image) ||
+        (Array.isArray(p?.images) ? pickSrc(p.images[0]) : null);
+
+      // sometimes first image lacks src; scan for first usable
+      if (!src && Array.isArray(p?.images)) {
+        for (const img of p.images) {
+          src = pickSrc(img);
+          if (src) break;
+        }
+      }
+
+      if (src) {
+        let u = String(src).trim();
 
         // normalize to absolute https URL
         if (u.startsWith("//")) u = "https:" + u;
         else if (u.startsWith("/")) u = base + u;
         else if (/^cdn\.shopify\.com/i.test(u)) u = "https://" + u;
 
-        imageURL = u || null;
+        // final sanity check
+        if (!/^https?:\/\//i.test(u)) u = null;
+
+        imageURL = u;
       }
+
 
 
       // prices from variants: choose the best "on sale" variant
