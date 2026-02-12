@@ -352,7 +352,7 @@ function extractPrices($, $element, fullText) {
 
 /** -------------------- Site scrapers (CHEERIO) -------------------- **/
 
- function scrapeRunningWarehouse() {
+ async function scrapeRunningWarehouse() {
   const STORE = "Running Warehouse";
 
   const urls = [
@@ -430,7 +430,7 @@ function extractPrices($, $element, fullText) {
   return deals;
 }
 
- function scrapeFleetFeet() {
+ async function scrapeFleetFeet() {
   const STORE = "Fleet Feet";
 
   const urls = [
