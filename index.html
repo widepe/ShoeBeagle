@@ -527,7 +527,8 @@
       if (starts.length) {
         const ranked = starts
           .map(v => ({ v, s: scoreSuggestion(v, q) }))
-          .sort((a, b) => b.s - a.s)
+          .sort((a, b) => (b.s - a.s) || (String(a.v).length - String(b.v).length) || String(a.v).localeCompare(String(b.v)))
+
           .slice(0, limit)
           .map(x => x.v);
         return Array.from(new Set(ranked));
@@ -536,7 +537,8 @@
       const scored = list
         .map(v => ({ v, s: scoreSuggestion(v, q) }))
         .filter(x => x.s > 0)
-        .sort((a, b) => b.s - a.s)
+        .sort((a, b) => (b.s - a.s) || (String(a.v).length - String(b.v).length) || String(a.v).localeCompare(String(b.v)))
+
         .slice(0, limit)
         .map(x => x.v);
 
@@ -676,7 +678,14 @@
         return;
       }
     }
-
+function sortShortFirst(arr){
+  return (arr || []).slice().sort((a,b) => {
+    const la = String(a||"").length;
+    const lb = String(b||"").length;
+    if (la !== lb) return la - lb;                 // shortest first
+    return String(a||"").localeCompare(String(b||"")); // then alphabetical
+  });
+}
     function buildUnifiedSuggestions(typed){
       if (!dealsSuggest.ready) return { items: [], mode: "model", brand: "" };
 
@@ -685,23 +694,37 @@
 
       const { brand, rest } = detectBrandPrefix(t);
 
-      // Brand context: suggest "Brand Model"
-      if (brand) {
-        const pool = dealsSuggest.brandToModels.has(brand)
-          ? Array.from(dealsSuggest.brandToModels.get(brand).values()).sort((a,b) => a.localeCompare(b))
-          : [];
+// Brand context: suggest "Brand" first, then "Brand Model" shortest→longest
+if (brand) {
+  const pool = dealsSuggest.brandToModels.has(brand)
+    ? Array.from(dealsSuggest.brandToModels.get(brand).values())
+    : [];
 
-        const matches = filterSuggestions(pool, rest || "", 12);
+  // If user only typed the brand (no rest), show:
+  // Nike
+  // Nike Alphafly
+  // Nike Alphafly 2
+  // ...
+  if (!rest) {
+    const modelsShort = sortShortFirst(pool).slice(0, 11); // 11 because brand itself is #1
+    return {
+      items: [brand, ...modelsShort.map(m => `${brand} ${m}`)],
+      mode: "brandmodel",
+      brand,
+    };
+  }
 
-        // If rest empty, still show top models (first 12)
-        const models = rest ? matches : pool.slice(0, 12);
+  // If they typed brand + something, rank matches, but prefer shorter on ties
+  const matches = filterSuggestions(pool, rest, 12);
+  const ordered = sortShortFirst(matches);
 
-        return {
-          items: models.map(m => `${brand} ${m}`),
-          mode: "brandmodel",
-          brand,
-        };
-      }
+  return {
+    items: ordered.map(m => `${brand} ${m}`),
+    mode: "brandmodel",
+    brand,
+  };
+}
+
 
       // No brand context: suggest model-only
       const matches = filterSuggestions(dealsSuggest.allModels, t, 12);
