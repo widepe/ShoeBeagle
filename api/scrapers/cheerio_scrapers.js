@@ -2,7 +2,7 @@
 // Daily scraper for running shoe deals (CHEERIO ONLY)
 // Runs via Vercel Cron
 //
-// NEW OUTPUT (per store blob):
+// OUTPUT (per store blob):
 //   { lastUpdated, scrapeDurationMs, scraperResult, deals }
 //
 // Blobs (public, stable names):
@@ -10,6 +10,20 @@
 //   fleet-feet.json
 //   lukes-locker.json
 //   marathon-sports.json
+//
+// -----------------------------------------------------------------------------
+// ✅ SCRAPER TOGGLES (edit these booleans to enable/disable stores)
+// -----------------------------------------------------------------------------
+// - Set a store to true  => it will run and write its blob
+// - Set a store to false => it will be skipped (NO scrape, NO blob write)
+// - The API response will still include a "skipped" entry for disabled stores.
+// -----------------------------------------------------------------------------
+const SCRAPER_TOGGLES = {
+  RUNNING_WAREHOUSE: true,
+  FLEET_FEET: true,
+  LUKES_LOCKER: true,
+  MARATHON_SPORTS: true,
+};
 
 const axios = require("axios");
 const cheerio = require("cheerio");
@@ -172,7 +186,11 @@ function detectShoeType(listingName, model) {
     return "track";
   }
 
-  if (/\b(road|kayano|clifton|ghost|pegasus|nimbus|cumulus|gel|glycerin|kinvara|ride|triumph|novablast)\b/i.test(combined)) {
+  if (
+    /\b(road|kayano|clifton|ghost|pegasus|nimbus|cumulus|gel|glycerin|kinvara|ride|triumph|novablast)\b/i.test(
+      combined
+    )
+  ) {
     return "road";
   }
 
@@ -484,6 +502,7 @@ async function scrapeLukesLocker() {
   const STORE = "Luke's Locker";
   const pageUrl = "https://lukeslocker.com/collections/closeout";
   const deals = [];
+  const seenUrls = new Set();
 
   const response = await axios.get(pageUrl, {
     headers: {
@@ -497,44 +516,83 @@ async function scrapeLukesLocker() {
 
   const $ = cheerio.load(response.data);
 
-  $('a[href*="/products/"]').each((_, el) => {
-    const $link = $(el);
+  // Luke's Locker product cards (matches what you highlighted)
+  // Title:  .grid-product__title
+  // Brand:  .grid-product__vendor
+  // Prices: .grid-product__price--current / .grid-product__price--original
+  $(".grid-product__content, .grid-product__meta").each((_, el) => {
+    const $content = $(el);
+
+    // Get the card root (so we can find link + image reliably)
+    const $card = $content.closest(".grid-product, .grid__item, .product-grid-item, [data-product-id]");
+    const $link = $card.find('a[href*="/products/"]').first();
     const href = ($link.attr("href") || "").trim();
-    if (!href || !href.includes("/products/")) return;
-
-    if (href.includes("#")) return;
-    if ($link.closest("script,style,noscript").length) return;
-
-    const fullText = normalizeWhitespace($link.text());
-    if (fullText.length < 10) return;
-    if (!fullText.includes("$")) return;
-
-    const listingName = cleanTitleText(fullText);
-    if (!listingName) return;
-
-    const { salePrice, originalPrice, valid } = extractPrices($, $link, fullText);
-    if (!valid || !salePrice || salePrice <= 0) return;
-
-    let $img = $link.find("img").first();
-    if (!$img.length) $img = $link.closest("div, article, li").find("img").first();
-    const imageURL = pickBestImgUrl($, $img, "https://lukeslocker.com");
+    if (!href) return;
 
     const listingURL = absolutizeUrl(href, "https://lukeslocker.com");
-    const { brand, model } = parseBrandModel(listingName);
+    if (seenUrls.has(listingURL)) return;
+    seenUrls.add(listingURL);
+
+    // Title + brand from dedicated nodes (not anchor text)
+    const rawTitle =
+      $card.find(".grid-product__title").first().text() ||
+      $content.find(".grid-product__title").first().text() ||
+      "";
+    const listingName = cleanTitleText(rawTitle);
+    if (!listingName) return;
+
+    const rawBrand =
+      $card.find(".grid-product__vendor").first().text() ||
+      $content.find(".grid-product__vendor").first().text() ||
+      "";
+    const brand = normalizeWhitespace(rawBrand) || "Unknown";
+
+    // Extract sale + original using the actual price spans
+    const currentText = normalizeWhitespace($card.find(".grid-product__price--current").first().text());
+    const originalText = normalizeWhitespace($card.find(".grid-product__price--original").first().text());
+
+    const saleCandidates = extractDollarAmounts(currentText);
+    const origCandidates = extractDollarAmounts(originalText);
+
+    const salePrice = saleCandidates.length ? saleCandidates[0] : null;
+    const originalPrice = origCandidates.length ? origCandidates[0] : null;
+
+    if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
+    if (!(salePrice > 0 && originalPrice > salePrice)) return;
+
     const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+    if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
+
+    // Model: prefer "title minus brand" then clean with modelNameCleaner
+    let model = listingName;
+    if (brand && brand !== "Unknown") {
+      const escaped = escapeRegExp(brand);
+      model = model.replace(new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i"), " ");
+      model = normalizeWhitespace(model);
+    }
+    model = cleanModelName(model);
+
+    // Image: use the card image, not link text
+    let imageURL = null;
+    const $img = $card.find("img").first();
+    imageURL = pickBestImgUrl($, $img, "https://lukeslocker.com");
 
     deals.push({
       listingName,
       brand,
       model,
       salePrice,
-      originalPrice: originalPrice || null,
+      originalPrice,
       discountPercent,
       store: STORE,
       listingURL,
       imageURL,
-      gender: detectGender(listingURL, listingName),
-      shoeType: detectShoeType(listingName, model),
+
+      // ✅ title-only gender (Luke's mixes genders on same page)
+      gender: detectGender("", listingName),
+
+      // ✅ per your requirement (don't guess)
+      shoeType: "unknown",
     });
   });
 
@@ -584,9 +642,7 @@ async function scrapeMarathonSports() {
       if (!containerText.includes("$") || !containerText.toLowerCase().includes("price")) return;
 
       let listingName = "";
-      const $titleEl = $container
-        .find("h2, h3, .product-title, .product-name, [class*='title']")
-        .first();
+      const $titleEl = $container.find("h2, h3, .product-title, .product-name, [class*='title']").first();
 
       if ($titleEl.length) listingName = normalizeWhitespace($titleEl.text());
       listingName = cleanTitleText(listingName);
@@ -688,6 +744,21 @@ async function runAndSaveStore({ storeName, blobName, via, fn }) {
   }
 }
 
+function skippedResult(storeName, blobName) {
+  return {
+    scraper: storeName,
+    ok: true,
+    skipped: true,
+    count: 0,
+    durationMs: 0,
+    timestamp: nowIso(),
+    via: "toggle-disabled",
+    error: null,
+    blobUrl: null, // intentionally not writing a blob when skipped
+    blobName,
+  };
+}
+
 /** -------------------- Main handler -------------------- **/
 
 module.exports = async (req, res) => {
@@ -707,39 +778,56 @@ module.exports = async (req, res) => {
   try {
     const results = {};
 
-    results["Running Warehouse"] = await runAndSaveStore({
-      storeName: "Running Warehouse",
-      blobName: "running-warehouse.json",
-      via: "cheerio",
-      fn: scrapeRunningWarehouse,
-    });
+    // ---------------- RUNNING WAREHOUSE ----------------
+    if (SCRAPER_TOGGLES.RUNNING_WAREHOUSE) {
+      results["Running Warehouse"] = await runAndSaveStore({
+        storeName: "Running Warehouse",
+        blobName: "running-warehouse.json",
+        via: "cheerio",
+        fn: scrapeRunningWarehouse,
+      });
+      await randomDelay();
+    } else {
+      results["Running Warehouse"] = skippedResult("Running Warehouse", "running-warehouse.json");
+    }
 
-    await randomDelay();
+    // ---------------- FLEET FEET ----------------
+    if (SCRAPER_TOGGLES.FLEET_FEET) {
+      results["Fleet Feet"] = await runAndSaveStore({
+        storeName: "Fleet Feet",
+        blobName: "fleet-feet.json",
+        via: "cheerio",
+        fn: scrapeFleetFeet,
+      });
+      await randomDelay();
+    } else {
+      results["Fleet Feet"] = skippedResult("Fleet Feet", "fleet-feet.json");
+    }
 
-    results["Fleet Feet"] = await runAndSaveStore({
-      storeName: "Fleet Feet",
-      blobName: "fleet-feet.json",
-      via: "cheerio",
-      fn: scrapeFleetFeet,
-    });
+    // ---------------- LUKE'S LOCKER ----------------
+    if (SCRAPER_TOGGLES.LUKES_LOCKER) {
+      results["Luke's Locker"] = await runAndSaveStore({
+        storeName: "Luke's Locker",
+        blobName: "lukes-locker.json",
+        via: "cheerio",
+        fn: scrapeLukesLocker,
+      });
+      await randomDelay();
+    } else {
+      results["Luke's Locker"] = skippedResult("Luke's Locker", "lukes-locker.json");
+    }
 
-    await randomDelay();
-
-    results["Luke's Locker"] = await runAndSaveStore({
-      storeName: "Luke's Locker",
-      blobName: "lukes-locker.json",
-      via: "cheerio",
-      fn: scrapeLukesLocker,
-    });
-
-    await randomDelay();
-
-    results["Marathon Sports"] = await runAndSaveStore({
-      storeName: "Marathon Sports",
-      blobName: "marathon-sports.json",
-      via: "cheerio",
-      fn: scrapeMarathonSports,
-    });
+    // ---------------- MARATHON SPORTS ----------------
+    if (SCRAPER_TOGGLES.MARATHON_SPORTS) {
+      results["Marathon Sports"] = await runAndSaveStore({
+        storeName: "Marathon Sports",
+        blobName: "marathon-sports.json",
+        via: "cheerio",
+        fn: scrapeMarathonSports,
+      });
+    } else {
+      results["Marathon Sports"] = skippedResult("Marathon Sports", "marathon-sports.json");
+    }
 
     const durationMs = Date.now() - overallStartTime;
 
@@ -747,7 +835,10 @@ module.exports = async (req, res) => {
       success: true,
       timestamp: runTimestamp,
       duration: `${durationMs}ms`,
+      toggles: SCRAPER_TOGGLES,
       stores: results,
+      note:
+        "Disabled stores are skipped (no scrape + no blob write). Enable/disable at top via SCRAPER_TOGGLES.",
     });
   } catch (error) {
     return res.status(500).json({
