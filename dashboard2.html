@@ -1164,7 +1164,7 @@
         // 1) Load canonical stores FIRST (single source of truth)
         await loadCanonicalStores();
 
-        const cacheBuster = Date.now();
+const cacheBuster = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
         // 2) Load merged deals (still from blob base)
         const dealsResponse = await fetch(`${BLOB_BASE}/deals.json?t=${cacheBuster}`, { cache: "no-store" });
@@ -1188,23 +1188,7 @@
           console.log("Could not load unaltered deals (continuing without it):", unalteredError.message);
         }
 
-        // merge-deals metadata (optional)
-        let mergeData = null;
-        try {
-          const mergeController = new AbortController();
-          const mergeTimeout = setTimeout(() => mergeController.abort(), 5000);
 
-          const mergeResponse = await fetch(`/api/merge-deals?t=${cacheBuster}`, {
-            cache: "no-store",
-            signal: mergeController.signal
-          });
-
-          clearTimeout(mergeTimeout);
-
-          if (mergeResponse.ok) mergeData = await mergeResponse.json();
-        } catch (mergeError) {
-          console.log("Could not load merge metadata (continuing without it):", mergeError.message);
-        }
 
         ALL_DEALS = deals;
         UNALTERED_DEALS = unalteredDeals;
