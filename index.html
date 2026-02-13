@@ -1197,10 +1197,14 @@ if (brand) {
       return card;
     }
 
-    async function loadDailyDeals() {
-      try {
-        const url = blobUrl("twelve_daily_deals.json");
-        const res = await fetch(url);
+async function loadDailyDeals() {
+  try {
+    const url = blobUrl("twelve_daily_deals.json");
+    const res = await fetch(
+      `${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`,
+      { cache: "no-store" }
+    );
+
 
         if (!res.ok) {
           console.error("Failed to fetch daily deals:", res.status, res.statusText);
