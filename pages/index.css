@@ -841,34 +841,46 @@ button{
   .row{ min-width:0; }
   .input-wrapper{ min-width:0; }
 
-  .topbar{
-    flex-direction:row;
-    align-items:flex-start;
-    justify-content:space-between;
-    flex-wrap:nowrap;
-    gap:var(--gap);
-    padding:0 max(10px, var(--pad));
-    width:100%;
-    margin-top:0;
-    transition: justify-content 360ms ease;
-  }
+
+   
+.topbar{
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  gap:var(--gap);
+  padding:0 max(10px, var(--pad));
+  width:100%;
+  margin-top:0;
+}
+
 
   .app.inputs-expanded .input-icon{
     width:calc(22px * var(--top-scale) * var(--typing-scale));
     height:calc(22px * var(--top-scale) * var(--typing-scale));
   }
 
-  .top-right{
-    order:0;
-    margin-right:0;
-    flex:0 0 auto;
-    max-width:var(--logo-lane);
-    overflow:hidden;
-    transition: max-width 420ms ease, opacity 360ms ease, transform 360ms ease;
-    will-change: max-width, opacity, transform;
-  }
+.top-right{
+  order:0;
+  width:100%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  margin:0 0 6px 0;
+  max-width:none;
+  overflow:visible;
+  transition:none;
+  will-change:auto;
+}
 
-  .input-clear{
+.top-left{
+  order:1;
+  flex:1 1 auto;
+  width:100%;
+  min-width:0;
+  margin-left:0;
+  max-width:none;
+  transition:none;
+}  .input-clear{
     width:calc(34px * var(--top-scale));
     height:calc(34px * var(--top-scale));
     font-size:calc(3.5rem * var(--top-scale));
@@ -904,15 +916,8 @@ button{
     border-radius:calc(0.5rem * var(--top-scale));
   }
 
-  .top-left{
-    order:1;
-    flex:1 1 auto;
-    width:auto;
-    min-width:0;
-    margin-left:0;
-    max-width:none;
-    transition: max-width 420ms ease, transform 420ms ease;
-  }
+
+
 
   .app.inputs-expanded .topbar{ justify-content:flex-start; }
   .app.inputs-expanded .top-right{
