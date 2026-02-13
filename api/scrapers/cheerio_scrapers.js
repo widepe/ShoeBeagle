@@ -362,7 +362,6 @@ async function scrapeRunningWarehouse() {
   const STORE = "Running Warehouse";
   const base = "https://www.runningwarehouse.com";
 
-  // ✅ New 4 pages + deterministic shoeType
   const pages = [
     { url: "https://www.runningwarehouse.com/catpage-WRSSALERONU.html", shoeType: "road" },  // Womens road
     { url: "https://www.runningwarehouse.com/catpage-WRSSALETR.html",  shoeType: "trail" }, // Womens trail
@@ -392,35 +391,19 @@ async function scrapeRunningWarehouse() {
 
     const $ = cheerio.load(response.data);
 
-    // ---------------- DEBUG COUNTS (per page) ----------------
-    let cellCount = 0;
-    let nameCount = 0;
-    let hrefCount = 0;
-    let pricePairCount = 0;
-    let pushedCount = 0;
+    // Iterate the reliable product link, then walk up to the product cell
+    $("a.cattable-wrap-cell-info").each((_, el) => {
+      const $link = $(el);
+      const $cell = $link.closest(".cattable-wrap-cell");
+      if (!$cell.length) return;
 
-    // Each product card / row
-  $("a.cattable-wrap-cell-info").each((_, el) => {
-  const $cell = $(el).closest(".cattable-wrap-cell");
-
-      
-      cellCount++;
-      const $cell = $(el);
-
-      // --- listingName (PRESERVED, unaltered) ---
+      // listingName must be preserved exactly as scraped from the dedicated name element
       const listingName = String($cell.find(".cattable-wrap-cell-info-name").first().text() || "");
-      if (listingName) nameCount++;
       if (!listingName) return;
 
-      // Subline contains gender-ish text like "Unisex Shoes – Black/White"
       const subLine = String($cell.find(".cattable-wrap-cell-info-sub").first().text() || "");
 
-      // --- listingURL (reliable: href on the card link) ---
-      const href =
-        $cell.find("a.cattable-wrap-cell-imgwrap-link").attr("href") ||
-        $cell.find("a.cattable-wrap-cell-info").attr("href") ||
-        "";
-      if (href) hrefCount++;
+      const href = $link.attr("href") || "";
       if (!href) return;
 
       const listingURL = absolutizeUrl(href, base);
@@ -429,15 +412,11 @@ async function scrapeRunningWarehouse() {
       if (seenUrls.has(listingURL)) return;
       seenUrls.add(listingURL);
 
-      // --- imageURL (reliable: product image) ---
       const $img = $cell.find("img").first();
       const imageURL = pickBestImgUrl($, $img, base);
 
-      // --- prices (reliable: dedicated price elements) ---
       const saleText = $cell.find(".cattable-wrap-cell-info-price.is-sale span").first().text();
       const msrpText = $cell.find(".cattable-wrap-cell-info-price-msrp .is-crossout").first().text();
-
-      if (saleText && msrpText) pricePairCount++;
 
       const salePrice = parseDollar(saleText);
       const originalPrice = parseDollar(msrpText);
@@ -449,15 +428,14 @@ async function scrapeRunningWarehouse() {
       const discountPercent = computeDiscountPercent(originalPrice, salePrice);
       if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
 
-      // --- brand/model parsing ---
+      // keep parsing behavior same as before (listingName preserved; parsing uses cleaned copy)
       const cleanedForParsing = cleanTitleText(normalizeWhitespace(listingName));
       const { brand, model } = parseBrandModel(cleanedForParsing);
 
-      // --- gender parsing ---
       const gender = detectGender(listingURL, `${listingName} ${subLine}`);
 
       deals.push({
-        listingName,               // ✅ preserved (no cleaning)
+        listingName,             // preserved
         brand,
         model,
         salePrice,
@@ -467,18 +445,8 @@ async function scrapeRunningWarehouse() {
         listingURL,
         imageURL,
         gender,
-        shoeType: page.shoeType,   // ✅ nailed by page
+        shoeType: page.shoeType, // nailed by page
       });
-
-      pushedCount++;
-    });
-
-    console.log("[RW DEBUG]", page.url, {
-      cellCount,
-      nameCount,
-      hrefCount,
-      pricePairCount,
-      pushedCount,
     });
 
     await randomDelay();
@@ -486,7 +454,6 @@ async function scrapeRunningWarehouse() {
 
   return deals;
 }
-
 
 /* -------------------------------  Fleet Feet ----------------------------------- */
 
