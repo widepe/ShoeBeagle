@@ -320,30 +320,29 @@ button{
 }
 
 .btn-icon{
-  height:60%;
-  width:auto;
-  max-height:100%;
+  width:55%;
+  height:55%;
+  object-fit:contain;
   display:block;
   pointer-events:none;
 }
 
-#fetchBtn .btn-icon{ height:30%; }
-
 .btn-eq{
   height:var(--btn-h);
-  width:var(--btn-eq-w);
-  min-width:var(--btn-eq-w);
-  max-width:var(--btn-eq-w);
-  padding:0 calc(10px * var(--top-scale));
+  width:var(--btn-h);
+  min-width:var(--btn-h);
+  max-width:var(--btn-h);
+
+  padding:0;
   border:1px solid var(--sb-blue);
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  white-space:nowrap;
-  gap:calc(8px * var(--top-scale));
+  gap:0;
   font-size:var(--btn-font);
   font-weight:700;
 }
+
 .btn-eq:hover{ background:#1a3661; }
 
 .btn-eq:disabled{
@@ -937,8 +936,8 @@ button{
   }
 
   .input-icon{
-    width:calc(24px * var(--top-scale));
-    height:calc(24px * var(--top-scale));
+    width:calc(32px * var(--top-scale));
+    height:calc(32px * var(--top-scale));
   }
 
   .app{ --typing-scale:1; }
