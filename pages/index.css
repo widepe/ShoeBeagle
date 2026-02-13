@@ -872,7 +872,7 @@ button{
   .input-clear{
     width:calc(34px * var(--top-scale));
     height:calc(34px * var(--top-scale));
-    font-size:calc(1.6rem * var(--top-scale));
+    font-size:calc(3.5rem * var(--top-scale));
   }
 
   .links-ribbon-link{ font-size:0.75rem; }
