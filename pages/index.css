@@ -159,8 +159,8 @@ body{
 .topbar{
   width:100%;
   display:flex;
-  align-items:flex-end;
-  justify-content:center;
+  align-items:flex-start;
+  justify-content:flex-end;
   gap:var(--gap);
   margin-top:2px;
   flex-wrap:wrap;
