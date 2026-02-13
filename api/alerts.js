@@ -119,7 +119,20 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+async function getAlertsBlobUrl() {
+  const { blobs } = await list({ prefix: "alerts" }); // broader than "alerts.json"
+  if (!blobs || blobs.length === 0) return null;
 
+  // Prefer exact alerts.json
+  const exact = blobs.find(b =>
+    b.pathname === "alerts.json" || b.pathname.endsWith("/alerts.json")
+  );
+  if (exact) return exact.url;
+
+  // Fallback: anything that contains alerts.json
+  const any = blobs.find(b => String(b.pathname || "").includes("alerts.json"));
+  return any ? any.url : null;
+}
 // =====================
 // Confirmation email HTML
 // =====================
@@ -260,13 +273,13 @@ async function handleList(req, res) {
   const cleanEmail = String(tok.email).trim().toLowerCase();
 
   // Load alerts from blob
-  const { blobs } = await list({ prefix: "alerts.json" });
+const url = await getAlertsBlobUrl();
+if (!url) {
+  return res.status(200).json({ success: true, alerts: [], count: 0 });
+}
 
-  if (!blobs || blobs.length === 0) {
-    return res.status(200).json({ success: true, alerts: [], count: 0 });
-  }
+const response = await fetch(url);
 
-  const response = await fetch(blobs[0].url);
   const data = await response.json();
   const alerts = Array.isArray(data.alerts) ? data.alerts : [];
 
@@ -286,7 +299,7 @@ async function handleList(req, res) {
 // CREATE ALERT
 // ============================================================================
 async function handleCreate(req, res) {
-  const { email, brand, model, targetPrice } = req.body || {};
+  const { email, brand, model, targetPrice, gender } = req.body || {};
 
   // Validation
   if (!email || !String(email).includes("@")) {
@@ -305,16 +318,18 @@ async function handleCreate(req, res) {
   const cleanEmail = sanitizeInput(email).toLowerCase();
   const cleanBrand = sanitizeInput(brand);
   const cleanModel = sanitizeInput(model);
+  const cleanGender = sanitizeInput(gender);
 
   // Load existing alerts
   let alerts = [];
   try {
-    const { blobs } = await list({ prefix: "alerts.json" });
-    if (blobs && blobs.length > 0) {
-      const response = await fetch(blobs[0].url);
-      const data = await response.json();
-      alerts = Array.isArray(data.alerts) ? data.alerts : [];
-    }
+    const url = await getAlertsBlobUrl();
+if (!url) return res.status(404).json({ error: "No alerts found" });
+
+const response = await fetch(url);
+const data = await response.json();
+alerts = Array.isArray(data.alerts) ? data.alerts : [];
+
   } catch (err) {
     console.log("No existing alerts file, creating new one");
   }
@@ -335,16 +350,18 @@ async function handleCreate(req, res) {
   }
 
   // Create new alert
-  const newAlert = {
-    id: `alert_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-    email: cleanEmail,
-    brand: cleanBrand,
-    model: cleanModel,
-    targetPrice: price,
-    setAt: Date.now(),
-    cancelledAt: null,
-    lastNotifiedAt: null
-  };
+const newAlert = {
+  id: `alert_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+  email: cleanEmail,
+  brand: cleanBrand,
+  model: cleanModel,
+  gender: cleanGender || "both",
+  targetPrice: price,
+  setAt: Date.now(),
+  cancelledAt: null,
+  lastNotifiedAt: null
+};
+
 
   alerts.push(newAlert);
 
