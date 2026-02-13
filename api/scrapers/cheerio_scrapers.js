@@ -400,7 +400,10 @@ async function scrapeRunningWarehouse() {
     let pushedCount = 0;
 
     // Each product card / row
-    $(".cattable-wrap-cell").each((_, el) => {
+  $("a.cattable-wrap-cell-info").each((_, el) => {
+  const $cell = $(el).closest(".cattable-wrap-cell");
+
+      
       cellCount++;
       const $cell = $(el);
 
