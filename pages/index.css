@@ -799,7 +799,7 @@ button{
   .top-left{ order:0; flex:1 1 0; width:auto; min-width:0; }
 
   .brand-logo{
-    content:url("/images/logoV2.svg");
+    content:url("/images/logo.svg");
     height:calc(var(--input-h) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1)));
     max-height:calc(var(--input-h) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1)));
     width:auto;
