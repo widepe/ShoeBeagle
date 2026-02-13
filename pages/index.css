@@ -814,8 +814,8 @@ button{
     --pad:6px;
 
     /*--logo-lane:clamp(150px, 34vw, 220px); */
-     --logo-lane:clamp(150px, 25vw, 220px);
-     
+    --logo-lane:clamp(150px, 25vw, 220px);
+
     --top-scale:0.47;
     --grid-scale:0.47;
 
@@ -875,10 +875,9 @@ button{
     font-size:calc(3.5rem * var(--top-scale));
   }
 
-
   .input-controls{
     position:absolute;
-    right:calc(8px + (42px * var(--top-scale))); /* sit just left of the X */
+    right:calc(8px + (42px * var(--top-scale)));
     top:50%;
     transform:translateY(-50%);
     border:none;
@@ -896,11 +895,9 @@ button{
     height:18px;
   }
 
-}
   .links-ribbon-link{ font-size:0.75rem; }
   .ribbon-label{ font-size:0.75rem; }
 
-  /* ✅ FIXED: removed invalid nested @media */
   .ribbon-select{
     height:32px;
     font-size:0.8rem;
@@ -915,7 +912,6 @@ button{
     min-width:0;
     margin-left:0;
     max-width:none;
-   /*   max-width:calc(100% - var(--logo-lane));    transform:translateX(0); */
     transition: max-width 420ms ease, transform 420ms ease;
   }
 
