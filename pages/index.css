@@ -875,6 +875,28 @@ button{
     font-size:calc(3.5rem * var(--top-scale));
   }
 
+
+  .input-controls{
+    position:absolute;
+    right:calc(8px + (42px * var(--top-scale))); /* sit just left of the X */
+    top:50%;
+    transform:translateY(-50%);
+    border:none;
+    background:transparent;
+    padding:0;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+
+  .input-controls img{
+    width:18px;
+    height:18px;
+  }
+
+}
   .links-ribbon-link{ font-size:0.75rem; }
   .ribbon-label{ font-size:0.75rem; }
 
