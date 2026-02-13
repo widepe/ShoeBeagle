@@ -1,15 +1,49 @@
 {
   "crons": [
-    { "path": "/api/scrapers/cheerio_scrapers", "schedule": "0 9 * * *" },
-    { "path": "/api/scrapers/apify_scrapers", "schedule": "5 9 * * *" },
-    { "path": "/api/scrapers/als-sale", "schedule": "20 9 * * *" },
-    { "path": "/api/scrapers/shoebacca-clearance", "schedule": "25 9 * * *" },
-
-    { "path": "/api/scrapers/holabird-mens-road", "schedule": "30 9 * * *" },
-    { "path": "/api/scrapers/holabird-womens-road", "schedule": "35 9 * * *" },
-    { "path": "/api/scrapers/holabird-trail-unisex", "schedule": "40 9 * * *" },
-
-    { "path": "/api/merge-deals", "schedule": "50 9 * * *" },
-    { "path": "/api/cron/check-alerts", "schedule": "0 10 * * *" }
+    {
+      "path": "/api/scrapers/cheerio_scrapers",
+      "schedule": "0 9 * * *",
+      "headers": { "Authorization": "Bearer ${CRON_SECRET}" }
+    },
+    {
+      "path": "/api/scrapers/apify_scrapers",
+      "schedule": "5 9 * * *",
+      "headers": { "Authorization": "Bearer ${CRON_SECRET}" }
+    },
+    {
+      "path": "/api/scrapers/als-sale",
+      "schedule": "20 9 * * *",
+      "headers": { "Authorization": "Bearer ${CRON_SECRET}" }
+    },
+    {
+      "path": "/api/scrapers/shoebacca-clearance",
+      "schedule": "25 9 * * *",
+      "headers": { "Authorization": "Bearer ${CRON_SECRET}" }
+    },
+    {
+      "path": "/api/scrapers/holabird-mens-road",
+      "schedule": "30 9 * * *",
+      "headers": { "Authorization": "Bearer ${CRON_SECRET}" }
+    },
+    {
+      "path": "/api/scrapers/holabird-womens-road",
+      "schedule": "35 9 * * *",
+      "headers": { "Authorization": "Bearer ${CRON_SECRET}" }
+    },
+    {
+      "path": "/api/scrapers/holabird-trail-unisex",
+      "schedule": "40 9 * * *",
+      "headers": { "Authorization": "Bearer ${CRON_SECRET}" }
+    },
+    {
+      "path": "/api/merge-deals",
+      "schedule": "50 9 * * *",
+      "headers": { "Authorization": "Bearer ${CRON_SECRET}" }
+    },
+    {
+      "path": "/api/cron/check-alerts",
+      "schedule": "0 10 * * *",
+      "headers": { "Authorization": "Bearer ${CRON_SECRET}" }
+    }
   ]
 }
