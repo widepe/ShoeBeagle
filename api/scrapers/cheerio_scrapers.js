@@ -363,10 +363,10 @@ async function scrapeRunningWarehouse() {
   const base = "https://www.runningwarehouse.com";
 
   const pages = [
-    { url: "https://www.runningwarehouse.com/catpage-WRSSALERONU.html", shoeType: "road" },  // Womens road
-    { url: "https://www.runningwarehouse.com/catpage-WRSSALETR.html",  shoeType: "trail" }, // Womens trail
-    { url: "https://www.runningwarehouse.com/catpage-MRSSALENEU.html", shoeType: "road" },  // Mens road
-    { url: "https://www.runningwarehouse.com/catpage-MRSSALETR.html",  shoeType: "trail" }, // Mens trail
+    { url: "https://www.runningwarehouse.com/catpage-WRSSALERONU.html", shoeType: "road" },
+    { url: "https://www.runningwarehouse.com/catpage-WRSSALETR.html",  shoeType: "trail" },
+    { url: "https://www.runningwarehouse.com/catpage-MRSSALENEU.html", shoeType: "road" },
+    { url: "https://www.runningwarehouse.com/catpage-MRSSALETR.html",  shoeType: "trail" },
   ];
 
   const deals = [];
@@ -380,24 +380,40 @@ async function scrapeRunningWarehouse() {
   };
 
   for (const page of pages) {
-    const response = await axios.get(page.url, {
+    const resp = await axios.get(page.url, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
       },
       timeout: 30000,
+      maxRedirects: 5,
+      validateStatus: () => true, // so we can see non-200 pages in logs
     });
 
-    const $ = cheerio.load(response.data);
+    const html = String(resp.data || "");
+    const $ = cheerio.load(html);
 
-    // Iterate the reliable product link, then walk up to the product cell
+    const title = $("title").first().text().trim();
+    const linkCount = $("a.cattable-wrap-cell-info").length;
+    const cellCount = $(".cattable-wrap-cell").length;
+
+    console.log("[RW PAGE]", {
+      url: page.url,
+      status: resp.status,
+      htmlLength: html.length,
+      title,
+      linkCount,
+      cellCount,
+    });
+
+    // ---- current scraping logic ----
     $("a.cattable-wrap-cell-info").each((_, el) => {
       const $link = $(el);
       const $cell = $link.closest(".cattable-wrap-cell");
       if (!$cell.length) return;
 
-      // listingName must be preserved exactly as scraped from the dedicated name element
       const listingName = String($cell.find(".cattable-wrap-cell-info-name").first().text() || "");
       if (!listingName) return;
 
@@ -421,21 +437,19 @@ async function scrapeRunningWarehouse() {
       const salePrice = parseDollar(saleText);
       const originalPrice = parseDollar(msrpText);
 
-      // require both + original > sale
       if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
       if (!(originalPrice > salePrice && salePrice > 0)) return;
 
       const discountPercent = computeDiscountPercent(originalPrice, salePrice);
       if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
 
-      // keep parsing behavior same as before (listingName preserved; parsing uses cleaned copy)
       const cleanedForParsing = cleanTitleText(normalizeWhitespace(listingName));
       const { brand, model } = parseBrandModel(cleanedForParsing);
 
       const gender = detectGender(listingURL, `${listingName} ${subLine}`);
 
       deals.push({
-        listingName,             // preserved
+        listingName,
         brand,
         model,
         salePrice,
@@ -445,7 +459,7 @@ async function scrapeRunningWarehouse() {
         listingURL,
         imageURL,
         gender,
-        shoeType: page.shoeType, // nailed by page
+        shoeType: page.shoeType,
       });
     });
 
