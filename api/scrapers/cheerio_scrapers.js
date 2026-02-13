@@ -357,19 +357,31 @@ function extractPrices($, $element, fullText) {
 
 /** -------------------- Site scrapers (CHEERIO) -------------------- **/
 
+/* ----------------------------  Running Warehouse ------------------------------ */
 async function scrapeRunningWarehouse() {
   const STORE = "Running Warehouse";
+  const base = "https://www.runningwarehouse.com";
 
-  const urls = [
-    "https://www.runningwarehouse.com/catpage-SALEMS.html",
-    "https://www.runningwarehouse.com/catpage-SALEWS.html",
+  // ✅ New 4 pages + deterministic shoeType
+  const pages = [
+    { url: "https://www.runningwarehouse.com/catpage-WRSSALERONU.html", shoeType: "road" },  // Womens road
+    { url: "https://www.runningwarehouse.com/catpage-WRSSALETR.html",  shoeType: "trail" }, // Womens trail
+    { url: "https://www.runningwarehouse.com/catpage-MRSSALENEU.html", shoeType: "road" },  // Mens road
+    { url: "https://www.runningwarehouse.com/catpage-MRSSALETR.html",  shoeType: "trail" }, // Mens trail
   ];
 
   const deals = [];
   const seenUrls = new Set();
 
-  for (const pageUrl of urls) {
-    const response = await axios.get(pageUrl, {
+  const parseDollar = (txt) => {
+    const m = String(txt || "").match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
+    if (!m) return null;
+    const n = parseFloat(m[1].replace(/,/g, ""));
+    return Number.isFinite(n) ? n : null;
+  };
+
+  for (const page of pages) {
+    const response = await axios.get(page.url, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -380,61 +392,70 @@ async function scrapeRunningWarehouse() {
 
     const $ = cheerio.load(response.data);
 
-    $("a").each((_, el) => {
-      const anchor = $(el);
+    // Each product card / row
+    $(".cattable-wrap-cell").each((_, el) => {
+      const $cell = $(el);
 
-      // PRESERVE listingName RAW (no cleaning / no normalizeWhitespace / no trim)
-      const listingName = String(anchor.text() ?? "");
+      // --- listingName (PRESERVED, unaltered) ---
+      // Pull from the dedicated name element (reliable)
+      const listingName = String($cell.find(".cattable-wrap-cell-info-name").first().text() || "");
+      if (!listingName) return;
 
-      // For parsing & price extraction, keep SAME normalized input as before
-      let parseText = normalizeWhitespace(listingName);
-      parseText = parseText.replace(/\*\s*$/, "").trim();
+      // Subline contains gender-ish text like "Unisex Shoes – Black/White"
+      const subLine = String($cell.find(".cattable-wrap-cell-info-sub").first().text() || "");
 
-      const href = anchor.attr("href") || "";
+      // --- listingURL (reliable: href on the card link) ---
+      const href =
+        $cell.find("a.cattable-wrap-cell-imgwrap-link").attr("href") ||
+        $cell.find("a.cattable-wrap-cell-info").attr("href") ||
+        "";
       if (!href) return;
 
-      const { salePrice, originalPrice, valid } = extractPrices($, anchor, parseText);
-      if (!valid || !salePrice || !Number.isFinite(salePrice)) return;
-
-      // The old code used cleanTitleText(parseText) for listingName validation.
-      // We keep the SAME validation gate, but do NOT overwrite listingName.
-      const cleanedForParsing = cleanTitleText(parseText);
-      if (!cleanedForParsing) return;
-
-      let listingURL = href.trim();
-      if (!/^https?:\/\//i.test(listingURL)) {
-        listingURL = listingURL.startsWith("//")
-          ? "https:" + listingURL
-          : `https://www.runningwarehouse.com/${listingURL.replace(/^\/+/, "")}`;
-      }
+      const listingURL = absolutizeUrl(href, base);
+      if (!listingURL) return;
 
       if (seenUrls.has(listingURL)) return;
       seenUrls.add(listingURL);
 
-      let imageURL = null;
-      const container = anchor.closest("tr,td,div,li,article");
-      if (container.length) {
-        const imgEl = container.find("img").first();
-        imageURL = pickBestImgUrl($, imgEl, "https://www.runningwarehouse.com");
-      }
+      // --- imageURL (reliable: product image) ---
+      const $img = $cell.find("img").first();
+      const imageURL = pickBestImgUrl($, $img, base);
 
-      // Keep brand/model behavior identical by feeding the same cleaned text as before
-      const { brand, model } = parseBrandModel(cleanedForParsing);
+      // --- prices (reliable: dedicated price elements) ---
+      const saleText = $cell.find(".cattable-wrap-cell-info-price.is-sale span").first().text();
+      const msrpText = $cell.find(".cattable-wrap-cell-info-price-msrp .is-crossout").first().text();
+
+      const salePrice = parseDollar(saleText);
+      const originalPrice = parseDollar(msrpText);
+
+      // require both + original > sale
+      if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
+      if (!(originalPrice > salePrice && salePrice > 0)) return;
+
       const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+      if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
+
+      // --- brand/model parsing ---
+      // IMPORTANT: we do NOT change listingName; we only create a parsing string.
+      const cleanedForParsing = cleanTitleText(normalizeWhitespace(listingName));
+      const { brand, model } = parseBrandModel(cleanedForParsing);
+
+      // --- gender parsing ---
+      // Use listingURL + (listingName + subLine) so "Unisex Shoes" is picked up reliably.
+      const gender = detectGender(listingURL, `${listingName} ${subLine}`);
 
       deals.push({
-        listingName, // RAW, unaltered
+        listingName,               // ✅ preserved (no cleaning)
         brand,
         model,
         salePrice,
-        originalPrice: Number.isFinite(originalPrice) && originalPrice > salePrice ? originalPrice : null,
+        originalPrice,
         discountPercent,
         store: STORE,
         listingURL,
         imageURL,
-        // Keep gender/shoetype conclusions identical: use cleanedForParsing as before
-        gender: detectGender(listingURL, cleanedForParsing),
-        shoeType: detectShoeType(cleanedForParsing, model),
+        gender,
+        shoeType: page.shoeType,   // ✅ nailed by page
       });
     });
 
@@ -443,6 +464,9 @@ async function scrapeRunningWarehouse() {
 
   return deals;
 }
+
+
+/* -------------------------------  Fleet Feet ----------------------------------- */
 
 async function scrapeFleetFeet() {
   const STORE = "Fleet Feet";
