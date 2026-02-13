@@ -392,13 +392,21 @@ async function scrapeRunningWarehouse() {
 
     const $ = cheerio.load(response.data);
 
+    // ---------------- DEBUG COUNTS (per page) ----------------
+    let cellCount = 0;
+    let nameCount = 0;
+    let hrefCount = 0;
+    let pricePairCount = 0;
+    let pushedCount = 0;
+
     // Each product card / row
     $(".cattable-wrap-cell").each((_, el) => {
+      cellCount++;
       const $cell = $(el);
 
       // --- listingName (PRESERVED, unaltered) ---
-      // Pull from the dedicated name element (reliable)
       const listingName = String($cell.find(".cattable-wrap-cell-info-name").first().text() || "");
+      if (listingName) nameCount++;
       if (!listingName) return;
 
       // Subline contains gender-ish text like "Unisex Shoes – Black/White"
@@ -409,6 +417,7 @@ async function scrapeRunningWarehouse() {
         $cell.find("a.cattable-wrap-cell-imgwrap-link").attr("href") ||
         $cell.find("a.cattable-wrap-cell-info").attr("href") ||
         "";
+      if (href) hrefCount++;
       if (!href) return;
 
       const listingURL = absolutizeUrl(href, base);
@@ -425,6 +434,8 @@ async function scrapeRunningWarehouse() {
       const saleText = $cell.find(".cattable-wrap-cell-info-price.is-sale span").first().text();
       const msrpText = $cell.find(".cattable-wrap-cell-info-price-msrp .is-crossout").first().text();
 
+      if (saleText && msrpText) pricePairCount++;
+
       const salePrice = parseDollar(saleText);
       const originalPrice = parseDollar(msrpText);
 
@@ -436,12 +447,10 @@ async function scrapeRunningWarehouse() {
       if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
 
       // --- brand/model parsing ---
-      // IMPORTANT: we do NOT change listingName; we only create a parsing string.
       const cleanedForParsing = cleanTitleText(normalizeWhitespace(listingName));
       const { brand, model } = parseBrandModel(cleanedForParsing);
 
       // --- gender parsing ---
-      // Use listingURL + (listingName + subLine) so "Unisex Shoes" is picked up reliably.
       const gender = detectGender(listingURL, `${listingName} ${subLine}`);
 
       deals.push({
@@ -457,6 +466,16 @@ async function scrapeRunningWarehouse() {
         gender,
         shoeType: page.shoeType,   // ✅ nailed by page
       });
+
+      pushedCount++;
+    });
+
+    console.log("[RW DEBUG]", page.url, {
+      cellCount,
+      nameCount,
+      hrefCount,
+      pricePairCount,
+      pushedCount,
     });
 
     await randomDelay();
