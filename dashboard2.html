@@ -1166,13 +1166,41 @@
 
 const cacheBuster = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-        // 2) Load merged deals (still from blob base)
-        const dealsResponse = await fetch(`${BLOB_BASE}/deals.json?t=${cacheBuster}`, { cache: "no-store" });
-        if (!dealsResponse.ok) throw new Error(`Failed to fetch deals: ${dealsResponse.status}`);
+     // 2) Load merged deals
+const dealsResponse = await fetch(`${BLOB_BASE}/deals.json?t=${cacheBuster}`, { cache: "no-store" });
+if (!dealsResponse.ok) throw new Error(`Failed to fetch deals: ${dealsResponse.status}`);
 
-        const dealsJson = await dealsResponse.json();
-        const deals = Array.isArray(dealsJson) ? dealsJson : (Array.isArray(dealsJson.deals) ? dealsJson.deals : null);
-        if (!deals) throw new Error("Invalid deals.json format (expected array or {deals:[...]})");
+const dealsJson = await dealsResponse.json();
+const deals = Array.isArray(dealsJson)
+  ? dealsJson
+  : (Array.isArray(dealsJson.deals) ? dealsJson.deals : null);
+
+if (!deals) throw new Error("Invalid deals.json format (expected array or {deals:[...]})");
+
+// 2b) Build mergeData WITHOUT merge-data.json
+// - timestamp/lastUpdated + scraperResults come from deals.json
+// - storeMetadata comes from stats.json (stats.scraperMetadata)
+let mergeData = {
+  timestamp: dealsJson?.lastUpdated || dealsJson?.timestamp || null,
+  lastUpdated: dealsJson?.lastUpdated || dealsJson?.timestamp || null,
+  scraperResults: dealsJson?.scraperResults || {},
+  storeMetadata: {} // filled from stats.json below
+};
+
+// 2c) Load stats.json so health cards can show per-store blobUrl/timestamp/duration
+try {
+  const statsResponse = await fetch(`${BLOB_BASE}/stats.json?t=${cacheBuster}`, { cache: "no-store" });
+  if (statsResponse.ok) {
+    const statsJson = await statsResponse.json();
+    mergeData.storeMetadata = statsJson?.scraperMetadata || {};
+    // (optional) if stats has a fresher timestamp, keep it
+    mergeData.timestamp = mergeData.timestamp || statsJson?.lastUpdated || statsJson?.generatedAt || null;
+    mergeData.lastUpdated = mergeData.lastUpdated || statsJson?.lastUpdated || statsJson?.generatedAt || null;
+  }
+} catch (e) {
+  console.log("Could not load stats.json (continuing without store metadata):", e?.message || e);
+}
+
 
         // unaltered-deals.json supports ARRAY or {deals:[...]} (optional)
         let unalteredDeals = [];
