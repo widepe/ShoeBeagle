@@ -34,7 +34,7 @@ html{ -webkit-text-size-adjust:100%; }
   --btn-font:  calc(1.15rem * var(--top-scale));
   --menu-icon-size:calc(1.75rem * var(--top-scale));
 
-  --logo-scale:calc(1.5 * var(--top-scale));
+  --logo-scale:calc(2 * var(--top-scale));
 
   /* ✅ NEW: number of input rows in the top cluster
      (combined search = 1 row; old double search was 2) */
@@ -159,7 +159,7 @@ body{
 .topbar{
   width:100%;
   display:flex;
-  align-items:flex-end;
+  align-items:center;
   justify-content:center;
   gap:var(--gap);
   margin-top:2px;
@@ -759,7 +759,7 @@ button{
     padding-left:0;
     padding-right:0;
     flex-wrap:nowrap;
-    align-items:flex-end;
+    align-items:center;
   }
 
   .top-left{ flex:1 1 0; min-width:0; }
