@@ -959,7 +959,7 @@ button{
   }
 
   .brand-logo{
-    content:url("/images/logoV2.svg");
+    content:url("/images/logo.svg");
        height:calc(
       (var(--input-h) * var(--top-rows)
       + (var(--gap) * (var(--top-rows) - 1)))
