@@ -11,12 +11,13 @@
 //   lukes-locker.json
 //   marathon-sports.json
 //
+// IMPORTANT RULE (per your requirement):
+// - listingName is preserved EXACTLY as scraped (no cleaning / normalization applied to listingName).
+// - All parsing for brand/model/gender/shoeType uses the SAME cleaned/normalized inputs as before,
+//   so outputs (everything except listingName) should match current behavior.
+//
 // -----------------------------------------------------------------------------
 // ✅ SCRAPER TOGGLES (edit these booleans to enable/disable stores)
-// -----------------------------------------------------------------------------
-// - Set a store to true  => it will run and write its blob
-// - Set a store to false => it will be skipped (NO scrape, NO blob write)
-// - The API response will still include a "skipped" entry for disabled stores.
 // -----------------------------------------------------------------------------
 const SCRAPER_TOGGLES = {
   RUNNING_WAREHOUSE: true,
@@ -36,10 +37,13 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+// NOTE: We still use this for parsing/validation (as before).
+// listingName itself is NOT passed through this; it stays raw.
 function normalizeWhitespace(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
 }
 
+// NOTE: Still used for parsing only (as before). listingName is never set to this.
 function cleanTitleText(raw) {
   let t = normalizeWhitespace(raw);
   t = t.replace(/^(extra\s*\d+\s*%\s*off)\s+/i, "");
@@ -86,6 +90,8 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// parseBrandModel() behavior preserved.
+// It still cleans (for parsing) and uses your cleaner for model.
 function parseBrandModel(title) {
   title = cleanTitleText(title);
   if (!title) return { brand: "Unknown", model: "" };
@@ -194,7 +200,6 @@ function detectShoeType(listingName, model) {
     return "road";
   }
 
-  // If unstated, you said you'd rather not guess — use unknown.
   return "unknown";
 }
 
@@ -352,7 +357,7 @@ function extractPrices($, $element, fullText) {
 
 /** -------------------- Site scrapers (CHEERIO) -------------------- **/
 
- async function scrapeRunningWarehouse() {
+async function scrapeRunningWarehouse() {
   const STORE = "Running Warehouse";
 
   const urls = [
@@ -377,17 +382,24 @@ function extractPrices($, $element, fullText) {
 
     $("a").each((_, el) => {
       const anchor = $(el);
-      let text = normalizeWhitespace(anchor.text());
-      text = text.replace(/\*\s*$/, "").trim();
+
+      // PRESERVE listingName RAW (no cleaning / no normalizeWhitespace / no trim)
+      const listingName = String(anchor.text() ?? "");
+
+      // For parsing & price extraction, keep SAME normalized input as before
+      let parseText = normalizeWhitespace(listingName);
+      parseText = parseText.replace(/\*\s*$/, "").trim();
 
       const href = anchor.attr("href") || "";
       if (!href) return;
 
-      const { salePrice, originalPrice, valid } = extractPrices($, anchor, text);
+      const { salePrice, originalPrice, valid } = extractPrices($, anchor, parseText);
       if (!valid || !salePrice || !Number.isFinite(salePrice)) return;
 
-      const listingName = cleanTitleText(text);
-      if (!listingName) return;
+      // The old code used cleanTitleText(parseText) for listingName validation.
+      // We keep the SAME validation gate, but do NOT overwrite listingName.
+      const cleanedForParsing = cleanTitleText(parseText);
+      if (!cleanedForParsing) return;
 
       let listingURL = href.trim();
       if (!/^https?:\/\//i.test(listingURL)) {
@@ -406,11 +418,12 @@ function extractPrices($, $element, fullText) {
         imageURL = pickBestImgUrl($, imgEl, "https://www.runningwarehouse.com");
       }
 
-      const { brand, model } = parseBrandModel(listingName);
+      // Keep brand/model behavior identical by feeding the same cleaned text as before
+      const { brand, model } = parseBrandModel(cleanedForParsing);
       const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
       deals.push({
-        listingName,
+        listingName, // RAW, unaltered
         brand,
         model,
         salePrice,
@@ -419,8 +432,9 @@ function extractPrices($, $element, fullText) {
         store: STORE,
         listingURL,
         imageURL,
-        gender: detectGender(listingURL, listingName),
-        shoeType: detectShoeType(listingName, model),
+        // Keep gender/shoetype conclusions identical: use cleanedForParsing as before
+        gender: detectGender(listingURL, cleanedForParsing),
+        shoeType: detectShoeType(cleanedForParsing, model),
       });
     });
 
@@ -430,7 +444,7 @@ function extractPrices($, $element, fullText) {
   return deals;
 }
 
- async function scrapeFleetFeet() {
+async function scrapeFleetFeet() {
   const STORE = "Fleet Feet";
 
   const urls = [
@@ -459,9 +473,16 @@ function extractPrices($, $element, fullText) {
       const href = ($link.attr("href") || "").trim();
       if (!href || !href.startsWith("/products/")) return;
 
-      const fullText = normalizeWhitespace($link.text());
-      const listingName = cleanTitleText(fullText);
-      if (!listingName) return;
+      // PRESERVE listingName RAW
+      const listingName = String($link.text() ?? "");
+
+      // For parsing & prices, keep SAME normalized input as before
+      const fullText = normalizeWhitespace(listingName);
+
+      // Old code: listingName = cleanTitleText(fullText)
+      // Keep same validation & parsing input
+      const cleanedForParsing = cleanTitleText(fullText);
+      if (!cleanedForParsing) return;
 
       const { salePrice, originalPrice, valid } = extractPrices($, $link, fullText);
       if (!valid || !salePrice || salePrice <= 0) return;
@@ -474,11 +495,11 @@ function extractPrices($, $element, fullText) {
       if (!$img.length) $img = $link.closest("div, article, li").find("img").first();
       const imageURL = pickBestImgUrl($, $img, "https://www.fleetfeet.com");
 
-      const { brand, model } = parseBrandModel(listingName);
+      const { brand, model } = parseBrandModel(cleanedForParsing);
       const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
       deals.push({
-        listingName,
+        listingName, // RAW, unaltered
         brand,
         model,
         salePrice,
@@ -487,8 +508,8 @@ function extractPrices($, $element, fullText) {
         store: STORE,
         listingURL,
         imageURL,
-        gender: detectGender(listingURL, listingName),
-        shoeType: detectShoeType(listingName, model),
+        gender: detectGender(listingURL, cleanedForParsing),
+        shoeType: detectShoeType(cleanedForParsing, model),
       });
     });
 
@@ -497,7 +518,8 @@ function extractPrices($, $element, fullText) {
 
   return deals;
 }
-/* --------------------LUKES LOCKER -------------------------------*/
+
+/* -------------------- LUKE'S LOCKER ------------------------------- */
 async function scrapeLukesLocker() {
   const STORE = "Luke's Locker";
   const base = "https://lukeslocker.com";
@@ -506,8 +528,6 @@ async function scrapeLukesLocker() {
   const deals = [];
   const seenUrls = new Set();
 
-  // Shopify collection JSON endpoint (does NOT require the page to be server-rendered)
-  // Pages are 1-based. Stop when we get < limit products.
   const limit = 250;
 
   for (let page = 1; page <= 10; page++) {
@@ -527,11 +547,17 @@ async function scrapeLukesLocker() {
     if (!Array.isArray(products) || products.length === 0) break;
 
     for (const p of products) {
-      const titleRaw = normalizeWhitespace(p?.title || "");
-      const listingName = cleanTitleText(titleRaw);
+      // PRESERVE listingName RAW (as delivered by Shopify JSON)
+      const listingName = String(p?.title ?? "");
       if (!listingName) continue;
 
-      // Shopify vendor is the brand line you said is on the page
+      // Keep SAME parsing input as before:
+      // Old code: titleRaw = normalizeWhitespace(p.title); listingName = cleanTitleText(titleRaw)
+      const titleRawNormalized = normalizeWhitespace(listingName);
+      const cleanedForParsing = cleanTitleText(titleRawNormalized);
+      if (!cleanedForParsing) continue;
+
+      // Shopify vendor as brand
       const brand = normalizeWhitespace(p?.vendor || "") || "Unknown";
 
       const listingURL = `${base}/products/${p?.handle || ""}`;
@@ -539,7 +565,7 @@ async function scrapeLukesLocker() {
       if (seenUrls.has(listingURL)) continue;
       seenUrls.add(listingURL);
 
-             // image (Shopify products.json: image/images are usually OBJECTS with .src)
+      // image (Shopify products.json: image/images are usually OBJECTS with .src)
       let imageURL = null;
 
       const pickSrc = (img) => {
@@ -553,7 +579,6 @@ async function scrapeLukesLocker() {
         pickSrc(p?.image) ||
         (Array.isArray(p?.images) ? pickSrc(p.images[0]) : null);
 
-      // sometimes first image lacks src; scan for first usable
       if (!src && Array.isArray(p?.images)) {
         for (const img of p.images) {
           src = pickSrc(img);
@@ -563,22 +588,14 @@ async function scrapeLukesLocker() {
 
       if (src) {
         let u = String(src).trim();
-
-        // normalize to absolute https URL
         if (u.startsWith("//")) u = "https:" + u;
         else if (u.startsWith("/")) u = base + u;
         else if (/^cdn\.shopify\.com/i.test(u)) u = "https://" + u;
-
-        // final sanity check
         if (!/^https?:\/\//i.test(u)) u = null;
-
         imageURL = u;
       }
 
-
-
       // prices from variants: choose the best "on sale" variant
-      // requirement: must have BOTH sale + original and original > sale
       let bestSale = null;
       let bestOriginal = null;
 
@@ -590,7 +607,6 @@ async function scrapeLukesLocker() {
         if (!Number.isFinite(sale) || !Number.isFinite(orig)) continue;
         if (!(orig > sale && sale > 0)) continue;
 
-        // pick the lowest sale (best deal for users)
         if (bestSale == null || sale < bestSale) {
           bestSale = sale;
           bestOriginal = orig;
@@ -602,8 +618,9 @@ async function scrapeLukesLocker() {
       const discountPercent = computeDiscountPercent(bestOriginal, bestSale);
       if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) continue;
 
-      // model: title minus brand, then cleaned
-      let model = listingName;
+      // model: keep SAME behavior as before:
+      // Old code started from (cleaned) listingName, then removed brand, then cleanModelName
+      let model = cleanedForParsing;
       if (brand && brand !== "Unknown") {
         const escaped = escapeRegExp(brand);
         model = model.replace(new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i"), " ");
@@ -612,7 +629,7 @@ async function scrapeLukesLocker() {
       model = cleanModelName(model);
 
       deals.push({
-        listingName,
+        listingName, // RAW, unaltered
         brand,
         model,
         salePrice: bestSale,
@@ -622,16 +639,16 @@ async function scrapeLukesLocker() {
         listingURL,
         imageURL,
 
-        // Gender is mixed on page: detect from title ONLY
-        gender: detectGender("", listingName),
+        // Keep SAME conclusions as before (old code used detectGender("", cleaned listingName))
+        gender: detectGender("", cleanedForParsing),
 
-        // per your requirement
+        // per your requirement (unchanged)
         shoeType: "unknown",
       });
     }
 
     if (products.length < limit) break;
-    await randomDelay(800, 1400); // lighter delay for JSON paging
+    await randomDelay(800, 1400);
   }
 
   return deals;
@@ -679,12 +696,17 @@ async function scrapeMarathonSports() {
       const containerText = normalizeWhitespace($container.text());
       if (!containerText.includes("$") || !containerText.toLowerCase().includes("price")) return;
 
+      // PRESERVE listingName RAW from title element (no normalize/clean applied)
       let listingName = "";
       const $titleEl = $container.find("h2, h3, .product-title, .product-name, [class*='title']").first();
-
-      if ($titleEl.length) listingName = normalizeWhitespace($titleEl.text());
-      listingName = cleanTitleText(listingName);
+      if ($titleEl.length) listingName = String($titleEl.text() ?? "");
       if (!listingName) return;
+
+      // Keep SAME parsing input as before:
+      // Old code: listingName = normalizeWhitespace($titleEl.text()); listingName = cleanTitleText(listingName)
+      const titleNormalized = normalizeWhitespace(listingName);
+      const cleanedForParsing = cleanTitleText(titleNormalized);
+      if (!cleanedForParsing) return;
 
       const { salePrice, originalPrice, valid } = extractPrices($, $container, containerText);
       if (!valid || !salePrice || salePrice <= 0) return;
@@ -695,11 +717,11 @@ async function scrapeMarathonSports() {
 
       seenUrls.add(listingURL);
 
-      const { brand, model } = parseBrandModel(listingName);
+      const { brand, model } = parseBrandModel(cleanedForParsing);
       const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
       deals.push({
-        listingName,
+        listingName, // RAW, unaltered
         brand,
         model,
         salePrice,
@@ -708,8 +730,8 @@ async function scrapeMarathonSports() {
         store: STORE,
         listingURL,
         imageURL,
-        gender: detectGender(listingURL, listingName),
-        shoeType: detectShoeType(listingName, model),
+        gender: detectGender(listingURL, cleanedForParsing),
+        shoeType: detectShoeType(cleanedForParsing, model),
       });
     });
 
@@ -765,7 +787,6 @@ async function runAndSaveStore({ storeName, blobName, via, fn }) {
       error: err?.message || "Unknown error",
     };
 
-    // Still write an output blob so merge-deals can see "ok:false" and 0 deals.
     const output = {
       lastUpdated: timestamp,
       scrapeDurationMs: durationMs,
@@ -792,7 +813,7 @@ function skippedResult(storeName, blobName) {
     timestamp: nowIso(),
     via: "toggle-disabled",
     error: null,
-    blobUrl: null, // intentionally not writing a blob when skipped
+    blobUrl: null,
     blobName,
   };
 }
