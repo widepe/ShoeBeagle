@@ -431,8 +431,16 @@ async function scrapeRunningWarehouse() {
       const $img = $cell.find("img").first();
       const imageURL = pickBestImgUrl($, $img, base);
 
-      const saleText = $cell.find(".cattable-wrap-cell-info-price.is-sale span").first().text();
-      const msrpText = $cell.find(".cattable-wrap-cell-info-price-msrp .is-crossout").first().text();
+const saleText = $cell
+  .find(".cattable-wrap-cell-info-price.is-sale")
+  .first()
+  .text();
+
+const msrpText = $cell
+  .find(".cattable-wrap-cell-info-price-msrp")
+  .first()
+  .text();
+
 
       const salePrice = parseDollar(saleText);
       const originalPrice = parseDollar(msrpText);
