@@ -32,36 +32,55 @@
   <div class="app">
     <img class="mobile-top-banner" src="/images/logo_heading.svg" alt="">
 
-    <!-- TOP AREA: inputs left, logo right -->
-    <div class="topbar">
-      <div class="top-left">
-        <form id="search-form" method="POST" autocomplete="off">
+<!-- TOP AREA: inputs left, logo right -->
+<div class="topbar">
+  <div class="top-left">
+    <form id="search-form" method="POST" autocomplete="off">
 
-          <!-- SINGLE SEARCH ROW: unified input + menu + fetch -->
-          <div class="row">
-            <div class="input-wrapper">
-              <img class="input-icon" src="/images/mg.svg" alt="" aria-hidden="true">
-              <input id="q" type="text" placeholder="Search brand or model..." autocomplete="off"/>
-              <button type="button" class="input-clear" aria-label="Clear search">&times;</button>
-              <div id="qSuggestions" class="suggestions"></div>
-            </div>
+      <!-- SINGLE SEARCH ROW: unified input + fetch -->
+      <div class="row">
+        <div class="input-wrapper">
+          <img class="input-icon" src="/images/mg.svg" alt="" aria-hidden="true">
 
-   <div class="button-wrapper">
-  <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
-    <img src="/images/fetch.svg" class="btn-icon" alt="Fetch">
-  </button>
+          <input id="q" type="text" placeholder="Search brand or model..." autocomplete="off"/>
+
+          <!-- Controls icon (shows when input is empty) -->
+          <button type="button"
+                  class="input-controls"
+                  aria-label="Filters and sort"
+                  aria-expanded="false"
+                  aria-controls="linksRibbon">
+            <img src="/images/menu.svg" class="btn-icon" alt="">
+          </button>
+
+          <!-- Clear X (shows when typing) -->
+          <button type="button" class="input-clear" aria-label="Clear search">&times;</button>
+
+          <div id="qSuggestions" class="suggestions"></div>
+        </div>
+
+        <div class="button-wrapper">
+          <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
+            <img src="/images/fetch.svg" class="btn-icon" alt="Fetch">
+          </button>
+        </div>
+
+      </div>
+
+    </form>
+  </div>
+
+  <!-- LOGO RIGHT -->
+  <div class="top-right">
+    <img
+      src="/images/logo.svg"
+      class="brand-logo"
+      alt="Shoe Beagle Logo"
+      id="logoLink"
+    >
+  </div>
 </div>
 
-<div class="button-wrapper">
-  <button id="menuBtn"
-          type="button"
-          class="btn-eq"
-          aria-label="Links"
-          aria-expanded="false"
-          aria-controls="linksRibbon">
-    <img src="/images/menu.svg" class="btn-icon" alt="Links">
-  </button>
-</div>
 
           </div>
 
