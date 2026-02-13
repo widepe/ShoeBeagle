@@ -323,8 +323,7 @@
       if (fetchBtn) fetchBtn.disabled = !hasAny;
     }
     updateFetchReady();
-
-    // Clear button (single)
+updateInputButtons();    // Clear button (single)
     const clearBtn = document.querySelector('.input-clear');
     if (clearBtn) {
       clearBtn.addEventListener('click', (e) => {
@@ -334,7 +333,7 @@
           qInput.focus();
           closeSuggestions();
           updateFetchReady();
-        }
+          updateInputButtons();        }
       });
     }
 
@@ -786,13 +785,13 @@ if (brand) {
         if (!typed || typed.length < 1) {
           closeSuggestions();
           updateFetchReady();
-          return;
+          updateInputButtons();          return;
         }
 
         if (!dealsSuggest.ready) {
           closeSuggestions();
           updateFetchReady();
-          return;
+          updateInputButtons();          return;
         }
 
         const built = buildUnifiedSuggestions(typed);
@@ -812,10 +811,10 @@ if (brand) {
           closeSuggestions();
           setTimeout(() => fetchBtn && fetchBtn.focus(), 0);
           updateFetchReady();
-        });
+          updateInputButtons();        });
 
         updateFetchReady();
-      });
+        updateInputButtons();      });
 
       qInput.addEventListener("keydown", (e) => {
         handleSuggestionKeys(e, (value) => {
@@ -825,7 +824,7 @@ if (brand) {
           closeSuggestions();
           setTimeout(() => fetchBtn && fetchBtn.focus(), 0);
           updateFetchReady();
-        });
+          updateInputButtons();        });
       });
 
       qInput.addEventListener("blur", () => setTimeout(() => closeSuggestions(), 140));
@@ -1313,7 +1312,7 @@ if (brand) {
 
       const typedRaw = sanitizeInput(qInput.value);
       updateFetchReady();
-
+      updateInputButtons();
       if (!typedRaw) {
         statusMessageEl.textContent = "Please enter a brand and/or a model.";
         return;
@@ -1569,13 +1568,16 @@ if (brand) {
     return brands.find(b => String(b).trim().toLowerCase() === n) || "";
   }
 
-  function toggleClear(input){
-    const wrap = input.closest(".sb-input-wrap");
-    if (!wrap) return;
-    const c = wrap.querySelector(".sb-clear");
-    if (!c) return;
-    c.style.display = input.value.trim() ? "flex" : "none";
-  }
+function updateInputButtons(){
+  const hasText = qInput.value.trim().length > 0;
+
+  const clearBtn = document.querySelector('.input-clear');
+  const controlsBtn = document.querySelector('.input-controls');
+
+  if (clearBtn) clearBtn.style.display = hasText ? 'flex' : 'none';
+  if (controlsBtn) controlsBtn.style.display = hasText ? 'none' : 'flex';
+}
+
 
   function wrapOf(el){ return el ? el.closest(".sb-input-wrap") : null; }
   const emailWrap = wrapOf(emailEl);
