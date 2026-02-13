@@ -159,8 +159,8 @@ body{
 .topbar{
   width:100%;
   display:flex;
-  align-items:flex-start;
-  justify-content:flex-end;
+  align-items:flex-end;
+  justify-content:center;
   gap:var(--gap);
   margin-top:2px;
   flex-wrap:wrap;
@@ -813,8 +813,9 @@ button{
     --cols:1;
     --pad:6px;
 
-    --logo-lane:clamp(150px, 34vw, 220px);
-
+    /*--logo-lane:clamp(150px, 34vw, 220px); */
+     --logo-lane:clamp(150px, 25vw, 220px);
+     
     --top-scale:0.47;
     --grid-scale:0.47;
 
@@ -844,7 +845,7 @@ button{
   .topbar{
     flex-direction:row;
     align-items:flex-start;
-    justify-content:center;
+    justify-content:space-between;
     flex-wrap:nowrap;
     gap:var(--gap);
     padding:0 max(10px, var(--pad));
