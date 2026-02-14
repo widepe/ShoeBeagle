@@ -955,12 +955,14 @@ input[type="text"], input[type="search"]{
   border-width:0;
 }
 
-/* ✅ fetch slides into the menu position (same speed in/out) */
-#fetchBtn{ transform:translateX(0); }
+/* Fetch should NOT translate.
+   It will slide into the menu slot automatically as menu width collapses. */
+#fetchBtn{
+  transform:none;
+}
 
-/* slide by the menu button's width (exact), not by a token guess */
 .app.inputs-expanded #fetchBtn{
-  transform:translateX(calc(var(--btn-h) + var(--gap)));
+  transform:none;
 }
 
 
