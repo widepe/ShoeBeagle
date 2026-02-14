@@ -787,9 +787,9 @@ button{
     max-height:calc(var(--input-h) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1)));
     width:auto;
   }
-}
+}  
 
-/* MOBILE PORTRAIT (CLEAN, SINGLE, ANIMATION-BASED MENU HIDE) */
+/* MOBILE PORTRAIT (single block, fixed braces, menu collapses so input grows) */
 @media (max-width:560px){
   :root{
     --cols:1;
@@ -865,17 +865,21 @@ button{
     max-height:none;
   }
 
-  /* --- Row / input plumbing --- */
+  /* --- Keep input + buttons on ONE line; input anchored left grows right --- */
   .row{
+    width:100%;
+    display:flex;
     flex-wrap:nowrap;
     align-items:center;
-    width:100%;
-  }
-.input-wrapper{
-    flex:1 1 auto;   /* ✅ this is what lets it stretch */
-    min-width:0;     /* ✅ prevents overflow */
+    gap:var(--gap);
   }
 
+  .input-wrapper{
+    flex:1 1 auto;
+    min-width:0;
+  }
+
+  /* icons / clears */
   .input-icon{
     width:calc(32px * var(--top-scale));
     height:calc(32px * var(--top-scale));
@@ -891,6 +895,11 @@ button{
   .app{ --typing-scale:1; }
   .app.inputs-expanded{ --typing-scale:1.4; }
 
+  /* ✅ input grows taller + animates */
+  input[type="text"], input[type="search"]{
+    transition:height 0.40s ease, font-size 0.40s ease;
+  }
+
   .app.inputs-expanded input[type="text"],
   .app.inputs-expanded input[type="search"]{
     height:calc(var(--input-h) * var(--typing-scale));
@@ -902,73 +911,44 @@ button{
     height:calc(22px * var(--top-scale) * var(--typing-scale));
   }
 
-  /* --- Buttons base --- */
-  .btn-eq{
-    height:var(--btn-h);
+  /* ✅ buttons sized tiles; also animate height same speed as input */
+  #menuBtn, #fetchBtn{
+    flex:0 0 var(--btn-eq-w);
     width:var(--btn-eq-w);
     min-width:var(--btn-eq-w);
-    max-width:var(--btn-eq-w);
-    padding:0;
-    gap:0;
+    height:var(--btn-h);
+    transition:height 0.40s ease, transform 0.40s ease, opacity 0.25s ease, width 0.40s ease, flex-basis 0.40s ease, margin 0.40s ease, border-width 0.40s ease;
   }
 
-  .app.inputs-expanded .btn-eq{
+  .app.inputs-expanded #menuBtn,
+  .app.inputs-expanded #fetchBtn{
     height:calc(var(--btn-h) * var(--typing-scale));
   }
 
-  /* =========================================================
-     ✅ Animation-based menu hide on focus
-     - Do NOT use display:none (so animation can play)
-  ========================================================= */
-   #menuBtn,
-  #fetchBtn{
-    flex:0 0 var(--btn-eq-w);
-    width:var(--btn-eq-w);
-    height:var(--btn-h);
-    min-width:var(--btn-eq-w);
-  }
-  /* make menu collapsible (space disappears so input can grow) */
+  /* ✅ menu animates away AND collapses its layout space (input expands behind fetch) */
   #menuBtn{
     overflow:hidden;
     will-change:transform, opacity, width, margin, flex-basis;
-    transition:
-      transform 0.40s ease,
-      opacity   0.25s ease,
-      width     0.40s ease,
-      margin    0.40s ease,
-      flex-basis 0.40s ease;
   }
-   
-  /* fetch will slide into the menu slot */
-  #fetchBtn{
-    will-change:transform;
-    transition:transform 0.40s ease;
-  }
-   
-  /* when typing (inputs-expanded) */
+
   .app.inputs-expanded #menuBtn{
-    /* ✅ slide away */
     transform:translateX(120vw);
     opacity:0;
     pointer-events:none;
-    /* ✅ AND collapse its layout space so input grows */
+
     width:0;
     flex-basis:0;
     min-width:0;
     margin:0;
-    border-width:0;       /* optional: avoids tiny border artifact */
-  }     
+    border-width:0;
+  }
 
+  /* ✅ IMPORTANT: fetch does NOT translate left.
+     It naturally ends up at the right edge as menu collapses. */
   #fetchBtn{
-    transition:transform 0.6s ease, opacity 0.6s ease;
-    will-change:transform, opacity;
+    transform:none !important;
+    will-change:height;
   }
-
-  .app.inputs-expanded #fetchBtn{
-    /* ✅ move left exactly one button + one gap, into menu’s old spot */
-    transform:translateX(calc(-1 * (var(--btn-eq-w) + var(--gap))));
-  }
-}
 
   .app.inputs-expanded .topbar{ justify-content:flex-start; }
 
@@ -985,7 +965,6 @@ button{
     justify-content:center;
     cursor:pointer;
   }
-
   .input-controls img{ width:18px; height:18px; }
 
   .links-ribbon-link{ font-size:0.75rem; }
@@ -1097,6 +1076,7 @@ button{
 
   #mainContent{ padding-bottom:0; }
 }
+
 
 /* =========================================================
    RESULTS TRANSITION (disabled on mobile portrait)
