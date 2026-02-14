@@ -956,12 +956,12 @@ input[type="text"], input[type="search"]{
 
 /* Fetch should NOT translate.
    It will slide into the menu slot automatically as menu width collapses. */
-#fetchBtn{
-  transform:none;
-}
+/* Fetch default */
+#fetchBtn{ transform:translateX(0); }
 
+/* Move fetch by one full button + one gap */
 .app.inputs-expanded #fetchBtn{
-  transform:none;
+  transform:translateX(calc(-1 * (var(--btn-eq-w) + var(--gap))));
 }
 
 
