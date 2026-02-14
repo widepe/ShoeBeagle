@@ -812,8 +812,7 @@ button{
     --cols:1;
     --pad:6px;
 
-    /*--logo-lane:clamp(150px, 34vw, 220px); */
-    --logo-lane:clamp(150px, 25vw, 220px);
+
 
     --top-scale:0.47;
     --grid-scale:0.47;
@@ -921,25 +920,8 @@ button{
 
 
   .app.inputs-expanded .topbar{ justify-content:flex-start; }
-  .app.inputs-expanded .top-right{
-    max-width:0;
-    opacity:0;
-    transform:translateX(-24px);
-    pointer-events:none;
-  }
-  .app.inputs-expanded .top-left{
-    max-width:100%;
-    margin-left:auto;
-  }
 
-  .app.inputs-expanded .input-wrapper input[type="text"],
-  .app.inputs-expanded .input-wrapper input[type="search"]{
-    padding-left:calc(
-      (0.70rem * var(--top-scale)) +
-      (20px * var(--top-scale) * var(--typing-scale)) +
-      (0.75rem * var(--top-scale))
-    );
-  }
+
 
   .input-icon{
     width:calc(32px * var(--top-scale));
