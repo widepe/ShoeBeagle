@@ -937,23 +937,31 @@ input[type="text"], input[type="search"]{
 
 /* both grow taller with the input, same speed */
 .app.inputs-expanded #menuBtn,
+/* fetch: SINGLE source of truth */
+#fetchBtn{ transform:translateX(0); }
+
+/* move fetch one full slot opposite the menu */
 .app.inputs-expanded #fetchBtn{
+  transform:translateX(calc(-1 * (var(--btn-eq-w) + var(--gap))));
   height:calc(var(--btn-h) * var(--typing-scale));
 }
+
 
 /* menu collapses so input can expand */
 #menuBtn{ overflow:hidden; }
 
 .app.inputs-expanded #menuBtn{
-  transform:translateX(120vw);
+  /* ✅ slide out by exactly one slot so it matches fetch motion */
+  transform:translateX(calc(var(--btn-eq-w) + var(--gap)));
   opacity:0;
   pointer-events:none;
 
+  /* ✅ still collapse space so input grows */
   width:0;
   flex-basis:0;
   min-width:0;
 
-  /* remove the leftover gap so fetch can reach the edge */
+  /* remove the leftover gap so fetch reaches the edge */
   margin-right:calc(-1 * var(--gap));
 
   border-width:0;
@@ -964,10 +972,7 @@ input[type="text"], input[type="search"]{
   transform:translateX(0);
 }
 
-/* ✅ only nudge by ONE gap (not button+gap), so it won’t overshoot */
-.app.inputs-expanded #fetchBtn{
-  transform:translateX(calc(1 * var(--gap)));
-}
+
 
   .app.inputs-expanded .topbar{ justify-content:flex-start; }
 
