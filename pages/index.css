@@ -922,7 +922,8 @@ input[type="text"], input[type="search"]{
 
 /* Move fetch exactly one gap farther */
 .app.inputs-expanded #fetchBtn{
-  transform:translateX(calc(-1 * var(--gap)));
+    transform:translateX(calc(var(--btn-eq-w) + var(--gap)));
+
 }
 
 /* both grow taller with the input, same speed */
