@@ -917,8 +917,170 @@ button{
   }
 
 
+/* MOBILE PORTRAIT */
+@media (max-width:560px){
+  :root{
+    --cols:1;
+    --pad:6px;
 
+    --top-scale:0.47;
+    --grid-scale:0.47;
 
+    --gap:calc(12px * var(--top-scale));
+    --input-h:calc(64px * var(--top-scale));
+    --btn-h:calc(64px * var(--top-scale));
+    --btn-eq-w:calc(var(--btn-h) * 1.2);
+
+    --card-w:1px;
+    --grid-gap:calc(1.0rem * var(--grid-scale));
+
+    --badge-font:calc(0.9rem * var(--grid-scale));
+    --badge-pad-y:calc(0.19rem * var(--grid-scale));
+    --badge-pad-x:calc(0.5rem * var(--grid-scale));
+    --badge-offset:calc(0.36rem * var(--grid-scale));
+  }
+
+  .mobile-top-banner{ display:none !important; }
+  .app{ gap:0.25rem; }
+
+  input[type="text"], input[type="search"]{ font-size:16px; }
+  .suggestion-item{ font-size:19px; }
+
+  /* --- Top layout: logo row, then inputs row --- */
+  .topbar{
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-start;
+    gap:var(--gap);
+    padding:0 max(10px, var(--pad));
+    width:100%;
+    margin-top:0;
+  }
+
+  .top-right{
+    order:0;
+    width:100%;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    margin:0 0 6px 0;
+    max-width:none;
+    overflow:visible;
+    transition:none;
+  }
+
+  .top-left{
+    order:1;
+    flex:1 1 auto;
+    width:100%;
+    min-width:0;
+    margin-left:0;
+    max-width:none;
+    transition:none;
+  }
+
+  /* --- Logo sizing --- */
+  .brand-logo{
+    content:url("/images/logo.svg");
+    display:block;
+    height:calc(var(--input-h) * 2.2);
+    width:auto;
+    max-width:92vw;
+    max-height:none;
+  }
+
+  /* --- Row / input plumbing --- */
+  .row{ width:100%; min-width:0; }
+  .input-wrapper{ flex:1 1 auto; min-width:0; }
+
+  .input-clear{
+    width:calc(34px * var(--top-scale));
+    height:calc(34px * var(--top-scale));
+    font-size:calc(3.5rem * var(--top-scale));
+  }
+
+  .input-icon{
+    width:calc(32px * var(--top-scale));
+    height:calc(32px * var(--top-scale));
+  }
+
+  .app{ --typing-scale:1; }
+  .app.inputs-expanded{ --typing-scale:1.4; }
+
+  /* ✅ Keep your “taller on focus” behavior */
+  .app.inputs-expanded input[type="text"],
+  .app.inputs-expanded input[type="search"]{
+    height:calc(var(--input-h) * var(--typing-scale));
+    font-size:calc(16px * var(--typing-scale));
+  }
+
+  .app.inputs-expanded .input-icon{
+    width:calc(22px * var(--top-scale) * var(--typing-scale));
+    height:calc(22px * var(--top-scale) * var(--typing-scale));
+  }
+
+  /* --- Buttons base --- */
+  .btn-eq{
+    height:var(--btn-h);
+    width:var(--btn-eq-w);
+    min-width:var(--btn-eq-w);
+    max-width:var(--btn-eq-w);
+    padding:0;
+    gap:0;
+  }
+
+  .app.inputs-expanded .btn-eq{
+    height:calc(var(--btn-h) * var(--typing-scale));
+  }
+
+  /* =========================================================
+     ✅ NEW: On focus, push ONLY the menu button off-screen
+     - Fetch stays.
+     - Nothing stretches past your padding.
+  ========================================================= */
+  .app.inputs-expanded #menuBtn{
+    transform:translateX(120vw);
+    opacity:0;
+    pointer-events:none;
+  }
+
+  .app.inputs-expanded #fetchBtn{
+    transform:none;
+    opacity:1;
+    pointer-events:auto;
+  }
+
+  /* (No .top-right hiding here — removed on purpose) */
+
+  /* --- Your existing small stuff --- */
+  .links-ribbon-link{ font-size:0.75rem; }
+  .ribbon-label{ font-size:0.75rem; }
+
+  .ribbon-select{
+    height:32px;
+    font-size:0.8rem;
+    padding:0 8px;
+    border-radius:calc(0.5rem * var(--top-scale));
+  }
+
+  .input-controls{
+    position:absolute;
+    right:calc(8px + (42px * var(--top-scale)));
+    top:50%;
+    transform:translateY(-50%);
+    border:none;
+    background:transparent;
+    padding:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+
+  .input-controls img{
+    width:18px;
+    height:18px;
+  }
   .app.inputs-expanded .topbar{ justify-content:flex-start; }
 
 
