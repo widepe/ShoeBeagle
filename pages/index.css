@@ -915,22 +915,14 @@ input[type="text"], input[type="search"]{
    Buttons: synced movement + synced height
 ============================ */
 #menuBtn,
+/* Fetch default position */
 #fetchBtn{
-  flex:0 0 var(--btn-eq-w);
-  width:var(--btn-eq-w);
-  min-width:var(--btn-eq-w);
-  height:var(--btn-h);
+  transform:translateX(0);
+}
 
-  transition:
-    transform 0.40s ease,
-    opacity   0.40s ease,
-    height    0.40s ease,
-    width     0.40s ease,
-    flex-basis 0.40s ease,
-    margin    0.40s ease,
-    border-width 0.40s ease;
-
-  will-change:transform, opacity, width, flex-basis, margin, height;
+/* Move fetch exactly one gap farther */
+.app.inputs-expanded #fetchBtn{
+  transform:translateX(calc(-1 * var(--gap)));
 }
 
 /* both grow taller with the input, same speed */
