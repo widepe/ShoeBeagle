@@ -7,11 +7,11 @@ const MENS_ROAD =
 module.exports = async (req, res) => {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
-  //TEMPORARY FOR DEBUGGING
-  //const cronSecret = process.env.CRON_SECRET;
-  //if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
-  //  return res.status(401).json({ error: "Unauthorized" });
-  //}
+const auth = req.headers.authorization;
+if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  return res.status(401).json({ success: false, error: "Unauthorized" });
+}
+
 
   const start = Date.now();
 
