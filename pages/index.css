@@ -960,12 +960,7 @@ button{
 
   .brand-logo{
     content:url("/images/logo.svg");
-       height:calc(
-      (var(--input-h) * var(--top-rows)
-      + (var(--gap) * (var(--top-rows) - 1)))
-      * 1.35
-    );
-    max-height:calc(var(--input-h) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1)));
+ height: calc(var(--input-h) * 1.4);
     width:auto;
     max-width:none;
     display:block;
