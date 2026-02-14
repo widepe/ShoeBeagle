@@ -866,8 +866,15 @@ button{
   }
 
   /* --- Row / input plumbing --- */
-  .row{ width:100%; min-width:0; display:flex; align-items:center; }
-  .input-wrapper{ flex:1 1 auto; min-width:0; }
+  .row{
+    flex-wrap:nowrap;
+    align-items:center;
+    width:100%;
+  }
+.input-wrapper{
+    flex:1 1 auto;   /* ✅ this is what lets it stretch */
+    min-width:0;     /* ✅ prevents overflow */
+  }
 
   .input-icon{
     width:calc(32px * var(--top-scale));
@@ -913,16 +920,44 @@ button{
      ✅ Animation-based menu hide on focus
      - Do NOT use display:none (so animation can play)
   ========================================================= */
-  #menuBtn{
-    transition:transform 0.4s ease, opacity 0.4s ease;
-    will-change:transform, opacity;
+   #menuBtn,
+  #fetchBtn{
+    flex:0 0 var(--btn-eq-w);
+    width:var(--btn-eq-w);
+    height:var(--btn-h);
+    min-width:var(--btn-eq-w);
   }
-
+  /* make menu collapsible (space disappears so input can grow) */
+  #menuBtn{
+    overflow:hidden;
+    will-change:transform, opacity, width, margin, flex-basis;
+    transition:
+      transform 0.40s ease,
+      opacity   0.25s ease,
+      width     0.40s ease,
+      margin    0.40s ease,
+      flex-basis 0.40s ease;
+  }
+   
+  /* fetch will slide into the menu slot */
+  #fetchBtn{
+    will-change:transform;
+    transition:transform 0.40s ease;
+  }
+   
+  /* when typing (inputs-expanded) */
   .app.inputs-expanded #menuBtn{
+    /* ✅ slide away */
     transform:translateX(120vw);
     opacity:0;
     pointer-events:none;
-  }
+    /* ✅ AND collapse its layout space so input grows */
+    width:0;
+    flex-basis:0;
+    min-width:0;
+    margin:0;
+    border-width:0;       /* optional: avoids tiny border artifact */
+  }     
 
   #fetchBtn{
     transition:transform 0.6s ease, opacity 0.6s ease;
@@ -930,10 +965,10 @@ button{
   }
 
   .app.inputs-expanded #fetchBtn{
-    transform:none;
-    opacity:1;
-    pointer-events:auto;
+    /* ✅ move left exactly one button + one gap, into menu’s old spot */
+    transform:translateX(calc(-1 * (var(--btn-eq-w) + var(--gap))));
   }
+}
 
   .app.inputs-expanded .topbar{ justify-content:flex-start; }
 
