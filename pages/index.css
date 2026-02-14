@@ -851,7 +851,23 @@ button{
   width:100%;
   margin-top:0;
 }
+  .row{
+    width:100%;
+    display:flex;
+    align-items:center;
+  }
+  .input-wrapper{
+    flex:1 1 auto;
+    min-width:0;
+  }
 
+  .app.inputs-expanded #menuBtn{
+    display:none !important;
+  }
+
+  .app.inputs-expanded #fetchBtn{
+    display:inline-flex;
+  }
 
   .app.inputs-expanded .input-icon{
     width:calc(22px * var(--top-scale) * var(--typing-scale));
