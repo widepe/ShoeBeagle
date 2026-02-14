@@ -942,7 +942,7 @@ input[type="text"], input[type="search"]{
 
 /* move fetch one full slot opposite the menu */
 .app.inputs-expanded #fetchBtn{
-  transform:translateX(calc(-1 * (var(--btn-eq-w) + var(--gap))));
+  transform:translateX(calc(1 * (var(--btn-eq-w) + var(--gap))));
   height:calc(var(--btn-h) * var(--typing-scale));
 }
 
