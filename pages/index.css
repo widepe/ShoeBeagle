@@ -958,8 +958,10 @@ input[type="text"], input[type="search"]{
 /* ✅ fetch slides into the menu position (same speed in/out) */
 #fetchBtn{ transform:translateX(0); }
 
+/* slide by the menu button's width (exact), not by a token guess */
 .app.inputs-expanded #fetchBtn{
-  transform:translateX(calc(1 * (var(--btn-eq-w) + var(--gap))));}
+  transform:translateX(calc(var(--btn-h) + var(--gap)));
+}
 
 
   .app.inputs-expanded .topbar{ justify-content:flex-start; }
