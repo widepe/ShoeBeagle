@@ -249,8 +249,9 @@ input[type="text"], input[type="search"]{
 
   border-radius:calc(0.5rem * var(--top-scale));
   border:1px solid var(--sb-blue);
-  background:#fafdf4;
-  font-size:var(--input-font);
+  background:#f8f8f8;
+ box-shadow: 0px 0px 7px rgb(33 68 121 / 28%);
+   font-size:var(--input-font);
   font-weight:500;
   color:#444;
   transition:border-color 0.2s ease, background-color 0.2s ease;
