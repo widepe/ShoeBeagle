@@ -870,7 +870,8 @@ button{
   overflow:visible;
   transition:none;
   will-change:auto;
-}
+       flex: 0 0 auto;     /* don't shrink */
+    align-self: stretch; /* optional, but helps */}
 
 .top-left{
   order:1;
@@ -960,11 +961,12 @@ button{
 
   .brand-logo{
     content:url("/images/logo.svg");
- height: calc(var(--input-h) * 1.4);
-    width:auto;
-    max-width:none;
+
     display:block;
-  }
+         height: calc(var(--input-h) * 2.2); /* pick your multiplier */
+    width: auto;
+    max-width: 92vw;  /* prevents overflow */
+    max-height: none;  }
 
   .btn-eq{
     height:var(--btn-h);
