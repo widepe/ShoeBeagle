@@ -865,14 +865,13 @@ button{
     max-height:none;
   }
 
-  /* --- Keep input + buttons on ONE line; input anchored left grows right --- */
-  .row{
-    width:100%;
-    display:flex;
-    flex-wrap:nowrap;
-    align-items:center;
-    gap:var(--gap);
-  }
+  /* row: keep single line + animate gap so motion feels unified */
+.row{
+  flex-wrap:nowrap;
+  align-items:center;
+  width:100%;
+  transition:gap 0.40s ease;
+}
 
   .input-wrapper{
     flex:1 1 auto;
@@ -895,10 +894,11 @@ button{
   .app{ --typing-scale:1; }
   .app.inputs-expanded{ --typing-scale:1.4; }
 
-  /* ✅ input grows taller + animates */
-  input[type="text"], input[type="search"]{
-    transition:height 0.40s ease, font-size 0.40s ease;
-  }
+
+/* input: sync height change to same timing */
+input[type="text"], input[type="search"]{
+  transition:height 0.40s ease, font-size 0.40s ease;
+}
 
   .app.inputs-expanded input[type="text"],
   .app.inputs-expanded input[type="search"]{
@@ -911,44 +911,57 @@ button{
     height:calc(22px * var(--top-scale) * var(--typing-scale));
   }
 
-  /* ✅ buttons sized tiles; also animate height same speed as input */
-  #menuBtn, #fetchBtn{
-    flex:0 0 var(--btn-eq-w);
-    width:var(--btn-eq-w);
-    min-width:var(--btn-eq-w);
-    height:var(--btn-h);
-    transition:height 0.40s ease, transform 0.40s ease, opacity 0.25s ease, width 0.40s ease, flex-basis 0.40s ease, margin 0.40s ease, border-width 0.40s ease;
-  }
+ /* ============================
+   Buttons: synced movement + synced height
+============================ */
+#menuBtn,
+#fetchBtn{
+  flex:0 0 var(--btn-eq-w);
+  width:var(--btn-eq-w);
+  min-width:var(--btn-eq-w);
+  height:var(--btn-h);
 
-  .app.inputs-expanded #menuBtn,
-  .app.inputs-expanded #fetchBtn{
-    height:calc(var(--btn-h) * var(--typing-scale));
-  }
+  transition:
+    transform 0.40s ease,
+    opacity   0.40s ease,
+    height    0.40s ease,
+    width     0.40s ease,
+    flex-basis 0.40s ease,
+    margin    0.40s ease,
+    border-width 0.40s ease;
 
-  /* ✅ menu animates away AND collapses its layout space (input expands behind fetch) */
-  #menuBtn{
-    overflow:hidden;
-    will-change:transform, opacity, width, margin, flex-basis;
-  }
+  will-change:transform, opacity, width, flex-basis, margin, height;
+}
 
-  .app.inputs-expanded #menuBtn{
-    transform:translateX(120vw);
-    opacity:0;
-    pointer-events:none;
+/* both grow taller with the input, same speed */
+.app.inputs-expanded #menuBtn,
+.app.inputs-expanded #fetchBtn{
+  height:calc(var(--btn-h) * var(--typing-scale));
+}
 
-    width:0;
-    flex-basis:0;
-    min-width:0;
-    margin:0;
-    border-width:0;
-  }
+/* menu collapses so input can expand */
+#menuBtn{ overflow:hidden; }
 
-  /* ✅ IMPORTANT: fetch does NOT translate left.
-     It naturally ends up at the right edge as menu collapses. */
-  #fetchBtn{
-    transform:none !important;
-    will-change:height;
-  }
+/* menu slides away + collapses its layout space */
+.app.inputs-expanded #menuBtn{
+  transform:translateX(120vw);
+  opacity:0;
+  pointer-events:none;
+
+  width:0;
+  flex-basis:0;
+  min-width:0;
+  margin:0;
+  border-width:0;
+}
+
+/* ✅ fetch slides into the menu position (same speed in/out) */
+#fetchBtn{ transform:translateX(0); }
+
+.app.inputs-expanded #fetchBtn{
+  transform:translateX(calc(-1 * (var(--btn-eq-w) + var(--gap))));
+}
+
 
   .app.inputs-expanded .topbar{ justify-content:flex-start; }
 
