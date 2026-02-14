@@ -1056,17 +1056,19 @@ button{
   ========================================================= */
   .app.inputs-expanded #menuBtn{
     transform:translateX(120vw);
-    opacity:0;
+     transition: all 0.4s ease;    opacity:0;
     pointer-events:none;
   }
 
   .app.inputs-expanded #fetchBtn{
-    transform:none;
+     transition: all 0.6s ease;
+     transform:none;
     opacity:1;
     pointer-events:auto;
   }
-
-  /* (No .top-right hiding here — removed on purpose) */
+#menuBtn{
+  transition: all 0.4s ease;
+}  /* (No .top-right hiding here — removed on purpose) */
 
   /* --- Your existing small stuff --- */
   .links-ribbon-link{ font-size:0.75rem; }
