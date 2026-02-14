@@ -824,7 +824,7 @@ button{
     flex-direction:column;
     align-items:center;
     justify-content:flex-start;
-    gap:var(--gap);
+    gap:calc(var(--gap) * 0.5);
     padding:0 max(10px, var(--pad));
     width:100%;
     margin-top:0;
@@ -884,11 +884,22 @@ button{
     height:calc(32px * var(--top-scale));
   }
 
-  .input-clear{
-    width:calc(34px * var(--top-scale));
-    height:calc(34px * var(--top-scale));
-    font-size:calc(3.5rem * var(--top-scale));
-  }
+/* X centers against the input height, even when expanded */
+.input-clear{
+  position:absolute;
+  right:calc(0.55rem * var(--top-scale));
+  top:0;
+  bottom:0;
+  margin:auto 0;
+
+  display:none;           /* keep your show/hide logic */
+  align-items:center;
+  justify-content:center;
+
+  height:1em;             /* keeps the glyph centered nicely */
+  line-height:1;
+}
+
 
   /* typing expansion behavior */
   .app{ --typing-scale:1; }
@@ -903,7 +914,7 @@ input[type="text"], input[type="search"]{
   .app.inputs-expanded input[type="text"],
   .app.inputs-expanded input[type="search"]{
     height:calc(var(--input-h) * var(--typing-scale));
-    font-size:calc(16px * var(--typing-scale));
+    font-size:calc(14px * var(--typing-scale));
   }
 
   .app.inputs-expanded .input-icon{
@@ -929,7 +940,16 @@ input[type="text"], input[type="search"]{
 .input-wrapper{
   flex:1 1 auto;
   min-width:0;
+
+  display:flex;           /* NEW */
+  align-items:stretch;    /* NEW */
 }
+
+
+.input-wrapper input[type="text"],
+.input-wrapper input[type="search"]{
+  flex:1 1 auto;
+}   
 
 /* size the two buttons consistently */
 #menuBtn,
