@@ -911,19 +911,26 @@ input[type="text"], input[type="search"]{
     height:calc(22px * var(--top-scale) * var(--typing-scale));
   }
 
- /* ============================
-   Buttons: synced movement + synced height
+/* ============================
+   Buttons: synced movement + synced height (CLEAN, single-source)
 ============================ */
 #menuBtn,
-/* Fetch default position */
 #fetchBtn{
-  transform:translateX(0);
-}
+  flex:0 0 var(--btn-eq-w);
+  width:var(--btn-eq-w);
+  min-width:var(--btn-eq-w);
+  height:var(--btn-h);
 
-/* Move fetch exactly one gap farther */
-.app.inputs-expanded #fetchBtn{
-    transform:translateX(calc(var(--btn-eq-w) + var(--gap)));
+  transition:
+    transform 0.40s ease,
+    opacity   0.40s ease,
+    height    0.40s ease,
+    width     0.40s ease,
+    flex-basis 0.40s ease,
+    margin    0.40s ease,
+    border-width 0.40s ease;
 
+  will-change:transform, opacity, width, flex-basis, margin, height;
 }
 
 /* both grow taller with the input, same speed */
@@ -935,7 +942,6 @@ input[type="text"], input[type="search"]{
 /* menu collapses so input can expand */
 #menuBtn{ overflow:hidden; }
 
-/* menu slides away + collapses its layout space */
 .app.inputs-expanded #menuBtn{
   transform:translateX(120vw);
   opacity:0;
@@ -945,25 +951,20 @@ input[type="text"], input[type="search"]{
   flex-basis:0;
   min-width:0;
 
-  /* ✅ remove the leftover flex gap so fetch reaches the padding edge */
+  /* ✅ removes the leftover "gap space" so things reach the padding */
   margin-right:calc(-1 * var(--gap));
-  margin-left:0;
-  margin-top:0;
-  margin-bottom:0;
 
   border-width:0;
 }
 
-
-/* Fetch should NOT translate.
-   It will slide into the menu slot automatically as menu width collapses. */
-/* Fetch default */
+/* fetch: SINGLE definition */
 #fetchBtn{ transform:translateX(0); }
 
-/* Move fetch by one full button + one gap */
+/* fetch moves by one button + one gap (flip sign if needed) */
 .app.inputs-expanded #fetchBtn{
-  transform:translateX(calc(-1 * (var(--btn-eq-w) + var(--gap))));
+  transform:translateX(calc(1 * (var(--btn-eq-w) + var(--gap))));
 }
+
 
 
   .app.inputs-expanded .topbar{ justify-content:flex-start; }
