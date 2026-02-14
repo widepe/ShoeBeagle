@@ -912,8 +912,10 @@ input[type="text"], input[type="search"]{
   }
 
 /* ============================
-   Buttons: synced movement + synced height (CLEAN, single-source)
+   Buttons: synced movement + synced height (FIXED)
 ============================ */
+
+/* base button tile sizing + transitions */
 #menuBtn,
 #fetchBtn{
   flex:0 0 var(--btn-eq-w);
@@ -951,21 +953,21 @@ input[type="text"], input[type="search"]{
   flex-basis:0;
   min-width:0;
 
-  /* ✅ removes the leftover "gap space" so things reach the padding */
+  /* remove the leftover gap so fetch can reach the edge */
   margin-right:calc(-1 * var(--gap));
 
   border-width:0;
 }
 
-/* fetch: SINGLE definition */
-#fetchBtn{ transform:translateX(0); }
-
-/* fetch moves by one button + one gap (flip sign if needed) */
-.app.inputs-expanded #fetchBtn{
-  transform:translateX(calc(1 * (var(--btn-eq-w) + var(--gap))));
+/* fetch: SINGLE source of truth */
+#fetchBtn{
+  transform:translateX(0);
 }
 
-
+/* ✅ only nudge by ONE gap (not button+gap), so it won’t overshoot */
+.app.inputs-expanded #fetchBtn{
+  transform:translateX(calc(1 * var(--gap)));
+}
 
   .app.inputs-expanded .topbar{ justify-content:flex-start; }
 
