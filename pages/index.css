@@ -245,7 +245,7 @@ input[type="text"], input[type="search"]{
   width:100%;
   height:var(--input-h);
 
-  padding-right:calc(1rem * var(--top-scale));
+  padding-right:calc(3rem * var(--top-scale));
   padding-left:calc((0.90rem * var(--top-scale)) + (20px * var(--top-scale)) + (1rem * var(--top-scale)));
 
   border-radius:calc(0.5rem * var(--top-scale));
