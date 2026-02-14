@@ -191,7 +191,6 @@ body{
    LOGO
 ========================================================= */
 .brand-logo{
-  /* ✅ now scales with 1-row combined search (via --top-rows) */
   height:calc((max(var(--input-h), var(--btn-h)) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1))) * var(--logo-scale));
   max-height:calc((max(var(--input-h), var(--btn-h)) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1))) * var(--logo-scale));
   width:auto;
@@ -774,22 +773,6 @@ button{
   }
 }
 
-/* TABLET PORTRAIT */
-@media (max-width:900px) and (orientation:portrait){
-  :root{ --cols:4; }
-
-  .topbar{ flex-direction:row; flex-wrap:nowrap; align-items:flex-end; }
-  .top-right{ order:-1; flex:0 0 auto; margin-right:calc(36px * var(--top-scale)); }
-  .top-left{ order:0; flex:1 1 0; width:auto; min-width:0; }
-
-  .brand-logo{
-    content:url("/images/logo.svg");
-    height:calc(var(--input-h) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1)));
-    max-height:calc(var(--input-h) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1)));
-    width:auto;
-  }
-}
-
 /* MOBILE LANDSCAPE */
 @media (max-width:800px) and (orientation:landscape){
   :root{ --cols:3; }
@@ -806,134 +789,7 @@ button{
   }
 }
 
-/* MOBILE PORTRAIT */
-@media (max-width:560px){
-  :root{
-    --cols:1;
-    --pad:6px;
-
-
-
-    --top-scale:0.47;
-    --grid-scale:0.47;
-
-    --gap:calc(12px * var(--top-scale));
-    --input-h:calc(64px * var(--top-scale));
-    --btn-h:calc(64px * var(--top-scale));
-    --btn-eq-w:calc(var(--btn-h) * 1.2);
-
-    --card-w:1px;
-    --grid-gap:calc(1.0rem * var(--grid-scale));
-
-    --badge-font:calc(0.9rem * var(--grid-scale));
-    --badge-pad-y:calc(0.19rem * var(--grid-scale));
-    --badge-pad-x:calc(0.5rem * var(--grid-scale));
-    --badge-offset:calc(0.36rem * var(--grid-scale));
-  }
-
-  .mobile-top-banner{ display:none !important; }
-  .app{ gap:0.25rem; }
-
-  input[type="text"], input[type="search"]{ font-size:16px; }
-  .suggestion-item{ font-size:19px; }
-
-  .row{ min-width:0; }
-  .input-wrapper{ min-width:0; }
-
-
-   
-.topbar{
-  flex-direction:column;
-  align-items:center;
-  justify-content:flex-start;
-  gap:var(--gap);
-  padding:0 max(10px, var(--pad));
-  width:100%;
-  margin-top:0;
-}
-  .row{
-    width:100%;
-    display:flex;
-    align-items:center;
-  }
-  .input-wrapper{
-    flex:1 1 auto;
-    min-width:0;
-  }
-
-  .app.inputs-expanded #menuBtn{
-    display:none !important;
-  }
-
-  .app.inputs-expanded #fetchBtn{
-    display:inline-flex;
-  }
-
-  .app.inputs-expanded .input-icon{
-    width:calc(22px * var(--top-scale) * var(--typing-scale));
-    height:calc(22px * var(--top-scale) * var(--typing-scale));
-  }
-
-.top-right{
-  order:0;
-  width:100%;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  margin:0 0 6px 0;
-  max-width:none;
-  overflow:visible;
-  transition:none;
-  will-change:auto;
-       flex: 0 0 auto;     /* don't shrink */
-    align-self: stretch; /* optional, but helps */}
-
-.top-left{
-  order:1;
-  flex:1 1 auto;
-  width:100%;
-  min-width:0;
-  margin-left:0;
-  max-width:none;
-  transition:none;
-}  .input-clear{
-    width:calc(34px * var(--top-scale));
-    height:calc(34px * var(--top-scale));
-    font-size:calc(3.5rem * var(--top-scale));
-  }
-
-  .input-controls{
-    position:absolute;
-    right:calc(8px + (42px * var(--top-scale)));
-    top:50%;
-    transform:translateY(-50%);
-    border:none;
-    background:transparent;
-    padding:0;
-
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    cursor:pointer;
-  }
-
-  .input-controls img{
-    width:18px;
-    height:18px;
-  }
-
-  .links-ribbon-link{ font-size:0.75rem; }
-  .ribbon-label{ font-size:0.75rem; }
-
-  .ribbon-select{
-    height:32px;
-    font-size:0.8rem;
-    padding:0 8px;
-    border-radius:calc(0.5rem * var(--top-scale));
-  }
-
-
-/* MOBILE PORTRAIT */
+/* MOBILE PORTRAIT (CLEAN, SINGLE, ANIMATION-BASED MENU HIDE) */
 @media (max-width:560px){
   :root{
     --cols:1;
@@ -959,6 +815,7 @@ button{
   .mobile-top-banner{ display:none !important; }
   .app{ gap:0.25rem; }
 
+  /* prevent iOS zoom */
   input[type="text"], input[type="search"]{ font-size:16px; }
   .suggestion-item{ font-size:19px; }
 
@@ -983,6 +840,9 @@ button{
     max-width:none;
     overflow:visible;
     transition:none;
+    will-change:auto;
+    flex:0 0 auto;
+    align-self:stretch;
   }
 
   .top-left{
@@ -1006,8 +866,13 @@ button{
   }
 
   /* --- Row / input plumbing --- */
-  .row{ width:100%; min-width:0; }
+  .row{ width:100%; min-width:0; display:flex; align-items:center; }
   .input-wrapper{ flex:1 1 auto; min-width:0; }
+
+  .input-icon{
+    width:calc(32px * var(--top-scale));
+    height:calc(32px * var(--top-scale));
+  }
 
   .input-clear{
     width:calc(34px * var(--top-scale));
@@ -1015,15 +880,10 @@ button{
     font-size:calc(3.5rem * var(--top-scale));
   }
 
-  .input-icon{
-    width:calc(32px * var(--top-scale));
-    height:calc(32px * var(--top-scale));
-  }
-
+  /* typing expansion behavior */
   .app{ --typing-scale:1; }
   .app.inputs-expanded{ --typing-scale:1.4; }
 
-  /* ✅ Keep your “taller on focus” behavior */
   .app.inputs-expanded input[type="text"],
   .app.inputs-expanded input[type="search"]{
     height:calc(var(--input-h) * var(--typing-scale));
@@ -1050,36 +910,32 @@ button{
   }
 
   /* =========================================================
-     ✅ NEW: On focus, push ONLY the menu button off-screen
-     - Fetch stays.
-     - Nothing stretches past your padding.
+     ✅ Animation-based menu hide on focus
+     - Do NOT use display:none (so animation can play)
   ========================================================= */
+  #menuBtn{
+    transition:transform 0.4s ease, opacity 0.4s ease;
+    will-change:transform, opacity;
+  }
+
   .app.inputs-expanded #menuBtn{
     transform:translateX(120vw);
-     transition: all 0.4s ease;    opacity:0;
+    opacity:0;
     pointer-events:none;
   }
 
+  #fetchBtn{
+    transition:transform 0.6s ease, opacity 0.6s ease;
+    will-change:transform, opacity;
+  }
+
   .app.inputs-expanded #fetchBtn{
-     transition: all 0.6s ease;
-     transform:none;
+    transform:none;
     opacity:1;
     pointer-events:auto;
   }
-#menuBtn{
-  transition: all 0.4s ease;
-}  /* (No .top-right hiding here — removed on purpose) */
 
-  /* --- Your existing small stuff --- */
-  .links-ribbon-link{ font-size:0.75rem; }
-  .ribbon-label{ font-size:0.75rem; }
-
-  .ribbon-select{
-    height:32px;
-    font-size:0.8rem;
-    padding:0 8px;
-    border-radius:calc(0.5rem * var(--top-scale));
-  }
+  .app.inputs-expanded .topbar{ justify-content:flex-start; }
 
   .input-controls{
     position:absolute;
@@ -1095,50 +951,19 @@ button{
     cursor:pointer;
   }
 
-  .input-controls img{
-    width:18px;
-    height:18px;
-  }
-  .app.inputs-expanded .topbar{ justify-content:flex-start; }
+  .input-controls img{ width:18px; height:18px; }
 
+  .links-ribbon-link{ font-size:0.75rem; }
+  .ribbon-label{ font-size:0.75rem; }
 
-
-  .input-icon{
-    width:calc(32px * var(--top-scale));
-    height:calc(32px * var(--top-scale));
-  }
-
-  .app{ --typing-scale:1; }
-  .app.inputs-expanded{ --typing-scale:1.4; }
-
-  .app.inputs-expanded input[type="text"],
-  .app.inputs-expanded input[type="search"]{
-    height:calc(var(--input-h) * var(--typing-scale));
-    font-size:calc(16px * var(--typing-scale));
+  .ribbon-select{
+    height:32px;
+    font-size:0.8rem;
+    padding:0 8px;
+    border-radius:calc(0.5rem * var(--top-scale));
   }
 
-  .app.inputs-expanded .btn-eq{
-    height:calc(var(--btn-h) * var(--typing-scale));
-  }
-
-  .brand-logo{
-    content:url("/images/logo.svg");
-
-    display:block;
-         height: calc(var(--input-h) * 2.2); /* pick your multiplier */
-    width: auto;
-    max-width: 92vw;  /* prevents overflow */
-    max-height: none;  }
-
-  .btn-eq{
-    height:var(--btn-h);
-    width:var(--btn-eq-w);
-    min-width:var(--btn-eq-w);
-    max-width:var(--btn-eq-w);
-    padding:0;
-    gap:0;
-  }
-
+  /* --- Mobile 1-col results layout --- */
   .shoe-grid{
     width:100%;
     max-width:none;
@@ -1223,36 +1048,6 @@ button{
     width:100%;
     padding:0 max(10px, var(--pad));
   }
-
-  .load-more-wrap{
-    position:static;
-    width:100%;
-    display:flex;
-    justify-content:center;
-    margin-top:1rem;
-    padding:0;
-    background:none;
-    border:none;
-  }
-
-  .load-more-btn{
-    height:var(--btn-h);
-    min-height:var(--btn-h);
-    width:auto;
-    padding:0 calc(22px * var(--top-scale));
-    border-radius:calc(0.5rem * var(--top-scale));
-    border:1px solid var(--sb-blue);
-    background:var(--sb-blue);
-    color:#fff;
-    font-size:calc(var(--btn-font) * 1.35);
-    font-weight:700;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    white-space:nowrap;
-    cursor:pointer;
-  }
-  .load-more-btn:hover{ background:#1a3661; }
 
   .to-top.is-visible{
     display:flex;
