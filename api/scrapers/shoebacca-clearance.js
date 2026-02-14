@@ -350,14 +350,11 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // DEBUGGING: cron auth disabled
-  // const cronSecret = process.env.CRON_SECRET;
-  // const providedSecret =
-  //   req.headers["x-cron-secret"] ||
-  //   req.headers.authorization?.replace("Bearer ", "");
-  // if (cronSecret && providedSecret !== cronSecret) {
-  //   return res.status(401).json({ error: "Unauthorized" });
-  // }
+const auth = req.headers.authorization;
+if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  return res.status(401).json({ success: false, error: "Unauthorized" });
+}
+
 
   const start = Date.now();
 
