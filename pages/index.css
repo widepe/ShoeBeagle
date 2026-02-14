@@ -976,8 +976,13 @@ input[type="text"], input[type="search"]{
 }
 
 /* FETCH: never translate (prevents overshoot + wrong-way issues) */
-#fetchBtn{ transform:none; }
-.app.inputs-expanded #fetchBtn{ transform:none; }
+#fetchBtn{ transform:translateX(0); }
+
+.app.inputs-expanded #fetchBtn{
+  /* tiny nudge to compensate for internal padding */
+  transform:translateX(calc(1 * (var(--gap) / 2)));
+}
+
 
 
 
