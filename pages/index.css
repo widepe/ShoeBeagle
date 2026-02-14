@@ -912,68 +912,79 @@ input[type="text"], input[type="search"]{
   }
 
 /* ============================
-   Buttons: unified motion (NO flex double-move)
+   Buttons (FLEX, single-source, moves as a unit)
+   - Menu collapses space (so input grows)
+   - Fetch does NOT translate (so it can’t overshoot)
+   - Menu slides only one slot (so it doesn’t “fly”)
 ============================ */
 
+/* ensure row is flex and has the same gap */
 .row{
-  position:relative;
-  flex-wrap:nowrap;
+  display:flex;
   align-items:center;
-  width:100%;
+  gap:var(--gap);
 }
 
+/* keep input able to grow */
 .input-wrapper{
   flex:1 1 auto;
   min-width:0;
 }
 
-.input-wrapper input[type="text"],
-.input-wrapper input[type="search"]{
-  transition:height 0.40s ease, font-size 0.40s ease, padding-right 0.40s ease;
-  padding-right:calc((3rem * var(--top-scale)) + (2 * var(--btn-eq-w)) + var(--gap));
-}
-
-.app.inputs-expanded .input-wrapper input[type="text"],
-.app.inputs-expanded .input-wrapper input[type="search"]{
-  padding-right:calc((3rem * var(--top-scale)) + var(--btn-eq-w));
-}
-
+/* size the two buttons consistently */
 #menuBtn,
 #fetchBtn{
-  position:absolute;
-  top:0;
-  height:var(--btn-h);
+  flex:0 0 var(--btn-eq-w);
   width:var(--btn-eq-w);
+  min-width:var(--btn-eq-w);
+  height:var(--btn-h);
 
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
+  transition:
+    transform 0.40s ease,
+    opacity   0.40s ease,
+    height    0.40s ease,
+    width     0.40s ease,
+    flex-basis 0.40s ease,
+    margin    0.40s ease,
+    border-width 0.40s ease;
 
-  transition:transform 0.40s ease, opacity 0.40s ease, height 0.40s ease;
+  will-change:transform, opacity, width, flex-basis, margin, height;
 }
 
-#fetchBtn{ right:0; }
-#menuBtn{ right:calc(var(--btn-eq-w) + var(--gap)); }
-
+/* both grow taller with the input */
 .app.inputs-expanded #menuBtn,
 .app.inputs-expanded #fetchBtn{
   height:calc(var(--btn-h) * var(--typing-scale));
 }
 
+/* MENU: slide out ONE slot (not 120vw), and collapse space */
+#menuBtn{ overflow:hidden; }
+
 .app.inputs-expanded #menuBtn{
   transform:translateX(calc(var(--btn-eq-w) + var(--gap)));
   opacity:0;
   pointer-events:none;
+
+  width:0;
+  flex-basis:0;
+  min-width:0;
+
+  /* remove the leftover gap so fetch reaches the right padding */
+  margin-right:calc(-1 * var(--gap));
+
+  border-width:0;
 }
 
-.app.inputs-expanded #fetchBtn{
-  transform:translateX(calc(1 * (var(--btn-eq-w) + var(--gap))));
-}
+/* FETCH: never translate (prevents overshoot + wrong-way issues) */
+#fetchBtn{ transform:none; }
+.app.inputs-expanded #fetchBtn{ transform:none; }
 
 
 
-  .app.inputs-expanded .topbar{ justify-content:flex-start; }
 
+
+
+   
   .input-controls{
     position:absolute;
     right:calc(8px + (42px * var(--top-scale)));
