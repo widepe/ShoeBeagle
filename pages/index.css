@@ -959,8 +959,7 @@ input[type="text"], input[type="search"]{
 #fetchBtn{ transform:translateX(0); }
 
 .app.inputs-expanded #fetchBtn{
-  transform:translateX(calc(-1 * (var(--btn-eq-w) + var(--gap))));
-}
+  transform:translateX(calc(1 * (var(--btn-eq-w) + var(--gap))));}
 
 
   .app.inputs-expanded .topbar{ justify-content:flex-start; }
