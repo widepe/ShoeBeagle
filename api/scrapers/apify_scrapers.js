@@ -46,13 +46,11 @@ module.exports = async (req, res) => {
   }
 
   // Optional cron auth (recommended)
-  const cronSecret = String(process.env.CRON_SECRET || "").trim();
-  if (cronSecret) {
-    const provided = req.headers["x-cron-secret"];
-    if (provided !== cronSecret) {
-      return res.status(401).json({ success: false, error: "Unauthorized" });
-    }
-  }
+const auth = req.headers.authorization;
+if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  return res.status(401).json({ success: false, error: "Unauthorized" });
+}
+
 
   const startedAtIso = nowIso();
   const overallStart = Date.now();
