@@ -912,64 +912,62 @@ input[type="text"], input[type="search"]{
   }
 
 /* ============================
-   Buttons: synced movement + synced height (FIXED)
+   Buttons: unified motion (NO flex double-move)
 ============================ */
 
-/* base button tile sizing + transitions */
-#menuBtn,
-#fetchBtn{
-  flex:0 0 var(--btn-eq-w);
-  width:var(--btn-eq-w);
-  min-width:var(--btn-eq-w);
-  height:var(--btn-h);
-
-  transition:
-    transform 0.40s ease,
-    opacity   0.40s ease,
-    height    0.40s ease,
-    width     0.40s ease,
-    flex-basis 0.40s ease,
-    margin    0.40s ease,
-    border-width 0.40s ease;
-
-  will-change:transform, opacity, width, flex-basis, margin, height;
+.row{
+  position:relative;
+  flex-wrap:nowrap;
+  align-items:center;
+  width:100%;
 }
 
-/* both grow taller with the input, same speed */
-.app.inputs-expanded #menuBtn,
-/* fetch: SINGLE source of truth */
-#fetchBtn{ transform:translateX(0); }
+.input-wrapper{
+  flex:1 1 auto;
+  min-width:0;
+}
 
-/* move fetch one full slot opposite the menu */
+.input-wrapper input[type="text"],
+.input-wrapper input[type="search"]{
+  transition:height 0.40s ease, font-size 0.40s ease, padding-right 0.40s ease;
+  padding-right:calc((3rem * var(--top-scale)) + (2 * var(--btn-eq-w)) + var(--gap));
+}
+
+.app.inputs-expanded .input-wrapper input[type="text"],
+.app.inputs-expanded .input-wrapper input[type="search"]{
+  padding-right:calc((3rem * var(--top-scale)) + var(--btn-eq-w));
+}
+
+#menuBtn,
+#fetchBtn{
+  position:absolute;
+  top:0;
+  height:var(--btn-h);
+  width:var(--btn-eq-w);
+
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+
+  transition:transform 0.40s ease, opacity 0.40s ease, height 0.40s ease;
+}
+
+#fetchBtn{ right:0; }
+#menuBtn{ right:calc(var(--btn-eq-w) + var(--gap)); }
+
+.app.inputs-expanded #menuBtn,
 .app.inputs-expanded #fetchBtn{
-  transform:translateX(calc(1 * (var(--btn-eq-w) + var(--gap))));
   height:calc(var(--btn-h) * var(--typing-scale));
 }
 
-
-/* menu collapses so input can expand */
-#menuBtn{ overflow:hidden; }
-
 .app.inputs-expanded #menuBtn{
-  /* ✅ slide out by exactly one slot so it matches fetch motion */
   transform:translateX(calc(var(--btn-eq-w) + var(--gap)));
   opacity:0;
   pointer-events:none;
-
-  /* ✅ still collapse space so input grows */
-  width:0;
-  flex-basis:0;
-  min-width:0;
-
-  /* remove the leftover gap so fetch reaches the edge */
-  margin-right:calc(-1 * var(--gap));
-
-  border-width:0;
 }
 
-/* fetch: SINGLE source of truth */
-#fetchBtn{
-  transform:translateX(0);
+.app.inputs-expanded #fetchBtn{
+  transform:translateX(calc(-1 * (var(--btn-eq-w) + var(--gap))));
 }
 
 
