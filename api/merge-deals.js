@@ -1233,7 +1233,9 @@ const ZAPPOS_DEALS_BLOB_URL = String(process.env.ZAPPOS_DEALS_BLOB_URL || "").tr
       { name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
 
       { name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
-      { name: "REI", blobUrl: REI_DEALS_BLOB_URL },
+     { id: "rei-outlet", name: "REI Outlet", blobUrl: REI_DEALS_BLOB_URL },
+
+
 
       { name: "Zappos", blobUrl: ZAPPOS_DEALS_BLOB_URL },
       { name: "RNJ Sports", blobUrl: RNJSPORTS_DEALS_BLOB_URL },
