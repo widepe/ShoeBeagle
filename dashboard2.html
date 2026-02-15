@@ -1660,17 +1660,17 @@ for (const k of Object.keys(storeQuality)) {
           health.status = "warning";
         }
 
-        if (storeMetadata[storeName]) {
-          const m = storeMetadata[storeName];
-          health.metadata = {
-            timestamp: m.timestamp || null,
-            duration: m.duration != null ? String(m.duration) : null,
-            blobUrl: m.blobUrl || null,
-          };
-        } else {
-          // still show card; just no metadata
-          health.metadata = { timestamp: null, duration: null, blobUrl: null };
-        }
+if (storeMetadata[storeName]) {
+  const m = storeMetadata[storeName];
+  health.metadata = {
+    timestamp: m.timestamp || null,
+    duration: m.duration != null ? String(m.duration) : null,
+    blobUrl: m.blobUrl || null,
+  };
+} else {
+  health.metadata = { timestamp: null, duration: null, blobUrl: null };
+}
+
 
         // Source blob logic:
         // Prefer merge metadata blobUrl (actual source used) if present.
