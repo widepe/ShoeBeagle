@@ -9,15 +9,15 @@
     :root{
       --max: 1100px;
       --gap: 14px;
-      --cardW: 360px;          /* a bit wider to fit left image */
+      --cardW: 360px;
       --radius: 14px;
       --shadow: 0 10px 24px rgba(0,0,0,.08);
       --border: rgba(0,0,0,.10);
       --bg: #f6f2ea;
       --text: #1f2430;
 
-      --thumbW: 108px;         /* left thumbnail width d */
-      --thumbH: 92px;          /* left thumbnail height */
+      --thumbW: 108px;
+      --thumbH: 92px;
     }
 
     *{box-sizing:border-box}
@@ -27,6 +27,7 @@
       background: var(--bg);
       color: var(--text);
     }
+
     .wrap{max-width:var(--max); margin:0 auto; padding:22px 14px 40px;}
     h1{margin:0 0 8px; font-size:20px;}
     .sub{margin:0 0 16px; opacity:.75; font-size:14px;}
@@ -35,8 +36,10 @@
       display:flex; align-items:center; justify-content:space-between;
       gap:12px; margin-top:20px; margin-bottom:10px;
     }
+
     .railHead h2{margin:0; font-size:16px;}
     .controls{display:flex; gap:8px;}
+
     .btn{
       border:1px solid var(--border);
       background:#fff;
@@ -47,10 +50,10 @@
       line-height:1;
       user-select:none;
     }
+
     .btn:disabled{opacity:.45; cursor:not-allowed; box-shadow:none;}
 
     .rail{
-      position:relative;
       border:1px solid var(--border);
       background: rgba(255,255,255,.6);
       border-radius: var(--radius);
@@ -66,9 +69,6 @@
       scroll-behavior:smooth;
       padding-bottom: 6px;
     }
-    .track::-webkit-scrollbar{height:10px}
-    .track::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12); border-radius:999px}
-    .track::-webkit-scrollbar-track{background:transparent}
 
     .card{
       flex: 0 0 var(--cardW);
@@ -85,17 +85,19 @@
     }
 
     .meta{
-      display:flex; justify-content:space-between; gap:10px;
-      font-size:12px; opacity:.70;
+      display:flex;
+      justify-content:space-between;
+      font-size:12px;
+      opacity:.70;
     }
 
-    /* NEW: left image + right text layout */
     .row{
       display:flex;
       gap:12px;
       align-items:flex-start;
       min-width:0;
     }
+
     .thumbWrap{
       flex: 0 0 var(--thumbW);
       width: var(--thumbW);
@@ -104,21 +106,21 @@
       border:1px solid var(--border);
       background: rgba(0,0,0,.04);
       overflow:hidden;
+      display:flex;
+      align-items:center;
+      justify-content:center;
     }
+
     .thumb{
       width:100%;
       height:100%;
       object-fit:cover;
       display:block;
     }
-    .thumbFallback{
-      width:100%;
-      height:100%;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:12px;
-      opacity:.55;
+
+    .thumb.is-logo{
+      object-fit:contain;
+      padding:10px;
     }
 
     .content{
@@ -135,11 +137,14 @@
       line-height:1.25;
       margin:0;
     }
+
     .title a{
       display:-webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow:hidden;
+      color:inherit;
+      text-decoration:none;
     }
 
     .desc{
@@ -155,148 +160,135 @@
 
     .linkRow{
       margin-top:auto;
-      display:flex; justify-content:space-between; align-items:center;
-      gap:10px;
+      display:flex;
+      justify-content:space-between;
       font-size:13px;
     }
 
-    a{color:inherit; text-decoration:none}
     a:hover{text-decoration:underline}
 
-    @media (max-width: 760px){
+    @media (max-width:760px){
       :root{
         --cardW: 82vw;
         --thumbW: 96px;
         --thumbH: 84px;
       }
-      .controls{gap:6px}
-      .btn{padding:10px 10px}
     }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>RSS Carousel Demo</h1>
-    <p class="sub">Pulls from multiple running RSS feeds via <code>/api/running-news</code>.</p>
 
     <div class="railHead">
       <h2>Running Reads (latest)</h2>
       <div class="controls">
-        <button class="btn" id="prevBtn" aria-label="Previous">←</button>
-        <button class="btn" id="nextBtn" aria-label="Next">→</button>
+        <button class="btn" id="prevBtn">←</button>
+        <button class="btn" id="nextBtn">→</button>
       </div>
     </div>
 
     <div class="rail">
-      <div class="track" id="track" aria-live="polite"></div>
+      <div class="track" id="track"></div>
     </div>
   </div>
 
-  <script>
-    const track = document.getElementById('track');
-    const prevBtn = document.getElementById('prevBtn');
-    const nextBtn = document.getElementById('nextBtn');
+<script>
+const track = document.getElementById('track');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
 
-    function fmtDate(iso){
-      try{
-        const d = new Date(iso);
-        if (Number.isNaN(d.getTime())) return '';
-        return d.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
-      }catch(e){ return ''; }
-    }
+const PLACEHOLDER_IMG = '/images/rss-images/placeholder.svg';
 
-    function escHtml(s){
-      return String(s ?? '')
-        .replace(/&/g,'&amp;')
-        .replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;')
-        .replace(/'/g,'&#39;');
-    }
+const SOURCE_DEFAULT_IMG = {
+  'Runners Connect': '/images/rss-images/runners_connect.svg',
+  'Believe in the Run': '/images/rss-images/believe-in-the-run.svg'
+};
 
-    function cardHTML(item){
-      const date = fmtDate(item.publishedAt);
-      const safeTitle = escHtml(item.title || '(untitled)');
-      const safeDesc = escHtml(item.description || '');
-      const source = escHtml(item.source || '');
-      const link = item.link || '#';
-      const img = item.imageUrl || '';
+function fmtDate(iso){
+  try{
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+  }catch(e){ return ''; }
+}
 
-      const thumbHTML = img
-        ? `<div class="thumbWrap">
-             <img class="thumb" src="${img}" alt="" loading="lazy" referrerpolicy="no-referrer"
-                  onerror="this.closest('.thumbWrap').innerHTML='<div class=&quot;thumbFallback&quot;>No image</div>'">
-           </div>`
-        : `<div class="thumbWrap"><div class="thumbFallback">No image</div></div>`;
+function pickImage(item){
+  if (item.imageUrl) return { url:item.imageUrl, logo:false };
 
-      return `
-        <article class="card">
-          <div class="meta">
-            <span>${source}</span>
-            <span>${escHtml(date)}</span>
-          </div>
+  const def = SOURCE_DEFAULT_IMG[item.source];
+  if (def) return { url:def, logo:true };
 
-          <div class="row">
-            ${thumbHTML}
+  return { url:PLACEHOLDER_IMG, logo:true };
+}
 
-            <div class="content">
-              <h3 class="title">
-                <a href="${link}" target="_blank" rel="noopener">${safeTitle}</a>
-              </h3>
+function cardHTML(item){
+  const picked = pickImage(item);
+  const imgUrl = picked.url;
+  const isLogo = picked.logo;
 
-              ${safeDesc
-                ? `<p class="desc">${safeDesc}</p>`
-                : `<p class="desc" style="opacity:.55">No summary available.</p>`
-              }
-            </div>
-          </div>
+  return `
+    <article class="card">
+      <div class="meta">
+        <span>${item.source || ''}</span>
+        <span>${fmtDate(item.publishedAt)}</span>
+      </div>
 
-          <div class="linkRow">
-            <a href="${link}" target="_blank" rel="noopener">Read →</a>
-            <span style="opacity:.65">opens new tab</span>
-          </div>
-        </article>
-      `;
-    }
+      <div class="row">
+        <div class="thumbWrap">
+          <img class="thumb ${isLogo ? 'is-logo' : ''}"
+               src="${imgUrl}"
+               loading="lazy"
+               onerror="this.src='${PLACEHOLDER_IMG}'; this.classList.add('is-logo');">
+        </div>
 
-    function updateButtons(){
-      const maxScroll = track.scrollWidth - track.clientWidth;
-      prevBtn.disabled = track.scrollLeft <= 2;
-      nextBtn.disabled = track.scrollLeft >= maxScroll - 2;
-    }
+        <div class="content">
+          <h3 class="title">
+            <a href="${item.link}" target="_blank" rel="noopener">${item.title}</a>
+          </h3>
+          <p class="desc">${item.description || ''}</p>
+        </div>
+      </div>
 
-    function scrollByCard(dir){
-      const firstCard = track.querySelector('.card');
-      const step = firstCard ? firstCard.getBoundingClientRect().width + 14 : 360;
-      track.scrollBy({ left: dir * step, behavior: 'smooth' });
-    }
+      <div class="linkRow">
+        <a href="${item.link}" target="_blank" rel="noopener">Read →</a>
+        <span style="opacity:.65">opens new tab</span>
+      </div>
+    </article>
+  `;
+}
 
-    prevBtn.addEventListener('click', () => scrollByCard(-1));
-    nextBtn.addEventListener('click', () => scrollByCard(1));
-    track.addEventListener('scroll', () => requestAnimationFrame(updateButtons));
+function updateButtons(){
+  const maxScroll = track.scrollWidth - track.clientWidth;
+  prevBtn.disabled = track.scrollLeft <= 2;
+  nextBtn.disabled = track.scrollLeft >= maxScroll - 2;
+}
 
-    async function load(){
-      track.innerHTML = `<div style="padding:10px;opacity:.7">Loading…</div>`;
-      try{
-        const res = await fetch('/api/running-news?limit=24');
-        const data = await res.json();
-        const items = (data && data.items) ? data.items.slice(0, 18) : [];
+function scrollByCard(dir){
+  const firstCard = track.querySelector('.card');
+  const step = firstCard ? firstCard.getBoundingClientRect().width + 14 : 360;
+  track.scrollBy({ left: dir * step, behavior: 'smooth' });
+}
 
-        track.innerHTML = items.length
-          ? items.map(cardHTML).join('')
-          : `<div style="padding:10px;opacity:.7">No items returned.</div>`;
+prevBtn.onclick = () => scrollByCard(-1);
+nextBtn.onclick = () => scrollByCard(1);
+track.addEventListener('scroll', () => requestAnimationFrame(updateButtons));
 
-        updateButtons();
-        setTimeout(updateButtons, 150);
-      }catch(err){
-        track.innerHTML = `<div style="padding:10px;opacity:.7">Failed to load.</div>`;
-        updateButtons();
-        console.error(err);
-      }
-    }
+async function load(){
+  track.innerHTML = `<div style="padding:10px;opacity:.7">Loading…</div>`;
+  try{
+    const res = await fetch('/api/running-news?limit=24');
+    const data = await res.json();
+    const items = data.items || [];
 
-    load();
-    window.addEventListener('resize', () => setTimeout(updateButtons, 100));
-  </script>
+    track.innerHTML = items.map(cardHTML).join('');
+    updateButtons();
+  }catch(err){
+    track.innerHTML = `<div style="padding:10px;opacity:.7">Failed to load.</div>`;
+  }
+}
+
+load();
+</script>
 </body>
 </html>
