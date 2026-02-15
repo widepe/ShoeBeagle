@@ -1,41 +1,38 @@
-<!-- /pages/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Favicon -->
-
+  <!-- Meta -->
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self';
-                 script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
-                 img-src * data: https:;
-                 style-src 'self' 'unsafe-inline';
-                 connect-src 'self' https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com;
-                 font-src 'self';
-                 frame-src 'none';">
-  <title>Shoe Beagle--The Running Shoe Deal Finder</title>
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self';
+             script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+             img-src * data: https:;
+             style-src 'self' 'unsafe-inline';
+             connect-src 'self' https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com;
+             font-src 'self';
+             frame-src 'none';"
+  />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- CSS split -->
-  <link rel="stylesheet" href="/pages/index.css?v=128
-    ">
+  <title>Shoe Beagle--The Running Shoe Deal Finder</title>
 
-  <!--
-    IMPORTANT:
-    Set this at deploy time to avoid hardcoding the blob store base.
-    Example value:
-      https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com
+  <!-- CSS -->
+  <link rel="stylesheet" href="/pages/index.css?v=128" />
+
+  <!-- IMPORTANT:
+       Set this at deploy time to avoid hardcoding the blob store base.
+       Example value: https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com
   -->
-  <meta name="shoebeagle-blob-base" content="__BLOB_BASE_URL__">
+  <meta name="shoebeagle-blob-base" content="__BLOB_BASE_URL__" />
 </head>
 
 <body>
   <div class="app">
     <!-- <img class="mobile-top-banner" src="/images/logo_heading.svg" alt=""> -->
 
-    <!-- TOP AREA: LOGO FIRST (left on desktop/tablet; stacks above on mobile portrait via CSS) -->
+    <!-- TOP AREA -->
     <div class="topbar">
-
       <!-- LOGO -->
       <div class="top-right">
         <img
@@ -43,59 +40,62 @@
           class="brand-logo"
           alt="Shoe Beagle Logo"
           id="logoLink"
-        >
+        />
       </div>
 
       <!-- INPUTS -->
       <div class="top-left">
         <form id="search-form" method="POST" autocomplete="off">
-
-          <!-- SINGLE SEARCH ROW: unified input + fetch + menu -->
+          <!-- unified row -->
           <div class="row">
             <div class="input-wrapper">
-              <img class="input-icon" src="/images/shoe.svg" alt="" aria-hidden="true">
-              <input id="q" type="text" placeholder="Search brand or model" autocomplete="off"/>
-              <button type="button" class="input-clear" aria-label="Clear search">&times;</button>
+              <img class="input-icon" src="/images/shoe.svg" alt="" aria-hidden="true" />
+              <input
+                id="q"
+                type="text"
+                placeholder="Search brand or model"
+                autocomplete="off"
+              />
+              <button type="button" class="input-clear" aria-label="Clear search">
+                &times;
+              </button>
               <div id="qSuggestions" class="suggestions"></div>
             </div>
 
             <div class="button-wrapper">
               <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
-                <img src="/images/mag_glass.svg" class="btn-icon" alt="Fetch">
+                <img src="/images/mag_glass.svg" class="btn-icon" alt="Fetch" />
               </button>
             </div>
 
             <div class="button-wrapper">
-              <button id="menuBtn"
-                      type="button"
-                      class="btn-eq"
-                      aria-label="Links"
-                      aria-expanded="false"
-                      aria-controls="linksRibbon">
-                <img src="/images/menu.svg" class="btn-icon" alt="Links">
+              <button
+                id="menuBtn"
+                type="button"
+                class="btn-eq"
+                aria-label="Links"
+                aria-expanded="false"
+                aria-controls="linksRibbon"
+              >
+                <img src="/images/menu.svg" class="btn-icon" alt="Links" />
               </button>
             </div>
           </div>
-
         </form>
       </div>
-
     </div>
 
-
-    <!-- Links ribbon (hidden by default; toggled by the button above) -->
+    <!-- Links ribbon -->
     <div id="linksRibbon" class="links-ribbon" style="display:none;">
       <div class="links-ribbon-inner">
-
         <!-- LEFT: Set Alert -->
         <div class="links-ribbon-left">
           <a class="links-ribbon-link" href="#" data-open-alert>Set Alert</a>
         </div>
 
-        <!-- CENTER: Filter + Sort dropdowns -->
+        <!-- CENTER: Filter + Sort -->
         <div class="links-ribbon-center">
           <div class="ribbon-controls" role="group" aria-label="Filter and sort">
-
             <label class="ribbon-label" for="ribbonGender">Gender</label>
             <select id="ribbonGender" class="ribbon-select" aria-label="Filter by gender">
               <option value="" selected>Off</option>
@@ -121,23 +121,22 @@
               <option value="save-asc">Savings: Lo → Hi</option>
               <option value="save-desc">Savings: Hi → Lo</option>
             </select>
-
           </div>
         </div>
 
         <!-- RIGHT: Favorites + close -->
         <div class="links-ribbon-right">
-          <a class="links-ribbon-link is-disabled" href="#" aria-disabled="true" tabindex="0">Favorites</a>
+          <a class="links-ribbon-link is-disabled" href="#" aria-disabled="true" tabindex="0">
+            Favorites
+          </a>
           <button type="button" class="chip-close" aria-label="Close links">×</button>
         </div>
-
       </div>
     </div>
 
+    <!-- MAIN -->
     <div id="mainContent">
-      <div class="status-message" id="statusMessage">
-        Marty’s Daily Deals
-      </div>
+      <div class="status-message" id="statusMessage">Marty’s Daily Deals</div>
 
       <div class="daily-deals" id="dailyDeals">
         <div class="shoe-grid" id="dailyDealsGrid"></div>
@@ -157,11 +156,12 @@
 
       <p class="disclaimer">
         Shoe Beagle may earn commissions through our affiliate program at no cost to you.
-        We do not sell products directly and are not responsible for changes in price, availability,
-        or shipping terms on retailer sites.
+        We do not sell products directly and are not responsible for changes in price,
+        availability, or shipping terms on retailer sites.
       </p>
     </div>
 
+    <!-- FOOTER -->
     <div class="footer">
       <div class="footer-links">
         <a href="/pages/about.html">About</a> |
@@ -169,7 +169,6 @@
         <a href="/pages/privacy.html">Privacy</a> |
         <a href="/pages/terms.html">Terms</a>
       </div>
-
       <div class="footer-copy">
         © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
       </div>
@@ -179,1271 +178,1177 @@
   </div>
 
   <!-- Load brand/models once (root) -->
-  <!-- NOTE: main page no longer uses brandModels.js for suggestions.
-       Modal still uses it (by design). -->
+  <!-- NOTE: main page no longer uses brandModels.js for suggestions. Modal still uses it (by design). -->
   <script src="/brandModels.js"></script>
 
   <!-- ===== Main Page Script ===== -->
   <script>
-  (() => {
-    const form = document.getElementById("search-form");
+    (() => {
+      const form = document.getElementById("search-form");
+      const statusMessageEl = document.getElementById("statusMessage");
+      const resultsEl = document.getElementById("results");
+      const dailyDeals = document.getElementById("dailyDeals");
+      const dailyDealsGrid = document.getElementById("dailyDealsGrid");
+      const fetchBtn = document.getElementById("fetchBtn");
 
-    const statusMessageEl = document.getElementById("statusMessage");
-    const resultsEl = document.getElementById("results");
-    const dailyDeals = document.getElementById("dailyDeals");
-    const dailyDealsGrid = document.getElementById("dailyDealsGrid");
-    const fetchBtn = document.getElementById("fetchBtn");
+      // Unified input + suggestions
+      const qInput = document.getElementById("q");
+      const qSuggestions = document.getElementById("qSuggestions");
+      const logoLink = document.getElementById("logoLink");
+      const footerYear = document.getElementById("footerYear");
+      const appEl = document.querySelector(".app");
 
-    // Unified input + suggestions
-    const qInput = document.getElementById("q");
-    const qSuggestions = document.getElementById("qSuggestions");
+      // Links toggle button + ribbon
+      const menuBtn = document.getElementById("menuBtn");
+      const linksRibbon = document.getElementById("linksRibbon");
+      const linksRibbonClose = linksRibbon?.querySelector(".chip-close");
 
-    const logoLink = document.getElementById("logoLink");
-    const footerYear = document.getElementById("footerYear");
-    const appEl = document.querySelector(".app");
+      // Ribbon dropdowns
+      const ribbonGender = document.getElementById("ribbonGender");
+      const ribbonType = document.getElementById("ribbonType");
+      const ribbonSort = document.getElementById("ribbonSort");
 
-    // Links toggle button + ribbon
-    const menuBtn = document.getElementById("menuBtn");
-    const linksRibbon = document.getElementById("linksRibbon");
-    const linksRibbonClose = linksRibbon?.querySelector(".chip-close");
+      const PAGE_SIZE = 12;
+      let pageIndex = 0;
 
-    // Ribbon dropdowns
-    const ribbonGender = document.getElementById("ribbonGender");
-    const ribbonType   = document.getElementById("ribbonType");
-    const ribbonSort   = document.getElementById("ribbonSort");
+      const prevPageBtn = document.getElementById("prevPage");
+      const nextPageBtn = document.getElementById("nextPage");
+      const pageLabelEl = document.getElementById("pageLabel");
 
-    const PAGE_SIZE = 12;
-    let pageIndex = 0;
+      // Load more elements
+      const loadMoreWrap = document.getElementById("loadMoreWrap");
+      const loadMoreBtn = document.getElementById("loadMoreBtn");
+      const toTopBtn = document.getElementById("toTopBtn");
 
-    const prevPageBtn = document.getElementById("prevPage");
-    const nextPageBtn = document.getElementById("nextPage");
-    const pageLabelEl = document.getElementById("pageLabel");
-
-    // Load more elements
-    const loadMoreWrap = document.getElementById("loadMoreWrap");
-    const loadMoreBtn = document.getElementById("loadMoreBtn");
-    const toTopBtn = document.getElementById("toTopBtn");
-
-    function isMobilePortrait(){
-      return window.matchMedia("(max-width: 560px) and (orientation: portrait)").matches;
-    }
-
-    function runPagerTransitionThen(fn){
-      if (isMobilePortrait()) { fn(); return; }
-      resultsEl.classList.add("is-switching");
-      setTimeout(() => {
-        fn();
-        requestAnimationFrame(() => {
-          resultsEl.classList.remove("is-switching");
-        });
-      }, 160);
-    }
-
-    // Current search state (still brand+model under the hood)
-    let currentSearch = { brand: "", model: "" };
-    let lastSearchResults = [];
-    let lastDailyDeals = [];
-
-    // Unified state (ribbon dropdowns update these)
-    let selectedGender = "";      // "" | "mens" | "womens"
-    let selectedShoeType = "";    // "" | "road" | "trail" | "track"
-    let currentSort = "";         // "" | "price-asc" | "price-desc" | "pct-asc" | "pct-desc" | "save-asc" | "save-desc"
-
-    if (footerYear) footerYear.textContent = new Date().getFullYear();
-    if (logoLink) logoLink.addEventListener("click", () => location.reload());
-
-    // --- Links ribbon toggle ---
-    function isRibbonOpen(){
-      return !!(linksRibbon && linksRibbon.style.display !== "none");
-    }
-    function openRibbon(){
-      if (!linksRibbon) return;
-      linksRibbon.style.display = "block";
-      if (menuBtn) menuBtn.setAttribute("aria-expanded", "true");
-    }
-    function closeRibbon(){
-      if (!linksRibbon) return;
-      linksRibbon.style.display = "none";
-      if (menuBtn) menuBtn.setAttribute("aria-expanded", "false");
-    }
-    function toggleRibbon(){
-      if (!linksRibbon) return;
-      if (isRibbonOpen()) closeRibbon();
-      else openRibbon();
-    }
-
-    if (menuBtn) {
-      menuBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        toggleRibbon();
-      });
-    }
-
-    if (linksRibbonClose) {
-      linksRibbonClose.addEventListener("click", (e) => {
-        e.preventDefault();
-        closeRibbon();
-      });
-    }
-
-    // --- Helpers ---
-    function normalizeStr(s) { return String(s || "").trim().toLowerCase(); }
-    function norm(s) { return String(s || "").trim().toLowerCase(); }
-
-    function sanitizeInput(str) {
-      return String(str || "")
-        .replace(/[<>'"]/g, '')
-        .replace(/script/gi, '')
-        .replace(/javascript:/gi, '')
-        .replace(/on\w+=/gi, '')
-        .trim()
-        .slice(0, 100);
-    }
-
-    function squashStr(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
-
-    function updateFetchReady() {
-      const hasAny = !!(qInput && qInput.value.trim());
-      if (fetchBtn) fetchBtn.disabled = !hasAny;
-    }
-    updateFetchReady();
-
-    // Clear button (single)
-    const clearBtn = document.querySelector('.input-clear');
-    if (clearBtn) {
-      clearBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (qInput) {
-          qInput.value = '';
-          qInput.focus();
-          closeSuggestions();
-          updateFetchReady();
-        }
-      });
-    }
-
-    function isValidRetailerUrl(url) {
-      if (!url || url === '#') return false;
-      try {
-        const u = new URL(url);
-        return u.protocol === "https:" || u.protocol === "http:";
-      } catch {
-        return false;
+      function isMobilePortrait() {
+        return window.matchMedia("(max-width: 560px) and (orientation: portrait)").matches;
       }
-    }
 
-    // --- Blob base ---
-    function getBlobBase() {
-      const meta = document.querySelector('meta[name="shoebeagle-blob-base"]');
-      const fromMeta = meta ? String(meta.getAttribute("content") || "").trim() : "";
-      const looksLikePlaceholder = fromMeta.includes("__BLOB_BASE_URL__");
-      if (fromMeta && !looksLikePlaceholder) return fromMeta.replace(/\/+$/, "");
-      return "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
-    }
+      function runPagerTransitionThen(fn) {
+        if (isMobilePortrait()) {
+          fn();
+          return;
+        }
+        resultsEl.classList.add("is-switching");
+        setTimeout(() => {
+          fn();
+          requestAnimationFrame(() => {
+            resultsEl.classList.remove("is-switching");
+          });
+        }, 160);
+      }
 
-    function blobUrl(path) {
-      const base = getBlobBase();
-      const cleanPath = String(path || "").replace(/^\/+/, "");
-      return base.replace(/\/+$/, "") + "/" + cleanPath;
-    }
+      // Current search state (still brand+model under the hood)
+      let currentSearch = { brand: "", model: "" };
+      let lastSearchResults = [];
+      let lastDailyDeals = [];
 
-    // ===============================
-    // Suggestions index = deals.json ONLY
-    // ===============================
-    const dealsSuggest = {
-      ready: false,
-      brandNormToDisplay: new Map(),      // normBrand -> "Nike"
-      brandToModels: new Map(),           // "Nike" -> Map(normModel -> "Pegasus 42")
-      allModelsNormToDisplay: new Map(),  // normModel -> "Pegasus 42"
-      modelNormToBrandDisplay: new Map(), // normModel -> "Nike" (first brand wins)
-      brands: [],
-      allModels: [],
-    };
+      // Unified state (ribbon dropdowns update these)
+      let selectedGender = "";    // "" | "mens" | "womens"
+      let selectedShoeType = "";  // "" | "road" | "trail" | "track"
+      let currentSort = "";       // "" | "price-asc" | ...
 
-    async function loadDealsSuggestionIndex(){
-      try {
-        const url = blobUrl("deals.json");
-        const res = await fetch(`${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`, { cache: "no-store" });
-        if (!res.ok) throw new Error(`deals.json fetch failed: ${res.status}`);
+      if (footerYear) footerYear.textContent = new Date().getFullYear();
+      if (logoLink) logoLink.addEventListener("click", () => location.reload());
 
-        const data = await res.json();
-        const deals = Array.isArray(data?.deals) ? data.deals : [];
+      // --- Links ribbon toggle ---
+      function isRibbonOpen() {
+        return !!(linksRibbon && linksRibbon.style.display !== "none");
+      }
+      function openRibbon() {
+        if (!linksRibbon) return;
+        linksRibbon.style.display = "block";
+        if (menuBtn) menuBtn.setAttribute("aria-expanded", "true");
+      }
+      function closeRibbon() {
+        if (!linksRibbon) return;
+        linksRibbon.style.display = "none";
+        if (menuBtn) menuBtn.setAttribute("aria-expanded", "false");
+      }
+      function toggleRibbon() {
+        if (!linksRibbon) return;
+        if (isRibbonOpen()) closeRibbon();
+        else openRibbon();
+      }
 
-        dealsSuggest.brandNormToDisplay.clear();
-        dealsSuggest.brandToModels.clear();
-        dealsSuggest.allModelsNormToDisplay.clear();
-        dealsSuggest.modelNormToBrandDisplay.clear();
+      if (menuBtn) {
+        menuBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleRibbon();
+        });
+      }
 
-        for (const d of deals) {
-          const brandRaw = String(d?.brand || "").trim();
-          const modelRaw = String(d?.model || "").trim();
+      if (linksRibbonClose) {
+        linksRibbonClose.addEventListener("click", (e) => {
+          e.preventDefault();
+          closeRibbon();
+        });
+      }
 
-          if (brandRaw) {
-            const bNorm = normalizeStr(brandRaw);
+      // --- Helpers ---
+      function normalizeStr(s) {
+        return String(s || "").trim().toLowerCase();
+      }
+      function norm(s) {
+        return String(s || "").trim().toLowerCase();
+      }
+      function sanitizeInput(str) {
+        return String(str || "")
+          .replace(/[<>'"]/g, "")
+          .replace(/script/gi, "")
+          .replace(/javascript:/gi, "")
+          .replace(/on\w+=/gi, "")
+          .trim()
+          .slice(0, 100);
+      }
+      function squashStr(s) {
+        return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      }
 
-            if (!dealsSuggest.brandNormToDisplay.has(bNorm)) {
-              dealsSuggest.brandNormToDisplay.set(bNorm, brandRaw);
-            }
+      function updateFetchReady() {
+        const hasAny = !!(qInput && qInput.value.trim());
+        if (fetchBtn) fetchBtn.disabled = !hasAny;
+      }
+      updateFetchReady();
 
-            const bDisplay = dealsSuggest.brandNormToDisplay.get(bNorm);
+      // Clear button (single)
+      const clearBtn = document.querySelector(".input-clear");
+      if (clearBtn) {
+        clearBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          if (qInput) {
+            qInput.value = "";
+            qInput.focus();
+            closeSuggestions();
+            updateFetchReady();
+          }
+        });
+      }
 
-            if (!dealsSuggest.brandToModels.has(bDisplay)) {
-              dealsSuggest.brandToModels.set(bDisplay, new Map());
+      function isValidRetailerUrl(url) {
+        if (!url || url === "#") return false;
+        try {
+          const u = new URL(url);
+          return u.protocol === "https:" || u.protocol === "http:";
+        } catch {
+          return false;
+        }
+      }
+
+      // --- Blob base ---
+      function getBlobBase() {
+        const meta = document.querySelector('meta[name="shoebeagle-blob-base"]');
+        const fromMeta = meta ? String(meta.getAttribute("content") || "").trim() : "";
+        const looksLikePlaceholder = fromMeta.includes("__BLOB_BASE_URL__");
+        if (fromMeta && !looksLikePlaceholder) return fromMeta.replace(/\/+$/, "");
+        return "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
+      }
+
+      function blobUrl(path) {
+        const base = getBlobBase();
+        const cleanPath = String(path || "").replace(/^\/+/, "");
+        return base.replace(/\/+$/, "") + "/" + cleanPath;
+      }
+
+      // ===============================
+      // Suggestions index = deals.json ONLY
+      // ===============================
+      const dealsSuggest = {
+        ready: false,
+        brandNormToDisplay: new Map(),      // normBrand -> "Nike"
+        brandToModels: new Map(),           // "Nike" -> Map(normModel -> "Pegasus 42")
+        allModelsNormToDisplay: new Map(),  // normModel -> "Pegasus 42"
+        modelNormToBrandDisplay: new Map(), // normModel -> "Nike" (first brand wins)
+        brands: [],
+        allModels: [],
+      };
+
+      async function loadDealsSuggestionIndex() {
+        try {
+          const url = blobUrl("deals.json");
+          const res = await fetch(
+            `${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`,
+            { cache: "no-store" }
+          );
+          if (!res.ok) throw new Error(`deals.json fetch failed: ${res.status}`);
+
+          const data = await res.json();
+          const deals = Array.isArray(data?.deals) ? data.deals : [];
+
+          dealsSuggest.brandNormToDisplay.clear();
+          dealsSuggest.brandToModels.clear();
+          dealsSuggest.allModelsNormToDisplay.clear();
+          dealsSuggest.modelNormToBrandDisplay.clear();
+
+          for (const d of deals) {
+            const brandRaw = String(d?.brand || "").trim();
+            const modelRaw = String(d?.model || "").trim();
+
+            if (brandRaw) {
+              const bNorm = normalizeStr(brandRaw);
+              if (!dealsSuggest.brandNormToDisplay.has(bNorm)) {
+                dealsSuggest.brandNormToDisplay.set(bNorm, brandRaw);
+              }
+              const bDisplay = dealsSuggest.brandNormToDisplay.get(bNorm);
+
+              if (!dealsSuggest.brandToModels.has(bDisplay)) {
+                dealsSuggest.brandToModels.set(bDisplay, new Map());
+              }
+
+              if (modelRaw) {
+                const mNorm = normalizeStr(modelRaw);
+                const modelMap = dealsSuggest.brandToModels.get(bDisplay);
+                if (!modelMap.has(mNorm)) modelMap.set(mNorm, modelRaw);
+
+                if (!dealsSuggest.modelNormToBrandDisplay.has(mNorm)) {
+                  dealsSuggest.modelNormToBrandDisplay.set(mNorm, bDisplay);
+                }
+              }
             }
 
             if (modelRaw) {
               const mNorm = normalizeStr(modelRaw);
-              const modelMap = dealsSuggest.brandToModels.get(bDisplay);
-              if (!modelMap.has(mNorm)) modelMap.set(mNorm, modelRaw);
-
-              if (!dealsSuggest.modelNormToBrandDisplay.has(mNorm)) {
-                dealsSuggest.modelNormToBrandDisplay.set(mNorm, bDisplay);
+              if (!dealsSuggest.allModelsNormToDisplay.has(mNorm)) {
+                dealsSuggest.allModelsNormToDisplay.set(mNorm, modelRaw);
               }
             }
           }
 
-          if (modelRaw) {
-            const mNorm = normalizeStr(modelRaw);
-            if (!dealsSuggest.allModelsNormToDisplay.has(mNorm)) {
-              dealsSuggest.allModelsNormToDisplay.set(mNorm, modelRaw);
-            }
+          dealsSuggest.brands = Array.from(dealsSuggest.brandNormToDisplay.values()).sort((a, b) =>
+            a.localeCompare(b)
+          );
+          dealsSuggest.allModels = Array.from(dealsSuggest.allModelsNormToDisplay.values()).sort((a, b) =>
+            a.localeCompare(b)
+          );
+          dealsSuggest.ready = true;
+        } catch (e) {
+          console.error("[suggestions] Failed to build deals.json suggestion index:", e?.message || String(e));
+          dealsSuggest.ready = false;
+          dealsSuggest.brands = [];
+          dealsSuggest.allModels = [];
+        }
+      }
+
+      function inferDefinitiveBrandFromPartialModel(modelTyped) {
+        if (!dealsSuggest.ready) return "";
+        const q = squashStr(modelTyped);
+        if (!q || q.length < 3) return "";
+
+        const brandsFound = new Set();
+
+        for (const modelDisplay of dealsSuggest.allModels) {
+          const mSquash = squashStr(modelDisplay);
+          if (!mSquash.includes(q)) continue;
+
+          const b =
+            dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(modelDisplay)) || "";
+          if (b) brandsFound.add(b);
+          if (brandsFound.size > 1) return ""; // ambiguous
+        }
+
+        return brandsFound.size === 1 ? Array.from(brandsFound)[0] : "";
+      }
+
+      // "closest brand" based ONLY on deals.json brands (used for parsing brand prefix)
+      function levenshtein(a, b) {
+        a = String(a || "");
+        b = String(b || "");
+        const m = a.length, n = b.length;
+        if (!m) return n;
+        if (!n) return m;
+
+        const dp = new Array(n + 1);
+        for (let j = 0; j <= n; j++) dp[j] = j;
+
+        for (let i = 1; i <= m; i++) {
+          let prev = dp[0];
+          dp[0] = i;
+          for (let j = 1; j <= n; j++) {
+            const temp = dp[j];
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + cost);
+            prev = temp;
+          }
+        }
+        return dp[n];
+      }
+
+      function resolveClosestBrand(input) {
+        const raw = String(input || "").trim();
+        if (!raw) return "";
+        if (!dealsSuggest.ready || !dealsSuggest.brands.length) return raw;
+
+        const exact = dealsSuggest.brands.find((b) => normalizeStr(b) === normalizeStr(raw));
+        if (exact) return exact;
+
+        const q = squashStr(raw);
+        if (!q) return raw;
+
+        let best = null;
+        let bestDist = Infinity;
+
+        for (const b of dealsSuggest.brands) {
+          const bs = squashStr(b);
+          const d = levenshtein(q, bs);
+          if (d < bestDist) {
+            bestDist = d;
+            best = b;
           }
         }
 
-        dealsSuggest.brands = Array.from(dealsSuggest.brandNormToDisplay.values()).sort((a,b) => a.localeCompare(b));
-        dealsSuggest.allModels = Array.from(dealsSuggest.allModelsNormToDisplay.values()).sort((a,b) => a.localeCompare(b));
-        dealsSuggest.ready = true;
-      } catch (e) {
-        console.error("[suggestions] Failed to build deals.json suggestion index:", e?.message || String(e));
-        dealsSuggest.ready = false;
-        dealsSuggest.brands = [];
-        dealsSuggest.allModels = [];
-      }
-    }
-
-    function inferDefinitiveBrandFromPartialModel(modelTyped){
-      if (!dealsSuggest.ready) return "";
-      const q = squashStr(modelTyped);
-      if (!q || q.length < 3) return "";
-
-      const brandsFound = new Set();
-
-      for (const modelDisplay of dealsSuggest.allModels) {
-        const mSquash = squashStr(modelDisplay);
-        if (!mSquash.includes(q)) continue;
-
-        const b = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(modelDisplay)) || "";
-        if (b) brandsFound.add(b);
-
-        if (brandsFound.size > 1) return ""; // ambiguous
+        const len = q.length;
+        const threshold = len <= 4 ? 1 : len <= 7 ? 2 : 3;
+        return best != null && bestDist <= threshold ? best : raw;
       }
 
-      return brandsFound.size === 1 ? Array.from(brandsFound)[0] : "";
-    }
+      function scoreSuggestion(candidate, query) {
+        const c = String(candidate || "");
+        const cl = c.toLowerCase();
+        const q = String(query || "").trim().toLowerCase();
+        if (!q) return 0;
 
-    // "closest brand" based ONLY on deals.json brands (used for parsing brand prefix)
-    function levenshtein(a, b) {
-      a = String(a || "");
-      b = String(b || "");
-      const m = a.length, n = b.length;
-      if (!m) return n;
-      if (!n) return m;
+        const cSquash = squashStr(c);
+        const qSquash = squashStr(q);
 
-      const dp = new Array(n + 1);
-      for (let j = 0; j <= n; j++) dp[j] = j;
+        let score = 0;
+        if (cl.startsWith(q)) score += 120;
+        if (cl.includes(q)) score += 80;
+        if (qSquash.length >= 3 && cSquash.includes(qSquash)) score += 110;
 
-      for (let i = 1; i <= m; i++) {
-        let prev = dp[0];
-        dp[0] = i;
-        for (let j = 1; j <= n; j++) {
-          const temp = dp[j];
-          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-          dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + cost);
-          prev = temp;
+        const qParts = q.split(/\s+/).filter(Boolean);
+        if (qParts.length >= 2) {
+          const cParts = cl.split(/\s+/);
+          let tokenHits = 0;
+          for (const qp of qParts) {
+            if (cParts.some((cp) => cp.startsWith(qp))) tokenHits++;
+          }
+          score += tokenHits * 25;
         }
+
+        score -= Math.min(c.length, 30) * 0.25;
+        return score;
       }
-      return dp[n];
-    }
 
-function typoThreshold(len){
-  // keep it conservative
-  if (len <= 4) return 1;
-  if (len <= 7) return 2;
-  return 2;
-}
+      function filterSuggestions(list, typed, limit = 10) {
+        const q = String(typed || "").trim();
+        if (!q) return [];
 
-// Best distance against "meaningful parts" of the candidate:
-// - each token (metaspeed, pegasus, kayano, etc.)
-// - token prefixes (so "metasped" can match "metaspeed" inside "metaspeed sky+")
-function bestTypoDistance(candidate, typed){
-  const q = squashStr(typed);
-  if (!q || q.length < 4) return null;
+        const qLower = q.toLowerCase();
+        const starts = list.filter((v) => String(v).toLowerCase().startsWith(qLower));
 
-  const text = String(candidate || "").toLowerCase();
-  const tokens = text
-    .split(/[^a-z0-9]+/g)
-    .map(t => t.trim())
-    .filter(t => t.length >= 3);
-
-  if (!tokens.length) return null;
-
-  const thr = typoThreshold(q.length);
-  let best = Infinity;
-
-  for (const tokRaw of tokens){
-    const tok = squashStr(tokRaw);
-    if (!tok) continue;
-
-    // compare to full token and to same-length prefix
-    const d1 = levenshtein(q, tok);
-    best = Math.min(best, d1);
-
-    if (tok.length >= q.length){
-      const pref = tok.slice(0, q.length);
-      const d2 = levenshtein(q, pref);
-      best = Math.min(best, d2);
-    }
-
-    // early exit
-    if (best === 0) break;
-  }
-
-  return (best <= thr) ? best : null;
-}
-
-function typoBoost(candidate, typed){
-  const q = squashStr(typed);
-  if (!q || q.length < 4) return 0;
-
-  const dist = bestTypoDistance(candidate, typed);
-  if (dist == null) return 0;
-
-  // conservative boost so typo-matches don’t outrank real prefix matches
-  // dist 1 => 55, dist 2 => 35
-  return 75 - (dist * 20);
-}
-
-    
-
-    function resolveClosestBrand(input) {
-      const raw = String(input || "").trim();
-      if (!raw) return "";
-      if (!dealsSuggest.ready || !dealsSuggest.brands.length) return raw;
-
-      const exact = dealsSuggest.brands.find(b => normalizeStr(b) === normalizeStr(raw));
-      if (exact) return exact;
-
-      const q = squashStr(raw);
-      if (!q) return raw;
-
-      let best = null;
-      let bestDist = Infinity;
-
-      for (const b of dealsSuggest.brands) {
-        const bs = squashStr(b);
-        const d = levenshtein(q, bs);
-        if (d < bestDist) {
-          bestDist = d;
-          best = b;
+        if (starts.length) {
+          const ranked = starts
+            .map((v) => ({ v, s: scoreSuggestion(v, q) }))
+            .sort((a, b) => (b.s - a.s) || (String(a.v).length - String(b.v).length) || String(a.v).localeCompare(String(b.v)))
+            .slice(0, limit)
+            .map((x) => x.v);
+          return Array.from(new Set(ranked));
         }
-      }
 
-      const len = q.length;
-      const threshold = len <= 4 ? 1 : (len <= 7 ? 2 : 3);
-      return (best != null && bestDist <= threshold) ? best : raw;
-    }
-
-    function scoreSuggestion(candidate, query) {
-      const c = String(candidate || "");
-      const cl = c.toLowerCase();
-      const q = String(query || "").trim().toLowerCase();
-      if (!q) return 0;
-
-      const cSquash = squashStr(c);
-      const qSquash = squashStr(q);
-
-      let score = 0;
-      if (cl.startsWith(q)) score += 120;
-      if (cl.includes(q)) score += 80;
-      if (qSquash.length >= 3 && cSquash.includes(qSquash)) score += 110;
-
-      const qParts = q.split(/\s+/).filter(Boolean);
-      if (qParts.length >= 2) {
-        const cParts = cl.split(/\s+/);
-        let tokenHits = 0;
-        for (const qp of qParts) {
-          if (cParts.some(cp => cp.startsWith(qp))) tokenHits++;
-        }
-        score += tokenHits * 25;
-      }
-
-      score -= Math.min(c.length, 30) * 0.25;
-
-      // light typo tolerance
-score += typoBoost(candidate, query);
-      return score;
-    }
-
-    function filterSuggestions(list, typed, limit = 10) {
-      const q = String(typed || "").trim();
-      if (!q) return [];
-
-      const qLower = q.toLowerCase();
-      const starts = list.filter(v => String(v).toLowerCase().startsWith(qLower));
-      if (starts.length) {
-        const ranked = starts
-          .map(v => ({ v, s: scoreSuggestion(v, q) }))
+        const scored = list
+          .map((v) => ({ v, s: scoreSuggestion(v, q) }))
+          .filter((x) => x.s > 0)
           .sort((a, b) => (b.s - a.s) || (String(a.v).length - String(b.v).length) || String(a.v).localeCompare(String(b.v)))
-
           .slice(0, limit)
-          .map(x => x.v);
-        return Array.from(new Set(ranked));
+          .map((x) => x.v);
+
+        return Array.from(new Set(scored));
       }
 
-   const scoredFull = list
-  .map(v => ({ v, s: scoreSuggestion(v, q) }))
-  .filter(x => x.s > 0)
-  .sort((a, b) => (b.s - a.s) || (String(a.v).length - String(b.v).length) || String(a.v).localeCompare(String(b.v)));
+      // ---------- Unified suggestion behavior ----------
+      function detectBrandPrefix(typed) {
+        if (!dealsSuggest.ready) return { brand: "", rest: typed };
 
-if (!scoredFull.length) return [];
+        const raw = String(typed || "").trim();
+        if (!raw) return { brand: "", rest: "" };
 
-// If we’re here, we didn’t have startsWith matches.
-// Require the top result to be “confident” vs runner-up.
-const top = scoredFull[0];
-const second = scoredFull[1];
+        const parts = raw.split(/\s+/).filter(Boolean);
+        if (!parts.length) return { brand: "", rest: raw };
 
-const strongEnough = top.s >= 55;                 // must be a solid score
-const clearLead = !second || (top.s - second.s) >= 18; // must beat #2 by margin
+        const first = parts[0];
+        if (first.length < 2) return { brand: "", rest: raw };
 
-if (!(strongEnough && clearLead)) return [];
+        const firstNorm = squashStr(first);
+        const matches = dealsSuggest.brands.filter((b) => squashStr(b).startsWith(firstNorm));
 
-return Array.from(new Set(scoredFull.slice(0, limit).map(x => x.v)));
+        if (matches.length === 1) {
+          const brand = matches[0];
+          const rest = raw.slice(parts[0].length).trim();
+          return { brand, rest };
+        }
 
-    }
+        const brandClosest = resolveClosestBrand(parts[0]);
+        if (brandClosest && dealsSuggest.brands.some((b) => normalizeStr(b) === normalizeStr(brandClosest))) {
+          const rest = raw.slice(parts[0].length).trim();
+          return { brand: brandClosest, rest };
+        }
 
-    // ---------- Unified suggestion behavior ----------
-    // If user starts with a brand prefix (unique), show "Brand Model" suggestions.
-    // Otherwise, show model-only suggestions.
-    function detectBrandPrefix(typed){
-      if (!dealsSuggest.ready) return { brand: "", rest: typed };
-
-      const raw = String(typed || "").trim();
-      if (!raw) return { brand: "", rest: "" };
-
-      // Consider first token as brand prefix (nike, asics, saucony...)
-      const parts = raw.split(/\s+/).filter(Boolean);
-      if (!parts.length) return { brand: "", rest: raw };
-
-      const first = parts[0];
-      if (first.length < 2) return { brand: "", rest: raw };
-
-      const firstNorm = squashStr(first);
-      const matches = dealsSuggest.brands.filter(b => squashStr(b).startsWith(firstNorm));
-
-      if (matches.length === 1) {
-        const brand = matches[0];
-        const rest = raw.slice(parts[0].length).trim(); // remainder after first token
-        return { brand, rest };
+        return { brand: "", rest: raw };
       }
 
-      // If the user typed a full brand (with space), try closest exact on whole first token
-      const brandClosest = resolveClosestBrand(parts[0]);
-      if (brandClosest && dealsSuggest.brands.some(b => normalizeStr(b) === normalizeStr(brandClosest))) {
-        const rest = raw.slice(parts[0].length).trim();
-        return { brand: brandClosest, rest };
-      }
+      // ---------- Suggestions UI ----------
+      const suggestionState = { open: false, items: [], activeIndex: -1, mode: "model" };
 
-      return { brand: "", rest: raw };
-    }
-
-    // ---------- Suggestions UI ----------
-    const suggestionState = { open: false, items: [], activeIndex: -1, mode: "model" }; // mode: "model" | "brandmodel"
-
-    function closeSuggestions() {
-      if (!qSuggestions) return;
-      qSuggestions.style.display = "none";
-      qSuggestions.innerHTML = "";
-      suggestionState.open = false;
-      suggestionState.items = [];
-      suggestionState.activeIndex = -1;
-      suggestionState.mode = "model";
-    }
-
-    function renderSuggestions(items, onPick) {
-      if (!qSuggestions) return;
-      qSuggestions.innerHTML = "";
-
-      if (!items.length) {
+      function closeSuggestions() {
+        if (!qSuggestions) return;
         qSuggestions.style.display = "none";
+        qSuggestions.innerHTML = "";
         suggestionState.open = false;
         suggestionState.items = [];
         suggestionState.activeIndex = -1;
-        return;
+        suggestionState.mode = "model";
       }
 
-      suggestionState.open = true;
-      suggestionState.items = items.slice();
-      suggestionState.activeIndex = -1;
+      function renderSuggestions(items, onPick) {
+        if (!qSuggestions) return;
 
-      items.forEach((value, idx) => {
-        const div = document.createElement("div");
-        div.className = "suggestion-item";
-        div.textContent = value;
-        div.dataset.index = String(idx);
+        qSuggestions.innerHTML = "";
 
-        div.addEventListener("mousedown", (e) => {
-          e.preventDefault();
-          onPick(value);
+        if (!items.length) {
+          qSuggestions.style.display = "none";
+          suggestionState.open = false;
+          suggestionState.items = [];
+          suggestionState.activeIndex = -1;
+          return;
+        }
+
+        suggestionState.open = true;
+        suggestionState.items = items.slice();
+        suggestionState.activeIndex = -1;
+
+        items.forEach((value, idx) => {
+          const div = document.createElement("div");
+          div.className = "suggestion-item";
+          div.textContent = value;
+          div.dataset.index = String(idx);
+
+          div.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            onPick(value);
+          });
+
+          qSuggestions.appendChild(div);
         });
 
-        qSuggestions.appendChild(div);
-      });
-
-      qSuggestions.style.display = "block";
-    }
-
-    function highlightActive() {
-      if (!qSuggestions) return;
-      const children = Array.from(qSuggestions.querySelectorAll(".suggestion-item"));
-      children.forEach(el => el.classList.remove("active"));
-
-      if (suggestionState.activeIndex >= 0 && suggestionState.activeIndex < children.length) {
-        const active = children[suggestionState.activeIndex];
-        active.classList.add("active");
-
-        const box = qSuggestions;
-        const top = active.offsetTop;
-        const bottom = top + active.offsetHeight;
-        if (top < box.scrollTop) box.scrollTop = top;
-        else if (bottom > box.scrollTop + box.clientHeight) box.scrollTop = bottom - box.clientHeight;
-      }
-    }
-
-    function handleSuggestionKeys(e, onPick) {
-      if (!suggestionState.open) return;
-
-      const max = suggestionState.items.length;
-      if (!max) return;
-
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        suggestionState.activeIndex = (suggestionState.activeIndex + 1) % max;
-        highlightActive();
-        return;
+        qSuggestions.style.display = "block";
       }
 
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        suggestionState.activeIndex = (suggestionState.activeIndex - 1 + max) % max;
-        highlightActive();
-        return;
+      function highlightActive() {
+        if (!qSuggestions) return;
+        const children = Array.from(qSuggestions.querySelectorAll(".suggestion-item"));
+        children.forEach((el) => el.classList.remove("active"));
+
+        if (suggestionState.activeIndex >= 0 && suggestionState.activeIndex < children.length) {
+          const active = children[suggestionState.activeIndex];
+          active.classList.add("active");
+
+          const box = qSuggestions;
+          const top = active.offsetTop;
+          const bottom = top + active.offsetHeight;
+
+          if (top < box.scrollTop) box.scrollTop = top;
+          else if (bottom > box.scrollTop + box.clientHeight) box.scrollTop = bottom - box.clientHeight;
+        }
       }
 
-      if (e.key === "Enter") {
-        if (suggestionState.activeIndex >= 0 && suggestionState.activeIndex < max) {
+      function handleSuggestionKeys(e, onPick) {
+        if (!suggestionState.open) return;
+        const max = suggestionState.items.length;
+        if (!max) return;
+
+        if (e.key === "ArrowDown") {
           e.preventDefault();
-          const value = suggestionState.items[suggestionState.activeIndex];
-          onPick(value);
-        }
-        return;
-      }
-
-      if (e.key === "Escape") {
-        e.preventDefault();
-        closeSuggestions();
-        return;
-      }
-    }
-function sortShortFirst(arr){
-  return (arr || []).slice().sort((a,b) => {
-    const la = String(a||"").length;
-    const lb = String(b||"").length;
-    if (la !== lb) return la - lb;                 // shortest first
-    return String(a||"").localeCompare(String(b||"")); // then alphabetical
-  });
-}
-    function buildUnifiedSuggestions(typed){
-      if (!dealsSuggest.ready) return { items: [], mode: "model", brand: "" };
-
-      const t = String(typed || "").trim();
-      if (!t) return { items: [], mode: "model", brand: "" };
-
-      const { brand, rest } = detectBrandPrefix(t);
-
-// Brand context: suggest "Brand" first, then "Brand Model" shortest→longest
-if (brand) {
-  const pool = dealsSuggest.brandToModels.has(brand)
-    ? Array.from(dealsSuggest.brandToModels.get(brand).values())
-    : [];
-
-  // If user only typed the brand (no rest), show:
-  // Nike
-  // Nike Alphafly
-  // Nike Alphafly 2
-  // ...
-  if (!rest) {
-    const modelsShort = sortShortFirst(pool).slice(0, 11); // 11 because brand itself is #1
-    return {
-      items: [brand, ...modelsShort.map(m => `${brand} ${m}`)],
-      mode: "brandmodel",
-      brand,
-    };
-  }
-
-  // If they typed brand + something, rank matches, but prefer shorter on ties
-  const matches = filterSuggestions(pool, rest, 12);
-  const ordered = sortShortFirst(matches);
-
-  return {
-    items: ordered.map(m => `${brand} ${m}`),
-    mode: "brandmodel",
-    brand,
-  };
-}
-
-
-      // No brand context: suggest model-only
-      const matches = filterSuggestions(dealsSuggest.allModels, t, 12);
-      return { items: matches, mode: "model", brand: "" };
-    }
-
-    function splitBrandModelFromPicked(picked){
-      const s = String(picked || "").trim();
-      if (!s) return { brand: "", model: "" };
-
-      if (!dealsSuggest.ready) return { brand: "", model: s };
-
-      // Try to parse leading brand (exact match against known brands)
-      const parts = s.split(/\s+/).filter(Boolean);
-      if (!parts.length) return { brand: "", model: "" };
-
-      // Look for the longest brand that matches the prefix of the string
-      let bestBrand = "";
-      for (const b of dealsSuggest.brands) {
-        const bNorm = normalizeStr(b);
-        const sNorm = normalizeStr(s);
-        if (sNorm === bNorm || sNorm.startsWith(bNorm + " ")) {
-          if (b.length > bestBrand.length) bestBrand = b;
-        }
-      }
-
-      if (bestBrand) {
-        const model = s.slice(bestBrand.length).trim();
-        return { brand: bestBrand, model };
-      }
-
-      return { brand: "", model: s };
-    }
-
-    // Input handlers
-    if (qInput) {
-      qInput.addEventListener("input", () => {
-        const typed = qInput.value.trim();
-
-        if (!typed || typed.length < 1) {
-          closeSuggestions();
-          updateFetchReady();
+          suggestionState.activeIndex = (suggestionState.activeIndex + 1) % max;
+          highlightActive();
           return;
         }
 
-        if (!dealsSuggest.ready) {
-          closeSuggestions();
-          updateFetchReady();
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          suggestionState.activeIndex = (suggestionState.activeIndex - 1 + max) % max;
+          highlightActive();
           return;
         }
 
-        const built = buildUnifiedSuggestions(typed);
-        suggestionState.mode = built.mode;
+        if (e.key === "Enter") {
+          if (suggestionState.activeIndex >= 0 && suggestionState.activeIndex < max) {
+            e.preventDefault();
+            const value = suggestionState.items[suggestionState.activeIndex];
+            onPick(value);
+          }
+          return;
+        }
 
-        renderSuggestions(built.items, (value) => {
-          // If user picked "Brand Model" (brand context), keep as-is in input
-          // If user picked model-only, keep model in input, but we’ll resolve brand on submit.
-          const bm = splitBrandModelFromPicked(value);
+        if (e.key === "Escape") {
+          e.preventDefault();
+          closeSuggestions();
+        }
+      }
 
-          if (bm.brand && bm.model) {
-            qInput.value = `${bm.brand} ${bm.model}`.trim();
-          } else {
-            qInput.value = value; // model-only display
+      function sortShortFirst(arr) {
+        return (arr || []).slice().sort((a, b) => {
+          const la = String(a || "").length;
+          const lb = String(b || "").length;
+          if (la !== lb) return la - lb;
+          return String(a || "").localeCompare(String(b || ""));
+        });
+      }
+
+      function buildUnifiedSuggestions(typed) {
+        if (!dealsSuggest.ready) return { items: [], mode: "model", brand: "" };
+
+        const t = String(typed || "").trim();
+        if (!t) return { items: [], mode: "model", brand: "" };
+
+        const { brand, rest } = detectBrandPrefix(t);
+
+        if (brand) {
+          const pool = dealsSuggest.brandToModels.has(brand)
+            ? Array.from(dealsSuggest.brandToModels.get(brand).values())
+            : [];
+
+          if (!rest) {
+            const modelsShort = sortShortFirst(pool).slice(0, 11);
+            return {
+              items: [brand, ...modelsShort.map((m) => `${brand} ${m}`)],
+              mode: "brandmodel",
+              brand,
+            };
           }
 
-          closeSuggestions();
-          setTimeout(() => fetchBtn && fetchBtn.focus(), 0);
+          const matches = filterSuggestions(pool, rest, 12);
+          const ordered = sortShortFirst(matches);
+          return {
+            items: ordered.map((m) => `${brand} ${m}`),
+            mode: "brandmodel",
+            brand,
+          };
+        }
+
+        const matches = filterSuggestions(dealsSuggest.allModels, t, 12);
+        return { items: matches, mode: "model", brand: "" };
+      }
+
+      function splitBrandModelFromPicked(picked) {
+        const s = String(picked || "").trim();
+        if (!s) return { brand: "", model: "" };
+        if (!dealsSuggest.ready) return { brand: "", model: s };
+
+        // longest brand match
+        let bestBrand = "";
+        for (const b of dealsSuggest.brands) {
+          const bNorm = normalizeStr(b);
+          const sNorm = normalizeStr(s);
+          if (sNorm === bNorm || sNorm.startsWith(bNorm + " ")) {
+            if (b.length > bestBrand.length) bestBrand = b;
+          }
+        }
+
+        if (bestBrand) {
+          const model = s.slice(bestBrand.length).trim();
+          return { brand: bestBrand, model };
+        }
+
+        return { brand: "", model: s };
+      }
+
+      // Input handlers
+      if (qInput) {
+        qInput.addEventListener("input", () => {
+          const typed = qInput.value.trim();
+
+          if (!typed || typed.length < 1) {
+            closeSuggestions();
+            updateFetchReady();
+            return;
+          }
+
+          if (!dealsSuggest.ready) {
+            closeSuggestions();
+            updateFetchReady();
+            return;
+          }
+
+          const built = buildUnifiedSuggestions(typed);
+          suggestionState.mode = built.mode;
+
+          renderSuggestions(built.items, (value) => {
+            const bm = splitBrandModelFromPicked(value);
+            if (bm.brand && bm.model) qInput.value = `${bm.brand} ${bm.model}`.trim();
+            else qInput.value = value;
+
+            closeSuggestions();
+            setTimeout(() => fetchBtn && fetchBtn.focus(), 0);
+            updateFetchReady();
+          });
+
           updateFetchReady();
         });
 
-        updateFetchReady();
-      });
+        qInput.addEventListener("keydown", (e) => {
+          handleSuggestionKeys(e, (value) => {
+            const bm = splitBrandModelFromPicked(value);
+            if (bm.brand && bm.model) qInput.value = `${bm.brand} ${bm.model}`.trim();
+            else qInput.value = value;
 
-      qInput.addEventListener("keydown", (e) => {
-        handleSuggestionKeys(e, (value) => {
-          const bm = splitBrandModelFromPicked(value);
-          if (bm.brand && bm.model) qInput.value = `${bm.brand} ${bm.model}`.trim();
-          else qInput.value = value;
-          closeSuggestions();
-          setTimeout(() => fetchBtn && fetchBtn.focus(), 0);
-          updateFetchReady();
+            closeSuggestions();
+            setTimeout(() => fetchBtn && fetchBtn.focus(), 0);
+            updateFetchReady();
+          });
         });
+
+        qInput.addEventListener("blur", () => setTimeout(() => closeSuggestions(), 140));
+        qInput.addEventListener("click", () => qInput.select());
+      }
+
+      document.addEventListener("click", (e) => {
+        const inside =
+          (qSuggestions && qSuggestions.contains(e.target)) ||
+          (qInput && qInput.contains(e.target));
+        if (!inside) closeSuggestions();
       });
 
-      qInput.addEventListener("blur", () => setTimeout(() => closeSuggestions(), 140));
-      qInput.addEventListener("click", () => qInput.select());
-    }
-
-    document.addEventListener("click", (e) => {
-      const inside = (qSuggestions && qSuggestions.contains(e.target)) || (qInput && qInput.contains(e.target));
-      if (!inside) closeSuggestions();
-    });
-
-    function syncRibbonFromState(){
-      if (ribbonGender) ribbonGender.value = selectedGender || "";
-      if (ribbonType) ribbonType.value = selectedShoeType || "";
-      if (ribbonSort) ribbonSort.value = currentSort || "";
-    }
-
-    function totalPagesCount(total){
-      return Math.max(1, Math.ceil((Number(total) || 0) / PAGE_SIZE));
-    }
-
-    function updateNavUI(totalFiltered){
-      const pager = document.querySelector(".pager");
-
-      if (isMobilePortrait()){
-        if (pager) pager.style.display = "none";
-        const hasMore = ((pageIndex + 1) * PAGE_SIZE) < (Number(totalFiltered) || 0);
-        if (loadMoreWrap) loadMoreWrap.style.display = hasMore ? "flex" : "none";
-        return;
+      function syncRibbonFromState() {
+        if (ribbonGender) ribbonGender.value = selectedGender || "";
+        if (ribbonType) ribbonType.value = selectedShoeType || "";
+        if (ribbonSort) ribbonSort.value = currentSort || "";
       }
 
-      if (loadMoreWrap) loadMoreWrap.style.display = "none";
-
-      const pages = totalPagesCount(totalFiltered);
-      const current = Math.min(pageIndex + 1, pages);
-
-      if (pageLabelEl) pageLabelEl.textContent = `${current} of ${pages}`;
-      if (prevPageBtn) prevPageBtn.disabled = pageIndex <= 0;
-      if (nextPageBtn) nextPageBtn.disabled = (pageIndex + 1) >= pages;
-
-      if (pager) pager.style.display = (pages > 1) ? "flex" : "none";
-    }
-
-    // ===== Sort math helpers (price / % off / $ savings) =====
-    function toNum(x){
-      const n = Number(x);
-      return Number.isFinite(n) ? n : null;
-    }
-
-    function computePercentOff(item){
-      const sale = toNum(item.salePrice);
-      const orig = toNum(item.originalPrice);
-
-      if (sale != null && orig != null && orig > 0 && sale < orig) {
-        return ((orig - sale) / orig) * 100;
+      function totalPagesCount(total) {
+        return Math.max(1, Math.ceil((Number(total) || 0) / PAGE_SIZE));
       }
 
-      const pct = toNum(item.discountPercent);
-      if (pct != null && pct > 0 && pct < 100) return pct;
+      function updateNavUI(totalFiltered) {
+        const pager = document.querySelector(".pager");
 
-      return null;
-    }
-
-    function computeSavings(item){
-      const sale = toNum(item.salePrice);
-      const orig = toNum(item.originalPrice);
-      if (sale != null && orig != null && orig > sale) return (orig - sale);
-      return null;
-    }
-
-    function computePrice(item){
-      const sale = toNum(item.salePrice);
-      return sale;
-    }
-
-    function cmpNullsLast(a, b){
-      if (a == null && b == null) return 0;
-      if (a == null) return 1;
-      if (b == null) return -1;
-      return 0;
-    }
-
-    function applySort(items){
-      const mode = String(currentSort || "").trim();
-      if (!mode) return (items || []).slice();
-
-      const arr = (items || []).slice();
-
-      arr.sort((A, B) => {
-        if (mode === "price-asc" || mode === "price-desc"){
-          const a = computePrice(A), b = computePrice(B);
-          const nl = cmpNullsLast(a,b); if (nl) return nl;
-          return mode === "price-asc" ? (a - b) : (b - a);
+        if (isMobilePortrait()) {
+          if (pager) pager.style.display = "none";
+          const hasMore = (pageIndex + 1) * PAGE_SIZE < (Number(totalFiltered) || 0);
+          if (loadMoreWrap) loadMoreWrap.style.display = hasMore ? "flex" : "none";
+          return;
         }
 
-        if (mode === "pct-asc" || mode === "pct-desc"){
-          const a = computePercentOff(A), b = computePercentOff(B);
-          const nl = cmpNullsLast(a,b); if (nl) return nl;
-          return mode === "pct-asc" ? (a - b) : (b - a);
-        }
+        if (loadMoreWrap) loadMoreWrap.style.display = "none";
 
-        if (mode === "save-asc" || mode === "save-desc"){
-          const a = computeSavings(A), b = computeSavings(B);
-          const nl = cmpNullsLast(a,b); if (nl) return nl;
-          return mode === "save-asc" ? (a - b) : (b - a);
-        }
+        const pages = totalPagesCount(totalFiltered);
+        const current = Math.min(pageIndex + 1, pages);
 
+        if (pageLabelEl) pageLabelEl.textContent = `${current} of ${pages}`;
+        if (prevPageBtn) prevPageBtn.disabled = pageIndex <= 0;
+        if (nextPageBtn) nextPageBtn.disabled = pageIndex + 1 >= pages;
+
+        if (pager) pager.style.display = pages > 1 ? "flex" : "none";
+      }
+
+      // ===== Sort math helpers =====
+      function toNum(x) {
+        const n = Number(x);
+        return Number.isFinite(n) ? n : null;
+      }
+
+      function computePercentOff(item) {
+        const sale = toNum(item.salePrice);
+        const orig = toNum(item.originalPrice);
+        if (sale != null && orig != null && orig > 0 && sale < orig) {
+          return ((orig - sale) / orig) * 100;
+        }
+        const pct = toNum(item.discountPercent);
+        if (pct != null && pct > 0 && pct < 100) return pct;
+        return null;
+      }
+
+      function computeSavings(item) {
+        const sale = toNum(item.salePrice);
+        const orig = toNum(item.originalPrice);
+        if (sale != null && orig != null && orig > sale) return orig - sale;
+        return null;
+      }
+
+      function computePrice(item) {
+        return toNum(item.salePrice);
+      }
+
+      function cmpNullsLast(a, b) {
+        if (a == null && b == null) return 0;
+        if (a == null) return 1;
+        if (b == null) return -1;
         return 0;
-      });
-
-      return arr;
-    }
-
-    // ===== Filters: unified state =====
-    function applyFilters(items){
-      const gSel = norm(selectedGender);
-      const tSel = norm(selectedShoeType);
-
-      return (items || []).filter(item => {
-        const g = norm(item.gender);
-        const t = norm(item.shoeType);
-
-        const genderOk =
-          !gSel ||
-          g === gSel ||
-          g === "unisex" ||
-          g === "unknown" ||
-          g === "";
-
-        const typeOk =
-          !tSel ||
-          t === tSel ||
-          t === "unknown" ||
-          t === "";
-
-        return genderOk && typeOk;
-      });
-    }
-
-    function getFilteredAndSorted(items){
-      const filtered = applyFilters(items);
-      return applySort(filtered);
-    }
-
-    // ===== Discount badge helper =====
-    function getDiscountInfo(item) {
-      const current = Number(item.salePrice);
-      const original = Number(item.originalPrice);
-
-      if (Number.isFinite(current) && Number.isFinite(original) && original > 0 && current < original) {
-        const pct = Math.round(((original - current) / original) * 100);
-        return { hasDiscount: true, current: current.toFixed(2), original: original.toFixed(2), percent: pct };
       }
 
-      const pct2 = Number(item.discountPercent);
-      if (Number.isFinite(current) && Number.isFinite(pct2) && pct2 > 0 && pct2 < 100) {
-        const origGuess = current / (1 - pct2 / 100);
-        if (Number.isFinite(origGuess) && origGuess > current) {
-          return { hasDiscount: true, current: current.toFixed(2), original: origGuess.toFixed(2), percent: Math.round(pct2) };
-        }
-        return { hasDiscount: true, current: current.toFixed(2), original: "", percent: Math.round(pct2) };
-      }
+      function applySort(items) {
+        const mode = String(currentSort || "").trim();
+        if (!mode) return (items || []).slice();
 
-      return { hasDiscount: false };
-    }
+        const arr = (items || []).slice();
 
-    function renderFilteredResults({ resetPage = true, append = false } = {}) {
-      const sorted = getFilteredAndSorted(lastSearchResults);
+        arr.sort((A, B) => {
+          if (mode === "price-asc" || mode === "price-desc") {
+            const a = computePrice(A), b = computePrice(B);
+            const nl = cmpNullsLast(a, b);
+            if (nl) return nl;
+            return mode === "price-asc" ? a - b : b - a;
+          }
 
-      if (resetPage) pageIndex = 0;
+          if (mode === "pct-asc" || mode === "pct-desc") {
+            const a = computePercentOff(A), b = computePercentOff(B);
+            const nl = cmpNullsLast(a, b);
+            if (nl) return nl;
+            return mode === "pct-asc" ? a - b : b - a;
+          }
 
-      const start = pageIndex * PAGE_SIZE;
-      const slice = sorted.slice(start, start + PAGE_SIZE);
+          if (mode === "save-asc" || mode === "save-desc") {
+            const a = computeSavings(A), b = computeSavings(B);
+            const nl = cmpNullsLast(a, b);
+            if (nl) return nl;
+            return mode === "save-asc" ? a - b : b - a;
+          }
 
-      if (!append) resultsEl.innerHTML = "";
-      slice.forEach(item => resultsEl.appendChild(createDealCard(item)));
-
-      const displayQuery =
-        [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() ||
-        (qInput && qInput.value.trim() ? qInput.value.trim() : "all shoes");
-
-      if (!sorted.length) {
-        statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
-        updateNavUI(0);
-        return;
-      }
-
-      statusMessageEl.textContent =
-        `We found ${sorted.length} deal${sorted.length === 1 ? "" : "s"} on ${displayQuery} shoes.`;
-
-      updateNavUI(sorted.length);
-    }
-
-    function renderDailyDealsNow(){
-      if (!dailyDealsGrid) return;
-      if (!lastDailyDeals || !lastDailyDeals.length) return;
-
-      const sorted = getFilteredAndSorted(lastDailyDeals);
-
-      dailyDealsGrid.innerHTML = "";
-      sorted.forEach(item => dailyDealsGrid.appendChild(createDealCard(item)));
-
-      if (dailyDeals) dailyDeals.style.display = sorted.length ? "block" : "none";
-    }
-
-    // ===== Ribbon listeners =====
-    if (ribbonGender){
-      ribbonGender.addEventListener("change", () => {
-        selectedGender = norm(ribbonGender.value);
-        renderDailyDealsNow();
-        renderFilteredResults({ resetPage: true, append: false });
-      });
-    }
-
-    if (ribbonType){
-      ribbonType.addEventListener("change", () => {
-        selectedShoeType = norm(ribbonType.value);
-        renderDailyDealsNow();
-        renderFilteredResults({ resetPage: true, append: false });
-      });
-    }
-
-    if (ribbonSort){
-      ribbonSort.addEventListener("change", () => {
-        currentSort = String(ribbonSort.value || "").trim();
-        renderDailyDealsNow();
-        renderFilteredResults({ resetPage: true, append: false });
-      });
-    }
-
-    // ===== Paging / load more =====
-    if (loadMoreBtn) {
-      loadMoreBtn.addEventListener("click", () => {
-        const sorted = getFilteredAndSorted(lastSearchResults);
-        const total = sorted.length;
-
-        const hasMore = ((pageIndex + 1) * PAGE_SIZE) < total;
-        if (!hasMore) return;
-
-        pageIndex++;
-        renderFilteredResults({ resetPage: false, append: true });
-      });
-    }
-
-    if (prevPageBtn) {
-      prevPageBtn.addEventListener("click", () => {
-        if (pageIndex <= 0) return;
-
-        runPagerTransitionThen(() => {
-          pageIndex--;
-          renderFilteredResults({ resetPage: false, append: false });
-          resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+          return 0;
         });
-      });
-    }
 
-    if (nextPageBtn) {
-      nextPageBtn.addEventListener("click", () => {
+        return arr;
+      }
+
+      // ===== Filters =====
+      function applyFilters(items) {
+        const gSel = norm(selectedGender);
+        const tSel = norm(selectedShoeType);
+
+        return (items || []).filter((item) => {
+          const g = norm(item.gender);
+          const t = norm(item.shoeType);
+
+          const genderOk = !gSel || g === gSel || g === "unisex" || g === "unknown" || g === "";
+          const typeOk = !tSel || t === tSel || t === "unknown" || t === "";
+
+          return genderOk && typeOk;
+        });
+      }
+
+      function getFilteredAndSorted(items) {
+        const filtered = applyFilters(items);
+        return applySort(filtered);
+      }
+
+      // ===== Discount badge helper =====
+      function getDiscountInfo(item) {
+        const current = Number(item.salePrice);
+        const original = Number(item.originalPrice);
+
+        if (Number.isFinite(current) && Number.isFinite(original) && original > 0 && current < original) {
+          const pct = Math.round(((original - current) / original) * 100);
+          return {
+            hasDiscount: true,
+            current: current.toFixed(2),
+            original: original.toFixed(2),
+            percent: pct,
+          };
+        }
+
+        const pct2 = Number(item.discountPercent);
+        if (Number.isFinite(current) && Number.isFinite(pct2) && pct2 > 0 && pct2 < 100) {
+          const origGuess = current / (1 - pct2 / 100);
+          if (Number.isFinite(origGuess) && origGuess > current) {
+            return {
+              hasDiscount: true,
+              current: current.toFixed(2),
+              original: origGuess.toFixed(2),
+              percent: Math.round(pct2),
+            };
+          }
+          return { hasDiscount: true, current: current.toFixed(2), original: "", percent: Math.round(pct2) };
+        }
+
+        return { hasDiscount: false };
+      }
+
+      function renderFilteredResults({ resetPage = true, append = false } = {}) {
         const sorted = getFilteredAndSorted(lastSearchResults);
-        const pages = totalPagesCount(sorted.length);
-        if (pageIndex >= pages - 1) return;
 
-        runPagerTransitionThen(() => {
+        if (resetPage) pageIndex = 0;
+
+        const start = pageIndex * PAGE_SIZE;
+        const slice = sorted.slice(start, start + PAGE_SIZE);
+
+        if (!append) resultsEl.innerHTML = "";
+        slice.forEach((item) => resultsEl.appendChild(createDealCard(item)));
+
+        const displayQuery =
+          [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() ||
+          (qInput && qInput.value.trim() ? qInput.value.trim() : "all shoes");
+
+        if (!sorted.length) {
+          statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
+          updateNavUI(0);
+          return;
+        }
+
+        statusMessageEl.textContent = `We found ${sorted.length} deal${sorted.length === 1 ? "" : "s"} on ${displayQuery} shoes.`;
+        updateNavUI(sorted.length);
+      }
+
+      function renderDailyDealsNow() {
+        if (!dailyDealsGrid) return;
+        if (!lastDailyDeals || !lastDailyDeals.length) return;
+
+        const sorted = getFilteredAndSorted(lastDailyDeals);
+
+        dailyDealsGrid.innerHTML = "";
+        sorted.forEach((item) => dailyDealsGrid.appendChild(createDealCard(item)));
+
+        if (dailyDeals) dailyDeals.style.display = sorted.length ? "block" : "none";
+      }
+
+      // ===== Ribbon listeners =====
+      if (ribbonGender) {
+        ribbonGender.addEventListener("change", () => {
+          selectedGender = norm(ribbonGender.value);
+          renderDailyDealsNow();
+          renderFilteredResults({ resetPage: true, append: false });
+        });
+      }
+
+      if (ribbonType) {
+        ribbonType.addEventListener("change", () => {
+          selectedShoeType = norm(ribbonType.value);
+          renderDailyDealsNow();
+          renderFilteredResults({ resetPage: true, append: false });
+        });
+      }
+
+      if (ribbonSort) {
+        ribbonSort.addEventListener("change", () => {
+          currentSort = String(ribbonSort.value || "").trim();
+          renderDailyDealsNow();
+          renderFilteredResults({ resetPage: true, append: false });
+        });
+      }
+
+      // ===== Paging / load more =====
+      if (loadMoreBtn) {
+        loadMoreBtn.addEventListener("click", () => {
+          const sorted = getFilteredAndSorted(lastSearchResults);
+          const total = sorted.length;
+          const hasMore = (pageIndex + 1) * PAGE_SIZE < total;
+          if (!hasMore) return;
+
           pageIndex++;
-          renderFilteredResults({ resetPage: false, append: false });
-          resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+          renderFilteredResults({ resetPage: false, append: true });
         });
-      });
-    }
-
-    function createDealCard(item) {
-      const discount = getDiscountInfo(item);
-
-      const card = document.createElement("div");
-      card.className = "card";
-
-      const link = document.createElement("a");
-      link.className = "card-link";
-
-      const listingUrl = item.listingURL;
-      const safeLink = isValidRetailerUrl(listingUrl) ? listingUrl : "#";
-      if (safeLink === "#" && listingUrl) console.warn("Blocked untrusted retailer URL:", listingUrl);
-
-      link.href = safeLink;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-
-      const imgWrapper = document.createElement("div");
-      imgWrapper.className = "card-image-wrapper";
-
-      const img = document.createElement("img");
-      img.src = item.imageURL ? item.imageURL : "https://placehold.co/600x400?text=Running+Shoe";
-      img.alt = (item.brand && item.model) ? `${item.brand} ${item.model}` : (item.model || item.brand || "Running shoe deal");
-      imgWrapper.appendChild(img);
-
-      if (discount.hasDiscount) {
-        const badge = document.createElement("div");
-        badge.className = "discount-badge";
-        badge.textContent = `${discount.percent}% OFF`;
-        imgWrapper.appendChild(badge);
       }
 
-      const gRaw = norm(item.gender);
-      const tRaw = norm(item.shoeType);
+      if (prevPageBtn) {
+        prevPageBtn.addEventListener("click", () => {
+          if (pageIndex <= 0) return;
 
-      const g = (gRaw && gRaw !== "unknown") ? gRaw : "";
-      const t = (tRaw && tRaw !== "unknown") ? tRaw : "";
-
-      const tagWrap = document.createElement("div");
-      tagWrap.className = "card-tags";
-
-      let hasAnyTag = false;
-
-      if (g) {
-        const genderTag = document.createElement("span");
-        genderTag.className = "card-tag";
-        genderTag.textContent = g === "mens" ? "Mens" : g === "womens" ? "Womens" : "Unisex";
-        tagWrap.appendChild(genderTag);
-        hasAnyTag = true;
+          runPagerTransitionThen(() => {
+            pageIndex--;
+            renderFilteredResults({ resetPage: false, append: false });
+            resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        });
       }
 
-      if (t) {
-        const typeTag = document.createElement("span");
-        typeTag.className = "card-tag";
-        typeTag.textContent =
-          t === "road" ? "Road" :
-          t === "trail" ? "Trail" :
-          t === "track" ? "Spikes" : (item.shoeType || "");
-        tagWrap.appendChild(typeTag);
-        hasAnyTag = true;
+      if (nextPageBtn) {
+        nextPageBtn.addEventListener("click", () => {
+          const sorted = getFilteredAndSorted(lastSearchResults);
+          const pages = totalPagesCount(sorted.length);
+          if (pageIndex >= pages - 1) return;
+
+          runPagerTransitionThen(() => {
+            pageIndex++;
+            renderFilteredResults({ resetPage: false, append: false });
+            resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        });
       }
 
-      if (hasAnyTag) imgWrapper.appendChild(tagWrap);
+      function createDealCard(item) {
+        const discount = getDiscountInfo(item);
 
-      link.appendChild(imgWrapper);
+        const card = document.createElement("div");
+        card.className = "card";
 
-      const contentDiv = document.createElement("div");
-      contentDiv.className = "card-content";
+        const link = document.createElement("a");
+        link.className = "card-link";
 
-      const titleDiv = document.createElement("div");
-      titleDiv.className = "card-title";
+        const listingUrl = item.listingURL;
+        const safeLink = isValidRetailerUrl(listingUrl) ? listingUrl : "#";
+        if (safeLink === "#" && listingUrl) console.warn("Blocked untrusted retailer URL:", listingUrl);
 
-      const brand = (item.brand || "").trim();
-      const model = (item.model || "").trim();
+        link.href = safeLink;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
 
-      if (brand && model) {
-        titleDiv.innerHTML = `<strong style="text-transform: uppercase;">${brand}</strong><br>${model}`;
-      } else if (brand) {
-        titleDiv.innerHTML = `<strong style="text-transform: uppercase;">${brand}</strong>`;
-      } else if (model) {
-        titleDiv.textContent = model;
-      } else {
-        titleDiv.textContent = "Deal";
+        const imgWrapper = document.createElement("div");
+        imgWrapper.className = "card-image-wrapper";
+
+        const img = document.createElement("img");
+        img.src = item.imageURL ? item.imageURL : "https://placehold.co/600x400?text=Running+Shoe";
+        img.alt = item.brand && item.model
+          ? `${item.brand} ${item.model}`
+          : (item.model || item.brand || "Running shoe deal");
+
+        imgWrapper.appendChild(img);
+
+        if (discount.hasDiscount) {
+          const badge = document.createElement("div");
+          badge.className = "discount-badge";
+          badge.textContent = `${discount.percent}% OFF`;
+          imgWrapper.appendChild(badge);
+        }
+
+        const gRaw = norm(item.gender);
+        const tRaw = norm(item.shoeType);
+        const g = gRaw && gRaw !== "unknown" ? gRaw : "";
+        const t = tRaw && tRaw !== "unknown" ? tRaw : "";
+
+        const tagWrap = document.createElement("div");
+        tagWrap.className = "card-tags";
+
+        let hasAnyTag = false;
+
+        if (g) {
+          const genderTag = document.createElement("span");
+          genderTag.className = "card-tag";
+          genderTag.textContent = g === "mens" ? "Mens" : g === "womens" ? "Womens" : "Unisex";
+          tagWrap.appendChild(genderTag);
+          hasAnyTag = true;
+        }
+
+        if (t) {
+          const typeTag = document.createElement("span");
+          typeTag.className = "card-tag";
+          typeTag.textContent =
+            t === "road" ? "Road" :
+            t === "trail" ? "Trail" :
+            t === "track" ? "Spikes" :
+            (item.shoeType || "");
+          tagWrap.appendChild(typeTag);
+          hasAnyTag = true;
+        }
+
+        if (hasAnyTag) imgWrapper.appendChild(tagWrap);
+
+        link.appendChild(imgWrapper);
+
+        const contentDiv = document.createElement("div");
+        contentDiv.className = "card-content";
+
+        const titleDiv = document.createElement("div");
+        titleDiv.className = "card-title";
+
+        const brand = (item.brand || "").trim();
+        const model = (item.model || "").trim();
+
+        if (brand && model) {
+          titleDiv.innerHTML = `<strong style="text-transform: uppercase;">${brand}</strong><br>${model}`;
+        } else if (brand) {
+          titleDiv.innerHTML = `<strong style="text-transform: uppercase;">${brand}</strong>`;
+        } else if (model) {
+          titleDiv.textContent = model;
+        } else {
+          titleDiv.textContent = "Deal";
+        }
+
+        contentDiv.appendChild(titleDiv);
+
+        if (item.store) {
+          const storeDiv = document.createElement("div");
+          storeDiv.className = "card-store";
+          storeDiv.textContent = item.store;
+          contentDiv.appendChild(storeDiv);
+        }
+
+        const priceRow = document.createElement("div");
+        priceRow.className = "card-price-row";
+
+        const priceSpan = document.createElement("span");
+        priceSpan.className = "price";
+
+        const currentPrice = Number(item.salePrice);
+        if (Number.isFinite(currentPrice)) priceSpan.textContent = `$${currentPrice.toFixed(2)}`;
+        else priceSpan.textContent = item.salePrice != null ? String(item.salePrice) : "—";
+
+        priceRow.appendChild(priceSpan);
+
+        if (discount.hasDiscount && discount.original) {
+          const origSpan = document.createElement("span");
+          origSpan.className = "card-original-price";
+          origSpan.textContent = `$${discount.original}`;
+          priceRow.appendChild(origSpan);
+        }
+
+        contentDiv.appendChild(priceRow);
+
+        link.appendChild(contentDiv);
+        card.appendChild(link);
+
+        return card;
       }
 
-      contentDiv.appendChild(titleDiv);
+      async function loadDailyDeals() {
+        try {
+          const url = blobUrl("twelve_daily_deals.json");
+          const res = await fetch(
+            `${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`,
+            { cache: "no-store" }
+          );
 
-      if (item.store) {
-        const storeDiv = document.createElement("div");
-        storeDiv.className = "card-store";
-        storeDiv.textContent = item.store;
-        contentDiv.appendChild(storeDiv);
-      }
+          if (!res.ok) {
+            console.error("Failed to fetch daily deals:", res.status, res.statusText);
+            if (dailyDeals) dailyDeals.style.display = "none";
+            return;
+          }
 
-      const priceRow = document.createElement("div");
-      priceRow.className = "card-price-row";
+          const data = await res.json();
+          const deals = Array.isArray(data.deals) ? data.deals : [];
 
-      const priceSpan = document.createElement("span");
-      priceSpan.className = "price";
+          lastDailyDeals = deals.slice();
 
-      const currentPrice = Number(item.salePrice);
-      if (Number.isFinite(currentPrice)) priceSpan.textContent = `$${currentPrice.toFixed(2)}`;
-      else priceSpan.textContent = item.salePrice != null ? String(item.salePrice) : "—";
+          if (!deals.length) {
+            if (dailyDeals) dailyDeals.style.display = "none";
+            return;
+          }
 
-      priceRow.appendChild(priceSpan);
-
-      if (discount.hasDiscount && discount.original) {
-        const origSpan = document.createElement("span");
-        origSpan.className = "card-original-price";
-        origSpan.textContent = `$${discount.original}`;
-        priceRow.appendChild(origSpan);
-      }
-
-      contentDiv.appendChild(priceRow);
-      link.appendChild(contentDiv);
-
-      card.appendChild(link);
-      return card;
-    }
-
-async function loadDailyDeals() {
-  try {
-    const url = blobUrl("twelve_daily_deals.json");
-    const res = await fetch(
-      `${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`,
-      { cache: "no-store" }
-    );
-
-
-        if (!res.ok) {
-          console.error("Failed to fetch daily deals:", res.status, res.statusText);
+          renderDailyDealsNow();
+          if (dailyDeals) dailyDeals.style.display = "block";
+        } catch (err) {
+          console.error("Error loading daily deals:", err);
           if (dailyDeals) dailyDeals.style.display = "none";
+        }
+      }
+
+      loadDailyDeals();
+      loadDealsSuggestionIndex();
+
+      // ===== To top (mobile portrait) =====
+      function updateToTopVisibility() {
+        if (!toTopBtn) return;
+        if (!isMobilePortrait()) {
+          toTopBtn.classList.remove("is-visible");
+          return;
+        }
+        if (window.scrollY > 250) toTopBtn.classList.add("is-visible");
+        else toTopBtn.classList.remove("is-visible");
+      }
+
+      window.addEventListener("scroll", updateToTopVisibility, { passive: true });
+      window.addEventListener("resize", updateToTopVisibility);
+      updateToTopVisibility();
+
+      if (toTopBtn) {
+        toTopBtn.addEventListener("click", () => {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+      }
+
+      // ===== Mobile input expand/shrink =====
+      function expandInputs() {
+        if (!appEl) return;
+        if (!isMobilePortrait()) return;
+        appEl.classList.add("inputs-expanded");
+      }
+
+      function shrinkInputs() {
+        if (!appEl) return;
+        if (!isMobilePortrait()) return;
+
+        const input = qInput;
+        setTimeout(() => {
+          const stillFocused = document.activeElement === input;
+          const anyText = input && (input.value || "").trim().length > 0;
+          if (stillFocused) return;
+          if (anyText) return;
+          appEl.classList.remove("inputs-expanded");
+        }, 0);
+      }
+
+      if (qInput) qInput.addEventListener("focus", expandInputs);
+      if (qInput) qInput.addEventListener("blur", shrinkInputs);
+
+      document.addEventListener("focusin", () => {
+        if (!isMobilePortrait()) return;
+        const active = document.activeElement;
+        const inInputs = active === qInput;
+        if (!inInputs) shrinkInputs();
+      });
+
+      // ---- Submit ----
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        shrinkInputs();
+
+        const typedRaw = sanitizeInput(qInput.value);
+        updateFetchReady();
+
+        if (!typedRaw) {
+          statusMessageEl.textContent = "Please enter a brand and/or a model.";
           return;
         }
 
-        const data = await res.json();
-        const deals = Array.isArray(data.deals) ? data.deals : [];
-        lastDailyDeals = deals.slice();
+        // Parse typed into brand/model if possible
+        let { brand, model } = splitBrandModelFromPicked(typedRaw);
 
-        if (!deals.length) {
-          if (dailyDeals) dailyDeals.style.display = "none";
+        // If brand missing, try infer from model
+        if (!brand && model && dealsSuggest.ready) {
+          const exactBrand = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(model)) || "";
+          const inferred = exactBrand || inferDefinitiveBrandFromPartialModel(model);
+          if (inferred) brand = inferred;
+        }
+
+        // Canonicalize brand spelling
+        if (brand) brand = resolveClosestBrand(brand);
+
+        const displayQuery = [brand, model].filter(Boolean).join(" ").trim();
+        if (!displayQuery) {
+          statusMessageEl.textContent = "Please enter a brand and/or a model.";
           return;
         }
 
-        renderDailyDealsNow();
-        if (dailyDeals) dailyDeals.style.display = "block";
-      } catch (err) {
-        console.error("Error loading daily deals:", err);
-        if (dailyDeals) dailyDeals.style.display = "none";
-      }
-    }
+        currentSearch = { brand, model };
+        statusMessageEl.textContent = "Searching deals…";
+        resultsEl.innerHTML = "";
 
-    loadDailyDeals();
-
-    // Build suggestions from deals.json (main page)
-    loadDealsSuggestionIndex();
-
-    function updateToTopVisibility(){
-      if (!toTopBtn) return;
-
-      if (!isMobilePortrait()){
-        toTopBtn.classList.remove("is-visible");
-        return;
-      }
-
-      if (window.scrollY > 250)
-        toTopBtn.classList.add("is-visible");
-      else
-        toTopBtn.classList.remove("is-visible");
-    }
-
-    window.addEventListener("scroll", updateToTopVisibility, { passive: true });
-    window.addEventListener("resize", updateToTopVisibility);
-    updateToTopVisibility();
-
-    if (toTopBtn){
-      toTopBtn.addEventListener("click", () => {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      });
-    }
-
-    function expandInputs(){
-      if (!appEl) return;
-      if (!isMobilePortrait()) return;
-      appEl.classList.add("inputs-expanded");
-    }
-
-    function shrinkInputs(){
-      if (!appEl) return;
-      if (!isMobilePortrait()) return;
-
-      const input = qInput;
-
-      setTimeout(() => {
-        const stillFocused = (document.activeElement === input);
-        const anyText = (input && (input.value || "").trim().length > 0);
-
-        if (stillFocused) return;
-        if (anyText) return;
-
-        appEl.classList.remove("inputs-expanded");
-      }, 0);
-    }
-
-    if (qInput) qInput.addEventListener("focus", expandInputs);
-    if (qInput) qInput.addEventListener("blur", shrinkInputs);
-
-    document.addEventListener("focusin", () => {
-      if (!isMobilePortrait()) return;
-      const active = document.activeElement;
-      const inInputs = (active === qInput);
-      if (!inInputs) shrinkInputs();
-    });
-
-    // ---- Submit (resolve to brand+model when possible) ----
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      shrinkInputs();
-
-      const typedRaw = sanitizeInput(qInput.value);
-      updateFetchReady();
-
-      if (!typedRaw) {
-        statusMessageEl.textContent = "Please enter a brand and/or a model.";
-        return;
-      }
-
-      // Parse typed into brand/model if possible
-      let { brand, model } = splitBrandModelFromPicked(typedRaw);
-
-      // If brand is missing, try to infer from model (definitive only)
-      if (!brand && model && dealsSuggest.ready) {
-        const exactBrand = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(model)) || "";
-        const inferred = exactBrand || inferDefinitiveBrandFromPartialModel(model);
-        if (inferred) brand = inferred;
-      }
-
-      // Clean brand spelling to canonical (when present)
-      if (brand) brand = resolveClosestBrand(brand);
-
-      // Final query string sent to API
-      const displayQuery = [brand, model].filter(Boolean).join(" ").trim();
-      if (!displayQuery) {
-        statusMessageEl.textContent = "Please enter a brand and/or a model.";
-        return;
-      }
-
-      currentSearch = { brand, model };
-
-      statusMessageEl.textContent = "Searching deals…";
-      resultsEl.innerHTML = "";
-
-      const pager = document.querySelector(".pager");
-      if (pager) pager.style.display = "none";
-      if (loadMoreWrap) loadMoreWrap.style.display = "none";
-      if (dailyDeals) dailyDeals.style.display = "none";
-
-      let data;
-      try {
-        const res = await fetch("/api/search?" + new URLSearchParams({ query: displayQuery }));
-        data = await res.json();
-      } catch (err) {
-        console.error("Search error:", err);
-        statusMessageEl.textContent = "Search failed. Please try again.";
-        if (dailyDeals) dailyDeals.style.display = "block";
-        return;
-      }
-
-      const results = (data && data.results) ? data.results : [];
-      lastSearchResults = results;
-
-      // Reset filters + sort on new search
-      selectedGender = "";
-      selectedShoeType = "";
-      currentSort = "";
-      syncRibbonFromState();
-
-      if (!results.length) {
-        statusMessageEl.textContent = `No results found for ${displayQuery}.`;
+        const pager = document.querySelector(".pager");
         if (pager) pager.style.display = "none";
         if (loadMoreWrap) loadMoreWrap.style.display = "none";
-        if (dailyDeals) dailyDeals.style.display = "block";
-        return;
-      }
+        if (dailyDeals) dailyDeals.style.display = "none";
 
-      renderFilteredResults({ resetPage: true, append: false });
-    });
+        let data;
+        try {
+          const res = await fetch("/api/search?" + new URLSearchParams({ query: displayQuery }));
+          data = await res.json();
+        } catch (err) {
+          console.error("Search error:", err);
+          statusMessageEl.textContent = "Search failed. Please try again.";
+          if (dailyDeals) dailyDeals.style.display = "block";
+          return;
+        }
 
-    if (qInput) qInput.addEventListener("input", updateFetchReady);
-  })();
+        const results = data && data.results ? data.results : [];
+        lastSearchResults = results;
+
+        // Reset filters + sort on new search
+        selectedGender = "";
+        selectedShoeType = "";
+        currentSort = "";
+        syncRibbonFromState();
+
+        if (!results.length) {
+          statusMessageEl.textContent = `No results found for ${displayQuery}.`;
+          if (pager) pager.style.display = "none";
+          if (loadMoreWrap) loadMoreWrap.style.display = "none";
+          if (dailyDeals) dailyDeals.style.display = "block";
+          return;
+        }
+
+        renderFilteredResults({ resetPage: true, append: false });
+      });
+
+      if (qInput) qInput.addEventListener("input", updateFetchReady);
+    })();
   </script>
 
   <!-- ===== Set Alert Modal (drop-in) ===== -->
@@ -1458,18 +1363,39 @@ async function loadDailyDeals() {
         <!-- FORM VIEW -->
         <div id="sbAlertFormView">
           <div class="sb-input-wrap">
-            <input class="sb-input" type="email" id="sbAlertEmail" placeholder="your@email.com" required autocomplete="email">
+            <input
+              class="sb-input"
+              type="email"
+              id="sbAlertEmail"
+              placeholder="your@email.com"
+              required
+              autocomplete="email"
+            />
             <button type="button" class="sb-clear" data-clear="#sbAlertEmail" aria-label="Clear email">×</button>
           </div>
 
           <div class="sb-input-wrap">
-            <input class="sb-input" type="text" id="sbAlertBrand" placeholder="Enter shoe brand..." autocomplete="off" required>
+            <input
+              class="sb-input"
+              type="text"
+              id="sbAlertBrand"
+              placeholder="Enter shoe brand..."
+              autocomplete="off"
+              required
+            />
             <button type="button" class="sb-clear" data-clear="#sbAlertBrand" aria-label="Clear brand">×</button>
             <div id="sbBrandSug" class="sb-sug" hidden></div>
           </div>
 
           <div class="sb-input-wrap">
-            <input class="sb-input" type="text" id="sbAlertModel" placeholder="Enter shoe model..." autocomplete="off" required>
+            <input
+              class="sb-input"
+              type="text"
+              id="sbAlertModel"
+              placeholder="Enter shoe model..."
+              autocomplete="off"
+              required
+            />
             <button type="button" class="sb-clear" data-clear="#sbAlertModel" aria-label="Clear model">×</button>
             <div id="sbModelSug" class="sb-sug" hidden></div>
           </div>
@@ -1481,6 +1407,7 @@ async function loadDailyDeals() {
                   <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
                   <span class="sb-gender-label">Women’s</span>
                 </div>
+
                 <div class="sb-gender-option" data-g="mens" role="radio" aria-checked="false" tabindex="0">
                   <span class="sb-gender-box"><span class="sb-gender-check">✓</span></span>
                   <span class="sb-gender-label">Men’s</span>
@@ -1491,16 +1418,24 @@ async function loadDailyDeals() {
             <div class="sb-col sb-price-col">
               <div class="sb-price-wrap">
                 <span class="sb-dollar">$</span>
-                <input class="sb-input sb-price"
-                       type="text"
-                       id="sbAlertPrice"
-                       placeholder="Enter whole dollars."
-                       inputmode="numeric"
-                       autocomplete="off"
-                       aria-label="Target price in whole dollars"
-                       required>
-
-                <button type="button" class="sb-clear sb-clear-price" data-clear="#sbAlertPrice" aria-label="Clear price">×</button>
+                <input
+                  class="sb-input sb-price"
+                  type="text"
+                  id="sbAlertPrice"
+                  placeholder="Enter whole dollars."
+                  inputmode="numeric"
+                  autocomplete="off"
+                  aria-label="Target price in whole dollars"
+                  required
+                />
+                <button
+                  type="button"
+                  class="sb-clear sb-clear-price"
+                  data-clear="#sbAlertPrice"
+                  aria-label="Clear price"
+                >
+                  ×
+                </button>
               </div>
             </div>
           </div>
@@ -1522,7 +1457,8 @@ async function loadDailyDeals() {
           <div class="sb-confirm-title">✓ Alert Set Successfully!</div>
           <div id="sbConfirmDetails" class="sb-confirm-details"></div>
           <div class="sb-confirm-msg">
-            You’ll receive a confirmation email shortly. If we find your shoes at or below your target price, we’ll email you immediately. This alert expires in 30 days.
+            You’ll receive a confirmation email shortly. If we find your shoes at or below your
+            target price, we’ll email you immediately. This alert expires in 30 days.
           </div>
           <button type="button" class="sb-submit sb-secondary" id="sbSetAnother">Set Another Alert</button>
         </div>
@@ -1531,9 +1467,12 @@ async function loadDailyDeals() {
         <div id="sbMaxed" class="sb-confirm" hidden>
           <div class="sb-confirm-title">Alert Limit Reached</div>
           <div class="sb-confirm-details" style="border-color: rgba(220,53,69,0.35);">
-            <div style="font-weight:800; color:#214478ff; margin-bottom:6px;">You’ve reached the maximum number of alerts.</div>
+            <div style="font-weight:800; color:#214478ff; margin-bottom:6px;">
+              You’ve reached the maximum number of alerts.
+            </div>
             <div style="line-height:1.45;">
-              If you want to set another alert, open your confirmation email and use the secure link inside it to remove an existing alert first.
+              If you want to set another alert, open your confirmation email and use the secure link
+              inside it to remove an existing alert first.
             </div>
           </div>
           <button type="button" class="sb-submit sb-secondary" id="sbMaxedClose">Close</button>
@@ -1543,573 +1482,659 @@ async function loadDailyDeals() {
   </div>
 
   <!-- ===== Modal controller (ORDER ENFORCED) ===== -->
-<script>
-(() => {
-  const openers = document.querySelectorAll("[data-open-alert]");
-
-  const backdrop = document.getElementById("sbAlertBackdrop");
-  const closeBtn = document.getElementById("sbAlertClose");
-  const form = document.getElementById("sbSetAlertForm");
-
-  const formView = document.getElementById("sbAlertFormView");
-  const confirmBox = document.getElementById("sbConfirm");
-  const confirmDetails = document.getElementById("sbConfirmDetails");
-  const setAnother = document.getElementById("sbSetAnother");
-
-  const maxedBox = document.getElementById("sbMaxed");
-  const maxedClose = document.getElementById("sbMaxedClose");
-
-  const emailEl = document.getElementById("sbAlertEmail");
-  const brandEl = document.getElementById("sbAlertBrand");
-  const modelEl = document.getElementById("sbAlertModel");
-  const priceEl = document.getElementById("sbAlertPrice");
-
-  const brandSug = document.getElementById("sbBrandSug");
-  const modelSug = document.getElementById("sbModelSug");
-
-  const genderWrap = document.getElementById("sbGender");
-  const btn = document.getElementById("sbSetAlertBtn");
-  const status = document.getElementById("sbStatus");
-
-  const API_ALERTS = "/api/alerts";
-
-  const brandModels = window.brandModels || {};
-  const brands = Object.keys(brandModels).sort((a,b) => a.localeCompare(b));
-
-  if (!backdrop || !closeBtn || !form || !emailEl || !brandEl || !modelEl || !priceEl || !genderWrap || !btn) return;
-
-  let lastFocus = null;
-  let busy = false;
-  let selectedGender = "";
-
-  // ---------- tiny helpers ----------
-  function setBusy(v){
-    busy = v;
-    btn.disabled = v;
-    btn.textContent = v ? "Setting..." : "Set Alert";
-  }
-
-  function hideStatus(){
-    if (!status) return;
-    status.hidden = true;
-    status.textContent = "";
-    status.className = "sb-status";
-  }
-
-  function showStatus(msg, ok=false){
-    if (!status) return;
-    status.hidden = false;
-    status.className = "sb-status " + (ok ? "ok" : "err");
-    status.textContent = msg;
-  }
-
-  function sanitize(str){
-    return String(str||"")
-      .replace(/[<>'"]/g, "")
-      .replace(/script/gi, "")
-      .replace(/javascript:/gi, "")
-      .replace(/on\w+=/gi, "")
-      .trim()
-      .slice(0, 100);
-  }
-
-  function esc(s){
-    return String(s||"")
-      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
-  }
-
-  function normalizeWholeDollars(v){
-    let s = String(v || "").replace(/[^0-9]/g, "");
-    s = s.replace(/^0+(?=\d)/, "");
-    if (!s) s = "";
-    return s.slice(0, 4);
-  }
-
-  function resolveBrandKey(input){
-    const n = String(input||"").trim().toLowerCase();
-    return brands.find(b => String(b).trim().toLowerCase() === n) || "";
-  }
-
-  function toggleClear(input){
-    const wrap = input.closest(".sb-input-wrap");
-    if (!wrap) return;
-    const c = wrap.querySelector(".sb-clear");
-    if (!c) return;
-    c.style.display = input.value.trim() ? "flex" : "none";
-  }
-
-  function wrapOf(el){ return el ? el.closest(".sb-input-wrap") : null; }
-  const emailWrap = wrapOf(emailEl);
-  const brandWrap = wrapOf(brandEl);
-  const modelWrap = wrapOf(modelEl);
-  const priceWrap = priceEl ? priceEl.closest(".sb-price-wrap") : null;
-
-  function clearNextHighlight(){
-    [emailWrap, brandWrap, modelWrap].forEach(w => w && w.classList.remove("sb-next"));
-    if (genderWrap) genderWrap.classList.remove("sb-next");
-    if (priceWrap) priceWrap.classList.remove("sb-next");
-  }
-
-  function markNext(target){
-    clearNextHighlight();
-    if (!target) return;
-    if (target === "email" && emailWrap) emailWrap.classList.add("sb-next");
-    if (target === "brand" && brandWrap) brandWrap.classList.add("sb-next");
-    if (target === "model" && modelWrap) modelWrap.classList.add("sb-next");
-    if (target === "gender" && genderWrap) genderWrap.classList.add("sb-next");
-    if (target === "price" && priceWrap) priceWrap.classList.add("sb-next");
-  }
-
-  function setGender(g){
-    selectedGender = String(g || "");
-    const opts = genderWrap.querySelectorAll(".sb-gender-option");
-    opts.forEach(o => {
-      const on = (o.getAttribute("data-g") || "") === selectedGender;
-      o.classList.toggle("active", on);
-      o.setAttribute("aria-checked", on ? "true" : "false");
-    });
-  }
-
-  function setEnabled(el, on){
-    if (!el) return;
-    el.disabled = !on;
-    if (!on) {
-      el.value = "";
-      toggleClear(el);
-    }
-  }
-
-  // ---------- suggestions ----------
-  const S = { open: null, items: [], idx: -1 };
-  const squash = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g, "");
-
-  function score(cand, q){
-    const c = String(cand||"");
-    const cl = c.toLowerCase();
-    q = String(q||"").trim().toLowerCase();
-    if (!q) return 0;
-    const cs = squash(c), qs = squash(q);
-    let s = 0;
-    if (cl.startsWith(q)) s += 120;
-    if (cl.includes(q)) s += 80;
-    if (qs.length >= 3 && cs.includes(qs)) s += 110;
-    s -= Math.min(c.length, 30) * 0.25;
-    return s;
-  }
-
-  function topMatches(list, typed, limit=10){
-    const q = String(typed||"").trim();
-    if (!q) return [];
-    return list
-      .map(v => ({ v, s: score(v, q) }))
-      .filter(x => x.s > 0)
-      .sort((a,b) => b.s - a.s)
-      .slice(0, limit)
-      .map(x => x.v);
-  }
-
-  function renderSug(box, items, which, onPick){
-    box.innerHTML = "";
-    if (!items.length){
-      box.hidden = true;
-      if (S.open === which) S.open = null;
-      return;
-    }
-    S.open = which; S.items = items; S.idx = -1;
-    items.forEach((v) => {
-      const d = document.createElement("div");
-      d.className = "item";
-      d.textContent = v;
-      d.addEventListener("mousedown", (e) => { e.preventDefault(); onPick(v); });
-      box.appendChild(d);
-    });
-    box.hidden = false;
-  }
-
-  function closeSuggestions(which){
-    if (!which || which === "brand"){ brandSug.hidden = true; brandSug.innerHTML = ""; }
-    if (!which || which === "model"){ modelSug.hidden = true; modelSug.innerHTML = ""; }
-    if (!which){ S.open = null; S.items = []; S.idx = -1; }
-    else if (S.open === which){ S.open = null; S.items = []; S.idx = -1; }
-  }
-
-  // ---------- ORDER ENFORCEMENT ----------
-  // Required order:
-  // 1 email -> 2 brand -> 3 model -> 4 gender -> 5 price -> submit
-  function isEmailOk(){
-    const email = sanitize(emailEl.value).toLowerCase();
-    return !!(email && email.includes("@"));
-  }
-
-  function isBrandOk(){
-    const b = sanitize(brandEl.value);
-    return !!resolveBrandKey(b);
-  }
-
-  function isModelOk(){
-    const bk = resolveBrandKey(sanitize(brandEl.value));
-    if (!bk) return false;
-    const m = sanitize(modelEl.value);
-    if (!m) return false;
-    const pool = Array.isArray(brandModels[bk]) ? brandModels[bk] : [];
-    const mNorm = String(m).trim().toLowerCase();
-    return pool.some(x => String(x).trim().toLowerCase() === mNorm);
-  }
-
-  function isGenderOk(){
-    return selectedGender === "mens" || selectedGender === "womens";
-  }
-
-  function isPriceOk(){
-    const p = parseInt(String(priceEl.value || ""), 10);
-    return Number.isFinite(p) && p > 0;
-  }
-
-  function syncStepUI({ focusNext = false } = {}){
-    const emailOk = isEmailOk();
-    const brandOk = isBrandOk();
-    const modelOk = isModelOk();
-    const genderOk = isGenderOk();
-    const priceOk = isPriceOk();
-
-    // Enable/disable downstream fields
-    setEnabled(brandEl, emailOk);
-    if (!emailOk) { setEnabled(modelEl, false); setGender(""); setEnabled(priceEl, false); }
-
-    setEnabled(modelEl, emailOk && brandOk);
-    if (!(emailOk && brandOk)) { setGender(""); setEnabled(priceEl, false); }
-
-    // gender block is "enabled" by allowing interaction
-    const genderEnabled = emailOk && brandOk && modelOk;
-    genderWrap.classList.toggle("sb-disabled", !genderEnabled);
-    if (!genderEnabled) { setGender(""); setEnabled(priceEl, false); }
-
-    setEnabled(priceEl, emailOk && brandOk && modelOk && genderOk);
-    if (!(emailOk && brandOk && modelOk && genderOk)) { priceEl.value = ""; toggleClear(priceEl); }
-
-    // Button only when complete
-    btn.disabled = busy || !(emailOk && brandOk && modelOk && genderOk && priceOk);
-
-    // Highlight the NEXT thing needed
-    if (!emailOk) markNext("email");
-    else if (!brandOk) markNext("brand");
-    else if (!modelOk) markNext("model");
-    else if (!genderOk) markNext("gender");
-    else if (!priceOk) markNext("price");
-    else markNext(null);
-
-    if (focusNext){
-      if (!emailOk) emailEl.focus();
-      else if (!brandOk) brandEl.focus();
-      else if (!modelOk) modelEl.focus();
-      else if (!genderOk) genderWrap.querySelector(".sb-gender-option")?.focus();
-      else if (!priceOk) priceEl.focus();
-    }
-  }
-
-  // ---------- modal open/close ----------
-  function openModal(prefillEmail){
-    lastFocus = document.activeElement;
-
-    hideStatus();
-    if (confirmBox) confirmBox.hidden = true;
-    if (maxedBox) maxedBox.hidden = true;
-    if (formView) formView.hidden = false;
-
-    emailEl.value = prefillEmail ? String(prefillEmail).trim().toLowerCase() : "";
-    brandEl.value = "";
-    modelEl.value = "";
-    priceEl.value = "";
-    setGender("");
-
-    toggleClear(emailEl);
-    toggleClear(brandEl);
-    toggleClear(modelEl);
-    toggleClear(priceEl);
-
-    closeSuggestions();
-
-    backdrop.classList.add("open");
-    backdrop.setAttribute("aria-hidden", "false");
-    document.body.style.overflow = "hidden";
-
-    // start step UI (brand/model/price disabled until allowed)
-    syncStepUI({ focusNext: true });
-  }
-
-  function closeModal(){
-    closeSuggestions();
-    backdrop.classList.remove("open");
-    backdrop.setAttribute("aria-hidden", "true");
-    document.body.style.overflow = "";
-    clearNextHighlight();
-    if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
-  }
-
-  openers.forEach(el => {
-    el.addEventListener("click", (e) => {
-      e.preventDefault();
-      const emailFromQS = new URLSearchParams(location.search).get("email");
-      openModal(emailFromQS);
-    });
-  });
-
-  closeBtn.addEventListener("click", closeModal);
-  if (maxedClose) maxedClose.addEventListener("click", closeModal);
-
-  // ---------- clear buttons ----------
-  document.addEventListener("click", (e) => {
-    if (!backdrop.classList.contains("open")) return;
-    const c = e.target.closest("[data-clear]");
-    if (!c) return;
-
-    e.preventDefault();
-    const sel = c.getAttribute("data-clear");
-    const input = sel ? document.querySelector(sel) : null;
-    if (!input) return;
-
-    input.value = "";
-    toggleClear(input);
-    hideStatus();
-    closeSuggestions(input === brandEl ? "brand" : input === modelEl ? "model" : null);
-
-    syncStepUI({ focusNext: true });
-  });
-
-  // ---------- inputs enforce order ----------
-  emailEl.addEventListener("input", () => { toggleClear(emailEl); hideStatus(); syncStepUI(); });
-  emailEl.addEventListener("blur", () => syncStepUI());
-
-  brandEl.addEventListener("input", () => {
-    toggleClear(brandEl);
-    hideStatus();
-
-    // if brand becomes invalid, clear model + downstream
-    const bk = resolveBrandKey(brandEl.value);
-    if (!bk) {
-      modelEl.value = "";
-      toggleClear(modelEl);
-      closeSuggestions("model");
-      setGender("");
-      priceEl.value = "";
-      toggleClear(priceEl);
-    }
-
-    // only show brand suggestions once email is ok
-    if (!isEmailOk()) {
-      closeSuggestions("brand");
-      syncStepUI();
-      return;
-    }
-
-    const t = brandEl.value.trim();
-    if (!t) { closeSuggestions("brand"); syncStepUI(); return; }
-
-    renderSug(brandSug, topMatches(brands, t, 12), "brand", (v) => {
-      brandEl.value = v;
-      toggleClear(brandEl);
-      closeSuggestions("brand");
-      syncStepUI({ focusNext: true });
-    });
-
-    syncStepUI();
-  });
-
-  modelEl.addEventListener("input", () => {
-    toggleClear(modelEl);
-    hideStatus();
-
-    const emailOk = isEmailOk();
-    const brandOk = isBrandOk();
-    if (!emailOk || !brandOk) {
-      modelEl.value = "";
-      toggleClear(modelEl);
-      closeSuggestions("model");
-      syncStepUI({ focusNext: true });
-      return;
-    }
-
-    const bk = resolveBrandKey(brandEl.value);
-    const pool = Array.isArray(brandModels[bk]) ? brandModels[bk] : [];
-
-    const t = modelEl.value.trim();
-    if (!t) { closeSuggestions("model"); syncStepUI(); return; }
-
-    renderSug(modelSug, topMatches(pool, t, 12), "model", (v) => {
-      modelEl.value = v;
-      toggleClear(modelEl);
-      closeSuggestions("model");
-      syncStepUI({ focusNext: true });
-    });
-
-    syncStepUI();
-  });
-
-  priceEl.addEventListener("input", () => {
-    priceEl.value = normalizeWholeDollars(priceEl.value);
-    toggleClear(priceEl);
-    hideStatus();
-    syncStepUI();
-  });
-
-  priceEl.addEventListener("keypress", (e) => {
-    if (e.key && !/[0-9]/.test(e.key)) e.preventDefault();
-  });
-
-  // ---------- gender selection (only after model valid) ----------
-  genderWrap.addEventListener("click", (e) => {
-    if (genderWrap.classList.contains("sb-disabled")) {
-      showStatus("Fill out the fields above first.", false);
-      syncStepUI({ focusNext: true });
-      return;
-    }
-    const opt = e.target.closest(".sb-gender-option");
-    if (!opt) return;
-    setGender(opt.getAttribute("data-g") || "");
-    hideStatus();
-    syncStepUI({ focusNext: true });
-  });
-
-  genderWrap.addEventListener("keydown", (e) => {
-    if (genderWrap.classList.contains("sb-disabled")) return;
-    const opt = e.target.closest(".sb-gender-option");
-    if (!opt) return;
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      setGender(opt.getAttribute("data-g") || "");
-      hideStatus();
-      syncStepUI({ focusNext: true });
-    }
-  });
-
-  // ---------- submit ----------
-  async function postJson(url, payload){
-    const res = await fetch(url, {
-      method: "POST",
-      cache: "no-store",
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const code = data && data.code ? String(data.code) : "";
-      const msg = data && data.error ? String(data.error) : `HTTP ${res.status}: Failed to create alert`;
-      const err = new Error(msg);
-      err.code = code;
-      throw err;
-    }
-    return data;
-  }
-
-  function showSuccess(brand, model, gender, price){
-    const genderText = gender === "mens" ? "Men’s" : "Women’s";
-    confirmDetails.innerHTML =
-      `<div><strong>Shoe:</strong> ${esc(brand)} ${esc(model)}</div>
-       <div><strong>Gender:</strong> ${esc(genderText)}</div>
-       <div><strong>Target Price:</strong> $${esc(String(price))} or less</div>`;
-
-    hideStatus();
-    closeSuggestions();
-    if (formView) formView.hidden = true;
-    if (maxedBox) maxedBox.hidden = true;
-    if (confirmBox) confirmBox.hidden = false;
-
-    // reset form values for next run
-    emailEl.value = emailEl.value; // keep email
-    brandEl.value = "";
-    modelEl.value = "";
-    priceEl.value = "";
-    setGender("");
-    toggleClear(brandEl);
-    toggleClear(modelEl);
-    toggleClear(priceEl);
-    syncStepUI();
-  }
-
-  function showMaxedOut(){
-    hideStatus();
-    closeSuggestions();
-    if (formView) formView.hidden = true;
-    if (confirmBox) confirmBox.hidden = true;
-    if (maxedBox) maxedBox.hidden = false;
-
-    brandEl.value = "";
-    modelEl.value = "";
-    priceEl.value = "";
-    setGender("");
-    toggleClear(brandEl);
-    toggleClear(modelEl);
-    toggleClear(priceEl);
-    syncStepUI();
-  }
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    if (busy) return;
-
-    hideStatus();
-    if (confirmBox) confirmBox.hidden = true;
-    if (maxedBox) maxedBox.hidden = true;
-
-    // enforce order one last time
-    syncStepUI({ focusNext: false });
-
-    if (!isEmailOk()) { showStatus("Please enter a valid email address."); return syncStepUI({ focusNext: true }); }
-    if (!isBrandOk()) { showStatus("Please choose a brand from the list."); return syncStepUI({ focusNext: true }); }
-    if (!isModelOk()) { showStatus("Please choose a model from the list."); return syncStepUI({ focusNext: true }); }
-    if (!isGenderOk()) { showStatus("Select a gender."); return syncStepUI({ focusNext: true }); }
-    if (!isPriceOk()) { showStatus("Please enter a valid target price (whole dollars)."); return syncStepUI({ focusNext: true }); }
-
-    const email = sanitize(emailEl.value).toLowerCase();
-    const brand = resolveBrandKey(sanitize(brandEl.value)) || sanitize(brandEl.value);
-    const model = sanitize(modelEl.value);
-    const targetPrice = parseInt(String(priceEl.value || ""), 10);
-    const gender = selectedGender;
-
-    setBusy(true);
-    try {
-      await postJson(API_ALERTS, { email, brand, model, targetPrice, gender });
-      showSuccess(brand, model, gender, targetPrice);
-    } catch (err) {
-      const msg = (err && err.message) ? String(err.message) : "Failed to set alert.";
-      const code = err && err.code ? String(err.code) : "";
-      const looksMax =
-        code.toUpperCase().includes("MAX") ||
-        msg.toLowerCase().includes("max") ||
-        msg.toLowerCase().includes("limit");
-
-      if (looksMax) showMaxedOut();
-      else showStatus(msg);
-    } finally {
-      setBusy(false);
-      syncStepUI();
-    }
-  });
-
-  if (setAnother) {
-    setAnother.addEventListener("click", () => {
-      if (confirmBox) confirmBox.hidden = true;
-      if (maxedBox) maxedBox.hidden = true;
-      if (formView) formView.hidden = false;
-      hideStatus();
-
-      brandEl.value = "";
-      modelEl.value = "";
-      priceEl.value = "";
-      setGender("");
-      toggleClear(brandEl);
-      toggleClear(modelEl);
-      toggleClear(priceEl);
-      closeSuggestions();
-
-      syncStepUI({ focusNext: true });
-    });
-  }
-})();
-</script>
-
-
+  <script>
+    (() => {
+      const openers = document.querySelectorAll("[data-open-alert]");
+      const backdrop = document.getElementById("sbAlertBackdrop");
+      const closeBtn = document.getElementById("sbAlertClose");
+      const form = document.getElementById("sbSetAlertForm");
+      const formView = document.getElementById("sbAlertFormView");
+      const confirmBox = document.getElementById("sbConfirm");
+      const confirmDetails = document.getElementById("sbConfirmDetails");
+      const setAnother = document.getElementById("sbSetAnother");
+      const maxedBox = document.getElementById("sbMaxed");
+      const maxedClose = document.getElementById("sbMaxedClose");
+
+      const emailEl = document.getElementById("sbAlertEmail");
+      const brandEl = document.getElementById("sbAlertBrand");
+      const modelEl = document.getElementById("sbAlertModel");
+      const priceEl = document.getElementById("sbAlertPrice");
+
+      const brandSug = document.getElementById("sbBrandSug");
+      const modelSug = document.getElementById("sbModelSug");
+
+      const genderWrap = document.getElementById("sbGender");
+      const btn = document.getElementById("sbSetAlertBtn");
+      const status = document.getElementById("sbStatus");
+
+      const API_ALERTS = "/api/alerts";
+
+      const brandModels = window.brandModels || {};
+      const brands = Object.keys(brandModels).sort((a, b) => a.localeCompare(b));
+
+      if (!backdrop || !closeBtn || !form || !emailEl || !brandEl || !modelEl || !priceEl || !genderWrap || !btn) return;
+
+      let lastFocus = null;
+      let busy = false;
+      let selectedGender = "";
+
+      // ---------- tiny helpers ----------
+      function setBusy(v) {
+        busy = v;
+        btn.disabled = v;
+        btn.textContent = v ? "Setting..." : "Set Alert";
+      }
+
+      function hideStatus() {
+        if (!status) return;
+        status.hidden = true;
+        status.textContent = "";
+        status.className = "sb-status";
+      }
+
+      function showStatus(msg, ok = false) {
+        if (!status) return;
+        status.hidden = false;
+        status.className = "sb-status " + (ok ? "ok" : "err");
+        status.textContent = msg;
+      }
+
+      function sanitize(str) {
+        return String(str || "")
+          .replace(/[<>'"]/g, "")
+          .replace(/script/gi, "")
+          .replace(/javascript:/gi, "")
+          .replace(/on\w+=/gi, "")
+          .trim()
+          .slice(0, 100);
+      }
+
+      function esc(s) {
+        return String(s || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function normalizeWholeDollars(v) {
+        let s = String(v || "").replace(/[^0-9]/g, "");
+        s = s.replace(/^0+(?=\d)/, "");
+        if (!s) s = "";
+        return s.slice(0, 4);
+      }
+
+      function resolveBrandKey(input) {
+        const n = String(input || "").trim().toLowerCase();
+        return brands.find((b) => String(b).trim().toLowerCase() === n) || "";
+      }
+
+      function toggleClear(input) {
+        const wrap = input.closest(".sb-input-wrap");
+        if (!wrap) return;
+        const c = wrap.querySelector(".sb-clear");
+        if (!c) return;
+        c.style.display = input.value.trim() ? "flex" : "none";
+      }
+
+      function wrapOf(el) {
+        return el ? el.closest(".sb-input-wrap") : null;
+      }
+
+      const emailWrap = wrapOf(emailEl);
+      const brandWrap = wrapOf(brandEl);
+      const modelWrap = wrapOf(modelEl);
+      const priceWrap = priceEl ? priceEl.closest(".sb-price-wrap") : null;
+
+      function clearNextHighlight() {
+        [emailWrap, brandWrap, modelWrap].forEach((w) => w && w.classList.remove("sb-next"));
+        if (genderWrap) genderWrap.classList.remove("sb-next");
+        if (priceWrap) priceWrap.classList.remove("sb-next");
+      }
+
+      function markNext(target) {
+        clearNextHighlight();
+        if (!target) return;
+        if (target === "email" && emailWrap) emailWrap.classList.add("sb-next");
+        if (target === "brand" && brandWrap) brandWrap.classList.add("sb-next");
+        if (target === "model" && modelWrap) modelWrap.classList.add("sb-next");
+        if (target === "gender" && genderWrap) genderWrap.classList.add("sb-next");
+        if (target === "price" && priceWrap) priceWrap.classList.add("sb-next");
+      }
+
+      function setGender(g) {
+        selectedGender = String(g || "");
+        const opts = genderWrap.querySelectorAll(".sb-gender-option");
+        opts.forEach((o) => {
+          const on = (o.getAttribute("data-g") || "") === selectedGender;
+          o.classList.toggle("active", on);
+          o.setAttribute("aria-checked", on ? "true" : "false");
+        });
+      }
+
+      function setEnabled(el, on) {
+        if (!el) return;
+        el.disabled = !on;
+        if (!on) {
+          el.value = "";
+          toggleClear(el);
+        }
+      }
+
+      // ---------- suggestions ----------
+      const S = { open: null, items: [], idx: -1 };
+      const squash = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+      function score(cand, q) {
+        const c = String(cand || "");
+        const cl = c.toLowerCase();
+        q = String(q || "").trim().toLowerCase();
+        if (!q) return 0;
+
+        const cs = squash(c), qs = squash(q);
+        let s = 0;
+        if (cl.startsWith(q)) s += 120;
+        if (cl.includes(q)) s += 80;
+        if (qs.length >= 3 && cs.includes(qs)) s += 110;
+        s -= Math.min(c.length, 30) * 0.25;
+        return s;
+      }
+
+      function topMatches(list, typed, limit = 10) {
+        const q = String(typed || "").trim();
+        if (!q) return [];
+        return list
+          .map((v) => ({ v, s: score(v, q) }))
+          .filter((x) => x.s > 0)
+          .sort((a, b) => b.s - a.s)
+          .slice(0, limit)
+          .map((x) => x.v);
+      }
+
+      function renderSug(box, items, which, onPick) {
+        box.innerHTML = "";
+        if (!items.length) {
+          box.hidden = true;
+          if (S.open === which) S.open = null;
+          return;
+        }
+
+        S.open = which;
+        S.items = items;
+        S.idx = -1;
+
+        items.forEach((v) => {
+          const d = document.createElement("div");
+          d.className = "item";
+          d.textContent = v;
+          d.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            onPick(v);
+          });
+          box.appendChild(d);
+        });
+
+        box.hidden = false;
+      }
+
+      function closeSuggestions(which) {
+        if (!which || which === "brand") {
+          brandSug.hidden = true;
+          brandSug.innerHTML = "";
+        }
+        if (!which || which === "model") {
+          modelSug.hidden = true;
+          modelSug.innerHTML = "";
+        }
+
+        if (!which) {
+          S.open = null;
+          S.items = [];
+          S.idx = -1;
+        } else if (S.open === which) {
+          S.open = null;
+          S.items = [];
+          S.idx = -1;
+        }
+      }
+
+      // ---------- ORDER ENFORCEMENT ----------
+      function isEmailOk() {
+        const email = sanitize(emailEl.value).toLowerCase();
+        return !!(email && email.includes("@"));
+      }
+
+      function isBrandOk() {
+        const b = sanitize(brandEl.value);
+        return !!resolveBrandKey(b);
+      }
+
+      function isModelOk() {
+        const bk = resolveBrandKey(sanitize(brandEl.value));
+        if (!bk) return false;
+
+        const m = sanitize(modelEl.value);
+        if (!m) return false;
+
+        const pool = Array.isArray(brandModels[bk]) ? brandModels[bk] : [];
+        const mNorm = String(m).trim().toLowerCase();
+
+        return pool.some((x) => String(x).trim().toLowerCase() === mNorm);
+      }
+
+      function isGenderOk() {
+        return selectedGender === "mens" || selectedGender === "womens";
+      }
+
+      function isPriceOk() {
+        const p = parseInt(String(priceEl.value || ""), 10);
+        return Number.isFinite(p) && p > 0;
+      }
+
+      function syncStepUI({ focusNext = false } = {}) {
+        const emailOk = isEmailOk();
+        const brandOk = isBrandOk();
+        const modelOk = isModelOk();
+        const genderOk = isGenderOk();
+        const priceOk = isPriceOk();
+
+        // Enable/disable downstream fields
+        setEnabled(brandEl, emailOk);
+
+        if (!emailOk) {
+          setEnabled(modelEl, false);
+          setGender("");
+          setEnabled(priceEl, false);
+        }
+
+        setEnabled(modelEl, emailOk && brandOk);
+
+        if (!(emailOk && brandOk)) {
+          setGender("");
+          setEnabled(priceEl, false);
+        }
+
+        const genderEnabled = emailOk && brandOk && modelOk;
+        genderWrap.classList.toggle("sb-disabled", !genderEnabled);
+
+        if (!genderEnabled) {
+          setGender("");
+          setEnabled(priceEl, false);
+        }
+
+        setEnabled(priceEl, emailOk && brandOk && modelOk && genderOk);
+
+        if (!(emailOk && brandOk && modelOk && genderOk)) {
+          priceEl.value = "";
+          toggleClear(priceEl);
+        }
+
+        // Button only when complete
+        btn.disabled = busy || !(emailOk && brandOk && modelOk && genderOk && priceOk);
+
+        // Highlight the NEXT required step
+        if (!emailOk) markNext("email");
+        else if (!brandOk) markNext("brand");
+        else if (!modelOk) markNext("model");
+        else if (!genderOk) markNext("gender");
+        else if (!priceOk) markNext("price");
+        else markNext(null);
+
+        if (focusNext) {
+          if (!emailOk) emailEl.focus();
+          else if (!brandOk) brandEl.focus();
+          else if (!modelOk) modelEl.focus();
+          else if (!genderOk) genderWrap.querySelector(".sb-gender-option")?.focus();
+          else if (!priceOk) priceEl.focus();
+        }
+      }
+
+      // ---------- modal open/close ----------
+      function openModal(prefillEmail) {
+        lastFocus = document.activeElement;
+
+        hideStatus();
+        if (confirmBox) confirmBox.hidden = true;
+        if (maxedBox) maxedBox.hidden = true;
+        if (formView) formView.hidden = false;
+
+        emailEl.value = prefillEmail ? String(prefillEmail).trim().toLowerCase() : "";
+        brandEl.value = "";
+        modelEl.value = "";
+        priceEl.value = "";
+        setGender("");
+
+        toggleClear(emailEl);
+        toggleClear(brandEl);
+        toggleClear(modelEl);
+        toggleClear(priceEl);
+
+        closeSuggestions();
+
+        backdrop.classList.add("open");
+        backdrop.setAttribute("aria-hidden", "false");
+        document.body.style.overflow = "hidden";
+
+        syncStepUI({ focusNext: true });
+      }
+
+      function closeModal() {
+        closeSuggestions();
+        backdrop.classList.remove("open");
+        backdrop.setAttribute("aria-hidden", "true");
+        document.body.style.overflow = "";
+        clearNextHighlight();
+        if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
+      }
+
+      openers.forEach((el) => {
+        el.addEventListener("click", (e) => {
+          e.preventDefault();
+          const emailFromQS = new URLSearchParams(location.search).get("email");
+          openModal(emailFromQS);
+        });
+      });
+
+      closeBtn.addEventListener("click", closeModal);
+      if (maxedClose) maxedClose.addEventListener("click", closeModal);
+
+      // ---------- clear buttons ----------
+      document.addEventListener("click", (e) => {
+        if (!backdrop.classList.contains("open")) return;
+
+        const c = e.target.closest("[data-clear]");
+        if (!c) return;
+
+        e.preventDefault();
+
+        const sel = c.getAttribute("data-clear");
+        const input = sel ? document.querySelector(sel) : null;
+        if (!input) return;
+
+        input.value = "";
+        toggleClear(input);
+        hideStatus();
+
+        closeSuggestions(input === brandEl ? "brand" : input === modelEl ? "model" : null);
+        syncStepUI({ focusNext: true });
+      });
+
+      // ---------- inputs enforce order ----------
+      emailEl.addEventListener("input", () => {
+        toggleClear(emailEl);
+        hideStatus();
+        syncStepUI();
+      });
+
+      emailEl.addEventListener("blur", () => syncStepUI());
+
+      brandEl.addEventListener("input", () => {
+        toggleClear(brandEl);
+        hideStatus();
+
+        // if brand becomes invalid, clear downstream
+        const bk = resolveBrandKey(brandEl.value);
+        if (!bk) {
+          modelEl.value = "";
+          toggleClear(modelEl);
+          closeSuggestions("model");
+          setGender("");
+          priceEl.value = "";
+          toggleClear(priceEl);
+        }
+
+        if (!isEmailOk()) {
+          closeSuggestions("brand");
+          syncStepUI();
+          return;
+        }
+
+        const t = brandEl.value.trim();
+        if (!t) {
+          closeSuggestions("brand");
+          syncStepUI();
+          return;
+        }
+
+        renderSug(brandSug, topMatches(brands, t, 12), "brand", (v) => {
+          brandEl.value = v;
+          toggleClear(brandEl);
+          closeSuggestions("brand");
+          syncStepUI({ focusNext: true });
+        });
+
+        syncStepUI();
+      });
+
+      modelEl.addEventListener("input", () => {
+        toggleClear(modelEl);
+        hideStatus();
+
+        const emailOk = isEmailOk();
+        const brandOk = isBrandOk();
+        if (!emailOk || !brandOk) {
+          modelEl.value = "";
+          toggleClear(modelEl);
+          closeSuggestions("model");
+          syncStepUI({ focusNext: true });
+          return;
+        }
+
+        const bk = resolveBrandKey(brandEl.value);
+        const pool = Array.isArray(brandModels[bk]) ? brandModels[bk] : [];
+
+        const t = modelEl.value.trim();
+        if (!t) {
+          closeSuggestions("model");
+          syncStepUI();
+          return;
+        }
+
+        renderSug(modelSug, topMatches(pool, t, 12), "model", (v) => {
+          modelEl.value = v;
+          toggleClear(modelEl);
+          closeSuggestions("model");
+          syncStepUI({ focusNext: true });
+        });
+
+        syncStepUI();
+      });
+
+      priceEl.addEventListener("input", () => {
+        priceEl.value = normalizeWholeDollars(priceEl.value);
+        toggleClear(priceEl);
+        hideStatus();
+        syncStepUI();
+      });
+
+      priceEl.addEventListener("keypress", (e) => {
+        if (e.key && !/[0-9]/.test(e.key)) e.preventDefault();
+      });
+
+      // ---------- gender selection ----------
+      genderWrap.addEventListener("click", (e) => {
+        if (genderWrap.classList.contains("sb-disabled")) {
+          showStatus("Fill out the fields above first.", false);
+          syncStepUI({ focusNext: true });
+          return;
+        }
+
+        const opt = e.target.closest(".sb-gender-option");
+        if (!opt) return;
+
+        setGender(opt.getAttribute("data-g") || "");
+        hideStatus();
+        syncStepUI({ focusNext: true });
+      });
+
+      genderWrap.addEventListener("keydown", (e) => {
+        if (genderWrap.classList.contains("sb-disabled")) return;
+
+        const opt = e.target.closest(".sb-gender-option");
+        if (!opt) return;
+
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setGender(opt.getAttribute("data-g") || "");
+          hideStatus();
+          syncStepUI({ focusNext: true });
+        }
+      });
+
+      // ---------- submit ----------
+      async function postJson(url, payload) {
+        const res = await fetch(url, {
+          method: "POST",
+          cache: "no-store",
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          const code = data && data.code ? String(data.code) : "";
+          const msg = data && data.error ? String(data.error) : `HTTP ${res.status}: Failed to create alert`;
+          const err = new Error(msg);
+          err.code = code;
+          throw err;
+        }
+
+        return data;
+      }
+
+      function showSuccess(brand, model, gender, price) {
+        const genderText = gender === "mens" ? "Men’s" : "Women’s";
+
+        confirmDetails.innerHTML = `
+          <div><strong>Shoe:</strong> ${esc(brand)} ${esc(model)}</div>
+          <div><strong>Gender:</strong> ${esc(genderText)}</div>
+          <div><strong>Target Price:</strong> $${esc(String(price))} or less</div>
+        `;
+
+        hideStatus();
+        closeSuggestions();
+
+        if (formView) formView.hidden = true;
+        if (maxedBox) maxedBox.hidden = true;
+        if (confirmBox) confirmBox.hidden = false;
+
+        // reset for next run (keep email)
+        brandEl.value = "";
+        modelEl.value = "";
+        priceEl.value = "";
+        setGender("");
+
+        toggleClear(brandEl);
+        toggleClear(modelEl);
+        toggleClear(priceEl);
+
+        syncStepUI();
+      }
+
+      function showMaxedOut() {
+        hideStatus();
+        closeSuggestions();
+
+        if (formView) formView.hidden = true;
+        if (confirmBox) confirmBox.hidden = true;
+        if (maxedBox) maxedBox.hidden = false;
+
+        brandEl.value = "";
+        modelEl.value = "";
+        priceEl.value = "";
+        setGender("");
+
+        toggleClear(brandEl);
+        toggleClear(modelEl);
+        toggleClear(priceEl);
+
+        syncStepUI();
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (busy) return;
+
+        hideStatus();
+        if (confirmBox) confirmBox.hidden = true;
+        if (maxedBox) maxedBox.hidden = true;
+
+        syncStepUI({ focusNext: false });
+
+        if (!isEmailOk()) {
+          showStatus("Please enter a valid email address.");
+          return syncStepUI({ focusNext: true });
+        }
+        if (!isBrandOk()) {
+          showStatus("Please choose a brand from the list.");
+          return syncStepUI({ focusNext: true });
+        }
+        if (!isModelOk()) {
+          showStatus("Please choose a model from the list.");
+          return syncStepUI({ focusNext: true });
+        }
+        if (!isGenderOk()) {
+          showStatus("Select a gender.");
+          return syncStepUI({ focusNext: true });
+        }
+        if (!isPriceOk()) {
+          showStatus("Please enter a valid target price (whole dollars).");
+          return syncStepUI({ focusNext: true });
+        }
+
+        const email = sanitize(emailEl.value).toLowerCase();
+        const brand = resolveBrandKey(sanitize(brandEl.value)) || sanitize(brandEl.value);
+        const model = sanitize(modelEl.value);
+        const targetPrice = parseInt(String(priceEl.value || ""), 10);
+        const gender = selectedGender;
+
+        setBusy(true);
+        try {
+          await postJson(API_ALERTS, { email, brand, model, targetPrice, gender });
+          showSuccess(brand, model, gender, targetPrice);
+        } catch (err) {
+          const msg = err && err.message ? String(err.message) : "Failed to set alert.";
+          const code = err && err.code ? String(err.code) : "";
+          const looksMax =
+            code.toUpperCase().includes("MAX") ||
+            msg.toLowerCase().includes("max") ||
+            msg.toLowerCase().includes("limit");
+
+          if (looksMax) showMaxedOut();
+          else showStatus(msg);
+        } finally {
+          setBusy(false);
+          syncStepUI();
+        }
+      });
+
+      if (setAnother) {
+        setAnother.addEventListener("click", () => {
+          if (confirmBox) confirmBox.hidden = true;
+          if (maxedBox) maxedBox.hidden = true;
+          if (formView) formView.hidden = false;
+
+          hideStatus();
+
+          brandEl.value = "";
+          modelEl.value = "";
+          priceEl.value = "";
+          setGender("");
+
+          toggleClear(brandEl);
+          toggleClear(modelEl);
+          toggleClear(priceEl);
+
+          closeSuggestions();
+          syncStepUI({ focusNext: true });
+        });
+      }
+    })();
+  </script>
 </body>
 </html>
