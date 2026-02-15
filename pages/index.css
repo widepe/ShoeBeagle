@@ -131,9 +131,8 @@ body{
   height:44px;
   border-radius:999px;
 
-   border:1px solid rgba(var(--sb-blue-rgb) / 0.55);
+  border:1px solid rgba(var(--sb-blue-rgb) / 0.55);
   background:rgba(var(--sb-blue-rgb) / 0.75);
-}
   color:#fff;
 
   display:none;
@@ -154,6 +153,7 @@ body{
 
   z-index:2000;
 }
+
 
 /* =========================================================
    TOPBAR (inputs + logo)
