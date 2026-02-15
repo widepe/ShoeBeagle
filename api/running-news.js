@@ -16,6 +16,8 @@ export default async function handler(req, res) {
 
     const feeds = [
       { name: "iRunFar", url: "https://irunfar.com/feed" },
+  { name: "iRunFar", url: "https://believeintherun.com/feed " },
+      
         { name: "iRunFar", url: "https://runningshoesguru.com/feed " },     
       { name: "Marathon Investigation", url: "https://www.marathoninvestigation.com/feed" },
       { name: "Runners Connect", url: "https://runnersconnect.net/feed" },
