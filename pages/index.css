@@ -15,8 +15,8 @@ html{ -webkit-text-size-adjust:100%; }
    DESIGN TOKENS
 ========================================================= */
 :root{
-  --sb-blue:var(--sb-blue);
-  --bg:var(--bg);
+  --sb-blue:#214478ff;
+  --bg:#f4ede3ff;
   --sb-blue-rgb: 33 68 120;
    
 --maxw:1600px;
