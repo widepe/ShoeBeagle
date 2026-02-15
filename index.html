@@ -466,6 +466,33 @@
       return dp[n];
     }
 
+function typoThreshold(len){
+  if (len <= 4) return 1;
+  if (len <= 7) return 2;
+  return 3;
+}
+
+function typoBoost(candidate, typed){
+  const c = squashStr(candidate);
+  const q = squashStr(typed);
+  if (!c || !q) return 0;
+
+  // Only allow fuzzy when input is meaningful
+  if (q.length < 4) return 0;
+
+  // Prevent wildly different lengths
+  if (Math.abs(c.length - q.length) > 3) return 0;
+
+  const distance = levenshtein(q, c);
+  const threshold = typoThreshold(q.length);
+
+  if (distance > threshold) return 0;
+
+  // closer typo = bigger boost
+  return 70 - (distance * 15);
+}
+    
+
     function resolveClosestBrand(input) {
       const raw = String(input || "").trim();
       if (!raw) return "";
@@ -519,6 +546,9 @@
       }
 
       score -= Math.min(c.length, 30) * 0.25;
+
+      // light typo tolerance
+score += typoBoost(candidate, query);
       return score;
     }
 
