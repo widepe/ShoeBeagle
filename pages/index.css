@@ -16,8 +16,9 @@ html{ -webkit-text-size-adjust:100%; }
 ========================================================= */
 :root{
   --sb-blue:#214478ff;
-  --card-bg:#f4ede3ff;
-  --sb-blue-rgb: 33 68 120;
+  --bg:#214478ff;
+ --card-bg: #f4ede3ff;
+   --sb-blue-rgb: 33 68 120;
    
 --maxw:1600px;
   --pad:12px;
