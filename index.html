@@ -467,30 +467,63 @@
     }
 
 function typoThreshold(len){
-  if (len <= 4) return 2;
+  // keep it conservative
+  if (len <= 4) return 1;
   if (len <= 7) return 2;
-  return 3;
+  return 2;
+}
+
+// Best distance against "meaningful parts" of the candidate:
+// - each token (metaspeed, pegasus, kayano, etc.)
+// - token prefixes (so "metasped" can match "metaspeed" inside "metaspeed sky+")
+function bestTypoDistance(candidate, typed){
+  const q = squashStr(typed);
+  if (!q || q.length < 4) return null;
+
+  const text = String(candidate || "").toLowerCase();
+  const tokens = text
+    .split(/[^a-z0-9]+/g)
+    .map(t => t.trim())
+    .filter(t => t.length >= 3);
+
+  if (!tokens.length) return null;
+
+  const thr = typoThreshold(q.length);
+  let best = Infinity;
+
+  for (const tokRaw of tokens){
+    const tok = squashStr(tokRaw);
+    if (!tok) continue;
+
+    // compare to full token and to same-length prefix
+    const d1 = levenshtein(q, tok);
+    best = Math.min(best, d1);
+
+    if (tok.length >= q.length){
+      const pref = tok.slice(0, q.length);
+      const d2 = levenshtein(q, pref);
+      best = Math.min(best, d2);
+    }
+
+    // early exit
+    if (best === 0) break;
+  }
+
+  return (best <= thr) ? best : null;
 }
 
 function typoBoost(candidate, typed){
-  const c = squashStr(candidate);
   const q = squashStr(typed);
-  if (!c || !q) return 0;
+  if (!q || q.length < 4) return 0;
 
-  // Only allow fuzzy when input is meaningful
-  if (q.length < 4) return 0;
+  const dist = bestTypoDistance(candidate, typed);
+  if (dist == null) return 0;
 
-  // Prevent wildly different lengths
-  if (Math.abs(c.length - q.length) > 3) return 0;
-
-  const distance = levenshtein(q, c);
-  const threshold = typoThreshold(q.length);
-
-  if (distance > threshold) return 0;
-
-  // closer typo = bigger boost
-  return 70 - (distance * 15);
+  // conservative boost so typo-matches don’t outrank real prefix matches
+  // dist 1 => 55, dist 2 => 35
+  return 75 - (dist * 20);
 }
+
     
 
     function resolveClosestBrand(input) {
@@ -568,15 +601,25 @@ score += typoBoost(candidate, query);
         return Array.from(new Set(ranked));
       }
 
-      const scored = list
-        .map(v => ({ v, s: scoreSuggestion(v, q) }))
-        .filter(x => x.s > 0)
-        .sort((a, b) => (b.s - a.s) || (String(a.v).length - String(b.v).length) || String(a.v).localeCompare(String(b.v)))
+   const scoredFull = list
+  .map(v => ({ v, s: scoreSuggestion(v, q) }))
+  .filter(x => x.s > 0)
+  .sort((a, b) => (b.s - a.s) || (String(a.v).length - String(b.v).length) || String(a.v).localeCompare(String(b.v)));
 
-        .slice(0, limit)
-        .map(x => x.v);
+if (!scoredFull.length) return [];
 
-      return Array.from(new Set(scored));
+// If we’re here, we didn’t have startsWith matches.
+// Require the top result to be “confident” vs runner-up.
+const top = scoredFull[0];
+const second = scoredFull[1];
+
+const strongEnough = top.s >= 55;                 // must be a solid score
+const clearLead = !second || (top.s - second.s) >= 18; // must beat #2 by margin
+
+if (!(strongEnough && clearLead)) return [];
+
+return Array.from(new Set(scoredFull.slice(0, limit).map(x => x.v)));
+
     }
 
     // ---------- Unified suggestion behavior ----------
