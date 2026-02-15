@@ -547,7 +547,7 @@ button{
 ========================================================= */
 .card{
   background:#d9e1ebff;
-  border:var(--card-border) solid var(--sb-blue);
+  border:var(--card-border) solid #b4bbc3;
   border-radius:var(--card-radius);
   padding:var(--card-pad);
   display:flex;
@@ -580,7 +580,7 @@ button{
   height:100%;
   object-fit:cover;
   background:#fff;
-  border:var(--img-border) solid var(--sb-blue);
+  /* border:var(--img-border) solid #b4bbc3; */
   border-radius:var(--img-radius);
   display:block;
 }
