@@ -113,6 +113,13 @@ function formatAgeDays(ts, nowMs = Date.now()) {
   return Math.round((age / (24 * 60 * 60 * 1000)) * 10) / 10; // 1 decimal
 }
 
+// NEW: freshness boolean (<= N hours old)
+function isFreshWithinHours(ts, hours, nowMs = Date.now()) {
+  const age = ageMsFromTimestamp(ts, nowMs);
+  if (age == null) return false; // no timestamp => treat as NOT fresh
+  return age <= hours * 60 * 60 * 1000;
+}
+
 /** ------------ Price range helpers ------------ **/
 
 function normalizePriceShapes(raw) {
@@ -283,22 +290,22 @@ function absolutizeUrl(u, base) {
 function storeBaseUrl(store) {
   const s = String(store || "").toLowerCase();
 
-if (s === "als") return "https://www.als.com";
-if (s.includes("asics")) return "https://www.asics.com";
-if (s.includes("brooks")) return "https://www.brooksrunning.com";
-if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
-if (s.includes("foot locker") || s.includes("footlocker")) return "https://www.footlocker.com";
-if (s.includes("holabird")) return "https://www.holabirdsports.com";
-if (s.includes("luke")) return "https://lukeslocker.com";
-if (s.includes("marathon sports")) return "https://www.marathonsports.com";
-if (s === "rei") return "https://www.rei.com";
-if (s.includes("rei outlet")) return "https://www.rei.com/rei-garage";
-if (s.includes("rei")) return "https://www.rei.com";
-if (s.includes("road runner")) return "https://www.roadrunnersports.com";
-if (s.includes("rnj")) return "https://www.rnjsports.com";
-if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
-if (s.includes("shoebacca")) return "https://www.shoebacca.com";
-if (s.includes("zappos")) return "https://www.zappos.com";
+  if (s === "als") return "https://www.als.com";
+  if (s.includes("asics")) return "https://www.asics.com";
+  if (s.includes("brooks")) return "https://www.brooksrunning.com";
+  if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
+  if (s.includes("foot locker") || s.includes("footlocker")) return "https://www.footlocker.com";
+  if (s.includes("holabird")) return "https://www.holabirdsports.com";
+  if (s.includes("luke")) return "https://lukeslocker.com";
+  if (s.includes("marathon sports")) return "https://www.marathonsports.com";
+  if (s === "rei") return "https://www.rei.com";
+  if (s.includes("rei outlet")) return "https://www.rei.com/rei-garage";
+  if (s.includes("rei")) return "https://www.rei.com";
+  if (s.includes("road runner")) return "https://www.roadrunnersports.com";
+  if (s.includes("rnj")) return "https://www.rnjsports.com";
+  if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
+  if (s.includes("shoebacca")) return "https://www.shoebacca.com";
+  if (s.includes("zappos")) return "https://www.zappos.com";
   return "https://example.com";
 }
 
@@ -560,7 +567,6 @@ async function fetchJson(url) {
     throw new Error(`fetchJson failed for ${url}: ${e?.message || String(e)}`);
   }
 }
-
 
 async function loadDealsFromBlobOnly({ name, blobUrl }) {
   const metadata = {
@@ -1156,12 +1162,10 @@ module.exports = async (req, res) => {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-const auth = req.headers.authorization;
-if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-  return res.status(401).json({ success: false, error: "Unauthorized" });
-}
-
-  
+  const auth = req.headers.authorization;
+  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
 
   const start = Date.now();
   const nowMs = Date.now();
@@ -1170,24 +1174,22 @@ if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
   // BLOB URLs (blob-only mode)
   // ============================================================================
 
-
-const ALS_SALE_BLOB_URL = String(process.env.ALS_SALE_BLOB_URL || "").trim();
-const ASICS_SALE_BLOB_URL = String(process.env.ASICS_SALE_BLOB_URL || "").trim();
-const BROOKS_DEALS_BLOB_URL = String(process.env.BROOKS_DEALS_BLOB_URL || "").trim();
-const FLEET_FEET_CHEERIO_BLOB_URL = String(process.env.FLEET_FEET_CHEERIO_BLOB_URL || "").trim();
-const FOOTLOCKER_DEALS_BLOB_URL = String(process.env.FOOTLOCKER_DEALS_BLOB_URL || "").trim();
-const HOLABIRD_MENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_MENS_ROAD_BLOB_URL || "").trim();
-const HOLABIRD_TRAIL_UNISEX_BLOB_URL = String(process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "").trim();
-const HOLABIRD_WOMENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "").trim();
-const LUKES_LOCKER_CHEERIO_BLOB_URL = String(process.env.LUKES_LOCKER_CHEERIO_BLOB_URL || "").trim();
-const MARATHON_SPORTS_CHEERIO_BLOB_URL = String(process.env.MARATHON_SPORTS_CHEERIO_BLOB_URL || "").trim();
-const REI_DEALS_BLOB_URL = String(process.env.REI_DEALS_BLOB_URL || "").trim();
-const RNJSPORTS_DEALS_BLOB_URL = String(process.env.RNJSPORTS_DEALS_BLOB_URL || "").trim();
-const ROADRUNNER_DEALS_BLOB_URL = String(process.env.ROADRUNNER_DEALS_BLOB_URL || "").trim();
-const RUNNING_WAREHOUSE_CHEERIO_BLOB_URL = String(process.env.RUNNING_WAREHOUSE_CHEERIO_BLOB_URL || "").trim();
-const SHOEBACCA_CLEARANCE_BLOB_URL = String(process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "").trim();
-const ZAPPOS_DEALS_BLOB_URL = String(process.env.ZAPPOS_DEALS_BLOB_URL || "").trim();
-
+  const ALS_SALE_BLOB_URL = String(process.env.ALS_SALE_BLOB_URL || "").trim();
+  const ASICS_SALE_BLOB_URL = String(process.env.ASICS_SALE_BLOB_URL || "").trim();
+  const BROOKS_DEALS_BLOB_URL = String(process.env.BROOKS_DEALS_BLOB_URL || "").trim();
+  const FLEET_FEET_CHEERIO_BLOB_URL = String(process.env.FLEET_FEET_CHEERIO_BLOB_URL || "").trim();
+  const FOOTLOCKER_DEALS_BLOB_URL = String(process.env.FOOTLOCKER_DEALS_BLOB_URL || "").trim();
+  const HOLABIRD_MENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_MENS_ROAD_BLOB_URL || "").trim();
+  const HOLABIRD_TRAIL_UNISEX_BLOB_URL = String(process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "").trim();
+  const HOLABIRD_WOMENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "").trim();
+  const LUKES_LOCKER_CHEERIO_BLOB_URL = String(process.env.LUKES_LOCKER_CHEERIO_BLOB_URL || "").trim();
+  const MARATHON_SPORTS_CHEERIO_BLOB_URL = String(process.env.MARATHON_SPORTS_CHEERIO_BLOB_URL || "").trim();
+  const REI_DEALS_BLOB_URL = String(process.env.REI_DEALS_BLOB_URL || "").trim();
+  const RNJSPORTS_DEALS_BLOB_URL = String(process.env.RNJSPORTS_DEALS_BLOB_URL || "").trim();
+  const ROADRUNNER_DEALS_BLOB_URL = String(process.env.ROADRUNNER_DEALS_BLOB_URL || "").trim();
+  const RUNNING_WAREHOUSE_CHEERIO_BLOB_URL = String(process.env.RUNNING_WAREHOUSE_CHEERIO_BLOB_URL || "").trim();
+  const SHOEBACCA_CLEARANCE_BLOB_URL = String(process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "").trim();
+  const ZAPPOS_DEALS_BLOB_URL = String(process.env.ZAPPOS_DEALS_BLOB_URL || "").trim();
 
   const SCRAPER_DATA_BLOB_URL = String(process.env.SCRAPER_DATA_BLOB_URL || "").trim();
 
@@ -1201,6 +1203,9 @@ const ZAPPOS_DEALS_BLOB_URL = String(process.env.ZAPPOS_DEALS_BLOB_URL || "").tr
   //     That store should show 0 deals.
   // --------------------------------------------------------------------------
   const MAX_STORE_DATA_AGE_DAYS = 7;
+
+  // NEW: your "freshData" threshold
+  const FRESHNESS_THRESHOLD_HOURS = 26;
 
   try {
     console.log("[MERGE] Starting merge:", new Date().toISOString());
@@ -1218,33 +1223,32 @@ const ZAPPOS_DEALS_BLOB_URL = String(process.env.ZAPPOS_DEALS_BLOB_URL || "").tr
     console.log("[MERGE] ZAPPOS_DEALS_BLOB_URL set?", !!ZAPPOS_DEALS_BLOB_URL);
     console.log("[MERGE] RNJSPORTS_DEALS_BLOB_URL set?", !!RNJSPORTS_DEALS_BLOB_URL);
 
-const sources = [
-  // Cheerio individual store blobs
-  { id: "running-warehouse", name: "Running Warehouse", blobUrl: RUNNING_WAREHOUSE_CHEERIO_BLOB_URL },
-  { id: "fleet-feet", name: "Fleet Feet", blobUrl: FLEET_FEET_CHEERIO_BLOB_URL },
-  { id: "lukes-locker", name: "Luke's Locker", blobUrl: LUKES_LOCKER_CHEERIO_BLOB_URL },
-  { id: "marathon-sports", name: "Marathon Sports", blobUrl: MARATHON_SPORTS_CHEERIO_BLOB_URL },
+    const sources = [
+      // Cheerio individual store blobs
+      { id: "running-warehouse", name: "Running Warehouse", blobUrl: RUNNING_WAREHOUSE_CHEERIO_BLOB_URL },
+      { id: "fleet-feet", name: "Fleet Feet", blobUrl: FLEET_FEET_CHEERIO_BLOB_URL },
+      { id: "lukes-locker", name: "Luke's Locker", blobUrl: LUKES_LOCKER_CHEERIO_BLOB_URL },
+      { id: "marathon-sports", name: "Marathon Sports", blobUrl: MARATHON_SPORTS_CHEERIO_BLOB_URL },
 
-  { id: "asics", name: "ASICS", blobUrl: ASICS_SALE_BLOB_URL },
-  { id: "als", name: "ALS", blobUrl: ALS_SALE_BLOB_URL },
+      { id: "asics", name: "ASICS", blobUrl: ASICS_SALE_BLOB_URL },
+      { id: "als", name: "ALS", blobUrl: ALS_SALE_BLOB_URL },
 
-  { id: "brooks-running", name: "Brooks Running", blobUrl: BROOKS_DEALS_BLOB_URL },
-  { id: "foot-locker", name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
+      { id: "brooks-running", name: "Brooks Running", blobUrl: BROOKS_DEALS_BLOB_URL },
+      { id: "foot-locker", name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
 
-  { id: "road-runner-sports", name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
-  { id: "rei-outlet", name: "REI Outlet", blobUrl: REI_DEALS_BLOB_URL },
+      { id: "road-runner-sports", name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
+      { id: "rei-outlet", name: "REI Outlet", blobUrl: REI_DEALS_BLOB_URL },
 
-  { id: "zappos", name: "Zappos", blobUrl: ZAPPOS_DEALS_BLOB_URL },
-  { id: "rnj-sports", name: "RNJ Sports", blobUrl: RNJSPORTS_DEALS_BLOB_URL },
+      { id: "zappos", name: "Zappos", blobUrl: ZAPPOS_DEALS_BLOB_URL },
+      { id: "rnj-sports", name: "RNJ Sports", blobUrl: RNJSPORTS_DEALS_BLOB_URL },
 
-  // Holabird is split across 3 blobs but shares 1 id
-  { id: "holabird-sports", name: "Holabird Sports (Mens Road)", blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL },
-  { id: "holabird-sports", name: "Holabird Sports (Womens Road)", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
-  { id: "holabird-sports", name: "Holabird Sports (Trail + Unisex)", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
+      // Holabird is split across 3 blobs but shares 1 id
+      { id: "holabird-sports", name: "Holabird Sports (Mens Road)", blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL },
+      { id: "holabird-sports", name: "Holabird Sports (Womens Road)", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
+      { id: "holabird-sports", name: "Holabird Sports (Trail + Unisex)", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
 
-  { id: "shoebacca", name: "Shoebacca", blobUrl: SHOEBACCA_CLEARANCE_BLOB_URL },
-];
-
+      { id: "shoebacca", name: "Shoebacca", blobUrl: SHOEBACCA_CLEARANCE_BLOB_URL },
+    ];
 
     const settled = await Promise.allSettled(sources.map((s) => loadDealsFromBlobOnly(s)));
 
@@ -1253,61 +1257,79 @@ const sources = [
     const allDealsRaw = [];
     const perSourceMeta = {};
 
+    // NEW: map id->display store name for the report
+    const storeDisplayNameById = {};
+    for (const s of sources) {
+      if (!storeDisplayNameById[s.id]) storeDisplayNameById[s.id] = s.name;
+    }
+
     for (let i = 0; i < settled.length; i++) {
-  const src = sources[i];
-  const key = src.id || src.name;   // ✅ id is the real key
-  const name = src.name;            // display name only
+      const src = sources[i];
+      const key = src.id || src.name; // ✅ id is the real key
+      const name = src.name; // display name only
 
-  if (settled[i].status === "fulfilled") {
-    const { source, deals, blobUrl, timestamp, duration, payloadMeta, error } = settled[i].value;
+      if (settled[i].status === "fulfilled") {
+        const { source, deals, blobUrl, timestamp, duration, payloadMeta, error } = settled[i].value;
 
-    if (source === "error") {
-      perSource[key] = { ok: false, error: error || "Unknown error" };
-      storeMetadata[key] = { error: error || "Unknown error" };
-      perSourceMeta[key] = { name, error: error || "Unknown error", source: "error", deals: [] };
-      continue;
+        if (source === "error") {
+          perSource[key] = { ok: false, error: error || "Unknown error" };
+          // accumulate storeMetadata even on error (keep the last error)
+          storeMetadata[key] = { ...(storeMetadata[key] || {}), error: error || "Unknown error" };
+          perSourceMeta[key] = { name, error: error || "Unknown error", source: "error", deals: [] };
+          continue;
+        }
+
+        const isTooOld = isOlderThanDays(timestamp, MAX_STORE_DATA_AGE_DAYS, nowMs);
+        const ageDays = formatAgeDays(timestamp, nowMs);
+
+        // NOTE: Holabird shares an id across 3 blobs; accumulate counts and take the newest timestamp.
+        const prev = storeMetadata[key] || {};
+        const prevCount = Number.isFinite(prev.count) ? prev.count : 0;
+
+        const tsMsPrev = parseTimestampMs(prev.timestamp);
+        const tsMsNew = parseTimestampMs(timestamp);
+        const newestTs =
+          tsMsPrev != null && tsMsNew != null
+            ? (tsMsNew >= tsMsPrev ? timestamp : prev.timestamp)
+            : (timestamp || prev.timestamp || null);
+
+        storeMetadata[key] = {
+          blobUrl: blobUrl || prev.blobUrl || null, // keep latest non-empty
+          timestamp: newestTs,
+          duration: duration || prev.duration || null,
+          count: prevCount + safeArray(deals).length,
+          ageDays: ageDays != null ? ageDays : prev.ageDays ?? null,
+          staleExcluded: !!isTooOld, // if any blob is too old, this might be true; fine for your use
+          staleThresholdDays: MAX_STORE_DATA_AGE_DAYS,
+        };
+
+        perSourceMeta[key] = { name, source, deals, blobUrl, timestamp, duration, payloadMeta };
+
+        if (isTooOld) {
+          perSource[key] = {
+            ok: true,
+            via: source,
+            count: 0,
+            staleExcluded: true,
+            ageDays: ageDays != null ? ageDays : null,
+            note: `Excluded: source data older than ${MAX_STORE_DATA_AGE_DAYS} days`,
+          };
+          console.log(
+            `[MERGE] EXCLUDING SOURCE (too old): ${name} | id=${key} | ageDays=${ageDays ?? "unknown"} | ts=${timestamp ?? "none"}`
+          );
+          continue;
+        }
+
+        // note: perSource[key].count is “this blob’s” count; storeMetadata[key].count is accumulated
+        perSource[key] = { ok: true, via: source, count: safeArray(deals).length };
+        allDealsRaw.push(...safeArray(deals));
+      } else {
+        const msg = settled[i].reason?.message || String(settled[i].reason);
+        perSource[key] = { ok: false, error: msg };
+        storeMetadata[key] = { ...(storeMetadata[key] || {}), error: msg };
+        perSourceMeta[key] = { name, error: msg, source: "error", deals: [] };
+      }
     }
-
-    const isTooOld = isOlderThanDays(timestamp, MAX_STORE_DATA_AGE_DAYS, nowMs);
-    const ageDays = formatAgeDays(timestamp, nowMs);
-
-    storeMetadata[key] = {
-      blobUrl: blobUrl || null,
-      timestamp: timestamp || null,
-      duration: duration || null,
-      count: safeArray(deals).length,
-      ageDays: ageDays != null ? ageDays : null,
-      staleExcluded: !!isTooOld,
-      staleThresholdDays: MAX_STORE_DATA_AGE_DAYS,
-    };
-
-    perSourceMeta[key] = { name, source, deals, blobUrl, timestamp, duration, payloadMeta };
-
-    if (isTooOld) {
-      perSource[key] = {
-        ok: true,
-        via: source,
-        count: 0,
-        staleExcluded: true,
-        ageDays: ageDays != null ? ageDays : null,
-        note: `Excluded: source data older than ${MAX_STORE_DATA_AGE_DAYS} days`,
-      };
-      console.log(
-        `[MERGE] EXCLUDING SOURCE (too old): ${name} | id=${key} | ageDays=${ageDays ?? "unknown"} | ts=${timestamp ?? "none"}`
-      );
-      continue;
-    }
-
-    perSource[key] = { ok: true, via: source, count: safeArray(deals).length };
-    allDealsRaw.push(...safeArray(deals));
-  } else {
-    const msg = settled[i].reason?.message || String(settled[i].reason);
-    perSource[key] = { ok: false, error: msg };
-    storeMetadata[key] = { error: msg };
-    perSourceMeta[key] = { name, error: msg, source: "error", deals: [] };
-  }
-}
-
 
     console.log("[MERGE] Source counts:", perSource);
     console.log("[MERGE] Total raw deals (after staleness exclusion):", allDealsRaw.length);
@@ -1352,11 +1374,30 @@ const sources = [
       dealsByStore[s] = (dealsByStore[s] || 0) + 1;
     }
 
+    // NEW: freshness report (store, storeLastUpdated, freshData)
+    // - storeLastUpdated is pulled from each store blob's payload timestamp
+    // - freshData is true iff age <= 26 hours (your rule)
+    const sourceFreshness = Object.keys(storeMetadata)
+      .sort((a, b) => String(a).localeCompare(String(b)))
+      .map((storeId) => {
+        const m = storeMetadata[storeId] || {};
+        const storeLastUpdated = m.timestamp || null;
+        return {
+          store: storeId,
+          storeLastUpdated,
+          freshData: isFreshWithinHours(storeLastUpdated, FRESHNESS_THRESHOLD_HOURS, nowMs),
+        };
+      });
+
     const output = {
       lastUpdated: new Date().toISOString(),
       totalDeals: unique.length,
       dealsByStore,
       scraperResults: perSource,
+
+      // ✅ WRITTEN INTO deals.json (as requested)
+      sourceFreshness, // [{ store, storeLastUpdated, freshData }]
+
       deals: unique,
     };
 
@@ -1375,15 +1416,14 @@ const sources = [
 
     const todayDayUTC = toIsoDayUTC(output.lastUpdated);
 
-const todayRecords = [];
-for (const src of sources) {
-  const key = src.id || src.name;
-  const ok = !!perSource[key]?.ok;
-  const meta = perSourceMeta[key] || null;
+    const todayRecords = [];
+    for (const src of sources) {
+      const key = src.id || src.name;
+      const ok = !!perSource[key]?.ok;
+      const meta = perSourceMeta[key] || null;
 
-  todayRecords.push(...buildTodayScraperRecords({ sourceName: key, meta, perSourceOk: ok }));
-}
-
+      todayRecords.push(...buildTodayScraperRecords({ sourceName: key, meta, perSourceOk: ok }));
+    }
 
     let existingScraperData = null;
     if (SCRAPER_DATA_BLOB_URL) {
@@ -1414,6 +1454,9 @@ for (const src of sources) {
       dealsByStore,
       scraperResults: perSource,
       storeMetadata,
+
+      // NEW: return it in API response too (handy for quick checks)
+      sourceFreshness,
 
       dealsBlobUrl: dealsBlob.url,
       unalteredBlobUrl: unalteredBlob.url,
