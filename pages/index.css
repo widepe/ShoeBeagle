@@ -44,7 +44,7 @@ html{ -webkit-text-size-adjust:100%; }
   --top-rows:1;
 
   --cols:6;
---card-title-color:#214478ff;   
+--card-brand-color:#214478ff;   
    --card-w:calc(260px * var(--grid-scale));
   --grid-gap:calc(1.25rem * var(--grid-scale));
 
@@ -569,7 +569,7 @@ button{
   flex-direction:column;
   gap:var(--card-gap);
   text-decoration:none;
-  color:var(--card-title-color);
+  color:var(--card-brand-color);
   height:100%;
   min-width:0;
 }
