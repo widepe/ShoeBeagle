@@ -4,6 +4,8 @@
 // Feeds:
 //  - https://irunfar.com/feed
 //  - https://www.marathoninvestigation.com/feed
+//  - https://runnersconnect.net/feed
+//  - https://feeds.feedburner.com/stevemagness
 //
 // Usage:
 //   /api/running-news?limit=12
@@ -12,12 +14,12 @@ export default async function handler(req, res) {
   try {
     const limit = clampInt(req.query.limit, 12, 1, 50);
 
-const feeds = [
-  { name: "iRunFar", url: "https://irunfar.com/feed" },
-  { name: "Marathon Investigation", url: "https://www.marathoninvestigation.com/feed" },
-  { name: "Runners Connect", url: "https://runnersconnect.net/feed" },
-  { name: "Steve Magness", url: "https://feeds.feedburner.com/stevemagness" },
-];
+    const feeds = [
+      { name: "iRunFar", url: "https://irunfar.com/feed" },
+      { name: "Marathon Investigation", url: "https://www.marathoninvestigation.com/feed" },
+      { name: "Runners Connect", url: "https://runnersconnect.net/feed" },
+      { name: "Steve Magness", url: "https://feeds.feedburner.com/stevemagness" },
+    ];
 
     const results = await Promise.all(
       feeds.map(async (f) => {
@@ -36,15 +38,14 @@ const feeds = [
       .filter((x) => x.title && x.link)
       .map((x) => ({
         ...x,
-        // Normalize date
         publishedAt: normalizeDate(x.publishedAt),
+        imageUrl: normalizeUrl(x.imageUrl),
       }))
-      .filter((x) => x.publishedAt) // keep only dated items
+      .filter((x) => x.publishedAt)
       .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
       .slice(0, limit);
 
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    // Cache a bit on Vercel edge/CDN
     res.setHeader("Cache-Control", "s-maxage=900, stale-while-revalidate=3600"); // 15 min
     res.status(200).json({ items: merged });
   } catch (err) {
@@ -69,8 +70,12 @@ async function fetchXml(url) {
   return await r.text();
 }
 
-// Very lightweight RSS <item> parser (WordPress-style RSS)
-// (No deps; good enough for these two feeds.)
+// Lightweight RSS <item> parser with image extraction.
+// Extracts imageUrl from (in order):
+//  1) <media:content url="...">
+//  2) <media:thumbnail url="...">
+//  3) <enclosure url="..." type="image/*">
+//  4) first <img src="..."> found in content/description HTML
 function parseRssItems(xml) {
   const items = [];
   const itemMatches = xml.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/gi);
@@ -81,23 +86,68 @@ function parseRssItems(xml) {
     const title = decodeXmlText(extractTag(block, "title"));
     const link = extractTag(block, "link")?.trim() || "";
     const pubDateRaw = extractTag(block, "pubDate") || extractTag(block, "dc:date") || "";
-    const descRaw = extractTag(block, "description") || extractTag(block, "content:encoded") || "";
 
-    const description = stripHtml(decodeCdata(decodeXmlText(descRaw))).trim();
+    // keep HTML sources for image extraction
+    const descRaw = extractTag(block, "description") || "";
+    const contentRaw = extractTag(block, "content:encoded") || "";
+
+    const imageUrl =
+      extractMediaUrl(block) ||
+      extractEnclosureImageUrl(block) ||
+      extractFirstImgSrc(decodeCdata(descRaw)) ||
+      extractFirstImgSrc(decodeCdata(contentRaw)) ||
+      "";
+
+    const combinedForText = contentRaw || descRaw;
+    const description = stripHtml(decodeCdata(decodeXmlText(combinedForText))).trim();
 
     items.push({
       title: title?.trim() || "",
       link: link?.trim() || "",
       publishedAt: pubDateRaw?.trim() || "",
-      description: description ? description.slice(0, 220) : "", // keep short
+      description: description ? description.slice(0, 220) : "",
+      imageUrl: imageUrl?.trim() || "",
     });
   }
 
   return items;
 }
 
+function extractMediaUrl(itemXml) {
+  // <media:content url="..."> or <media:thumbnail url="...">
+  const m1 = itemXml.match(/<media:content\b[^>]*\burl=["']([^"']+)["'][^>]*>/i);
+  if (m1?.[1]) return m1[1];
+
+  const m2 = itemXml.match(/<media:thumbnail\b[^>]*\burl=["']([^"']+)["'][^>]*>/i);
+  if (m2?.[1]) return m2[1];
+
+  return "";
+}
+
+function extractEnclosureImageUrl(itemXml) {
+  // <enclosure url="..." type="image/jpeg" />
+  const m = itemXml.match(/<enclosure\b[^>]*\burl=["']([^"']+)["'][^>]*\btype=["']image\/[^"']+["'][^>]*\/?>/i);
+  return m?.[1] || "";
+}
+
+function extractFirstImgSrc(htmlMaybe) {
+  if (!htmlMaybe) return "";
+  const html = String(htmlMaybe);
+
+  // handle srcset too (take first URL)
+  const mImg = html.match(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/i);
+  if (mImg?.[1]) return mImg[1];
+
+  const mSrcset = html.match(/<img\b[^>]*\bsrcset=["']([^"']+)["'][^>]*>/i);
+  if (mSrcset?.[1]) {
+    const first = mSrcset[1].split(",")[0]?.trim()?.split(" ")[0]?.trim();
+    return first || "";
+  }
+
+  return "";
+}
+
 function extractTag(xmlBlock, tagName) {
-  // Handles <tag>...</tag> including namespaces like dc:date, content:encoded
   const re = new RegExp(`<${escapeRegExp(tagName)}\\b[^>]*>([\\s\\S]*?)<\\/${escapeRegExp(tagName)}>`, "i");
   const m = xmlBlock.match(re);
   return m ? m[1] : "";
@@ -108,6 +158,12 @@ function normalizeDate(s) {
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return "";
   return d.toISOString();
+}
+
+function normalizeUrl(u) {
+  if (!u) return "";
+  // basic cleanup; don’t try to “fix” too much
+  return String(u).trim();
 }
 
 function decodeCdata(s) {
