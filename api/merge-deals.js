@@ -1218,34 +1218,33 @@ const ZAPPOS_DEALS_BLOB_URL = String(process.env.ZAPPOS_DEALS_BLOB_URL || "").tr
     console.log("[MERGE] ZAPPOS_DEALS_BLOB_URL set?", !!ZAPPOS_DEALS_BLOB_URL);
     console.log("[MERGE] RNJSPORTS_DEALS_BLOB_URL set?", !!RNJSPORTS_DEALS_BLOB_URL);
 
-    const sources = [
-      // NEW: Cheerio individual store blobs
-      { name: "Running Warehouse", blobUrl: RUNNING_WAREHOUSE_CHEERIO_BLOB_URL },
-      { name: "Fleet Feet", blobUrl: FLEET_FEET_CHEERIO_BLOB_URL },
-      { name: "Luke's Locker", blobUrl: LUKES_LOCKER_CHEERIO_BLOB_URL },
-      { name: "Marathon Sports", blobUrl: MARATHON_SPORTS_CHEERIO_BLOB_URL },
+const sources = [
+  // Cheerio individual store blobs
+  { id: "running-warehouse", name: "Running Warehouse", blobUrl: RUNNING_WAREHOUSE_CHEERIO_BLOB_URL },
+  { id: "fleet-feet", name: "Fleet Feet", blobUrl: FLEET_FEET_CHEERIO_BLOB_URL },
+  { id: "lukes-locker", name: "Luke's Locker", blobUrl: LUKES_LOCKER_CHEERIO_BLOB_URL },
+  { id: "marathon-sports", name: "Marathon Sports", blobUrl: MARATHON_SPORTS_CHEERIO_BLOB_URL },
 
-      { name: "ASICS Sale", blobUrl: ASICS_SALE_BLOB_URL },
-      { name: "ALS Sale", blobUrl: ALS_SALE_BLOB_URL },
+  { id: "asics", name: "ASICS", blobUrl: ASICS_SALE_BLOB_URL },
+  { id: "als", name: "ALS", blobUrl: ALS_SALE_BLOB_URL },
 
-      // Removed: Apify (non-Holabird)
-      { name: "Brooks Running", blobUrl: BROOKS_DEALS_BLOB_URL },
-      { name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
+  { id: "brooks-running", name: "Brooks Running", blobUrl: BROOKS_DEALS_BLOB_URL },
+  { id: "foot-locker", name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
 
-      { name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
-     { id: "rei-outlet", name: "REI Outlet", blobUrl: REI_DEALS_BLOB_URL },
+  { id: "road-runner-sports", name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
+  { id: "rei-outlet", name: "REI Outlet", blobUrl: REI_DEALS_BLOB_URL },
 
+  { id: "zappos", name: "Zappos", blobUrl: ZAPPOS_DEALS_BLOB_URL },
+  { id: "rnj-sports", name: "RNJ Sports", blobUrl: RNJSPORTS_DEALS_BLOB_URL },
 
+  // Holabird is split across 3 blobs but shares 1 id
+  { id: "holabird-sports", name: "Holabird Sports (Mens Road)", blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL },
+  { id: "holabird-sports", name: "Holabird Sports (Womens Road)", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
+  { id: "holabird-sports", name: "Holabird Sports (Trail + Unisex)", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
 
-      { name: "Zappos", blobUrl: ZAPPOS_DEALS_BLOB_URL },
-      { name: "RNJ Sports", blobUrl: RNJSPORTS_DEALS_BLOB_URL },
+  { id: "shoebacca", name: "Shoebacca", blobUrl: SHOEBACCA_CLEARANCE_BLOB_URL },
+];
 
-      { name: "Holabird Mens Road", blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL },
-      { name: "Holabird Womens Road", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
-      { name: "Holabird Trail + Unisex", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
-
-      { name: "Shoebacca Clearance", blobUrl: SHOEBACCA_CLEARANCE_BLOB_URL },
-    ];
 
     const settled = await Promise.allSettled(sources.map((s) => loadDealsFromBlobOnly(s)));
 
@@ -1255,59 +1254,60 @@ const ZAPPOS_DEALS_BLOB_URL = String(process.env.ZAPPOS_DEALS_BLOB_URL || "").tr
     const perSourceMeta = {};
 
     for (let i = 0; i < settled.length; i++) {
-      const name = sources[i].name;
+  const src = sources[i];
+  const key = src.id || src.name;   // ✅ id is the real key
+  const name = src.name;            // display name only
 
-      if (settled[i].status === "fulfilled") {
-        const { source, deals, blobUrl, timestamp, duration, payloadMeta, error } = settled[i].value;
+  if (settled[i].status === "fulfilled") {
+    const { source, deals, blobUrl, timestamp, duration, payloadMeta, error } = settled[i].value;
 
-        if (source === "error") {
-          perSource[name] = { ok: false, error: error || "Unknown error" };
-          storeMetadata[name] = { error: error || "Unknown error" };
-          perSourceMeta[name] = { name, error: error || "Unknown error", source: "error", deals: [] };
-          continue;
-        }
-
-        const isTooOld = isOlderThanDays(timestamp, MAX_STORE_DATA_AGE_DAYS, nowMs);
-        const ageDays = formatAgeDays(timestamp, nowMs);
-
-        storeMetadata[name] = {
-          blobUrl: blobUrl || null,
-          timestamp: timestamp || null,
-          duration: duration || null,
-          count: safeArray(deals).length,
-
-          ageDays: ageDays != null ? ageDays : null,
-          staleExcluded: !!isTooOld,
-          staleThresholdDays: MAX_STORE_DATA_AGE_DAYS,
-        };
-
-        perSourceMeta[name] = { name, source, deals, blobUrl, timestamp, duration, payloadMeta };
-
-        if (isTooOld) {
-          perSource[name] = {
-            ok: true,
-            via: source,
-            count: 0,
-            staleExcluded: true,
-            ageDays: ageDays != null ? ageDays : null,
-            note: `Excluded: source data older than ${MAX_STORE_DATA_AGE_DAYS} days`,
-          };
-
-          console.log(
-            `[MERGE] EXCLUDING SOURCE (too old): ${name} | ageDays=${ageDays ?? "unknown"} | ts=${timestamp ?? "none"}`
-          );
-          continue;
-        }
-
-        perSource[name] = { ok: true, via: source, count: safeArray(deals).length };
-        allDealsRaw.push(...safeArray(deals));
-      } else {
-        const msg = settled[i].reason?.message || String(settled[i].reason);
-        perSource[name] = { ok: false, error: msg };
-        storeMetadata[name] = { error: msg };
-        perSourceMeta[name] = { name, error: msg, source: "error", deals: [] };
-      }
+    if (source === "error") {
+      perSource[key] = { ok: false, error: error || "Unknown error" };
+      storeMetadata[key] = { error: error || "Unknown error" };
+      perSourceMeta[key] = { name, error: error || "Unknown error", source: "error", deals: [] };
+      continue;
     }
+
+    const isTooOld = isOlderThanDays(timestamp, MAX_STORE_DATA_AGE_DAYS, nowMs);
+    const ageDays = formatAgeDays(timestamp, nowMs);
+
+    storeMetadata[key] = {
+      blobUrl: blobUrl || null,
+      timestamp: timestamp || null,
+      duration: duration || null,
+      count: safeArray(deals).length,
+      ageDays: ageDays != null ? ageDays : null,
+      staleExcluded: !!isTooOld,
+      staleThresholdDays: MAX_STORE_DATA_AGE_DAYS,
+    };
+
+    perSourceMeta[key] = { name, source, deals, blobUrl, timestamp, duration, payloadMeta };
+
+    if (isTooOld) {
+      perSource[key] = {
+        ok: true,
+        via: source,
+        count: 0,
+        staleExcluded: true,
+        ageDays: ageDays != null ? ageDays : null,
+        note: `Excluded: source data older than ${MAX_STORE_DATA_AGE_DAYS} days`,
+      };
+      console.log(
+        `[MERGE] EXCLUDING SOURCE (too old): ${name} | id=${key} | ageDays=${ageDays ?? "unknown"} | ts=${timestamp ?? "none"}`
+      );
+      continue;
+    }
+
+    perSource[key] = { ok: true, via: source, count: safeArray(deals).length };
+    allDealsRaw.push(...safeArray(deals));
+  } else {
+    const msg = settled[i].reason?.message || String(settled[i].reason);
+    perSource[key] = { ok: false, error: msg };
+    storeMetadata[key] = { error: msg };
+    perSourceMeta[key] = { name, error: msg, source: "error", deals: [] };
+  }
+}
+
 
     console.log("[MERGE] Source counts:", perSource);
     console.log("[MERGE] Total raw deals (after staleness exclusion):", allDealsRaw.length);
@@ -1375,13 +1375,15 @@ const ZAPPOS_DEALS_BLOB_URL = String(process.env.ZAPPOS_DEALS_BLOB_URL || "").tr
 
     const todayDayUTC = toIsoDayUTC(output.lastUpdated);
 
-    const todayRecords = [];
-    for (const src of sources) {
-      const name = src.name;
-      const ok = !!perSource[name]?.ok;
-      const meta = perSourceMeta[name] || null;
-      todayRecords.push(...buildTodayScraperRecords({ sourceName: name, meta, perSourceOk: ok }));
-    }
+const todayRecords = [];
+for (const src of sources) {
+  const key = src.id || src.name;
+  const ok = !!perSource[key]?.ok;
+  const meta = perSourceMeta[key] || null;
+
+  todayRecords.push(...buildTodayScraperRecords({ sourceName: key, meta, perSourceOk: ok }));
+}
+
 
     let existingScraperData = null;
     if (SCRAPER_DATA_BLOB_URL) {
