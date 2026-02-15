@@ -1660,16 +1660,23 @@ for (const k of Object.keys(storeQuality)) {
           health.status = "warning";
         }
 
-if (storeMetadata[storeName]) {
-  const m = storeMetadata[storeName];
+const metaKey = storeObj.id; // <-- use canonical id (e.g. "rei-outlet")
+
+if (storeMetadata[metaKey]) {
+  const m = storeMetadata[metaKey];
   health.metadata = {
     timestamp: m.timestamp || null,
     duration: m.duration != null ? String(m.duration) : null,
     blobUrl: m.blobUrl || null,
+    ageDays: (m.ageDays != null ? m.ageDays : null),
+    staleExcluded: !!m.staleExcluded,
+    staleThresholdDays: (m.staleThresholdDays != null ? m.staleThresholdDays : null),
+    count: (m.count != null ? m.count : null),
   };
 } else {
-  health.metadata = { timestamp: null, duration: null, blobUrl: null };
+  health.metadata = { timestamp: null, duration: null, blobUrl: null, ageDays: null, staleExcluded: false, staleThresholdDays: null, count: null };
 }
+
 
 
         // Source blob logic:
