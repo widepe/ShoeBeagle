@@ -1,0 +1,217 @@
+<!-- /rss-demo.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Shoe Beagle RSS Carousel Demo</title>
+  <style>
+    :root{
+      --max: 1100px;
+      --gap: 14px;
+      --cardW: 320px;
+      --radius: 14px;
+      --shadow: 0 10px 24px rgba(0,0,0,.08);
+      --border: rgba(0,0,0,.10);
+      --bg: #f6f2ea;
+      --text: #1f2430;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap{max-width:var(--max); margin:0 auto; padding:22px 14px 40px;}
+    h1{margin:0 0 8px; font-size:20px;}
+    .sub{margin:0 0 16px; opacity:.75; font-size:14px;}
+
+    .railHead{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px; margin-top:20px; margin-bottom:10px;
+    }
+    .railHead h2{margin:0; font-size:16px;}
+    .controls{display:flex; gap:8px;}
+    .btn{
+      border:1px solid var(--border);
+      background:#fff;
+      border-radius:12px;
+      padding:10px 12px;
+      cursor:pointer;
+      box-shadow: 0 6px 14px rgba(0,0,0,.06);
+      line-height:1;
+      user-select:none;
+    }
+    .btn:disabled{opacity:.45; cursor:not-allowed; box-shadow:none;}
+
+    .rail{
+      position:relative;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.6);
+      border-radius: var(--radius);
+      padding: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .track{
+      display:flex;
+      gap: var(--gap);
+      overflow:auto;
+      scroll-snap-type: x mandatory;
+      scroll-behavior:smooth;
+      padding-bottom: 6px;
+    }
+    /* hide scrollbar (still scrollable) */
+    .track::-webkit-scrollbar{height:10px}
+    .track::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12); border-radius:999px}
+    .track::-webkit-scrollbar-track{background:transparent}
+
+    .card{
+      flex: 0 0 var(--cardW);
+      scroll-snap-align: start;
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 12px 10px;
+      box-shadow: 0 8px 18px rgba(0,0,0,.06);
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      min-height: 165px;
+    }
+    .meta{
+      display:flex; justify-content:space-between; gap:10px;
+      font-size:12px; opacity:.70;
+    }
+    .title{
+      font-size:14px;
+      font-weight:650;
+      line-height:1.25;
+      margin:0;
+    }
+    .desc{
+      margin:0;
+      font-size:13px;
+      line-height:1.35;
+      opacity:.85;
+      display:-webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow:hidden;
+    }
+    .linkRow{
+      margin-top:auto;
+      display:flex; justify-content:space-between; align-items:center;
+      gap:10px;
+      font-size:13px;
+    }
+    a{color:inherit; text-decoration:none}
+    a:hover{text-decoration:underline}
+
+    @media (max-width: 760px){
+      :root{ --cardW: 78vw; }
+      .controls{gap:6px}
+      .btn{padding:10px 10px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>RSS Carousel Demo</h1>
+    <p class="sub">Pulls from iRunFar + Marathon Investigation via <code>/api/running-news</code>.</p>
+
+    <div class="railHead">
+      <h2>Running Reads (latest)</h2>
+      <div class="controls">
+        <button class="btn" id="prevBtn" aria-label="Previous">←</button>
+        <button class="btn" id="nextBtn" aria-label="Next">→</button>
+      </div>
+    </div>
+
+    <div class="rail">
+      <div class="track" id="track" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <script>
+    const track = document.getElementById('track');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+
+    function fmtDate(iso){
+      try{
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return '';
+        return d.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+      }catch(e){ return ''; }
+    }
+
+    function cardHTML(item){
+      const date = fmtDate(item.publishedAt);
+      const safeTitle = item.title || '(untitled)';
+      const safeDesc = item.description || '';
+      const source = item.source || '';
+      const link = item.link || '#';
+
+      return `
+        <article class="card">
+          <div class="meta">
+            <span>${source}</span>
+            <span>${date}</span>
+          </div>
+          <h3 class="title">
+            <a href="${link}" target="_blank" rel="noopener">${safeTitle}</a>
+          </h3>
+          ${safeDesc ? `<p class="desc">${safeDesc}</p>` : `<p class="desc" style="opacity:.55">No summary available.</p>`}
+          <div class="linkRow">
+            <a href="${link}" target="_blank" rel="noopener">Read →</a>
+            <span style="opacity:.65">opens new tab</span>
+          </div>
+        </article>
+      `;
+    }
+
+    function updateButtons(){
+      const maxScroll = track.scrollWidth - track.clientWidth;
+      prevBtn.disabled = track.scrollLeft <= 2;
+      nextBtn.disabled = track.scrollLeft >= maxScroll - 2;
+    }
+
+    function scrollByCard(dir){
+      // scroll by ~one card + gap
+      const firstCard = track.querySelector('.card');
+      const step = firstCard ? firstCard.getBoundingClientRect().width + 14 : 340;
+      track.scrollBy({ left: dir * step, behavior: 'smooth' });
+    }
+
+    prevBtn.addEventListener('click', () => scrollByCard(-1));
+    nextBtn.addEventListener('click', () => scrollByCard(1));
+    track.addEventListener('scroll', () => requestAnimationFrame(updateButtons));
+
+    async function load(){
+      track.innerHTML = `<div style="padding:10px;opacity:.7">Loading…</div>`;
+      try{
+        const res = await fetch('/api/running-news?limit=24');
+        const data = await res.json();
+        const items = (data && data.items) ? data.items.slice(0, 18) : [];
+
+        track.innerHTML = items.length
+          ? items.map(cardHTML).join('')
+          : `<div style="padding:10px;opacity:.7">No items returned.</div>`;
+
+        updateButtons();
+        // Re-check after layout settles
+        setTimeout(updateButtons, 150);
+      }catch(err){
+        track.innerHTML = `<div style="padding:10px;opacity:.7">Failed to load.</div>`;
+        updateButtons();
+        console.error(err);
+      }
+    }
+
+    load();
+    window.addEventListener('resize', () => setTimeout(updateButtons, 100));
+  </script>
+</body>
+</html>
