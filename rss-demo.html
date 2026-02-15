@@ -9,13 +9,17 @@
     :root{
       --max: 1100px;
       --gap: 14px;
-      --cardW: 320px;
+      --cardW: 360px;          /* a bit wider to fit left image */
       --radius: 14px;
       --shadow: 0 10px 24px rgba(0,0,0,.08);
       --border: rgba(0,0,0,.10);
       --bg: #f6f2ea;
       --text: #1f2430;
+
+      --thumbW: 108px;         /* left thumbnail width */
+      --thumbH: 92px;          /* left thumbnail height */
     }
+
     *{box-sizing:border-box}
     body{
       margin:0;
@@ -62,7 +66,6 @@
       scroll-behavior:smooth;
       padding-bottom: 6px;
     }
-    /* hide scrollbar (still scrollable) */
     .track::-webkit-scrollbar{height:10px}
     .track::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12); border-radius:999px}
     .track::-webkit-scrollbar-track{background:transparent}
@@ -73,23 +76,72 @@
       background:#fff;
       border:1px solid var(--border);
       border-radius: 14px;
-      padding: 12px 12px 10px;
+      padding: 12px;
       box-shadow: 0 8px 18px rgba(0,0,0,.06);
       display:flex;
       flex-direction:column;
       gap:10px;
-      min-height: 165px;
+      min-height: 170px;
     }
+
     .meta{
       display:flex; justify-content:space-between; gap:10px;
       font-size:12px; opacity:.70;
     }
+
+    /* NEW: left image + right text layout */
+    .row{
+      display:flex;
+      gap:12px;
+      align-items:flex-start;
+      min-width:0;
+    }
+    .thumbWrap{
+      flex: 0 0 var(--thumbW);
+      width: var(--thumbW);
+      height: var(--thumbH);
+      border-radius: 12px;
+      border:1px solid var(--border);
+      background: rgba(0,0,0,.04);
+      overflow:hidden;
+    }
+    .thumb{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+    .thumbFallback{
+      width:100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:12px;
+      opacity:.55;
+    }
+
+    .content{
+      flex:1;
+      min-width:0;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
     .title{
       font-size:14px;
       font-weight:650;
       line-height:1.25;
       margin:0;
     }
+    .title a{
+      display:-webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow:hidden;
+    }
+
     .desc{
       margin:0;
       font-size:13px;
@@ -100,17 +152,23 @@
       -webkit-box-orient: vertical;
       overflow:hidden;
     }
+
     .linkRow{
       margin-top:auto;
       display:flex; justify-content:space-between; align-items:center;
       gap:10px;
       font-size:13px;
     }
+
     a{color:inherit; text-decoration:none}
     a:hover{text-decoration:underline}
 
     @media (max-width: 760px){
-      :root{ --cardW: 78vw; }
+      :root{
+        --cardW: 82vw;
+        --thumbW: 96px;
+        --thumbH: 84px;
+      }
       .controls{gap:6px}
       .btn{padding:10px 10px}
     }
@@ -119,7 +177,7 @@
 <body>
   <div class="wrap">
     <h1>RSS Carousel Demo</h1>
-    <p class="sub">Pulls from iRunFar + Marathon Investigation via <code>/api/running-news</code>.</p>
+    <p class="sub">Pulls from multiple running RSS feeds via <code>/api/running-news</code>.</p>
 
     <div class="railHead">
       <h2>Running Reads (latest)</h2>
@@ -147,23 +205,52 @@
       }catch(e){ return ''; }
     }
 
+    function escHtml(s){
+      return String(s ?? '')
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#39;');
+    }
+
     function cardHTML(item){
       const date = fmtDate(item.publishedAt);
-      const safeTitle = item.title || '(untitled)';
-      const safeDesc = item.description || '';
-      const source = item.source || '';
+      const safeTitle = escHtml(item.title || '(untitled)');
+      const safeDesc = escHtml(item.description || '');
+      const source = escHtml(item.source || '');
       const link = item.link || '#';
+      const img = item.imageUrl || '';
+
+      const thumbHTML = img
+        ? `<div class="thumbWrap">
+             <img class="thumb" src="${img}" alt="" loading="lazy" referrerpolicy="no-referrer"
+                  onerror="this.closest('.thumbWrap').innerHTML='<div class=&quot;thumbFallback&quot;>No image</div>'">
+           </div>`
+        : `<div class="thumbWrap"><div class="thumbFallback">No image</div></div>`;
 
       return `
         <article class="card">
           <div class="meta">
             <span>${source}</span>
-            <span>${date}</span>
+            <span>${escHtml(date)}</span>
           </div>
-          <h3 class="title">
-            <a href="${link}" target="_blank" rel="noopener">${safeTitle}</a>
-          </h3>
-          ${safeDesc ? `<p class="desc">${safeDesc}</p>` : `<p class="desc" style="opacity:.55">No summary available.</p>`}
+
+          <div class="row">
+            ${thumbHTML}
+
+            <div class="content">
+              <h3 class="title">
+                <a href="${link}" target="_blank" rel="noopener">${safeTitle}</a>
+              </h3>
+
+              ${safeDesc
+                ? `<p class="desc">${safeDesc}</p>`
+                : `<p class="desc" style="opacity:.55">No summary available.</p>`
+              }
+            </div>
+          </div>
+
           <div class="linkRow">
             <a href="${link}" target="_blank" rel="noopener">Read →</a>
             <span style="opacity:.65">opens new tab</span>
@@ -179,9 +266,8 @@
     }
 
     function scrollByCard(dir){
-      // scroll by ~one card + gap
       const firstCard = track.querySelector('.card');
-      const step = firstCard ? firstCard.getBoundingClientRect().width + 14 : 340;
+      const step = firstCard ? firstCard.getBoundingClientRect().width + 14 : 360;
       track.scrollBy({ left: dir * step, behavior: 'smooth' });
     }
 
@@ -201,7 +287,6 @@
           : `<div style="padding:10px;opacity:.7">No items returned.</div>`;
 
         updateButtons();
-        // Re-check after layout settles
         setTimeout(updateButtons, 150);
       }catch(err){
         track.innerHTML = `<div style="padding:10px;opacity:.7">Failed to load.</div>`;
