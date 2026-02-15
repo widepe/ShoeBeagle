@@ -1274,14 +1274,7 @@ try {
           <strong>Unknown brands:</strong> ${unknownBrandsCount} (${deals.length ? ((unknownBrandsCount / deals.length) * 100).toFixed(1) : "0.0"}%)<br><br>
         `;
 
-        // Canonical expected blobs (from canonical-stores.json)
-        debugHTML += `<strong>Store Blobs (from canonical-stores.json):</strong><br>`;
-        for (const s of CANONICAL.list) {
-          const blobs = canonicalExpectedBlobs(s);
-          debugHTML += `<div style="margin-left: 10px; margin-top: 4px;">
-            <strong>${s.displayName}:</strong> ${blobs.length ? blobs.map(u => `<a href="${u}" target="_blank" style="color:#214478ff; word-break: break-all;">${u}</a>`).join("<br>") : `<span style="opacity:.75;">Unknown</span>`}
-          </div>`;
-        }
+       
 
         debugContent.innerHTML = debugHTML;
         debugInfo.style.display = "block";
