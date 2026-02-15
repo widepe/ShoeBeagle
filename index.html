@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <!-- Favicon -->
-  
+
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
@@ -17,8 +17,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- CSS split -->
-  <link rel="stylesheet" href="/pages/index.css?v=122
-    ">
+  <link rel="stylesheet" href="/pages/index.css?v=122">
 
   <!--
     IMPORTANT:
@@ -31,45 +30,12 @@
 
 <body>
   <div class="app">
-<!--    <img class="mobile-top-banner" src="/images/logo_heading.svg" alt="">   -->
+    <!-- <img class="mobile-top-banner" src="/images/logo_heading.svg" alt=""> -->
 
-    <!-- TOP AREA: inputs left, logo right -->
+    <!-- TOP AREA: LOGO FIRST (left on desktop/tablet; stacks above on mobile portrait via CSS) -->
     <div class="topbar">
-      <div class="top-left">
-        <form id="search-form" method="POST" autocomplete="off">
 
-          <!-- SINGLE SEARCH ROW: unified input + menu + fetch -->
-          <div class="row">
-            <div class="input-wrapper">
-              <img class="input-icon" src="/images/shoe.svg" alt="" aria-hidden="true">
-              <input id="q" type="text" placeholder="Search brand or model" autocomplete="off"/>
-              <button type="button" class="input-clear" aria-label="Clear search">&times;</button>
-              <div id="qSuggestions" class="suggestions"></div>
-            </div>
-
-   <div class="button-wrapper">
-  <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
-    <img src="/images/mag_glass.svg" class="btn-icon" alt="Fetch">
-  </button>
-</div>
-
-<div class="button-wrapper">
-  <button id="menuBtn"
-          type="button"
-          class="btn-eq"
-          aria-label="Links"
-          aria-expanded="false"
-          aria-controls="linksRibbon">
-    <img src="/images/menu.svg" class="btn-icon" alt="Links">
-  </button>
-</div>
-
-          </div>
-
-        </form>
-      </div>
-
-      <!-- LOGO RIGHT -->
+      <!-- LOGO -->
       <div class="top-right">
         <img
           src="/images/logo.svg"
@@ -78,7 +44,43 @@
           id="logoLink"
         >
       </div>
+
+      <!-- INPUTS -->
+      <div class="top-left">
+        <form id="search-form" method="POST" autocomplete="off">
+
+          <!-- SINGLE SEARCH ROW: unified input + fetch + menu -->
+          <div class="row">
+            <div class="input-wrapper">
+              <img class="input-icon" src="/images/shoe.svg" alt="" aria-hidden="true">
+              <input id="q" type="text" placeholder="Search brand or model" autocomplete="off"/>
+              <button type="button" class="input-clear" aria-label="Clear search">&times;</button>
+              <div id="qSuggestions" class="suggestions"></div>
+            </div>
+
+            <div class="button-wrapper">
+              <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
+                <img src="/images/mag_glass.svg" class="btn-icon" alt="Fetch">
+              </button>
+            </div>
+
+            <div class="button-wrapper">
+              <button id="menuBtn"
+                      type="button"
+                      class="btn-eq"
+                      aria-label="Links"
+                      aria-expanded="false"
+                      aria-controls="linksRibbon">
+                <img src="/images/menu.svg" class="btn-icon" alt="Links">
+              </button>
+            </div>
+          </div>
+
+        </form>
+      </div>
+
     </div>
+
 
     <!-- Links ribbon (hidden by default; toggled by the button above) -->
     <div id="linksRibbon" class="links-ribbon" style="display:none;">
