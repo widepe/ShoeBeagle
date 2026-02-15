@@ -17,9 +17,8 @@ html{ -webkit-text-size-adjust:100%; }
 :root{
   --sb-blue:#214478ff;
 
-
   --bg:#f4ede3ff;   
- --card-bg: #f4ede3ff;
+ --card-bg: #e2e5ec;
    --sb-blue-rgb: 33 68 120;
    
 --maxw:1600px;
@@ -45,8 +44,8 @@ html{ -webkit-text-size-adjust:100%; }
   --top-rows:1;
 
   --cols:6;
-
-  --card-w:calc(260px * var(--grid-scale));
+--card-title-color:#214478ff;   
+   --card-w:calc(260px * var(--grid-scale));
   --grid-gap:calc(1.25rem * var(--grid-scale));
 
   --grid-w:calc(
@@ -570,7 +569,7 @@ button{
   flex-direction:column;
   gap:var(--card-gap);
   text-decoration:none;
-  color:inherit;
+  color:var(--card-title-color);
   height:100%;
   min-width:0;
 }
