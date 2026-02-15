@@ -312,9 +312,7 @@
     .health-metric-value { font-weight: bold; color: #214478ff; word-break: break-word; }
     .health-metric-value.na { color: #999; font-style: italic; }
 
-    .health-metric.full {
-      grid-column: 1 / -1;
-    }
+    .health-metric.full { grid-column: 1 / -1; }
 
     .inline-pill {
       background: rgba(33, 68, 120, 0.06);
@@ -377,23 +375,15 @@
       font-weight: 600;
     }
 
-    .health-issues-list.hidden {
-      display: none;
-    }
+    .health-issues-list.hidden { display: none; }
 
     .health-issues-list-title {
       font-weight: 800;
       color: #8a1f2c;
     }
 
-    .health-issues-list ul {
-      margin: 0;
-      padding-left: 18px;
-    }
-
-    .health-issues-list li {
-      margin: 2px 0;
-    }
+    .health-issues-list ul { margin: 0; padding-left: 18px; }
+    .health-issues-list li { margin: 2px 0; }
 
     .scraped-url {
       font-size: 0.75rem;
@@ -572,9 +562,7 @@
       border: 1px solid #e5e7eb;
     }
 
-    .row-has-issues {
-      background: #fff6f5;
-    }
+    .row-has-issues { background: #fff6f5; }
 
     .missing-cell {
       color: #9ca3af;
@@ -761,9 +749,7 @@
       raw: [],
       byId: {},
       byDisplayName: {},
-      // maps any alias -> store id
       aliasToId: {},
-      // sorted list (alphabetical by displayName)
       list: []
     };
 
@@ -804,7 +790,7 @@
           addedAt: s.addedAt || null,
           lastUpdated: s.lastUpdated || null,
           scrapedUrls: Array.isArray(s.scrapedUrls) ? s.scrapedUrls.filter(Boolean) : [],
-          expectedBlob: s.expectedBlob ?? null, // could be array OR "unknown"
+          expectedBlob: s.expectedBlob ?? null,
           aliases: Array.isArray(s.aliases) ? s.aliases.filter(Boolean) : [],
           enabled: Boolean(s.enabled),
           scraperType: String(s.scraperType || "unknown"),
@@ -814,7 +800,6 @@
         byId[id] = storeObj;
         byDisplayName[displayName] = storeObj;
 
-        // Build alias map (aliases + id + displayName)
         const aliasSet = new Set();
         aliasSet.add(id);
         aliasSet.add(displayName);
@@ -823,13 +808,11 @@
         for (const a of aliasSet) {
           const k = normalizeKey(a);
           if (!k) continue;
-          // first one wins (stable)
           if (!aliasToId[k]) aliasToId[k] = id;
         }
       }
 
       const list = Object.values(byId).sort((a, b) => a.displayName.localeCompare(b.displayName));
-
       CANONICAL = { raw: arr, byId, byDisplayName, aliasToId, list };
       return CANONICAL;
     }
@@ -842,8 +825,6 @@
       const id = CANONICAL.aliasToId[key];
       if (id && CANONICAL.byId[id]) return CANONICAL.byId[id].displayName;
 
-      // Sometimes the deal store already matches canonical displayName but different casing/spaces.
-      // If it matches by normalized displayName, map it.
       for (const s of CANONICAL.list) {
         if (normalizeKey(s.displayName) === key) return s.displayName;
       }
@@ -851,7 +832,6 @@
       return cleaned;
     }
 
-    // For UI sections that must include EVERY canonical store
     function getCanonicalDisplayNames() {
       return CANONICAL.list.map(s => s.displayName);
     }
@@ -927,8 +907,6 @@
     }
 
     function getLastUpdatedInfo(dealsJsonRaw, mergeData) {
-      // Prefer deals.json object's own lastUpdated (if present),
-      // otherwise fall back to merge-deals timestamp.
       const dealsObj =
         (!Array.isArray(dealsJsonRaw) && dealsJsonRaw && typeof dealsJsonRaw === "object")
           ? dealsJsonRaw
@@ -1164,43 +1142,41 @@
         // 1) Load canonical stores FIRST (single source of truth)
         await loadCanonicalStores();
 
-const cacheBuster = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        const cacheBuster = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-     // 2) Load merged deals
-const dealsResponse = await fetch(`${BLOB_BASE}/deals.json?t=${cacheBuster}`, { cache: "no-store" });
-if (!dealsResponse.ok) throw new Error(`Failed to fetch deals: ${dealsResponse.status}`);
+        // 2) Load merged deals
+        const dealsResponse = await fetch(`${BLOB_BASE}/deals.json?t=${cacheBuster}`, { cache: "no-store" });
+        if (!dealsResponse.ok) throw new Error(`Failed to fetch deals: ${dealsResponse.status}`);
 
-const dealsJson = await dealsResponse.json();
-const deals = Array.isArray(dealsJson)
-  ? dealsJson
-  : (Array.isArray(dealsJson.deals) ? dealsJson.deals : null);
+        const dealsJson = await dealsResponse.json();
+        const deals = Array.isArray(dealsJson)
+          ? dealsJson
+          : (Array.isArray(dealsJson.deals) ? dealsJson.deals : null);
 
-if (!deals) throw new Error("Invalid deals.json format (expected array or {deals:[...]})");
+        if (!deals) throw new Error("Invalid deals.json format (expected array or {deals:[...]})");
 
-// 2b) Build mergeData WITHOUT merge-data.json
-// - timestamp/lastUpdated + scraperResults come from deals.json
-// - storeMetadata comes from stats.json (stats.scraperMetadata)
-let mergeData = {
-  timestamp: dealsJson?.lastUpdated || dealsJson?.timestamp || null,
-  lastUpdated: dealsJson?.lastUpdated || dealsJson?.timestamp || null,
-  scraperResults: dealsJson?.scraperResults || {},
-  storeMetadata: {} // filled from stats.json below
-};
+        // 2b) Build mergeData WITHOUT merge-data.json
+        // - timestamp/lastUpdated + scraperResults come from deals.json
+        // - storeMetadata comes from stats.json (stats.scraperMetadata)
+        let mergeData = {
+          timestamp: dealsJson?.lastUpdated || dealsJson?.timestamp || null,
+          lastUpdated: dealsJson?.lastUpdated || dealsJson?.timestamp || null,
+          scraperResults: dealsJson?.scraperResults || {},
+          storeMetadata: {}
+        };
 
-// 2c) Load stats.json so health cards can show per-store blobUrl/timestamp/duration
-try {
-  const statsResponse = await fetch(`${BLOB_BASE}/stats.json?t=${cacheBuster}`, { cache: "no-store" });
-  if (statsResponse.ok) {
-    const statsJson = await statsResponse.json();
-    mergeData.storeMetadata = statsJson?.scraperMetadata || {};
-    // (optional) if stats has a fresher timestamp, keep it
-    mergeData.timestamp = mergeData.timestamp || statsJson?.lastUpdated || statsJson?.generatedAt || null;
-    mergeData.lastUpdated = mergeData.lastUpdated || statsJson?.lastUpdated || statsJson?.generatedAt || null;
-  }
-} catch (e) {
-  console.log("Could not load stats.json (continuing without store metadata):", e?.message || e);
-}
-
+        // 2c) Load stats.json so health cards can show per-store blobUrl/timestamp/duration
+        try {
+          const statsResponse = await fetch(`${BLOB_BASE}/stats.json?t=${cacheBuster}`, { cache: "no-store" });
+          if (statsResponse.ok) {
+            const statsJson = await statsResponse.json();
+            mergeData.storeMetadata = statsJson?.scraperMetadata || {};
+            mergeData.timestamp = mergeData.timestamp || statsJson?.lastUpdated || statsJson?.generatedAt || null;
+            mergeData.lastUpdated = mergeData.lastUpdated || statsJson?.lastUpdated || statsJson?.generatedAt || null;
+          }
+        } catch (e) {
+          console.log("Could not load stats.json (continuing without store metadata):", e?.message || e);
+        }
 
         // unaltered-deals.json supports ARRAY or {deals:[...]} (optional)
         let unalteredDeals = [];
@@ -1215,8 +1191,6 @@ try {
         } catch (unalteredError) {
           console.log("Could not load unaltered deals (continuing without it):", unalteredError.message);
         }
-
-
 
         ALL_DEALS = deals;
         UNALTERED_DEALS = unalteredDeals;
@@ -1250,11 +1224,7 @@ try {
         const mergedDealsUrl = `${BLOB_BASE}/deals.json`;
         const lastUpdatedInfo = getLastUpdatedInfo(dealsJson, mergeData);
 
-        // Canonical meta
         const canonicalCount = CANONICAL.list.length;
-        const canonicalLastUpdated = CANONICAL.raw?.[0]?.lastUpdated
-          ? "See per-store lastUpdated"
-          : "N/A";
 
         let debugHTML = `
           <strong>CANONICAL_STORES_URL:</strong> ${CANONICAL_STORES_URL}<br>
@@ -1274,18 +1244,17 @@ try {
           <strong>Unknown brands:</strong> ${unknownBrandsCount} (${deals.length ? ((unknownBrandsCount / deals.length) * 100).toFixed(1) : "0.0"}%)<br><br>
         `;
 
-       
-
         debugContent.innerHTML = debugHTML;
         debugInfo.style.display = "block";
 
         const stats = calculateStats(deals);
 
-// DROP any non-canonical stores from stats.stores
-const canonicalSet = new Set(CANONICAL.list.map(s => s.displayName));
-for (const k of Object.keys(stats.stores)) {
-  if (!canonicalSet.has(k)) delete stats.stores[k];
-}        
+        // DROP any non-canonical stores from stats.stores
+        const canonicalSet = new Set(CANONICAL.list.map(s => s.displayName));
+        for (const k of Object.keys(stats.stores)) {
+          if (!canonicalSet.has(k)) delete stats.stores[k];
+        }
+
         STORE_DATA = stats.stores;
 
         displayOverallMeta(stats, dealsJson, mergeData);
@@ -1450,13 +1419,11 @@ for (const k of Object.keys(stats.stores)) {
         if (!url || url === "#") storeQuality[store].badUrl++;
       });
 
+      const canonicalSet = new Set(CANONICAL.list.map(s => s.displayName));
+      for (const k of Object.keys(storeQuality)) {
+        if (!canonicalSet.has(k)) delete storeQuality[k];
+      }
 
-const canonicalSet = new Set(CANONICAL.list.map(s => s.displayName));
-for (const k of Object.keys(storeQuality)) {
-  if (!canonicalSet.has(k)) delete storeQuality[k];
-}
-
-      
       renderDataQualityTable(storeQuality);
     }
 
@@ -1561,8 +1528,6 @@ for (const k of Object.keys(storeQuality)) {
         return { name, data, avgDiscount, avgSavings, bestDeal };
       });
 
-      // Ensure canonical-only ordering is always present (it already is, but keep stable)
-      // Sorting below respects UI sort
       sorted.sort((a, b) => {
         let comparison = 0;
         switch(CURRENT_STORE_SORT.column) {
@@ -1582,7 +1547,7 @@ for (const k of Object.keys(storeQuality)) {
         return CURRENT_STORE_SORT.direction === "asc" ? comparison : -comparison;
       });
 
-      const storeTable = document.querySelectorAll(".stores-table")[1]; // 0 = data quality, 1 = store breakdown
+      const storeTable = document.querySelectorAll(".stores-table")[1];
       if (storeTable) {
         storeTable.querySelectorAll("th").forEach(th => th.classList.remove("sorted-asc", "sorted-desc"));
         const headers = storeTable.querySelectorAll("th");
@@ -1620,8 +1585,12 @@ for (const k of Object.keys(storeQuality)) {
       const healthIssuesList = document.getElementById("healthIssuesList");
       if (!healthPanel || !healthGrid || !healthSummary) return;
 
+      function escalateStatus(health, next) {
+        const order = { healthy: 0, warning: 1, critical: 2 };
+        if (order[next] > order[health.status]) health.status = next;
+      }
+
       const storeMetadata = mergeData?.storeMetadata || {};
-      const mergeMissing = !mergeData || !mergeData.storeMetadata;
 
       const storeHealth = {};
       let healthyCount = 0;
@@ -1648,61 +1617,104 @@ for (const k of Object.keys(storeQuality)) {
         };
 
         if (!health.enabled) {
-          // Still show everywhere; it's canonical. Mark it clearly.
           health.issues.push({ type: "warning", message: "⚠️ Store is disabled in canonical-stores.json" });
-          health.status = "warning";
+          escalateStatus(health, "warning");
         }
 
-const metaKey = storeObj.id; // <-- use canonical id (e.g. "rei-outlet")
+        const metaKey = storeObj.id;
 
-if (storeMetadata[metaKey]) {
-  const m = storeMetadata[metaKey];
-  health.metadata = {
-    timestamp: m.timestamp || null,
-    duration: m.duration != null ? String(m.duration) : null,
-    blobUrl: m.blobUrl || null,
-    ageDays: (m.ageDays != null ? m.ageDays : null),
-    staleExcluded: !!m.staleExcluded,
-    staleThresholdDays: (m.staleThresholdDays != null ? m.staleThresholdDays : null),
-    count: (m.count != null ? m.count : null),
-  };
-} else {
-  health.metadata = { timestamp: null, duration: null, blobUrl: null, ageDays: null, staleExcluded: false, staleThresholdDays: null, count: null };
-}
+        if (storeMetadata[metaKey]) {
+          const m = storeMetadata[metaKey];
+          health.metadata = {
+            timestamp: m.timestamp || null,
+            duration: m.duration != null ? String(m.duration) : null,
+            blobUrl: m.blobUrl || null,
+            ageDays: (m.ageDays != null ? m.ageDays : null),
+            staleExcluded: !!m.staleExcluded,
+            staleThresholdDays: (m.staleThresholdDays != null ? m.staleThresholdDays : null),
+            count: (m.count != null ? m.count : null),
+          };
+        } else {
+          health.metadata = { timestamp: null, duration: null, blobUrl: null, ageDays: null, staleExcluded: false, staleThresholdDays: null, count: null };
+        }
 
-
-
-        // Source blob logic:
-        // Prefer merge metadata blobUrl (actual source used) if present.
-        // Else fall back to canonical expectedBlob(s).
+        // Source blob logic
         const actualBlob = health.metadata?.blobUrl || null;
-
         if (!actualBlob && health.expectedBlobs.length === 0) {
           health.issues.push({ type: "warning", message: "⚠️ No blob URL available (expectedBlob is unknown + no merge metadata)" });
-          if (health.status !== "critical") health.status = "warning";
+          escalateStatus(health, "warning");
         }
 
-        // Deals present?
+        // Deals present? + gender stats
         const storeDeals = deals.filter(d => normalizeStoreNameFromDeal(d.store) === storeName);
         health.genderStats = calculateGenderStats(storeDeals);
 
+        // -------------------------
+        // STALENESS CHECKS (26h warn, 7d critical, missing ts = critical)
+        // Respect staleExcluded: true (skip ONLY staleness checks)
+        // -------------------------
+        const meta = health.metadata || {};
+        const ts = meta.timestamp ? new Date(meta.timestamp).getTime() : NaN;
+        const STALE_WARN_MS = 26 * 60 * 60 * 1000;
+        const STALE_CRIT_MS = 7 * 24 * 60 * 60 * 1000;
+
+        if (!meta.staleExcluded) {
+          if (!meta.timestamp || !Number.isFinite(ts)) {
+            health.issues.push({ type: "critical", message: "🚨 Missing timestamp (Last Updated)" });
+            escalateStatus(health, "critical");
+          } else {
+            const ageMs = Date.now() - ts;
+            if (ageMs >= STALE_CRIT_MS) {
+              health.issues.push({ type: "critical", message: `🚨 Stale data (≥ 7 days old): ${formatAge(ageMs)} ago` });
+              escalateStatus(health, "critical");
+            } else if (ageMs > STALE_WARN_MS) {
+              health.issues.push({ type: "warning", message: `⚠️ Stale data (> 26 hours old): ${formatAge(ageMs)} ago` });
+              escalateStatus(health, "warning");
+            }
+          }
+        } else {
+          // Optional visibility so you remember why it didn't stale-flag
+          health.issues.push({ type: "warning", message: "⚠️ Staleness checks skipped (staleExcluded: true)" });
+          escalateStatus(health, "warning");
+        }
+
+        // -------------------------
+        // ZERO DEALS (critical)
+        // -------------------------
         if (health.dealCount === 0) {
           health.issues.push({ type: "critical", message: "🚨 ZERO RESULTS (no deals in merged deals.json)" });
-          health.status = "critical";
+          escalateStatus(health, "critical");
         }
 
-        // Data quality checks
-        const unknownBrands = storeDeals.filter(d => (normalizeStr(d.brand) === "Unknown" || !normalizeStr(d.brand))).length;
+        // -------------------------
+        // GENDER ANOMALY (critical)
+        // If dealCount >= 10 and EITHER mens==0 OR womens==0
+        // -------------------------
+        if (health.dealCount >= 10 && (health.genderStats.mens === 0 || health.genderStats.womens === 0)) {
+          const parts = [];
+          if (health.genderStats.mens === 0) parts.push("0 Men's");
+          if (health.genderStats.womens === 0) parts.push("0 Women's");
+          health.issues.push({ type: "critical", message: `🚨 Gender breakdown anomaly (${parts.join(", ")}) with ${health.dealCount} deals` });
+          escalateStatus(health, "critical");
+        }
+
+        // -------------------------
+        // UNKNOWN BRANDS (critical only)
+        // Critical if > 5% unknown
+        // -------------------------
+        const unknownBrands = storeDeals.filter(d => {
+          const b = normalizeStr(d.brand);
+          return (!b || b === "Unknown");
+        }).length;
+
         const unknownPercent = health.dealCount > 0 ? (unknownBrands / health.dealCount) * 100 : 0;
 
-        if (unknownPercent > 50) {
-          health.issues.push({ type: "critical", message: `🚨 ${unknownPercent.toFixed(0)}% Unknown Brands` });
-          health.status = "critical";
-        } else if (unknownPercent > 20) {
-          health.issues.push({ type: "warning", message: `⚠️ ${unknownPercent.toFixed(0)}% Unknown Brands` });
-          if (health.status !== "critical") health.status = "warning";
+        if (health.dealCount > 0 && unknownPercent > 5) {
+          health.issues.push({ type: "critical", message: `🚨 Unknown Brands > 5% (${unknownPercent.toFixed(1)}%)` });
+          escalateStatus(health, "critical");
         }
 
+        // Missing images
         const missingImages = storeDeals.filter(d => {
           const img = normalizeStr(d.imageURL);
           return !img || img.includes("placehold.co");
@@ -1711,9 +1723,10 @@ if (storeMetadata[metaKey]) {
 
         if (missingImagesPercent > 30) {
           health.issues.push({ type: "warning", message: `⚠️ ${missingImagesPercent.toFixed(0)}% Missing Images` });
-          if (health.status !== "critical") health.status = "warning";
+          escalateStatus(health, "warning");
         }
 
+        // Missing URLs
         const missingUrls = storeDeals.filter(d => {
           const url = normalizeStr(d.listingURL);
           return !url || url === "#";
@@ -1722,7 +1735,7 @@ if (storeMetadata[metaKey]) {
 
         if (missingUrlsPercent > 10) {
           health.issues.push({ type: "warning", message: `⚠️ ${missingUrlsPercent.toFixed(0)}% Missing URLs` });
-          if (health.status !== "critical") health.status = "warning";
+          escalateStatus(health, "warning");
         }
 
         storeHealth[storeName] = health;
@@ -1768,13 +1781,10 @@ if (storeMetadata[metaKey]) {
         const hoursAgoStr = Number.isFinite(ts) ? formatHoursAgo(Date.now() - ts) : "Not Available";
         const durationStr = meta.duration != null ? String(meta.duration) : "Not Available";
 
-        const sourceBlobPrimary = meta.blobUrl || (health.expectedBlobs[0] || null);
         const sourceBlobsAll = meta.blobUrl ? [meta.blobUrl] : health.expectedBlobs;
-
         const scrapedUrls = health.scrapedUrls;
         const genderStats = health.genderStats;
         const totalDealsStr = (health.dealCount || 0).toLocaleString();
-
         const disabledBadge = health.enabled ? "" : `<span class="badge-disabled">DISABLED</span>`;
 
         return `
@@ -1877,8 +1887,8 @@ if (storeMetadata[metaKey]) {
 
       for (const s of CANONICAL.list) {
         const opt = document.createElement("option");
-        opt.value = s.id;                 // stable value
-        opt.textContent = s.displayName;  // human label
+        opt.value = s.id;
+        opt.textContent = s.displayName;
         select.appendChild(opt);
       }
 
