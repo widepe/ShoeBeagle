@@ -794,7 +794,7 @@ button{
   }
 }  
 
-/* MOBILE PORTRAIT (single block, fixed braces, menu collapses so input grows) */
+/* MOBILE PORTRAIT (single block, fixed braces, menu collapses so input grows) ---------------------------------------------------- */
 @media (max-width:560px){
   :root{
     --cols:1;
@@ -1055,7 +1055,6 @@ input[type="text"], input[type="search"]{
     width:100%;
     margin:0;
     aspect-ratio:auto;
-    border:2px solid var(--sb-blue);
     border-radius:0.75rem;
     padding:0.6rem;
     position:relative;
@@ -1082,7 +1081,6 @@ input[type="text"], input[type="search"]{
     height:100%;
     object-fit:contain;
     background:#fff;
-    border:1px solid var(--sb-blue);
     border-radius:0.6rem;
     display:block;
   }
