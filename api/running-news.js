@@ -14,15 +14,18 @@ export default async function handler(req, res) {
   try {
     const limit = clampInt(req.query.limit, 12, 1, 50);
 
-    const feeds = [
-      { name: "iRunFar", url: "https://irunfar.com/feed" },
-      { name: "Believe In The Run", url: "https://believeintherun.com/feed " },
-      { name: "Marathon Training Academy", url: "https://www.marathontrainingacademy.com/feed"},
-      { name: "Running Shoes Guru", url: "https://runningshoesguru.com/feed " },     
-      { name: "Marathon Investigation", url: "https://www.marathoninvestigation.com/feed" },
-      { name: "Runners Connect", url: "https://runnersconnect.net/feed" },
-      { name: "Steve Magness", url: "https://feeds.feedburner.com/stevemagness" },
-    ];
+const feeds = [
+  { name: "iRunFar", url: "https://irunfar.com/feed" },
+  { name: "Believe In The Run", url: "https://believeintherun.com/feed" },
+  { name: "Marathon Training Academy", url: "https://www.marathontrainingacademy.com/feed" },
+  { name: "Running Shoes Guru", url: "https://runningshoesguru.com/feed" },
+  { name: "Marathon Investigation", url: "https://www.marathoninvestigation.com/feed" },
+  { name: "Runners Connect", url: "https://runnersconnect.net/feed" },
+  { name: "Steve Magness", url: "https://feeds.feedburner.com/stevemagness" },
+
+  { name: "Track & Field News", url: "https://trackandfieldnews.com/feed/" },
+  { name: "USATF Masters", url: "https://usatfmasters.org/feed/" },
+];
 
     const results = await Promise.all(
       feeds.map(async (f) => {
