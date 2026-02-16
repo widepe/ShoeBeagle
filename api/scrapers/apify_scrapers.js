@@ -1,6 +1,5 @@
 // api/scrapers/apify_scrapers.js
 // Trigger-only runner for Apify Actors
-// DEBUG VERSION – remove DEBUG blocks after diagnosis
 
 const { ApifyClient } = require("apify-client");
 
@@ -22,11 +21,11 @@ function requireEnv(name) {
 // ===========================
 const ENABLED = {
   brooks: true,
-  rei: false,
-  roadrunner: false,
-  zappos: false,
-  footlocker: false,
-  rnj: false,
+  rei: true,
+  roadrunner: true,
+  zappos: true,
+  footlocker: true,
+  rnj: true,
 };
 
 // ===========================
@@ -89,20 +88,6 @@ module.exports = async (req, res) => {
       return res.status(500).json({ success: false, error: "Missing APIFY_TOKEN env var" });
     }
 
-    // ===========================
-    // ===== DEBUG START =====
-    // ===========================
-    const whoami = await apifyClient.user().get();
-    console.log("[DEBUG] Apify token belongs to:", {
-      id: whoami.id,
-      username: whoami.username,
-    });
-
-    console.log("[DEBUG] TARGETS loaded:", TARGETS.map(t => `${t.key}:${t.name}`));
-    // ===========================
-    // ===== DEBUG END =====
-    // ===========================
-
     const onlySet = parseCsvParam(req.query?.only);
     const skipSet = parseCsvParam(req.query?.skip);
 
@@ -127,17 +112,6 @@ module.exports = async (req, res) => {
       }
 
       const actorId = requireEnv(t.actorEnv);
-
-      // ===========================
-      // ===== DEBUG START =====
-      console.log("[DEBUG] Attempting:", {
-        name: t.name,
-        actorEnv: t.actorEnv,
-        actorId,
-      });
-      // ===========================
-      // ===== DEBUG END =====
-      // ===========================
 
       if (!actorId) {
         results[t.name] = {
@@ -166,19 +140,6 @@ module.exports = async (req, res) => {
         const runInfo = await callActor(actorId, t.name, maybeInput || {});
         results[t.name] = { ok: true, key, ...runInfo };
       } catch (err) {
-
-        // ===========================
-        // ===== DEBUG START =====
-        console.error("[DEBUG] Apify call FAILED:", {
-          name: t.name,
-          message: err?.message,
-          statusCode: err?.statusCode,
-          type: err?.type,
-        });
-        // ===========================
-        // ===== DEBUG END =====
-        // ===========================
-
         results[t.name] = {
           ok: false,
           key,
@@ -198,10 +159,6 @@ module.exports = async (req, res) => {
       mode: "trigger-only",
       startedAt: startedAtIso,
       durationMs,
-      whoami: {
-        id: whoami.id,
-        username: whoami.username,
-      },
       results,
     });
 
