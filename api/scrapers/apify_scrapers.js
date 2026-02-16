@@ -5,9 +5,13 @@
 // - NO mapping
 // - NO put() / blob writes
 //
-// Assumption (your current architecture):
-// ✅ Each Apify actor is responsible for scraping + writing its OWN Vercel Blob.
-// Vercel only triggers the runs (this file) + later merge-deals reads blobs.
+// NEW:
+// - Easy on/off toggles at top via ENABLED map
+// - Optional query param to run only some: ?only=brooks,zappos
+// - Optional query param to skip some: ?skip=rei,footlocker
+//
+// Keys you can use in only/skip:
+//   brooks, rei, roadrunner, zappos, footlocker, rnj
 
 const { ApifyClient } = require("apify-client");
 
@@ -24,10 +28,32 @@ function requireEnv(name) {
   return v || null;
 }
 
+// ===========================
+// EASY TOGGLES (edit here)
+// ===========================
+const ENABLED = {
+  brooks: true,
+  rei: false,
+  roadrunner: false,
+  zappos: false,
+  footlocker: false,
+  rnj: false,
+};
+
+// ===========================
+// ACTOR DEFINITIONS
+// ===========================
+const TARGETS = [
+  { key: "brooks", name: "Brooks Running", actorEnv: "APIFY_BROOKS_ACTOR_ID", inputEnv: "APIFY_BROOKS_INPUT_JSON" },
+  { key: "rei", name: "REI Outlet", actorEnv: "APIFY_REI_ACTOR_ID", inputEnv: "APIFY_REI_INPUT_JSON" },
+  { key: "roadrunner", name: "Road Runner Sports", actorEnv: "APIFY_ROADRUNNER_ACTOR_ID", inputEnv: "APIFY_ROADRUNNER_INPUT_JSON" },
+  { key: "zappos", name: "Zappos", actorEnv: "APIFY_ZAPPOS_ACTOR_ID", inputEnv: "APIFY_ZAPPOS_INPUT_JSON" },
+  { key: "footlocker", name: "Foot Locker", actorEnv: "APIFY_FOOTLOCKER_ACTOR_ID", inputEnv: "APIFY_FOOTLOCKER_INPUT_JSON" },
+  { key: "rnj", name: "RnJ Sports", actorEnv: "APIFY_RNJSPORTS_ACTOR_ID", inputEnv: "APIFY_RNJSPORTS_INPUT_JSON" },
+];
+
 async function callActor(actorId, actorName, input) {
-  // .call() waits for the run to finish. That's okay if your actors usually finish
-  // within Vercel's function timeout. If they might take longer, switch to .start()
-  // (see NOTE below).
+  // .call() waits for the run to finish. If that’s risky with timeouts, swap to .start().
   const run = await apifyClient.actor(actorId).call(input || {});
   return {
     actorName,
@@ -40,59 +66,81 @@ async function callActor(actorId, actorName, input) {
   };
 }
 
+// Small helper: allow optional per-actor input via env as JSON (optional)
+function parseOptionalJsonEnv(envName) {
+  const raw = String(process.env[envName] || "").trim();
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return { __error: `Invalid JSON in ${envName}: ${e?.message || "parse error"}` };
+  }
+}
+
+// Parse comma list from query: "a,b,c" -> Set(["a","b","c"])
+function parseCsvParam(v) {
+  const s = String(v || "").trim();
+  if (!s) return null;
+  const parts = s.split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
+  return new Set(parts);
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
   // Optional cron auth (recommended)
-const auth = req.headers.authorization;
-if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-  return res.status(401).json({ success: false, error: "Unauthorized" });
-}
-
+  const auth = req.headers.authorization;
+  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
 
   const startedAtIso = nowIso();
   const overallStart = Date.now();
-
-  // Only actor IDs matter now.
-  // (You can keep/remove the *_DEALS_BLOB_URL env vars elsewhere; this file does not use them.)
-  const TARGETS = [
-    { name: "Brooks Running", actorEnv: "APIFY_BROOKS_ACTOR_ID", inputEnv: "APIFY_BROOKS_INPUT_JSON" },
-    { name: "REI Outlet", actorEnv: "APIFY_REI_ACTOR_ID", inputEnv: "APIFY_REI_INPUT_JSON" },
-    { name: "Road Runner Sports", actorEnv: "APIFY_ROADRUNNER_ACTOR_ID", inputEnv: "APIFY_ROADRUNNER_INPUT_JSON" },
-    { name: "Zappos", actorEnv: "APIFY_ZAPPOS_ACTOR_ID", inputEnv: "APIFY_ZAPPOS_INPUT_JSON" },
-    { name: "Foot Locker", actorEnv: "APIFY_FOOTLOCKER_ACTOR_ID", inputEnv: "APIFY_FOOTLOCKER_INPUT_JSON" },
-    { name: "RnJ Sports", actorEnv: "APIFY_RNJSPORTS_ACTOR_ID", inputEnv: "APIFY_RNJSPORTS_INPUT_JSON" },
-  ];
-
-  // Small helper: allow optional per-actor input via env as JSON (optional)
-  function parseOptionalJsonEnv(envName) {
-    const raw = String(process.env[envName] || "").trim();
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw);
-    } catch (e) {
-      return { __error: `Invalid JSON in ${envName}: ${e?.message || "parse error"}` };
-    }
-  }
 
   try {
     if (!requireEnv("APIFY_TOKEN")) {
       return res.status(500).json({ success: false, error: "Missing APIFY_TOKEN env var" });
     }
 
+    // Optional selection controls:
+    // - ?only=brooks,zappos  (runs ONLY those, regardless of ENABLED)
+    // - ?skip=rei,footlocker (skips those)
+    const onlySet = parseCsvParam(req.query?.only);
+    const skipSet = parseCsvParam(req.query?.skip);
+
     const results = {};
 
-    // Sequential trigger (safer, fewer concurrent runs). You can parallelize later if desired.
+    // Sequential trigger (safer, fewer concurrent runs).
     for (const t of TARGETS) {
-      const actorId = requireEnv(t.actorEnv);
+      const key = t.key;
 
+      // If ?only is present, run only those keys
+      if (onlySet && !onlySet.has(key)) {
+        results[t.name] = { ok: false, skipped: true, reason: `Not in ?only list`, key };
+        continue;
+      }
+
+      // If ?skip includes this key, skip it
+      if (skipSet && skipSet.has(key)) {
+        results[t.name] = { ok: false, skipped: true, reason: `In ?skip list`, key };
+        continue;
+      }
+
+      // Otherwise obey the ENABLED toggles
+      if (!onlySet && !ENABLED[key]) {
+        results[t.name] = { ok: false, skipped: true, reason: `Disabled in ENABLED map`, key };
+        continue;
+      }
+
+      const actorId = requireEnv(t.actorEnv);
       if (!actorId) {
         results[t.name] = {
           ok: false,
           error: `${t.actorEnv} is not set`,
           actorEnv: t.actorEnv,
+          key,
         };
         continue;
       }
@@ -105,19 +153,18 @@ if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
           actorId,
           actorEnv: t.actorEnv,
           inputEnv: t.inputEnv,
+          key,
         };
         continue;
       }
 
       try {
         const runInfo = await callActor(actorId, t.name, maybeInput || {});
-        results[t.name] = {
-          ok: true,
-          ...runInfo,
-        };
+        results[t.name] = { ok: true, key, ...runInfo };
       } catch (err) {
         results[t.name] = {
           ok: false,
+          key,
           actorId,
           actorEnv: t.actorEnv,
           error: err?.message || "Unknown error",
@@ -132,9 +179,18 @@ if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
       mode: "trigger-only",
       startedAt: startedAtIso,
       durationMs,
+      selection: {
+        enabled: ENABLED,
+        only: onlySet ? Array.from(onlySet) : null,
+        skip: skipSet ? Array.from(skipSet) : null,
+      },
       results,
-      note:
-        "This endpoint only triggers Apify actor runs. Actors are expected to write their own Vercel blobs.",
+      note: "This endpoint only triggers Apify actor runs. Actors are expected to write their own Vercel blobs.",
+      usageExamples: [
+        "/api/apify_scrapers",
+        "/api/apify_scrapers?only=brooks,zappos",
+        "/api/apify_scrapers?skip=rei,footlocker",
+      ],
     });
   } catch (error) {
     return res.status(500).json({
@@ -144,16 +200,3 @@ if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     });
   }
 };
-
-/**
- * NOTE (important):
- * - This uses apifyClient.actor(actorId).call(), which WAITS until the actor run finishes.
- *   If your actors sometimes take longer than your Vercel function timeout, switch to:
- *
- *     const run = await apifyClient.actor(actorId).start(input || {});
- *
- *   and then return run.id/status immediately.
- *
- * If you want, tell me your typical actor run times and your Vercel function limit,
- * and I’ll swap it to .start() safely.
- */
