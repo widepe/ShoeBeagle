@@ -61,14 +61,14 @@
       box-shadow: var(--shadow);
     }
 
-    .track{
-      display:flex;
-      gap: var(--gap);
-      overflow:auto;
-      scroll-snap-type: x mandatory;
-      scroll-behavior:smooth;
-      padding-bottom: 6px;
-    }
+.track{
+  display:flex;
+  gap: var(--gap);
+  overflow:hidden;              /* removes visible scrollbar */
+  scroll-snap-type: x mandatory;
+  scroll-behavior:smooth;
+}
+
 
     .card{
       flex: 0 0 var(--cardW);
