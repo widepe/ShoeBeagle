@@ -1,17 +1,6 @@
-// api/apify_scrapers.js
+// api/scrapers/apify_scrapers.js
 // Trigger-only runner for Apify Actors
-// - Starts actor runs (one per store) and returns run IDs / status.
-// - NO dataset reads
-// - NO mapping
-// - NO put() / blob writes
-//
-// NEW:
-// - Easy on/off toggles at top via ENABLED map
-// - Optional query param to run only some: ?only=brooks,zappos
-// - Optional query param to skip some: ?skip=rei,footlocker
-//
-// Keys you can use in only/skip:
-//   brooks, rei, roadrunner, zappos, footlocker, rnj
+// DEBUG VERSION – remove DEBUG blocks after diagnosis
 
 const { ApifyClient } = require("apify-client");
 
@@ -29,7 +18,7 @@ function requireEnv(name) {
 }
 
 // ===========================
-// EASY TOGGLES (edit here)
+// EASY TOGGLES
 // ===========================
 const ENABLED = {
   brooks: true,
@@ -53,7 +42,6 @@ const TARGETS = [
 ];
 
 async function callActor(actorId, actorName, input) {
-  // .call() waits for the run to finish. If that’s risky with timeouts, swap to .start().
   const run = await apifyClient.actor(actorId).call(input || {});
   return {
     actorName,
@@ -62,11 +50,10 @@ async function callActor(actorId, actorName, input) {
     status: run.status,
     startedAt: run.startedAt || null,
     finishedAt: run.finishedAt || null,
-    defaultDatasetId: run.defaultDatasetId || null, // informational only
+    defaultDatasetId: run.defaultDatasetId || null,
   };
 }
 
-// Small helper: allow optional per-actor input via env as JSON (optional)
 function parseOptionalJsonEnv(envName) {
   const raw = String(process.env[envName] || "").trim();
   if (!raw) return null;
@@ -77,7 +64,6 @@ function parseOptionalJsonEnv(envName) {
   }
 }
 
-// Parse comma list from query: "a,b,c" -> Set(["a","b","c"])
 function parseCsvParam(v) {
   const s = String(v || "").trim();
   if (!s) return null;
@@ -90,7 +76,6 @@ module.exports = async (req, res) => {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  // Optional cron auth (recommended)
   const auth = req.headers.authorization;
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
@@ -104,37 +89,56 @@ module.exports = async (req, res) => {
       return res.status(500).json({ success: false, error: "Missing APIFY_TOKEN env var" });
     }
 
-    // Optional selection controls:
-    // - ?only=brooks,zappos  (runs ONLY those, regardless of ENABLED)
-    // - ?skip=rei,footlocker (skips those)
+    // ===========================
+    // ===== DEBUG START =====
+    // ===========================
+    const whoami = await apifyClient.user().get();
+    console.log("[DEBUG] Apify token belongs to:", {
+      id: whoami.id,
+      username: whoami.username,
+    });
+
+    console.log("[DEBUG] TARGETS loaded:", TARGETS.map(t => `${t.key}:${t.name}`));
+    // ===========================
+    // ===== DEBUG END =====
+    // ===========================
+
     const onlySet = parseCsvParam(req.query?.only);
     const skipSet = parseCsvParam(req.query?.skip);
 
     const results = {};
 
-    // Sequential trigger (safer, fewer concurrent runs).
     for (const t of TARGETS) {
       const key = t.key;
 
-      // If ?only is present, run only those keys
       if (onlySet && !onlySet.has(key)) {
-        results[t.name] = { ok: false, skipped: true, reason: `Not in ?only list`, key };
+        results[t.name] = { ok: false, skipped: true, reason: "Not in ?only list", key };
         continue;
       }
 
-      // If ?skip includes this key, skip it
       if (skipSet && skipSet.has(key)) {
-        results[t.name] = { ok: false, skipped: true, reason: `In ?skip list`, key };
+        results[t.name] = { ok: false, skipped: true, reason: "In ?skip list", key };
         continue;
       }
 
-      // Otherwise obey the ENABLED toggles
       if (!onlySet && !ENABLED[key]) {
-        results[t.name] = { ok: false, skipped: true, reason: `Disabled in ENABLED map`, key };
+        results[t.name] = { ok: false, skipped: true, reason: "Disabled in ENABLED map", key };
         continue;
       }
 
       const actorId = requireEnv(t.actorEnv);
+
+      // ===========================
+      // ===== DEBUG START =====
+      console.log("[DEBUG] Attempting:", {
+        name: t.name,
+        actorEnv: t.actorEnv,
+        actorId,
+      });
+      // ===========================
+      // ===== DEBUG END =====
+      // ===========================
+
       if (!actorId) {
         results[t.name] = {
           ok: false,
@@ -162,12 +166,27 @@ module.exports = async (req, res) => {
         const runInfo = await callActor(actorId, t.name, maybeInput || {});
         results[t.name] = { ok: true, key, ...runInfo };
       } catch (err) {
+
+        // ===========================
+        // ===== DEBUG START =====
+        console.error("[DEBUG] Apify call FAILED:", {
+          name: t.name,
+          message: err?.message,
+          statusCode: err?.statusCode,
+          type: err?.type,
+        });
+        // ===========================
+        // ===== DEBUG END =====
+        // ===========================
+
         results[t.name] = {
           ok: false,
           key,
           actorId,
           actorEnv: t.actorEnv,
           error: err?.message || "Unknown error",
+          statusCode: err?.statusCode || null,
+          type: err?.type || null,
         };
       }
     }
@@ -179,19 +198,13 @@ module.exports = async (req, res) => {
       mode: "trigger-only",
       startedAt: startedAtIso,
       durationMs,
-      selection: {
-        enabled: ENABLED,
-        only: onlySet ? Array.from(onlySet) : null,
-        skip: skipSet ? Array.from(skipSet) : null,
+      whoami: {
+        id: whoami.id,
+        username: whoami.username,
       },
       results,
-      note: "This endpoint only triggers Apify actor runs. Actors are expected to write their own Vercel blobs.",
-      usageExamples: [
-        "/api/apify_scrapers",
-        "/api/apify_scrapers?only=brooks,zappos",
-        "/api/apify_scrapers?skip=rei,footlocker",
-      ],
     });
+
   } catch (error) {
     return res.status(500).json({
       success: false,
