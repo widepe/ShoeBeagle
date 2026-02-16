@@ -22,8 +22,8 @@ const feeds = [
   { name: "Marathon Investigation", url: "https://www.marathoninvestigation.com/feed" },
   { name: "Runners Connect", url: "https://runnersconnect.net/feed" },
   { name: "Steve Magness", url: "https://feeds.feedburner.com/stevemagness" },
-
-  { name: "Track & Field News", url: "https://trackandfieldnews.com/feed/" },
+  { name: "Marathon Handbook", url: "https://marathonhandbook.com/feed" },
+  { name: "Track & Field News", url: "https://trackandfieldnews.com/feed" },
   { name: "USATF Masters", url: "https://usatfmasters.org/feed/" },
 ];
 
