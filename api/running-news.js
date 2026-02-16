@@ -24,8 +24,9 @@ const feeds = [
   { name: "Steve Magness", url: "https://feeds.feedburner.com/stevemagness" },
   { name: "Marathon Handbook", url: "https://marathonhandbook.com/feed" },
   { name: "Track & Field News", url: "https://trackandfieldnews.com/feed" },
-  { name: "USATF Masters", url: "https://usatfmasters.org/feed/" },
-];
+  { name: "USATF Masters", url: "https://usatfmasters.org/feed" },
+  { name: "Run", url: "https://run.outsideonline.com/feed" },
+    ];
 
     const results = await Promise.all(
       feeds.map(async (f) => {
