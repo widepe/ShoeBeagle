@@ -21,9 +21,9 @@
 // -----------------------------------------------------------------------------
 const SCRAPER_TOGGLES = {
   RUNNING_WAREHOUSE: true,
-  FLEET_FEET: false,
-  LUKES_LOCKER: false,
-  MARATHON_SPORTS: false,
+  FLEET_FEET: true,
+  LUKES_LOCKER: true,
+  MARATHON_SPORTS: true,
 };
 
 const axios = require("axios");
