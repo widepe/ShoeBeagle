@@ -26,6 +26,9 @@ const ENABLED = {
   zappos: true,
   footlocker: true,
   rnj: true,
+
+  // ✅ added
+  mizuno: true,
 };
 
 // ===========================
@@ -38,6 +41,9 @@ const TARGETS = [
   { key: "zappos", name: "Zappos", actorEnv: "APIFY_ZAPPOS_ACTOR_ID", inputEnv: "APIFY_ZAPPOS_INPUT_JSON" },
   { key: "footlocker", name: "Foot Locker", actorEnv: "APIFY_FOOTLOCKER_ACTOR_ID", inputEnv: "APIFY_FOOTLOCKER_INPUT_JSON" },
   { key: "rnj", name: "RnJ Sports", actorEnv: "APIFY_RNJSPORTS_ACTOR_ID", inputEnv: "APIFY_RNJSPORTS_INPUT_JSON" },
+
+  // ✅ added
+  { key: "mizuno", name: "Mizuno", actorEnv: "APIFY_MIZUNO_ACTOR_ID", inputEnv: "APIFY_MIZUNO_INPUT_JSON" },
 ];
 
 async function callActor(actorId, actorName, input) {
