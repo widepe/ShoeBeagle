@@ -299,6 +299,7 @@ function storeBaseUrl(store) {
   if (s.includes("luke")) return "https://lukeslocker.com";
   if (s.includes("marathon sports")) return "https://www.marathonsports.com";
   if (s === "rei") return "https://www.rei.com";
+  if (s.includes("mizuno")) return "https://usa.mizuno.com";
   if (s.includes("rei outlet")) return "https://www.rei.com/rei-garage";
   if (s.includes("rei")) return "https://www.rei.com";
   if (s.includes("road runner")) return "https://www.roadrunnersports.com";
@@ -1184,6 +1185,7 @@ module.exports = async (req, res) => {
   const HOLABIRD_WOMENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "").trim();
   const LUKES_LOCKER_CHEERIO_BLOB_URL = String(process.env.LUKES_LOCKER_CHEERIO_BLOB_URL || "").trim();
   const MARATHON_SPORTS_CHEERIO_BLOB_URL = String(process.env.MARATHON_SPORTS_CHEERIO_BLOB_URL || "").trim();
+  const MIZUNO_DEALS_BLOB_URL = String(process.env.MIZUNO_DEALS_BLOB_URL || "").trim();
   const REI_DEALS_BLOB_URL = String(process.env.REI_DEALS_BLOB_URL || "").trim();
   const RNJSPORTS_DEALS_BLOB_URL = String(process.env.RNJSPORTS_DEALS_BLOB_URL || "").trim();
   const ROADRUNNER_DEALS_BLOB_URL = String(process.env.ROADRUNNER_DEALS_BLOB_URL || "").trim();
@@ -1235,6 +1237,7 @@ module.exports = async (req, res) => {
 
       { id: "brooks-running", name: "Brooks Running", blobUrl: BROOKS_DEALS_BLOB_URL },
       { id: "foot-locker", name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
+      { id: "mizuno", name: "Mizuno", blobUrl: MIZUNO_DEALS_BLOB_URL },
 
       { id: "road-runner-sports", name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
       { id: "rei-outlet", name: "REI Outlet", blobUrl: REI_DEALS_BLOB_URL },
