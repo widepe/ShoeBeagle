@@ -1,8 +1,28 @@
 // /api/scrapers/_holabirdShared.js
+//
+// Holabird collection tile scraper (Shopify theme)
+//
+// Key goals for Shoe Beagle:
+//
+// ✅ Output canonical 11 fields:
+//   listingName, brand, model, salePrice, originalPrice, discountPercent,
+//   store, listingURL, imageURL, gender, shoeType
+//
+// ✅ NEVER “edit” listingName (only normalize whitespace)
+// ✅ Prefer Holabird’s structured price selectors:
+//      .price--highlight (sale) and .price--compare (regular/original)
+// ✅ Allow endpoint-level overrides (mens-road can hard-set gender=mens, shoeType=road)
+// ✅ Allow excluding gift-card promos (".gift-card-message")
+// ✅ Keep an optional heuristic fallback (tile text dollar scan) for resilience
+//
+// NOTE: This file DOES NOT write blobs; endpoints call scrapeHolabirdCollection() and store results.
+
 const axios = require("axios");
 const cheerio = require("cheerio");
 
 const HOLABIRD_BASE = "https://www.holabirdsports.com";
+
+/** -------------------- small utilities -------------------- **/
 
 function normalizeText(input) {
   if (input == null) return "";
@@ -37,6 +57,8 @@ function absolutizeUrl(url, base = HOLABIRD_BASE) {
   return base.replace(/\/+$/, "") + "/" + u.replace(/^\/+/, "");
 }
 
+/** -------------------- image helpers -------------------- **/
+
 function pickLargestFromSrcset(srcset) {
   if (!srcset) return null;
 
@@ -68,27 +90,24 @@ function pickLargestFromSrcset(srcset) {
   return best;
 }
 
-function findBestImageURL($, $tile) {
-  // Prefer the primary image class Holabird uses on collection tiles
-  const $primary = $tile.find("img.product-item__primary-image").first();
-  const $anyImg = $tile.find("img").first();
+function bestImgUrlFrom($img) {
+  if (!$img || !$img.length) return null;
 
-  function getFromImg($img) {
-    if (!$img || !$img.length) return null;
+  const src = $img.attr("data-src") || $img.attr("data-original") || $img.attr("src");
+  const srcset = $img.attr("data-srcset") || $img.attr("srcset");
+  const picked = pickLargestFromSrcset(srcset);
 
-    const src =
-      $img.attr("data-src") || $img.attr("data-original") || $img.attr("src");
-
-    const srcset = $img.attr("data-srcset") || $img.attr("srcset");
-    const picked = pickLargestFromSrcset(srcset);
-
-    return absolutizeUrl(String(picked || src || "").trim(), HOLABIRD_BASE);
-  }
-
-  return getFromImg($primary) || getFromImg($anyImg) || null;
+  return absolutizeUrl(String(picked || src || "").trim(), HOLABIRD_BASE);
 }
 
-/** -------------------- Schema helpers -------------------- **/
+function findBestImageURL($tile) {
+  // Holabird collection tiles provide primary + secondary images; prefer primary.
+  const $primary = $tile.find("img.product-item__primary-image").first();
+  const $any = $tile.find("img").first();
+  return bestImgUrlFrom($primary) || bestImgUrlFrom($any) || null;
+}
+
+/** -------------------- price helpers -------------------- **/
 
 function round2(n) {
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
@@ -110,11 +129,32 @@ function extractDollarAmounts(text) {
     .filter(Number.isFinite);
 }
 
+// Preferred: structured selectors on Holabird tiles
+function extractPricesStructured($tile) {
+  const saleText = normalizeText(
+    $tile.find(".product-item__price-list .price--highlight").first().text()
+  );
+  const origText = normalizeText(
+    $tile.find(".product-item__price-list .price--compare").first().text()
+  );
+
+  const sale = extractDollarAmounts(saleText)[0];
+  const orig = extractDollarAmounts(origText)[0];
+
+  if (!Number.isFinite(sale) || !Number.isFinite(orig)) return { valid: false };
+  if (!(sale < orig)) return { valid: false };
+
+  return { salePrice: round2(sale), originalPrice: round2(orig), valid: true };
+}
+
+// Optional fallback: heuristic parsing from the tile text (kept for resilience)
 function extractPricesFromTileText(tileText) {
   let prices = extractDollarAmounts(tileText).filter((p) => p >= 10 && p < 1000);
 
+  // de-dupe (normalized to cents)
   prices = [...new Set(prices.map((p) => p.toFixed(2)))].map(Number);
 
+  // some tiles might contain more than 2 amounts (shipping promos, etc.)
   if (prices.length < 2 || prices.length > 4) return { valid: false };
 
   prices.sort((a, b) => b - a);
@@ -129,6 +169,8 @@ function extractPricesFromTileText(tileText) {
 
   return { salePrice, originalPrice, valid: true };
 }
+
+/** -------------------- brand/model + classification -------------------- **/
 
 function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -174,7 +216,7 @@ function extractBrandAndModel(title) {
 
   for (const brand of brands) {
     let regex;
-    if (brand === "On") regex = /\bOn\b/;
+    if (brand === "On") regex = /\bOn\b/; // prevent "on sale" false positives
     else regex = new RegExp(`\\b${escapeRegex(brand)}\\b`, "i");
 
     if (regex.test(title)) {
@@ -211,45 +253,43 @@ function detectShoeType(listingName) {
   return "unknown";
 }
 
+/** -------------------- core scraper -------------------- **/
+
+function extractHolabirdTitle($tile) {
+  // Primary: the product title anchor text (outerHTML shows <br> + <span>)
+  const t =
+    normalizeText($tile.find("a.product-item__title").first().text()) ||
+    normalizeText($tile.find("img.product-item__primary-image").first().attr("alt")) ||
+    normalizeText($tile.find('a[href^="/products/"]').first().attr("title"));
+
+  return t && !looksLikeCssOrWidgetJunk(t) ? t : "";
+}
+
 function randomDelay(min = 250, max = 700) {
   const wait = Math.floor(Math.random() * (max - min + 1)) + min;
   return new Promise((r) => setTimeout(r, wait));
 }
 
-// Pull the Holabird title the same way your outerHTML shows it
-function extractHolabirdTitle($tile) {
-  const t =
-    normalizeText($tile.find("a.product-item__title").first().text()) ||
-    normalizeText($tile.find("img.product-item__primary-image").first().attr("alt")) ||
-    normalizeText($tile.find('a[href*="/products/"]').first().attr("title"));
-
-  return t && !looksLikeCssOrWidgetJunk(t) ? t : "";
-}
-
-// Prefer explicit Holabird price elements (fast + accurate)
-function extractHolabirdPricesStructured($tile) {
-  const saleText = normalizeText($tile.find(".product-item__price-list .price--highlight").first().text());
-  const origText = normalizeText($tile.find(".product-item__price-list .price--compare").first().text());
-
-  const sale = extractDollarAmounts(saleText)[0];
-  const orig = extractDollarAmounts(origText)[0];
-
-  if (!Number.isFinite(sale) || !Number.isFinite(orig)) return { valid: false };
-  if (!(sale < orig)) return { valid: false };
-
-  return { salePrice: round2(sale), originalPrice: round2(orig), valid: true };
-}
-
+/**
+ * Scrape a Holabird collection listing pages.
+ *
+ * Options:
+ * - fixedGender: string|null  (e.g., "mens")  -> overrides detectGender
+ * - fixedShoeType: string|null (e.g., "road") -> overrides detectShoeType
+ * - excludeGiftCard: boolean  -> skip tiles containing ".gift-card-message"
+ * - requireStructuredSaleCompare: boolean -> only accept tiles with both .price--highlight and .price--compare
+ * - allowHeuristicFallback: boolean -> if structured prices missing, optionally try tile-text heuristic
+ */
 async function scrapeHolabirdCollection({
   collectionUrl,
   maxPages = 50,
   stopAfterEmptyPages = 1,
 
-  // ✅ new optional controls (used by mens-road)
-  fixedGender = null,     // e.g. "mens"
-  fixedShoeType = null,   // e.g. "road"
+  fixedGender = null,
+  fixedShoeType = null,
   excludeGiftCard = false,
-  requireStructuredSaleCompare = false, // if true: only accept tiles with highlight+compare
+  requireStructuredSaleCompare = false,
+  allowHeuristicFallback = true,
 }) {
   const deals = [];
   const seen = new Set();
@@ -273,11 +313,10 @@ async function scrapeHolabirdCollection({
     const $ = cheerio.load(resp.data);
     let found = 0;
 
-    // ✅ Much faster + cleaner: iterate product tiles, not every link on the page
+    // Faster + cleaner than scanning every /products/ link on the page.
     $(".product-item").each((_, el) => {
       const $tile = $(el);
 
-      // optional: skip gift card promos entirely
       if (excludeGiftCard && $tile.find(".gift-card-message").length) return;
 
       const href = $tile.find('a[href^="/products/"]').first().attr("href");
@@ -289,36 +328,44 @@ async function scrapeHolabirdCollection({
       const listingName = extractHolabirdTitle($tile);
       if (!listingName) return;
 
-      // ✅ Prices: prefer structured highlight/compare, fallback to heuristic if allowed
-      let prices = extractHolabirdPricesStructured($tile);
+      // ✅ Price extraction:
+      // Prefer structured Holabird sale/compare selectors.
+      let prices = extractPricesStructured($tile);
 
-      if (!prices.valid && !requireStructuredSaleCompare) {
+      // If structured is missing and fallback is allowed, try heuristic.
+      if (!prices.valid && allowHeuristicFallback) {
         const tileText = normalizeText($tile.text());
         prices = extractPricesFromTileText(tileText);
       }
 
       if (!prices.valid) return;
 
+      // If you only want true markdown items, enforce sale+compare presence.
+      if (requireStructuredSaleCompare) {
+        const hasSale = $tile.find(".price--highlight").length > 0;
+        const hasCompare = $tile.find(".price--compare").length > 0;
+        if (!hasSale || !hasCompare) return;
+      }
+
       const salePrice = prices.salePrice;
       const originalPrice = prices.originalPrice;
 
       const { brand, model } = extractBrandAndModel(listingName);
 
+      // ✅ listingName stays the tile title text (normalized only)
       const gender = fixedGender || detectGender(listingName);
       const shoeType = fixedShoeType || detectShoeType(listingName);
 
       deals.push({
-        // ✅ listingName is ONLY normalized (no rebuilding)
         listingName,
         brand,
         model,
         salePrice,
         originalPrice,
-        // ✅ keep null if something is off; do not fake 0
         discountPercent: computeDiscountPercent(originalPrice, salePrice),
         store: "Holabird Sports",
         listingURL,
-        imageURL: findBestImageURL($, $tile),
+        imageURL: findBestImageURL($tile),
         gender,
         shoeType,
       });
