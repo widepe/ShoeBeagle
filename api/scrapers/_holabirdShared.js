@@ -32,7 +32,6 @@ function absolutizeUrl(url, base = HOLABIRD_BASE) {
   if (/^https?:\/\//i.test(u)) return u;
   if (u.startsWith("//")) return "https:" + u;
 
-  // safer if base ever ends with "/"
   if (u.startsWith("/")) return base.replace(/\/+$/, "") + u;
 
   return base.replace(/\/+$/, "") + "/" + u.replace(/^\/+/, "");
@@ -69,11 +68,13 @@ function pickLargestFromSrcset(srcset) {
   return best;
 }
 
-function findBestImageURL($, $link, $container) {
-  const candidates = [];
+function findBestImageURL($, $tile) {
+  // Prefer the primary image class Holabird uses on collection tiles
+  const $primary = $tile.find("img.product-item__primary-image").first();
+  const $anyImg = $tile.find("img").first();
 
-  function pushFromImg($img) {
-    if (!$img || !$img.length) return;
+  function getFromImg($img) {
+    if (!$img || !$img.length) return null;
 
     const src =
       $img.attr("data-src") || $img.attr("data-original") || $img.attr("src");
@@ -81,20 +82,10 @@ function findBestImageURL($, $link, $container) {
     const srcset = $img.attr("data-srcset") || $img.attr("srcset");
     const picked = pickLargestFromSrcset(srcset);
 
-    if (picked) candidates.push(picked);
-    if (src) candidates.push(src);
+    return absolutizeUrl(String(picked || src || "").trim(), HOLABIRD_BASE);
   }
 
-  pushFromImg($link.find("img").first());
-  pushFromImg($container.find("img").first());
-
-  $container.find("img").each((_, el) => pushFromImg($(el)));
-
-  return (
-    candidates
-      .map((c) => absolutizeUrl(String(c || "").trim(), HOLABIRD_BASE))
-      .filter(Boolean)[0] || null
-  );
+  return getFromImg($primary) || getFromImg($anyImg) || null;
 }
 
 /** -------------------- Schema helpers -------------------- **/
@@ -114,7 +105,6 @@ function extractDollarAmounts(text) {
   if (!text) return [];
   const matches = String(text).match(/\$\s*[\d,]+(?:\.\d{1,2})?/g);
   if (!matches) return [];
-
   return matches
     .map((m) => parseFloat(m.replace(/[$,\s]/g, "")))
     .filter(Number.isFinite);
@@ -183,14 +173,9 @@ function extractBrandAndModel(title) {
   ];
 
   for (const brand of brands) {
-    // Special case: "On" must be capitalized exactly as a standalone word.
-    // We do NOT accept "on" or "ON" to avoid false positives (e.g., "on sale").
     let regex;
-    if (brand === "On") {
-      regex = /\bOn\b/;
-    } else {
-      regex = new RegExp(`\\b${escapeRegex(brand)}\\b`, "i");
-    }
+    if (brand === "On") regex = /\bOn\b/;
+    else regex = new RegExp(`\\b${escapeRegex(brand)}\\b`, "i");
 
     if (regex.test(title)) {
       const parts = title.split(regex);
@@ -212,35 +197,59 @@ function extractBrandAndModel(title) {
 
 function detectGender(listingName) {
   const name = (listingName || "").toLowerCase();
-
   if (/\bmen'?s\b/.test(name)) return "mens";
   if (/\bwomen'?s\b/.test(name)) return "womens";
   if (/\bunisex\b/.test(name)) return "unisex";
-
   return "unknown";
 }
-
 
 function detectShoeType(listingName) {
   const name = (listingName || "").toLowerCase();
-
   if (/\btrail\b/.test(name)) return "trail";
   if (/\btrack\b/.test(name) || /\bspike(s)?\b/.test(name)) return "track";
   if (/\broad\b/.test(name)) return "road";
-
   return "unknown";
 }
-
 
 function randomDelay(min = 250, max = 700) {
   const wait = Math.floor(Math.random() * (max - min + 1)) + min;
   return new Promise((r) => setTimeout(r, wait));
 }
 
+// Pull the Holabird title the same way your outerHTML shows it
+function extractHolabirdTitle($tile) {
+  const t =
+    normalizeText($tile.find("a.product-item__title").first().text()) ||
+    normalizeText($tile.find("img.product-item__primary-image").first().attr("alt")) ||
+    normalizeText($tile.find('a[href*="/products/"]').first().attr("title"));
+
+  return t && !looksLikeCssOrWidgetJunk(t) ? t : "";
+}
+
+// Prefer explicit Holabird price elements (fast + accurate)
+function extractHolabirdPricesStructured($tile) {
+  const saleText = normalizeText($tile.find(".product-item__price-list .price--highlight").first().text());
+  const origText = normalizeText($tile.find(".product-item__price-list .price--compare").first().text());
+
+  const sale = extractDollarAmounts(saleText)[0];
+  const orig = extractDollarAmounts(origText)[0];
+
+  if (!Number.isFinite(sale) || !Number.isFinite(orig)) return { valid: false };
+  if (!(sale < orig)) return { valid: false };
+
+  return { salePrice: round2(sale), originalPrice: round2(orig), valid: true };
+}
+
 async function scrapeHolabirdCollection({
   collectionUrl,
   maxPages = 50,
   stopAfterEmptyPages = 1,
+
+  // ✅ new optional controls (used by mens-road)
+  fixedGender = null,     // e.g. "mens"
+  fixedShoeType = null,   // e.g. "road"
+  excludeGiftCard = false,
+  requireStructuredSaleCompare = false, // if true: only accept tiles with highlight+compare
 }) {
   const deals = [];
   const seen = new Set();
@@ -264,54 +273,54 @@ async function scrapeHolabirdCollection({
     const $ = cheerio.load(resp.data);
     let found = 0;
 
-    $('a[href*="/products/"]').each((_, el) => {
-      const $link = $(el);
-      const href = $link.attr("href");
+    // ✅ Much faster + cleaner: iterate product tiles, not every link on the page
+    $(".product-item").each((_, el) => {
+      const $tile = $(el);
+
+      // optional: skip gift card promos entirely
+      if (excludeGiftCard && $tile.find(".gift-card-message").length) return;
+
+      const href = $tile.find('a[href^="/products/"]').first().attr("href");
       if (!href || href.includes("#")) return;
 
       const listingURL = absolutizeUrl(href);
       if (!listingURL || seen.has(listingURL)) return;
 
-      const $container = $link.closest("li, article, div").first();
+      const listingName = extractHolabirdTitle($tile);
+      if (!listingName) return;
 
-      const containerText = normalizeText($container.text());
-      if (!containerText || !containerText.includes("$")) return;
+      // ✅ Prices: prefer structured highlight/compare, fallback to heuristic if allowed
+      let prices = extractHolabirdPricesStructured($tile);
 
-      let title =
-        normalizeText($link.text()) ||
-        normalizeText($link.find("img").first().attr("alt")) ||
-        normalizeText($link.attr("title"));
+      if (!prices.valid && !requireStructuredSaleCompare) {
+        const tileText = normalizeText($tile.text());
+        prices = extractPricesFromTileText(tileText);
+      }
 
-      if (!title || looksLikeCssOrWidgetJunk(title)) return;
-
-      const prices = extractPricesFromTileText(containerText);
       if (!prices.valid) return;
-
-      const { brand, model } = extractBrandAndModel(title);
-
-      // ✅ Fix #1: better listingName fallback
-      const listingName =
-        brand && brand !== "Unknown" && model ? `${brand} ${model}`.trim() : title;
 
       const salePrice = prices.salePrice;
       const originalPrice = prices.originalPrice;
 
-      // ✅ Fix #2: keep schema numeric (never null)
-      const discountPercent = computeDiscountPercent(originalPrice, salePrice) ?? 0;
+      const { brand, model } = extractBrandAndModel(listingName);
+
+      const gender = fixedGender || detectGender(listingName);
+      const shoeType = fixedShoeType || detectShoeType(listingName);
 
       deals.push({
+        // ✅ listingName is ONLY normalized (no rebuilding)
         listingName,
         brand,
         model,
         salePrice,
         originalPrice,
-        discountPercent,
+        // ✅ keep null if something is off; do not fake 0
+        discountPercent: computeDiscountPercent(originalPrice, salePrice),
         store: "Holabird Sports",
         listingURL,
-        imageURL: findBestImageURL($, $link, $container),
-gender: detectGender(listingName),
-shoeType: detectShoeType(listingName),
-
+        imageURL: findBestImageURL($, $tile),
+        gender,
+        shoeType,
       });
 
       seen.add(listingURL);
