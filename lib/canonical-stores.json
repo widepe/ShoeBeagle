@@ -129,6 +129,28 @@
     "scraperType": "cheerio",
     "notes": "Per-store Cheerio blob (env: MARATHON_SPORTS_CHEERIO_BLOB_URL)."
   },
+
+{
+  "id": "mizuno",
+  "displayName": "Mizuno",
+  "addedAt": "2026-02-17",
+  "lastUpdated": "2026-02-17",
+  "scrapedUrls": [
+    "https://usa.mizuno.com/running/womens-shoes/sale/#/pageSize:100",
+    "https://usa.mizuno.com/running/mens-shoes/sale/#/pageSize:100"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/mizuno.json"
+  ],
+  "aliases": ["mizuno"],
+  "enabled": true,
+  "scraperType": "apify",
+  "notes": "Mizuno USA running sale pages (mens + womens). Writes to mizuno.json via APIFY + Vercel Blob."
+},
+
+
+
+  
   {
     "id": "rei-outlet",
     "displayName": "REI Outlet",
