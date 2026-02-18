@@ -306,6 +306,7 @@ function storeBaseUrl(store) {
   if (s.includes("rnj")) return "https://www.rnjsports.com";
   if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
   if (s.includes("shoebacca")) return "https://www.shoebacca.com";
+  if (s.includes("track shack") || s.includes("trackshack")) return "https://shop.trackshack.com";
   if (s.includes("zappos")) return "https://www.zappos.com";
   return "https://example.com";
 }
@@ -1191,6 +1192,7 @@ module.exports = async (req, res) => {
   const ROADRUNNER_DEALS_BLOB_URL = String(process.env.ROADRUNNER_DEALS_BLOB_URL || "").trim();
   const RUNNING_WAREHOUSE_CHEERIO_BLOB_URL = String(process.env.RUNNING_WAREHOUSE_CHEERIO_BLOB_URL || "").trim();
   const SHOEBACCA_CLEARANCE_BLOB_URL = String(process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "").trim();
+  const TRACKSHACK_CLEARANCE_BLOB_URL = String(process.env.TRACKSHACK_CLEARANCE_BLOB_URL || "").trim();
   const ZAPPOS_DEALS_BLOB_URL = String(process.env.ZAPPOS_DEALS_BLOB_URL || "").trim();
 
   const SCRAPER_DATA_BLOB_URL = String(process.env.SCRAPER_DATA_BLOB_URL || "").trim();
@@ -1226,31 +1228,27 @@ module.exports = async (req, res) => {
     console.log("[MERGE] RNJSPORTS_DEALS_BLOB_URL set?", !!RNJSPORTS_DEALS_BLOB_URL);
 
     const sources = [
-      // Cheerio individual store blobs
+    
+      
+      { id: "als", name: "ALS", blobUrl: ALS_SALE_BLOB_URL }, 
+      { id: "asics", name: "ASICS", blobUrl: ASICS_SALE_BLOB_URL },
       { id: "running-warehouse", name: "Running Warehouse", blobUrl: RUNNING_WAREHOUSE_CHEERIO_BLOB_URL },
       { id: "fleet-feet", name: "Fleet Feet", blobUrl: FLEET_FEET_CHEERIO_BLOB_URL },
-      { id: "lukes-locker", name: "Luke's Locker", blobUrl: LUKES_LOCKER_CHEERIO_BLOB_URL },
-      { id: "marathon-sports", name: "Marathon Sports", blobUrl: MARATHON_SPORTS_CHEERIO_BLOB_URL },
-
-      { id: "asics", name: "ASICS", blobUrl: ASICS_SALE_BLOB_URL },
-      { id: "als", name: "ALS", blobUrl: ALS_SALE_BLOB_URL },
-
-      { id: "brooks-running", name: "Brooks Running", blobUrl: BROOKS_DEALS_BLOB_URL },
-      { id: "foot-locker", name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
-      { id: "mizuno", name: "Mizuno", blobUrl: MIZUNO_DEALS_BLOB_URL },
-
-      { id: "road-runner-sports", name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
-      { id: "rei-outlet", name: "REI Outlet", blobUrl: REI_DEALS_BLOB_URL },
-
-      { id: "zappos", name: "Zappos", blobUrl: ZAPPOS_DEALS_BLOB_URL },
-      { id: "rnj-sports", name: "RNJ Sports", blobUrl: RNJSPORTS_DEALS_BLOB_URL },
-
-      // Holabird is split across 3 blobs but shares 1 id
+            // Holabird is split across 3 blobs but shares 1 id
       { id: "holabird-sports", name: "Holabird Sports (Mens Road)", blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL },
       { id: "holabird-sports", name: "Holabird Sports (Womens Road)", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
       { id: "holabird-sports", name: "Holabird Sports (Trail + Unisex)", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
-
+      { id: "lukes-locker", name: "Luke's Locker", blobUrl: LUKES_LOCKER_CHEERIO_BLOB_URL },
+      { id: "marathon-sports", name: "Marathon Sports", blobUrl: MARATHON_SPORTS_CHEERIO_BLOB_URL },
+      { id: "brooks-running", name: "Brooks Running", blobUrl: BROOKS_DEALS_BLOB_URL },
+      { id: "foot-locker", name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
+      { id: "mizuno", name: "Mizuno", blobUrl: MIZUNO_DEALS_BLOB_URL },
+      { id: "rei-outlet", name: "REI Outlet", blobUrl: REI_DEALS_BLOB_URL },
+      { id: "rnj-sports", name: "RNJ Sports", blobUrl: RNJSPORTS_DEALS_BLOB_URL },
+      { id: "road-runner-sports", name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
       { id: "shoebacca", name: "Shoebacca", blobUrl: SHOEBACCA_CLEARANCE_BLOB_URL },
+      { id: "track-shack", name: "Track Shack", blobUrl: TRACKSHACK_CLEARANCE_BLOB_URL },
+      { id: "zappos", name: "Zappos", blobUrl: ZAPPOS_DEALS_BLOB_URL },
     ];
 
     const settled = await Promise.allSettled(sources.map((s) => loadDealsFromBlobOnly(s)));
