@@ -6,13 +6,14 @@
 //
 // REQUIRED ENV:
 //   BLOB_READ_WRITE_TOKEN
-//   TRACKSHACK_DEALS_BLOB_URL   (FULL public blob URL ending with /trackshack.json)
+//   TRACKSHACK_CLEARANCE_BLOB_URL   (FULL public blob URL ending with /trackshack.json)
 //
 // Optional ENV:
 //   TRACKSHACK_MAX_PAGES (default 20)
 
-import * as cheerio from "cheerio";
-import { put } from "@vercel/blob";
+const cheerio = require("cheerio");
+const { put } = require("@vercel/blob");
+
 
 const BASE = "https://shop.trackshack.com";
 const START_URL = `${BASE}/collections/track-shack-clearance-shoes`;
