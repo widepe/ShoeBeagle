@@ -234,6 +234,22 @@
     "scraperType": "cheerio",
     "notes": "no notes"
   },
+{
+  "id": "track-shack",
+  "displayName": "Track Shack",
+  "addedAt": "2026-02-17",
+  "lastUpdated": "2026-02-17",
+  "scrapedUrls": [
+    "https://shop.trackshack.com/collections/track-shack-clearance-shoes"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/trackshack.json"
+  ],
+  "aliases": ["track shack", "trackshack"],
+  "enabled": true,
+  "scraperType": "cheerio",
+  "notes": "Track Shack clearance running shoes. Writes to trackshack.json via Cheerio scraper."
+},
   {
     "id": "zappos",
     "displayName": "Zappos",
