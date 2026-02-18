@@ -15,14 +15,24 @@
 // ✅ Allow excluding gift-card promos (".gift-card-message")
 // ✅ Keep an optional heuristic fallback (tile text dollar scan) for resilience
 //
-// NOTE: This file DOES NOT write blobs; endpoints call scrapeHolabirdCollection() and store results.
+// NOTE:
+// - This file originally returned ONLY an array of deals.
+// - Per your request, it now ALSO supports returning a Mizuno-style top-level envelope.
+// - To avoid breaking existing endpoints, the default behavior remains: RETURN DEALS ARRAY.
+//   If you want the Mizuno-style top-level object, call scrapeHolabirdCollectionEnvelope()
+//   (or pass returnEnvelope: true to scrapeHolabirdCollection()).
 
 const axios = require("axios");
 const cheerio = require("cheerio");
 
 const HOLABIRD_BASE = "https://www.holabirdsports.com";
+const HOLABIRD_STORE_NAME = "Holabird Sports";
 
 /** -------------------- small utilities -------------------- **/
+
+function nowIso() {
+  return new Date().toISOString();
+}
 
 function normalizeText(input) {
   if (input == null) return "";
@@ -271,6 +281,55 @@ function randomDelay(min = 250, max = 700) {
 }
 
 /**
+ * Build Mizuno-style envelope:
+ * {
+ *   store, schemaVersion,
+ *   lastUpdated, via,
+ *   sourceUrls, pagesFetched,
+ *   dealsFound, dealsExtracted,
+ *   scrapeDurationMs,
+ *   ok, error,
+ *   deals: [...]
+ * }
+ */
+function buildEnvelope({
+  store,
+  via,
+  sourceUrls,
+  pagesFetched,
+  dealsFound,
+  dealsExtracted,
+  scrapeDurationMs,
+  ok,
+  error,
+  deals,
+  lastUpdated,
+}) {
+  return {
+    store: String(store || HOLABIRD_STORE_NAME),
+    schemaVersion: 1,
+
+    lastUpdated: String(lastUpdated || nowIso()),
+    via: String(via || "cheerio"),
+
+    sourceUrls: Array.isArray(sourceUrls) ? sourceUrls.filter(Boolean) : [],
+    pagesFetched: Number.isFinite(Number(pagesFetched)) ? Number(pagesFetched) : 0,
+
+    dealsFound: Number.isFinite(Number(dealsFound)) ? Number(dealsFound) : 0,
+    dealsExtracted: Number.isFinite(Number(dealsExtracted))
+      ? Number(dealsExtracted)
+      : (Array.isArray(deals) ? deals.length : 0),
+
+    scrapeDurationMs: Number.isFinite(Number(scrapeDurationMs)) ? Number(scrapeDurationMs) : 0,
+
+    ok: Boolean(ok),
+    error: error == null ? null : String(error),
+
+    deals: Array.isArray(deals) ? deals : [],
+  };
+}
+
+/**
  * Scrape a Holabird collection listing pages.
  *
  * Options:
@@ -279,6 +338,11 @@ function randomDelay(min = 250, max = 700) {
  * - excludeGiftCard: boolean  -> skip tiles containing ".gift-card-message"
  * - requireStructuredSaleCompare: boolean -> only accept tiles with both .price--highlight and .price--compare
  * - allowHeuristicFallback: boolean -> if structured prices missing, optionally try tile-text heuristic
+ *
+ * NEW (non-breaking):
+ * - returnEnvelope: boolean -> if true, return Mizuno-style object instead of just deals[]
+ * - storeName: string -> override store field in envelope (default "Holabird Sports")
+ * - via: string -> override via in envelope (default "cheerio")
  */
 async function scrapeHolabirdCollection({
   collectionUrl,
@@ -290,101 +354,163 @@ async function scrapeHolabirdCollection({
   excludeGiftCard = false,
   requireStructuredSaleCompare = false,
   allowHeuristicFallback = true,
-}) {
+
+  // NEW
+  returnEnvelope = false,
+  storeName = HOLABIRD_STORE_NAME,
+  via = "cheerio",
+} = {}) {
+  const startedAt = Date.now();
+  const runTs = nowIso();
+
   const deals = [];
   const seen = new Set();
+
   let emptyPages = 0;
+  let pagesFetched = 0;
 
-  for (let page = 1; page <= maxPages; page++) {
-    const pageUrl = collectionUrl.includes("?")
-      ? `${collectionUrl}&page=${page}`
-      : `${collectionUrl}?page=${page}`;
+  // dealsFound = raw products/cards seen (before filter)
+  let dealsFound = 0;
 
-    const resp = await axios.get(pageUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        Accept: "text/html",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-      timeout: 15000,
-    });
+  try {
+    for (let page = 1; page <= maxPages; page++) {
+      const pageUrl = collectionUrl.includes("?")
+        ? `${collectionUrl}&page=${page}`
+        : `${collectionUrl}?page=${page}`;
 
-    const $ = cheerio.load(resp.data);
-    let found = 0;
-
-    // Faster + cleaner than scanning every /products/ link on the page.
-    $(".product-item").each((_, el) => {
-      const $tile = $(el);
-
-      if (excludeGiftCard && $tile.find(".gift-card-message").length) return;
-
-      const href = $tile.find('a[href^="/products/"]').first().attr("href");
-      if (!href || href.includes("#")) return;
-
-      const listingURL = absolutizeUrl(href);
-      if (!listingURL || seen.has(listingURL)) return;
-
-      const listingName = extractHolabirdTitle($tile);
-      if (!listingName) return;
-
-      // ✅ Price extraction:
-      // Prefer structured Holabird sale/compare selectors.
-      let prices = extractPricesStructured($tile);
-
-      // If structured is missing and fallback is allowed, try heuristic.
-      if (!prices.valid && allowHeuristicFallback) {
-        const tileText = normalizeText($tile.text());
-        prices = extractPricesFromTileText(tileText);
-      }
-
-      if (!prices.valid) return;
-
-      // If you only want true markdown items, enforce sale+compare presence.
-      if (requireStructuredSaleCompare) {
-        const hasSale = $tile.find(".price--highlight").length > 0;
-        const hasCompare = $tile.find(".price--compare").length > 0;
-        if (!hasSale || !hasCompare) return;
-      }
-
-      const salePrice = prices.salePrice;
-      const originalPrice = prices.originalPrice;
-
-      const { brand, model } = extractBrandAndModel(listingName);
-
-      // ✅ listingName stays the tile title text (normalized only)
-      const gender = fixedGender || detectGender(listingName);
-      const shoeType = fixedShoeType || detectShoeType(listingName);
-
-      deals.push({
-        listingName,
-        brand,
-        model,
-        salePrice,
-        originalPrice,
-        discountPercent: computeDiscountPercent(originalPrice, salePrice),
-        store: "Holabird Sports",
-        listingURL,
-        imageURL: findBestImageURL($tile),
-        gender,
-        shoeType,
+      const resp = await axios.get(pageUrl, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          Accept: "text/html",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+        timeout: 15000,
       });
 
-      seen.add(listingURL);
-      found++;
-    });
+      pagesFetched++;
 
-    if (found === 0) {
-      emptyPages++;
-      if (emptyPages >= stopAfterEmptyPages) break;
-    } else {
-      emptyPages = 0;
+      const $ = cheerio.load(resp.data);
+      let extractedThisPage = 0;
+
+      // Faster + cleaner than scanning every /products/ link on the page.
+      $(".product-item").each((_, el) => {
+        dealsFound++; // raw tile encountered
+
+        const $tile = $(el);
+
+        if (excludeGiftCard && $tile.find(".gift-card-message").length) return;
+
+        const href = $tile.find('a[href^="/products/"]').first().attr("href");
+        if (!href || href.includes("#")) return;
+
+        const listingURL = absolutizeUrl(href);
+        if (!listingURL || seen.has(listingURL)) return;
+
+        const listingName = extractHolabirdTitle($tile);
+        if (!listingName) return;
+
+        // ✅ Price extraction:
+        // Prefer structured Holabird sale/compare selectors.
+        let prices = extractPricesStructured($tile);
+
+        // If structured is missing and fallback is allowed, try heuristic.
+        if (!prices.valid && allowHeuristicFallback) {
+          const tileText = normalizeText($tile.text());
+          prices = extractPricesFromTileText(tileText);
+        }
+
+        if (!prices.valid) return;
+
+        // If you only want true markdown items, enforce sale+compare presence.
+        if (requireStructuredSaleCompare) {
+          const hasSale = $tile.find(".price--highlight").length > 0;
+          const hasCompare = $tile.find(".price--compare").length > 0;
+          if (!hasSale || !hasCompare) return;
+        }
+
+        const salePrice = prices.salePrice;
+        const originalPrice = prices.originalPrice;
+
+        const { brand, model } = extractBrandAndModel(listingName);
+
+        // ✅ listingName stays the tile title text (normalized only)
+        const gender = fixedGender || detectGender(listingName);
+        const shoeType = fixedShoeType || detectShoeType(listingName);
+
+        deals.push({
+          listingName,
+          brand,
+          model,
+          salePrice,
+          originalPrice,
+          discountPercent: computeDiscountPercent(originalPrice, salePrice),
+          store: HOLABIRD_STORE_NAME,
+          listingURL,
+          imageURL: findBestImageURL($tile),
+          gender,
+          shoeType,
+        });
+
+        seen.add(listingURL);
+        extractedThisPage++;
+      });
+
+      if (extractedThisPage === 0) {
+        emptyPages++;
+        if (emptyPages >= stopAfterEmptyPages) break;
+      } else {
+        emptyPages = 0;
+      }
+
+      await randomDelay();
     }
 
-    await randomDelay();
-  }
+    if (!returnEnvelope) return deals;
 
-  return deals;
+    const durationMs = Date.now() - startedAt;
+    return buildEnvelope({
+      store: storeName,
+      via,
+      sourceUrls: [collectionUrl],
+      pagesFetched,
+      dealsFound,
+      dealsExtracted: deals.length,
+      scrapeDurationMs: durationMs,
+      ok: true,
+      error: null,
+      deals,
+      lastUpdated: runTs,
+    });
+  } catch (err) {
+    if (!returnEnvelope) {
+      // Preserve old behavior: throw if caller expects an array
+      throw err;
+    }
+
+    const durationMs = Date.now() - startedAt;
+    return buildEnvelope({
+      store: storeName,
+      via,
+      sourceUrls: [collectionUrl],
+      pagesFetched,
+      dealsFound,
+      dealsExtracted: deals.length,
+      scrapeDurationMs: durationMs,
+      ok: false,
+      error: err?.message || "Unknown error",
+      deals,
+      lastUpdated: runTs,
+    });
+  }
+}
+
+/**
+ * Convenience wrapper that ALWAYS returns the Mizuno-style top-level object.
+ * Use this in your Holabird endpoints when writing blobs.
+ */
+async function scrapeHolabirdCollectionEnvelope(opts = {}) {
+  return scrapeHolabirdCollection({ ...(opts || {}), returnEnvelope: true });
 }
 
 function dedupeByUrl(deals) {
@@ -399,6 +525,8 @@ function dedupeByUrl(deals) {
 }
 
 module.exports = {
-  scrapeHolabirdCollection,
+  scrapeHolabirdCollection,        // default: returns deals[] unless returnEnvelope:true
+  scrapeHolabirdCollectionEnvelope, // always returns Mizuno-style object
+  buildEnvelope,                   // exported in case endpoints want to wrap themselves
   dedupeByUrl,
 };
