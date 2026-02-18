@@ -22,14 +22,42 @@ module.exports = async (req, res) => {
   }
 
   const start = Date.now();
+  const runIso = new Date().toISOString();
+
+  const sourceUrls = [
+    WOMENS_TRAIL,
+    MENS_TRAIL,
+    UNISEX_TRAIL,
+    UNISEX_ROAD,
+  ];
+
+  // Mizuno-style envelope (consistent even on failure)
+  const output = {
+    store: "Holabird Sports",
+    schemaVersion: 1,
+
+    lastUpdated: runIso,
+    via: "cheerio",
+
+    sourceUrls,
+
+    // Not available without instrumenting shared scraper
+    pagesFetched: null,
+
+    dealsFound: 0,
+    dealsExtracted: 0,
+
+    scrapeDurationMs: 0,
+
+    ok: false,
+    error: null,
+
+    deals: [],
+  };
 
   try {
     const all = [];
 
-    // Common scrape options for Holabird:
-    // - exclude gift card promos
-    // - only accept true sale+regular tiles
-    // - disable heuristic fallback to avoid accidental inclusions
     const common = {
       maxPages: 80,
       stopAfterEmptyPages: 2,
@@ -38,7 +66,7 @@ module.exports = async (req, res) => {
       allowHeuristicFallback: false,
     };
 
-    // Womens trail: all shoeType trail
+    // Womens Trail
     all.push(
       ...(await scrapeHolabirdCollection({
         collectionUrl: WOMENS_TRAIL,
@@ -48,7 +76,7 @@ module.exports = async (req, res) => {
       }))
     );
 
-    // Mens trail: all shoeType trail
+    // Mens Trail
     all.push(
       ...(await scrapeHolabirdCollection({
         collectionUrl: MENS_TRAIL,
@@ -58,7 +86,7 @@ module.exports = async (req, res) => {
       }))
     );
 
-    // Unisex trail: shoeType trail (in URL)
+    // Unisex Trail
     all.push(
       ...(await scrapeHolabirdCollection({
         collectionUrl: UNISEX_TRAIL,
@@ -68,7 +96,7 @@ module.exports = async (req, res) => {
       }))
     );
 
-    // Unisex road: shoeType road (in URL)
+    // Unisex Road
     all.push(
       ...(await scrapeHolabirdCollection({
         collectionUrl: UNISEX_ROAD,
@@ -79,31 +107,83 @@ module.exports = async (req, res) => {
     );
 
     const deduped = dedupeByUrl(all);
+    const durationMs = Date.now() - start;
 
-    const output = {
-      lastUpdated: new Date().toISOString(),
-      store: "Holabird Sports",
-      segment: "trail-and-unisex",
-      totalDeals: deduped.length,
-      deals: deduped,
-    };
+    output.scrapeDurationMs = durationMs;
+    output.ok = true;
+    output.error = null;
+    output.deals = deduped;
 
-    const blob = await put("holabird-trail-unisex.json", JSON.stringify(output, null, 2), {
-      access: "public",
-      addRandomSuffix: false,
-    });
+    // Without modifying shared scraper, these must match extracted
+    output.dealsFound = deduped.length;
+    output.dealsExtracted = deduped.length;
+
+    const blob = await put(
+      "holabird-trail-unisex.json",
+      JSON.stringify(output, null, 2),
+      {
+        access: "public",
+        addRandomSuffix: false,
+      }
+    );
 
     return res.status(200).json({
       success: true,
-      totalDeals: deduped.length,
+      store: output.store,
+      schemaVersion: output.schemaVersion,
+      lastUpdated: output.lastUpdated,
+      via: output.via,
+      dealsFound: output.dealsFound,
+      dealsExtracted: output.dealsExtracted,
+      scrapeDurationMs: output.scrapeDurationMs,
+      ok: output.ok,
+      error: output.error,
       blobUrl: blob.url,
-      duration: `${Date.now() - start}ms`,
-      timestamp: output.lastUpdated,
     });
   } catch (err) {
-    return res.status(500).json({
-      success: false,
-      error: err?.message || String(err),
-    });
+    const durationMs = Date.now() - start;
+
+    output.scrapeDurationMs = durationMs;
+    output.ok = false;
+    output.error = err?.message || String(err);
+    output.deals = [];
+    output.dealsFound = 0;
+    output.dealsExtracted = 0;
+
+    try {
+      const blob = await put(
+        "holabird-trail-unisex.json",
+        JSON.stringify(output, null, 2),
+        {
+          access: "public",
+          addRandomSuffix: false,
+        }
+      );
+
+      return res.status(500).json({
+        success: false,
+        store: output.store,
+        schemaVersion: output.schemaVersion,
+        lastUpdated: output.lastUpdated,
+        via: output.via,
+        dealsFound: output.dealsFound,
+        dealsExtracted: output.dealsExtracted,
+        scrapeDurationMs: output.scrapeDurationMs,
+        ok: output.ok,
+        error: output.error,
+        blobUrl: blob.url,
+      });
+    } catch (writeErr) {
+      return res.status(500).json({
+        success: false,
+        error: output.error,
+        writeError: writeErr?.message || String(writeErr),
+        store: output.store,
+        schemaVersion: output.schemaVersion,
+        lastUpdated: output.lastUpdated,
+        via: output.via,
+        scrapeDurationMs: output.scrapeDurationMs,
+      });
+    }
   }
 };
