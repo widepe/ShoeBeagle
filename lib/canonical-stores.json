@@ -21,7 +21,10 @@
     "addedAt": "2026-02-09",
     "lastUpdated": "2026-02-09",
     "scrapedUrls": [
-      "https://www.asics.com/us/en-us/sale/mens-running-shoes/c/aa10107020/"
+      "https://www.asics.com/us/en-us/womens-clearance/c/aa20106000/running/shoes/?prefn1=c_surface&prefv1=Road",
+      "https://www.asics.com/us/en-us/womens-clearance/c/aa20106000/running/shoes/?prefn1=c_surface&prefv1=Off-Road",
+      "https://www.asics.com/us/en-us/mens-clearance/c/aa10106000/running/shoes/?prefn1=c_surface&prefv1=Road",
+      "https://www.asics.com/us/en-us/mens-clearance/c/aa10106000/running/shoes/?prefn1=c_surface&prefv1=Off-Road"
     ],
     "expectedBlob": [
       "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/asics-sale.json"
