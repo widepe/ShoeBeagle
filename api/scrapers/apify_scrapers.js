@@ -20,6 +20,7 @@ function requireEnv(name) {
 // EASY TOGGLES
 // ===========================
 const ENABLED = {
+  asics: true,
   brooks: true,
   rei: true,
   roadrunner: true,
@@ -35,15 +36,14 @@ const ENABLED = {
 // ACTOR DEFINITIONS
 // ===========================
 const TARGETS = [
+  { key: "asics", name: "ASICS", actorEnv: "APIFY_ASICS_ACTOR_ID", inputEnv: "APIFY_ASICS_INPUT_JSON" },
   { key: "brooks", name: "Brooks Running", actorEnv: "APIFY_BROOKS_ACTOR_ID", inputEnv: "APIFY_BROOKS_INPUT_JSON" },
+  { key: "footlocker", name: "Foot Locker", actorEnv: "APIFY_FOOTLOCKER_ACTOR_ID", inputEnv: "APIFY_FOOTLOCKER_INPUT_JSON" },
+  { key: "mizuno", name: "Mizuno", actorEnv: "APIFY_MIZUNO_ACTOR_ID", inputEnv: "APIFY_MIZUNO_INPUT_JSON" },
   { key: "rei", name: "REI Outlet", actorEnv: "APIFY_REI_ACTOR_ID", inputEnv: "APIFY_REI_INPUT_JSON" },
   { key: "roadrunner", name: "Road Runner Sports", actorEnv: "APIFY_ROADRUNNER_ACTOR_ID", inputEnv: "APIFY_ROADRUNNER_INPUT_JSON" },
-  { key: "zappos", name: "Zappos", actorEnv: "APIFY_ZAPPOS_ACTOR_ID", inputEnv: "APIFY_ZAPPOS_INPUT_JSON" },
-  { key: "footlocker", name: "Foot Locker", actorEnv: "APIFY_FOOTLOCKER_ACTOR_ID", inputEnv: "APIFY_FOOTLOCKER_INPUT_JSON" },
   { key: "rnj", name: "RnJ Sports", actorEnv: "APIFY_RNJSPORTS_ACTOR_ID", inputEnv: "APIFY_RNJSPORTS_INPUT_JSON" },
-
-  // ✅ added
-  { key: "mizuno", name: "Mizuno", actorEnv: "APIFY_MIZUNO_ACTOR_ID", inputEnv: "APIFY_MIZUNO_INPUT_JSON" },
+  { key: "zappos", name: "Zappos", actorEnv: "APIFY_ZAPPOS_ACTOR_ID", inputEnv: "APIFY_ZAPPOS_INPUT_JSON" },
 ];
 
 async function callActor(actorId, actorName, input) {
