@@ -2,31 +2,33 @@
 //
 // Holabird collection tile scraper (Shopify theme)
 //
-// Key goals for Shoe Beagle:
+// Output per scrape call:
+// {
+//   store, schemaVersion,
+//   lastUpdated, via,
+//   sourceUrls, pagesFetched,
+//   dealsFound, dealsExtracted,
+//   scrapeDurationMs,
+//   ok, error,
+//   deals: [ canonical deal objects ]
+// }
 //
-// ✅ Output canonical 11 fields:
+// Canonical deal fields:
 //   listingName, brand, model, salePrice, originalPrice, discountPercent,
 //   store, listingURL, imageURL, gender, shoeType
 //
-// ✅ NEVER “edit” listingName (only normalize whitespace)
-// ✅ Prefer Holabird’s structured price selectors:
-//      .price--highlight (sale) and .price--compare (regular/original)
-// ✅ Allow endpoint-level overrides (mens-road can hard-set gender=mens, shoeType=road)
-// ✅ Allow excluding gift-card promos (".gift-card-message")
-// ✅ Keep an optional heuristic fallback (tile text dollar scan) for resilience
-//
-// NOTE:
-// - This file originally returned ONLY an array of deals.
-// - Per your request, it now ALSO supports returning a Mizuno-style top-level envelope.
-// - To avoid breaking existing endpoints, the default behavior remains: RETURN DEALS ARRAY.
-//   If you want the Mizuno-style top-level object, call scrapeHolabirdCollectionEnvelope()
-//   (or pass returnEnvelope: true to scrapeHolabirdCollection()).
+// Rules:
+// - listingName must be text (NO html / attributes / outerHTML).
+// - shoeType is defined by the collection being scraped (road vs trail).
+// - gender is derived from listingName (card title). Fallback only if unknown.
+// - no external model cleaner.
 
 const axios = require("axios");
 const cheerio = require("cheerio");
 
 const HOLABIRD_BASE = "https://www.holabirdsports.com";
-const HOLABIRD_STORE_NAME = "Holabird Sports";
+const STORE_NAME = "Holabird Sports";
+const SCHEMA_VERSION = 1;
 
 /** -------------------- small utilities -------------------- **/
 
@@ -39,21 +41,6 @@ function normalizeText(input) {
   return String(input).replace(/\s+/g, " ").trim();
 }
 
-function looksLikeCssOrWidgetJunk(s) {
-  const t = normalizeText(s);
-  if (!t) return true;
-
-  if (t.length < 4) return true;
-  if (/^#review-stars-/i.test(t)) return true;
-  if (/oke-sr-count/i.test(t)) return true;
-
-  if (t.includes("{") && t.includes("}") && t.includes(":")) return true;
-  if (t.startsWith("@media") || t.startsWith(":root")) return true;
-  if (/^#[-_a-z0-9]+/i.test(t)) return true;
-
-  return false;
-}
-
 function absolutizeUrl(url, base = HOLABIRD_BASE) {
   if (!url) return null;
   const u = String(url).trim();
@@ -61,10 +48,27 @@ function absolutizeUrl(url, base = HOLABIRD_BASE) {
 
   if (/^https?:\/\//i.test(u)) return u;
   if (u.startsWith("//")) return "https:" + u;
-
   if (u.startsWith("/")) return base.replace(/\/+$/, "") + u;
 
   return base.replace(/\/+$/, "") + "/" + u.replace(/^\/+/, "");
+}
+
+function extractDollar(text) {
+  const m = String(text || "").match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
+  if (!m) return null;
+  const n = parseFloat(m[1].replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+function round2(n) {
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+
+function computeDiscountPercent(originalPrice, salePrice) {
+  if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return null;
+  if (originalPrice <= 0 || salePrice <= 0) return null;
+  if (salePrice >= originalPrice) return 0;
+  return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
 /** -------------------- image helpers -------------------- **/
@@ -111,45 +115,131 @@ function bestImgUrlFrom($img) {
 }
 
 function findBestImageURL($tile) {
-  // Holabird collection tiles provide primary + secondary images; prefer primary.
   const $primary = $tile.find("img.product-item__primary-image").first();
   const $any = $tile.find("img").first();
   return bestImgUrlFrom($primary) || bestImgUrlFrom($any) || null;
 }
 
-/** -------------------- price helpers -------------------- **/
+/** -------------------- title / gender / brand / model -------------------- **/
 
-function round2(n) {
-  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+function extractHolabirdTitleText($tile) {
+  // IMPORTANT: .text() returns text (decodes entities, ignores tags like <br>)
+  const t =
+    $tile.find("a.product-item__title").first().text() ||
+    $tile.find("img.product-item__primary-image").first().attr("alt") ||
+    $tile.find("a.product-item__title").first().attr("title") ||
+    "";
+
+  // Normalize whitespace so <br> doesn’t create odd spacing.
+  return normalizeText(t);
 }
 
-function computeDiscountPercent(originalPrice, salePrice) {
-  if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return null;
-  if (originalPrice <= 0 || salePrice <= 0) return null;
-  if (salePrice >= originalPrice) return 0;
-  return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+function detectGenderFromTitle(listingName) {
+  const s = String(listingName || "").toLowerCase();
+
+  // common Holabird patterns: "Men's", "Women's", sometimes "Unisex"
+  if (/\bmen'?s\b/.test(s) || /\bmens\b/.test(s)) return "mens";
+  if (/\bwomen'?s\b/.test(s) || /\bwomens\b/.test(s)) return "womens";
+  if (/\bunisex\b/.test(s)) return "unisex";
+
+  return "unknown";
 }
 
-function extractDollarAmounts(text) {
-  if (!text) return [];
-  const matches = String(text).match(/\$\s*[\d,]+(?:\.\d{1,2})?/g);
-  if (!matches) return [];
-  return matches
-    .map((m) => parseFloat(m.replace(/[$,\s]/g, "")))
-    .filter(Number.isFinite);
+// Brand list: longest-first match to avoid "On" beating "On Running".
+const BRANDS = [
+  "Mount to Coast",
+  "New Balance",
+  "Under Armour",
+  "The North Face",
+  "La Sportiva",
+  "Pearl Izumi",
+  "Topo Athletic",
+  "Vibram FiveFingers",
+  "On Running",
+  "361 Degrees",
+  "ASICS",
+  "Brooks",
+  "Saucony",
+  "Mizuno",
+  "adidas",
+  "Nike",
+  "HOKA",
+  "Puma",
+  "Salomon",
+  "Diadora",
+  "Skechers",
+  "Reebok",
+  "Altra",
+  "Karhu",
+  "norda",
+  "Nnormal",
+  "inov8",
+  "Inov-8",
+  "VEJA",
+  "APL",
+  "On",
+];
+
+function escapeRegex(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Preferred: structured selectors on Holabird tiles
+function extractBrand(title) {
+  const t = String(title || "");
+  if (!t) return "Unknown";
+
+  const brandsSorted = [...BRANDS].sort((a, b) => b.length - a.length);
+
+  for (const b of brandsSorted) {
+    if (b === "On") {
+      // avoid "on sale" false positives
+      if (/\bOn\b/.test(t)) return "On";
+      continue;
+    }
+    const re = new RegExp(`\\b${escapeRegex(b)}\\b`, "i");
+    if (re.test(t)) return b;
+  }
+
+  // fallback: first word as brand if title looks like "Brand Model..."
+  const parts = normalizeText(t).split(" ");
+  return parts[0] || "Unknown";
+}
+
+function cleanModelFromTitle(title, brand) {
+  let t = normalizeText(title);
+
+  // Remove brand token once
+  if (brand && brand !== "Unknown") {
+    const re = brand === "On"
+      ? /\bOn\b/
+      : new RegExp(`\\b${escapeRegex(brand)}\\b`, "i");
+    t = normalizeText(t.replace(re, " "));
+  }
+
+  // Cut off at explicit gender token (keeps model clean; colorway often follows)
+  // Examples:
+  // "Sonicblast Men's Arctic Blue/Grey Blue" => "Sonicblast"
+  // "Mafate 5 Women's Black/Gold" => "Mafate 5"
+  t = t.replace(/\b(Men'?s|Mens|Women'?s|Womens|Unisex)\b.*$/i, "").trim();
+
+  // Remove common trailing junk that sometimes appears before gender or standalone
+  t = t.replace(/\b(Running Shoe|Trail Running Shoe|Shoe)\b\s*$/i, "").trim();
+
+  // Remove "Item #xxxxxx" if ever present in text fallback
+  t = t.replace(/\bItem\s*#\s*\d+\b/i, "").trim();
+
+  // Final whitespace normalize
+  return normalizeText(t);
+}
+
+/** -------------------- price extraction -------------------- **/
+
 function extractPricesStructured($tile) {
-  const saleText = normalizeText(
-    $tile.find(".product-item__price-list .price--highlight").first().text()
-  );
-  const origText = normalizeText(
-    $tile.find(".product-item__price-list .price--compare").first().text()
-  );
+  const saleText = normalizeText($tile.find(".product-item__price-list .price--highlight").first().text());
+  const origText = normalizeText($tile.find(".product-item__price-list .price--compare").first().text());
 
-  const sale = extractDollarAmounts(saleText)[0];
-  const orig = extractDollarAmounts(origText)[0];
+  const sale = extractDollar(saleText);
+  const orig = extractDollar(origText);
 
   if (!Number.isFinite(sale) || !Number.isFinite(orig)) return { valid: false };
   if (!(sale < orig)) return { valid: false };
@@ -157,360 +247,145 @@ function extractPricesStructured($tile) {
   return { salePrice: round2(sale), originalPrice: round2(orig), valid: true };
 }
 
-// Optional fallback: heuristic parsing from the tile text (kept for resilience)
-function extractPricesFromTileText(tileText) {
-  let prices = extractDollarAmounts(tileText).filter((p) => p >= 10 && p < 1000);
-
-  // de-dupe (normalized to cents)
-  prices = [...new Set(prices.map((p) => p.toFixed(2)))].map(Number);
-
-  // some tiles might contain more than 2 amounts (shipping promos, etc.)
-  if (prices.length < 2 || prices.length > 4) return { valid: false };
-
-  prices.sort((a, b) => b - a);
-
-  const originalPrice = round2(prices[0]);
-  const salePrice = round2(prices[prices.length - 1]);
-
-  if (!(salePrice < originalPrice)) return { valid: false };
-
-  const pct = ((originalPrice - salePrice) / originalPrice) * 100;
-  if (pct < 5 || pct > 90) return { valid: false };
-
-  return { salePrice, originalPrice, valid: true };
-}
-
-/** -------------------- brand/model + classification -------------------- **/
-
-function escapeRegex(s) {
-  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function extractBrandAndModel(title) {
-  if (!title) return { brand: "Unknown", model: "" };
-
-  const brands = [
-    "Mizuno",
-    "Saucony",
-    "HOKA",
-    "Brooks",
-    "ASICS",
-    "New Balance",
-    "On",
-    "Altra",
-    "adidas",
-    "Nike",
-    "Puma",
-    "Salomon",
-    "Diadora",
-    "K-Swiss",
-    "Wilson",
-    "Babolat",
-    "HEAD",
-    "Yonex",
-    "Under Armour",
-    "VEJA",
-    "APL",
-    "Merrell",
-    "Teva",
-    "Reebok",
-    "Skechers",
-    "Mount to Coast",
-    "norda",
-    "inov8",
-    "OOFOS",
-    "Birkenstock",
-    "Kane Footwear",
-    "LANE EIGHT",
-  ];
-
-  for (const brand of brands) {
-    let regex;
-    if (brand === "On") regex = /\bOn\b/; // prevent "on sale" false positives
-    else regex = new RegExp(`\\b${escapeRegex(brand)}\\b`, "i");
-
-    if (regex.test(title)) {
-      const parts = title.split(regex);
-      let model = parts.length > 1 ? parts[1].trim() : parts[0].trim();
-      model = model.replace(/^[-:,\s]+/, "").trim();
-      return { brand, model: model || title };
-    }
-  }
-
-  const cleaned = title
-    .replace(/^(Men's|Women's|Kids?|Youth|Junior|Unisex|Sale:?|New:?)\s+/gi, "")
-    .trim();
-
-  const parts = cleaned.split(/\s+/);
-  if (parts.length >= 2) return { brand: parts[0], model: parts.slice(1).join(" ") };
-
-  return { brand: "Unknown", model: title };
-}
-
-function detectGender(listingName) {
-  const name = (listingName || "").toLowerCase();
-  if (/\bmen'?s\b/.test(name)) return "mens";
-  if (/\bwomen'?s\b/.test(name)) return "womens";
-  if (/\bunisex\b/.test(name)) return "unisex";
-  return "unknown";
-}
-
-function detectShoeType(listingName) {
-  const name = (listingName || "").toLowerCase();
-  if (/\btrail\b/.test(name)) return "trail";
-  if (/\btrack\b/.test(name) || /\bspike(s)?\b/.test(name)) return "track";
-  if (/\broad\b/.test(name)) return "road";
-  return "unknown";
-}
-
-/** -------------------- core scraper -------------------- **/
-
-function extractHolabirdTitle($tile) {
-  // Primary: the product title anchor text (outerHTML shows <br> + <span>)
-  const t =
-    normalizeText($tile.find("a.product-item__title").first().text()) ||
-    normalizeText($tile.find("img.product-item__primary-image").first().attr("alt")) ||
-    normalizeText($tile.find('a[href^="/products/"]').first().attr("title"));
-
-  return t && !looksLikeCssOrWidgetJunk(t) ? t : "";
-}
+/** -------------------- delay -------------------- **/
 
 function randomDelay(min = 250, max = 700) {
   const wait = Math.floor(Math.random() * (max - min + 1)) + min;
   return new Promise((r) => setTimeout(r, wait));
 }
 
-/**
- * Build Mizuno-style envelope:
- * {
- *   store, schemaVersion,
- *   lastUpdated, via,
- *   sourceUrls, pagesFetched,
- *   dealsFound, dealsExtracted,
- *   scrapeDurationMs,
- *   ok, error,
- *   deals: [...]
- * }
- */
-function buildEnvelope({
-  store,
-  via,
-  sourceUrls,
-  pagesFetched,
-  dealsFound,
-  dealsExtracted,
-  scrapeDurationMs,
-  ok,
-  error,
-  deals,
-  lastUpdated,
-}) {
-  return {
-    store: String(store || HOLABIRD_STORE_NAME),
-    schemaVersion: 1,
-
-    lastUpdated: String(lastUpdated || nowIso()),
-    via: String(via || "cheerio"),
-
-    sourceUrls: Array.isArray(sourceUrls) ? sourceUrls.filter(Boolean) : [],
-    pagesFetched: Number.isFinite(Number(pagesFetched)) ? Number(pagesFetched) : 0,
-
-    dealsFound: Number.isFinite(Number(dealsFound)) ? Number(dealsFound) : 0,
-    dealsExtracted: Number.isFinite(Number(dealsExtracted))
-      ? Number(dealsExtracted)
-      : (Array.isArray(deals) ? deals.length : 0),
-
-    scrapeDurationMs: Number.isFinite(Number(scrapeDurationMs)) ? Number(scrapeDurationMs) : 0,
-
-    ok: Boolean(ok),
-    error: error == null ? null : String(error),
-
-    deals: Array.isArray(deals) ? deals : [],
-  };
-}
+/** -------------------- core scraper -------------------- **/
 
 /**
- * Scrape a Holabird collection listing pages.
+ * Scrape one Holabird collection.
  *
- * Options:
- * - fixedGender: string|null  (e.g., "mens")  -> overrides detectGender
- * - fixedShoeType: string|null (e.g., "road") -> overrides detectShoeType
- * - excludeGiftCard: boolean  -> skip tiles containing ".gift-card-message"
- * - requireStructuredSaleCompare: boolean -> only accept tiles with both .price--highlight and .price--compare
- * - allowHeuristicFallback: boolean -> if structured prices missing, optionally try tile-text heuristic
- *
- * NEW (non-breaking):
- * - returnEnvelope: boolean -> if true, return Mizuno-style object instead of just deals[]
- * - storeName: string -> override store field in envelope (default "Holabird Sports")
- * - via: string -> override via in envelope (default "cheerio")
+ * Params:
+ * - collectionUrl: string (base collection URL)
+ * - shoeType: "road" | "trail" | "unknown"  (defined by the page/collection)
+ * - fallbackGender: "mens"|"womens"|"unisex"|null  (ONLY used if title-based gender is unknown)
+ * - maxPages, stopAfterEmptyPages
+ * - excludeGiftCard: boolean
+ * - requireStructuredSaleCompare: boolean (recommended true)
  */
 async function scrapeHolabirdCollection({
   collectionUrl,
-  maxPages = 50,
-  stopAfterEmptyPages = 1,
+  shoeType = "unknown",
+  fallbackGender = null,
 
-  fixedGender = null,
-  fixedShoeType = null,
-  excludeGiftCard = false,
-  requireStructuredSaleCompare = false,
-  allowHeuristicFallback = true,
+  maxPages = 80,
+  stopAfterEmptyPages = 2,
 
-  // NEW
-  returnEnvelope = false,
-  storeName = HOLABIRD_STORE_NAME,
-  via = "cheerio",
+  excludeGiftCard = true,
+  requireStructuredSaleCompare = true,
 } = {}) {
-  const startedAt = Date.now();
-  const runTs = nowIso();
-
   const deals = [];
   const seen = new Set();
 
-  let emptyPages = 0;
   let pagesFetched = 0;
+  let dealsFound = 0;      // products found on pages (tiles)
+  let emptyPages = 0;
 
-  // dealsFound = raw products/cards seen (before filter)
-  let dealsFound = 0;
+  const visitedForSourceUrls = [];
 
-  try {
-    for (let page = 1; page <= maxPages; page++) {
-      const pageUrl = collectionUrl.includes("?")
-        ? `${collectionUrl}&page=${page}`
-        : `${collectionUrl}?page=${page}`;
+  for (let page = 1; page <= maxPages; page++) {
+    const pageUrl = collectionUrl.includes("?")
+      ? `${collectionUrl}&page=${page}`
+      : `${collectionUrl}?page=${page}`;
 
-      const resp = await axios.get(pageUrl, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-          Accept: "text/html",
-          "Accept-Language": "en-US,en;q=0.9",
-        },
-        timeout: 15000,
-      });
+    const resp = await axios.get(pageUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        Accept: "text/html",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      timeout: 20000,
+      validateStatus: () => true,
+    });
 
-      pagesFetched++;
+    // If we get blocked / non-200, stop early but report what happened
+    if (resp.status < 200 || resp.status >= 400) {
+      throw new Error(`Holabird HTTP ${resp.status} on ${pageUrl}`);
+    }
 
-      const $ = cheerio.load(resp.data);
-      let extractedThisPage = 0;
+    pagesFetched++;
+    if (visitedForSourceUrls.length < 2) visitedForSourceUrls.push(pageUrl);
 
-      // Faster + cleaner than scanning every /products/ link on the page.
-      $(".product-item").each((_, el) => {
-        dealsFound++; // raw tile encountered
+    const $ = cheerio.load(resp.data);
 
-        const $tile = $(el);
+    let foundThisPage = 0;
 
-        if (excludeGiftCard && $tile.find(".gift-card-message").length) return;
+    $(".product-item").each((_, el) => {
+      const $tile = $(el);
 
-        const href = $tile.find('a[href^="/products/"]').first().attr("href");
-        if (!href || href.includes("#")) return;
+      if (excludeGiftCard && $tile.find(".gift-card-message").length) return;
 
-        const listingURL = absolutizeUrl(href);
-        if (!listingURL || seen.has(listingURL)) return;
+      const href = $tile.find('a[href^="/products/"]').first().attr("href");
+      if (!href || href.includes("#")) return;
 
-        const listingName = extractHolabirdTitle($tile);
-        if (!listingName) return;
+      const listingURL = absolutizeUrl(href);
+      if (!listingURL || seen.has(listingURL)) return;
 
-        // ✅ Price extraction:
-        // Prefer structured Holabird sale/compare selectors.
-        let prices = extractPricesStructured($tile);
+      const listingName = extractHolabirdTitleText($tile);
+      if (!listingName) return;
 
-        // If structured is missing and fallback is allowed, try heuristic.
-        if (!prices.valid && allowHeuristicFallback) {
-          const tileText = normalizeText($tile.text());
-          prices = extractPricesFromTileText(tileText);
-        }
+      // This counts as a product found on the page(s) regardless of whether we later filter it out.
+      foundThisPage++;
+      dealsFound++;
 
-        if (!prices.valid) return;
-
-        // If you only want true markdown items, enforce sale+compare presence.
-        if (requireStructuredSaleCompare) {
-          const hasSale = $tile.find(".price--highlight").length > 0;
-          const hasCompare = $tile.find(".price--compare").length > 0;
-          if (!hasSale || !hasCompare) return;
-        }
-
-        const salePrice = prices.salePrice;
-        const originalPrice = prices.originalPrice;
-
-        const { brand, model } = extractBrandAndModel(listingName);
-
-        // ✅ listingName stays the tile title text (normalized only)
-        const gender = fixedGender || detectGender(listingName);
-        const shoeType = fixedShoeType || detectShoeType(listingName);
-
-        deals.push({
-          listingName,
-          brand,
-          model,
-          salePrice,
-          originalPrice,
-          discountPercent: computeDiscountPercent(originalPrice, salePrice),
-          store: HOLABIRD_STORE_NAME,
-          listingURL,
-          imageURL: findBestImageURL($tile),
-          gender,
-          shoeType,
-        });
-
-        seen.add(listingURL);
-        extractedThisPage++;
-      });
-
-      if (extractedThisPage === 0) {
-        emptyPages++;
-        if (emptyPages >= stopAfterEmptyPages) break;
-      } else {
-        emptyPages = 0;
+      // Require sale + compare price elements if requested
+      if (requireStructuredSaleCompare) {
+        const hasSale = $tile.find(".price--highlight").length > 0;
+        const hasCompare = $tile.find(".price--compare").length > 0;
+        if (!hasSale || !hasCompare) return;
       }
 
-      await randomDelay();
+      const prices = extractPricesStructured($tile);
+      if (!prices.valid) return;
+
+      const brand = extractBrand(listingName);
+      const model = cleanModelFromTitle(listingName, brand);
+
+      let gender = detectGenderFromTitle(listingName);
+      if (gender === "unknown" && fallbackGender) gender = fallbackGender;
+
+      const salePrice = prices.salePrice;
+      const originalPrice = prices.originalPrice;
+
+      deals.push({
+        listingName,
+        brand,
+        model,
+        salePrice,
+        originalPrice,
+        discountPercent: computeDiscountPercent(originalPrice, salePrice),
+        store: STORE_NAME,
+        listingURL,
+        imageURL: findBestImageURL($tile),
+        gender,
+        shoeType,
+      });
+
+      seen.add(listingURL);
+    });
+
+    if (foundThisPage === 0) {
+      emptyPages++;
+      if (emptyPages >= stopAfterEmptyPages) break;
+    } else {
+      emptyPages = 0;
     }
 
-    if (!returnEnvelope) return deals;
-
-    const durationMs = Date.now() - startedAt;
-    return buildEnvelope({
-      store: storeName,
-      via,
-      sourceUrls: [collectionUrl],
-      pagesFetched,
-      dealsFound,
-      dealsExtracted: deals.length,
-      scrapeDurationMs: durationMs,
-      ok: true,
-      error: null,
-      deals,
-      lastUpdated: runTs,
-    });
-  } catch (err) {
-    if (!returnEnvelope) {
-      // Preserve old behavior: throw if caller expects an array
-      throw err;
-    }
-
-    const durationMs = Date.now() - startedAt;
-    return buildEnvelope({
-      store: storeName,
-      via,
-      sourceUrls: [collectionUrl],
-      pagesFetched,
-      dealsFound,
-      dealsExtracted: deals.length,
-      scrapeDurationMs: durationMs,
-      ok: false,
-      error: err?.message || "Unknown error",
-      deals,
-      lastUpdated: runTs,
-    });
+    await randomDelay();
   }
-}
 
-/**
- * Convenience wrapper that ALWAYS returns the Mizuno-style top-level object.
- * Use this in your Holabird endpoints when writing blobs.
- */
-async function scrapeHolabirdCollectionEnvelope(opts = {}) {
-  return scrapeHolabirdCollection({ ...(opts || {}), returnEnvelope: true });
+  return {
+    pagesFetched,
+    dealsFound,
+    dealsExtracted: deals.length,
+    sourceUrls: visitedForSourceUrls.length ? visitedForSourceUrls : [collectionUrl],
+    deals,
+  };
 }
 
 function dedupeByUrl(deals) {
@@ -524,9 +399,31 @@ function dedupeByUrl(deals) {
   return out;
 }
 
+function buildTopLevel({ via, sourceUrls, pagesFetched, dealsFound, dealsExtracted, scrapeDurationMs, ok, error, deals }) {
+  return {
+    store: STORE_NAME,
+    schemaVersion: SCHEMA_VERSION,
+
+    lastUpdated: nowIso(),
+    via: via || "cheerio",
+
+    sourceUrls: Array.isArray(sourceUrls) && sourceUrls.length ? sourceUrls : [],
+    pagesFetched: Number.isFinite(pagesFetched) ? pagesFetched : 0,
+
+    dealsFound: Number.isFinite(dealsFound) ? dealsFound : 0,
+    dealsExtracted: Number.isFinite(dealsExtracted) ? dealsExtracted : (Array.isArray(deals) ? deals.length : 0),
+
+    scrapeDurationMs: Number.isFinite(scrapeDurationMs) ? scrapeDurationMs : 0,
+
+    ok: !!ok,
+    error: error || null,
+
+    deals: Array.isArray(deals) ? deals : [],
+  };
+}
+
 module.exports = {
-  scrapeHolabirdCollection,        // default: returns deals[] unless returnEnvelope:true
-  scrapeHolabirdCollectionEnvelope, // always returns Mizuno-style object
-  buildEnvelope,                   // exported in case endpoints want to wrap themselves
+  scrapeHolabirdCollection,
   dedupeByUrl,
+  buildTopLevel,
 };
