@@ -16,6 +16,33 @@ module.exports = async (req, res) => {
   }
 
   const start = Date.now();
+  const runIso = new Date().toISOString();
+
+  // Mizuno-style top-level envelope (consistent even on failure)
+  const output = {
+    store: "Holabird Sports",
+    schemaVersion: 1,
+
+    lastUpdated: runIso,
+    via: "cheerio",
+
+    sourceUrls: [WOMENS_ROAD],
+
+    // Can't know exactly without instrumenting _holabirdShared.js
+    pagesFetched: null,
+
+    // Without shared instrumentation we only have final extracted deals.
+    // Keep fields consistent + honest:
+    dealsFound: 0,
+    dealsExtracted: 0,
+
+    scrapeDurationMs: 0,
+
+    ok: false,
+    error: null,
+
+    deals: [],
+  };
 
   try {
     const deals = await scrapeHolabirdCollection({
@@ -39,13 +66,16 @@ module.exports = async (req, res) => {
 
     const deduped = dedupeByUrl(deals);
 
-    const output = {
-      lastUpdated: new Date().toISOString(),
-      store: "Holabird Sports",
-      segment: "womens-road",
-      totalDeals: deduped.length,
-      deals: deduped,
-    };
+    const durationMs = Date.now() - start;
+
+    output.scrapeDurationMs = durationMs;
+    output.ok = true;
+    output.error = null;
+    output.deals = deduped;
+
+    // No pre-filter count available without changing shared; set equal.
+    output.dealsFound = deduped.length;
+    output.dealsExtracted = deduped.length;
 
     const blob = await put("holabird-womens-road.json", JSON.stringify(output, null, 2), {
       access: "public",
@@ -54,15 +84,58 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      totalDeals: deduped.length,
+      store: output.store,
+      schemaVersion: output.schemaVersion,
+      lastUpdated: output.lastUpdated,
+      via: output.via,
+      dealsFound: output.dealsFound,
+      dealsExtracted: output.dealsExtracted,
+      scrapeDurationMs: output.scrapeDurationMs,
+      ok: output.ok,
+      error: output.error,
       blobUrl: blob.url,
-      duration: `${Date.now() - start}ms`,
-      timestamp: output.lastUpdated,
     });
   } catch (err) {
-    return res.status(500).json({
-      success: false,
-      error: err?.message || String(err),
-    });
+    const durationMs = Date.now() - start;
+
+    output.scrapeDurationMs = durationMs;
+    output.ok = false;
+    output.error = err?.message || String(err);
+    output.deals = [];
+    output.dealsFound = 0;
+    output.dealsExtracted = 0;
+
+    // Still try to write the same envelope on failure
+    try {
+      const blob = await put("holabird-womens-road.json", JSON.stringify(output, null, 2), {
+        access: "public",
+        addRandomSuffix: false,
+      });
+
+      return res.status(500).json({
+        success: false,
+        store: output.store,
+        schemaVersion: output.schemaVersion,
+        lastUpdated: output.lastUpdated,
+        via: output.via,
+        dealsFound: output.dealsFound,
+        dealsExtracted: output.dealsExtracted,
+        scrapeDurationMs: output.scrapeDurationMs,
+        ok: output.ok,
+        error: output.error,
+        blobUrl: blob.url,
+      });
+    } catch (writeErr) {
+      return res.status(500).json({
+        success: false,
+        error: output.error,
+        writeError: writeErr?.message || String(writeErr),
+        store: output.store,
+        schemaVersion: output.schemaVersion,
+        lastUpdated: output.lastUpdated,
+        via: output.via,
+        scrapeDurationMs: output.scrapeDurationMs,
+      });
+    }
   }
 };
