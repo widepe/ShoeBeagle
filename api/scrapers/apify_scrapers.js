@@ -156,7 +156,6 @@ module.exports = async (req, res) => {
 
 const settled = await Promise.allSettled(tasks);
 
-const results = {};
 
 for (const s of settled) {
   if (s.status === "fulfilled") {
