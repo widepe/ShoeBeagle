@@ -97,9 +97,9 @@ module.exports = async (req, res) => {
     const onlySet = parseCsvParam(req.query?.only);
     const skipSet = parseCsvParam(req.query?.skip);
 
-    const results = {};
+ const results = {};
 
-    const tasks = TARGETS.map(async (t) => {
+const tasks = TARGETS.map(async (t) => {
   const key = t.key;
 
   if (onlySet && !onlySet.has(key)) {
@@ -115,26 +115,13 @@ module.exports = async (req, res) => {
   }
 
   const actorId = requireEnv(t.actorEnv);
-
   if (!actorId) {
-    return [t.name, {
-      ok: false,
-      error: `${t.actorEnv} is not set`,
-      actorEnv: t.actorEnv,
-      key,
-    }];
+    return [t.name, { ok: false, error: `${t.actorEnv} is not set`, actorEnv: t.actorEnv, key }];
   }
 
   const maybeInput = parseOptionalJsonEnv(t.inputEnv);
   if (maybeInput && maybeInput.__error) {
-    return [t.name, {
-      ok: false,
-      error: maybeInput.__error,
-      actorId,
-      actorEnv: t.actorEnv,
-      inputEnv: t.inputEnv,
-      key,
-    }];
+    return [t.name, { ok: false, error: maybeInput.__error, actorId, actorEnv: t.actorEnv, inputEnv: t.inputEnv, key }];
   }
 
   try {
@@ -155,7 +142,6 @@ module.exports = async (req, res) => {
 
 const settled = await Promise.allSettled(tasks);
 
-
 for (const s of settled) {
   if (s.status === "fulfilled") {
     const [name, payload] = s.value;
@@ -167,6 +153,7 @@ for (const s of settled) {
     };
   }
 }
+
 
 
     const durationMs = Date.now() - overallStart;
