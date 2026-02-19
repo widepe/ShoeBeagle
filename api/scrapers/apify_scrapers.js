@@ -47,17 +47,18 @@ const TARGETS = [
 ];
 
 async function callActor(actorId, actorName, input) {
-  const run = await apifyClient.actor(actorId).call(input || {});
+  const run = await apifyClient.actor(actorId).start(input || {});
   return {
     actorName,
     actorId,
     runId: run.id,
-    status: run.status,
+    status: run.status, // typically "READY" / "RUNNING"
     startedAt: run.startedAt || null,
-    finishedAt: run.finishedAt || null,
+    finishedAt: run.finishedAt || null, // usually null right after start
     defaultDatasetId: run.defaultDatasetId || null,
   };
 }
+
 
 function parseOptionalJsonEnv(envName) {
   const raw = String(process.env[envName] || "").trim();
@@ -99,64 +100,76 @@ module.exports = async (req, res) => {
 
     const results = {};
 
-    for (const t of TARGETS) {
-      const key = t.key;
+    const tasks = TARGETS.map(async (t) => {
+  const key = t.key;
 
-      if (onlySet && !onlySet.has(key)) {
-        results[t.name] = { ok: false, skipped: true, reason: "Not in ?only list", key };
-        continue;
-      }
+  if (onlySet && !onlySet.has(key)) {
+    return [t.name, { ok: false, skipped: true, reason: "Not in ?only list", key }];
+  }
 
-      if (skipSet && skipSet.has(key)) {
-        results[t.name] = { ok: false, skipped: true, reason: "In ?skip list", key };
-        continue;
-      }
+  if (skipSet && skipSet.has(key)) {
+    return [t.name, { ok: false, skipped: true, reason: "In ?skip list", key }];
+  }
 
-      if (!onlySet && !ENABLED[key]) {
-        results[t.name] = { ok: false, skipped: true, reason: "Disabled in ENABLED map", key };
-        continue;
-      }
+  if (!onlySet && !ENABLED[key]) {
+    return [t.name, { ok: false, skipped: true, reason: "Disabled in ENABLED map", key }];
+  }
 
-      const actorId = requireEnv(t.actorEnv);
+  const actorId = requireEnv(t.actorEnv);
 
-      if (!actorId) {
-        results[t.name] = {
-          ok: false,
-          error: `${t.actorEnv} is not set`,
-          actorEnv: t.actorEnv,
-          key,
-        };
-        continue;
-      }
+  if (!actorId) {
+    return [t.name, {
+      ok: false,
+      error: `${t.actorEnv} is not set`,
+      actorEnv: t.actorEnv,
+      key,
+    }];
+  }
 
-      const maybeInput = parseOptionalJsonEnv(t.inputEnv);
-      if (maybeInput && maybeInput.__error) {
-        results[t.name] = {
-          ok: false,
-          error: maybeInput.__error,
-          actorId,
-          actorEnv: t.actorEnv,
-          inputEnv: t.inputEnv,
-          key,
-        };
-        continue;
-      }
+  const maybeInput = parseOptionalJsonEnv(t.inputEnv);
+  if (maybeInput && maybeInput.__error) {
+    return [t.name, {
+      ok: false,
+      error: maybeInput.__error,
+      actorId,
+      actorEnv: t.actorEnv,
+      inputEnv: t.inputEnv,
+      key,
+    }];
+  }
 
-      try {
-        const runInfo = await callActor(actorId, t.name, maybeInput || {});
-        results[t.name] = { ok: true, key, ...runInfo };
-      } catch (err) {
-        results[t.name] = {
-          ok: false,
-          key,
-          actorId,
-          actorEnv: t.actorEnv,
-          error: err?.message || "Unknown error",
-          statusCode: err?.statusCode || null,
-          type: err?.type || null,
-        };
-      }
-    }
+  try {
+    const runInfo = await callActor(actorId, t.name, maybeInput || {});
+    return [t.name, { ok: true, key, ...runInfo }];
+  } catch (err) {
+    return [t.name, {
+      ok: false,
+      key,
+      actorId,
+      actorEnv: t.actorEnv,
+      error: err?.message || "Unknown error",
+      statusCode: err?.statusCode || null,
+      type: err?.type || null,
+    }];
+  }
+});
+
+const settled = await Promise.allSettled(tasks);
+
+const results = {};
+
+for (const s of settled) {
+  if (s.status === "fulfilled") {
+    const [name, payload] = s.value;
+    results[name] = payload;
+  } else {
+    results[`unknown-${Math.random().toString(16).slice(2)}`] = {
+      ok: false,
+      error: s.reason?.message || String(s.reason),
+    };
+  }
+}
+
 
     const durationMs = Date.now() - overallStart;
 
