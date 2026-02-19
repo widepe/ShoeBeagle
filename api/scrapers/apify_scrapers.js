@@ -1,4 +1,3 @@
-// api/scrapers/apify_scrapers.js
 // Trigger-only runner for Apify Actors
 
 const { ApifyClient } = require("apify-client");
