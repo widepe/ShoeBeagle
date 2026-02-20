@@ -70,6 +70,26 @@
     "scraperType": "cheerio",
     "notes": "no notes"
   },
+
+{
+  "id": "finishline",
+  "displayName": "Finish Line",
+  "addedAt": "2026-02-20",
+  "lastUpdated": "2026-02-20",
+  "scrapedUrls": [
+    "https://www.finishline.com/plp/all-sale/category=shoes+activity=running"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/finishline.json"
+  ],
+  "aliases": ["finishline", "finish line"],
+  "enabled": true,
+  "scraperType": "firecrawl",
+  "notes": "Finish Line running shoes sale page via Firecrawl. Scrapes ONE page only (no pagination). Skips 'See price in bag' items and counts skips. imageURL uses media.finishline.com img/srcset fallback, then data-sku fallback. Writes to finishline.json."
+}
+
+
+  
   {
     "id": "fleet-feet",
     "displayName": "Fleet Feet",
