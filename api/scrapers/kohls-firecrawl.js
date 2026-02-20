@@ -3,7 +3,7 @@
 //
 // Purpose:
 // - Fetch Kohl's sale + clearance running shoes pages via Firecrawl
-// - Extract canonical 10-field deals
+// - Extract canonical 11-field deals
 // - Upload to Vercel Blob as kohls.json
 //
 // Env vars required:
