@@ -2,15 +2,13 @@
 //
 // Finish Line (Firecrawl -> Cheerio parse) -> writes blob /finishline.json
 //
-// Pagination pattern:
-//   page 1: https://www.finishline.com/plp/<slug>
-//   page 2: https://www.finishline.com/plp/<slug>?page=2
-//   page 3: https://www.finishline.com/plp/<slug>?page=3
+// NOTE (per your instruction): This scraper fetches ONLY ONE PAGE (page 1).
+// It does NOT paginate and does not attempt ?page=2+.
 //
 // Rules (per your spec):
 // - shoeType: "unknown" unless listingName includes trail / track / road
 // - gender must be womens / mens / unisex (otherwise exclude deal)
-// - if card shows "price in bag" (or similar), skip and count skips
+// - if on-sale text is not a $ price (e.g. "See price in bag"), skip and count skips
 // - output your deal schema + your top-level structure
 // - Cron Secret check included, but commented out for testing
 
@@ -21,11 +19,11 @@ const STORE = "Finish Line";
 const SCHEMA_VERSION = 1;
 const VIA = "firecrawl";
 
+const BLOB_PATHNAME = "finishline.json"; // ✅ stable blob name -> .../finishline.json
+
 // Your running-sale URL (shoe deals)
 const BASE_URL =
   "https://www.finishline.com/plp/all-sale/category=shoes+activity=running";
-
-const MAX_PAGES = 6; // adjust as you like
 
 const FIRECRAWL_ENDPOINT = "https://api.firecrawl.dev/v1/scrape";
 
@@ -109,27 +107,6 @@ function parseBrandModel(listingName) {
   return { brand, model };
 }
 
-function looksLikePriceInBag(cardText) {
-  const t = String(cardText || "").toLowerCase();
-  return (
-    t.includes("price in bag") ||
-    t.includes("see price in bag") ||
-    t.includes("add to bag for price") ||
-    t.includes("in bag for price") ||
-    t.includes("see in bag")
-  );
-}
-
-function buildPageUrl(baseUrl, pageNum) {
-  const u = new URL(baseUrl);
-  if (pageNum <= 1) {
-    u.searchParams.delete("page");
-  } else {
-    u.searchParams.set("page", String(pageNum));
-  }
-  return u.toString();
-}
-
 async function firecrawlScrape(url) {
   const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
@@ -143,7 +120,7 @@ async function firecrawlScrape(url) {
     body: JSON.stringify({
       url,
       formats: ["html"],
-      render: true,
+      // render: true, // ❌ Firecrawl v2 rejects this key
       waitFor: 3000,
     }),
   });
@@ -155,7 +132,6 @@ async function firecrawlScrape(url) {
 
   const data = await res.json();
 
-  // Try a couple common shapes so it "just works" across Firecrawl versions.
   const html =
     data?.data?.html ||
     data?.data?.[0]?.html ||
@@ -163,7 +139,6 @@ async function firecrawlScrape(url) {
     "";
 
   if (!html) {
-    // Useful debug without dumping everything:
     const keys = Object.keys(data || {});
     throw new Error(`Firecrawl returned no html. Top-level keys: ${keys.join(", ")}`);
   }
@@ -174,6 +149,7 @@ async function firecrawlScrape(url) {
 // ---------- handler ----------
 export default async function handler(req, res) {
   const t0 = Date.now();
+  const runId = `finishline-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
   // ✅ Cron Secret (commented out for testing)
   /*
@@ -193,95 +169,83 @@ export default async function handler(req, res) {
     const allDeals = [];
     const sourceUrls = [];
 
-    for (let pageNum = 1; pageNum <= MAX_PAGES; pageNum++) {
-      const pageUrl = buildPageUrl(BASE_URL, pageNum);
-      sourceUrls.push(pageUrl);
+    // ✅ Per your instruction: scrape ONE page only (page 1)
+    const pageUrl = BASE_URL;
+    sourceUrls.push(pageUrl);
 
-      const html = await firecrawlScrape(pageUrl);
-      pagesFetched += 1;
+    const html = await firecrawlScrape(pageUrl);
+    pagesFetched = 1;
 
-      const $ = cheerio.load(html);
+    const $ = cheerio.load(html);
 
-      // stable selectors from your outerHTML
-      const cards = $('div[data-testid="product-item"]');
+    const cards = $('div[data-testid="product-item"]');
+    dealsFound = cards.length;
 
-      // If a page has no products, assume we're past the end and stop.
-      if (cards.length === 0) {
-        break;
+    cards.each((_, el) => {
+      const card = $(el);
+
+      // Price-in-bag detection (selector-based, stable)
+      const saleNode = card.find("h4.text-default-onSale").first();
+      const saleTextRaw = asText(saleNode);
+
+      if (saleNode.length && !/\$\s*\d/.test(saleTextRaw)) {
+        priceInBagSkipped += 1;
+        return;
       }
 
-      dealsFound += cards.length;
+      const href = card.find('a[href*="/pdp/"]').first().attr("href");
+      const listingURL = normalizeUrl(href);
+      if (!listingURL) return;
 
-      cards.each((_, el) => {
-        const card = $(el);
+      const img = card.find("img").first();
+      const imageURL = img.attr("src") || null;
 
-   // Price-in-bag detection (selector-based, stable)
-// If the on-sale node isn't a $ price, it's "See price in bag" (skip + count)
-const saleNode = card.find("h4.text-default-onSale").first();
-const saleTextRaw = asText(saleNode);
+      const listingName = asText(card.find("h4").first());
+      if (!listingName) return;
 
-// if the element exists and doesn't contain a currency price, skip
-if (saleNode.length && !/\$\s*\d/.test(saleTextRaw)) {
-  priceInBagSkipped += 1;
-  return;
-}
+      const gender = detectGender(listingName);
+      if (!gender) return;
 
+      const shoeType = detectShoeType(listingName);
 
-        const href = card.find('a[href*="/pdp/"]').first().attr("href");
-        const listingURL = normalizeUrl(href);
-        if (!listingURL) return;
+      const saleText = asText(card.find("h4.text-default-onSale").first());
+      const originalText = asText(card.find("p.line-through").first());
 
-        const img = card.find("img").first();
-        const imageURL = img.attr("src") || null;
+      const salePrice = parseMoney(saleText);
+      const originalPrice = parseMoney(originalText);
 
-        const listingName = asText(card.find("h4").first());
-        if (!listingName) return;
+      if (typeof salePrice !== "number" || typeof originalPrice !== "number") return;
 
-        const gender = detectGender(listingName);
-        if (!gender) return; // exclude
+      const discountPercent = computeDiscountPercent(salePrice, originalPrice);
+      const { brand, model } = parseBrandModel(listingName);
 
-        const shoeType = detectShoeType(listingName);
+      allDeals.push({
+        schemaVersion: SCHEMA_VERSION,
 
-        const saleText = asText(card.find("h4.text-default-onSale").first());
-        const originalText = asText(card.find("p.line-through").first());
+        listingName,
 
-        const salePrice = parseMoney(saleText);
-        const originalPrice = parseMoney(originalText);
+        brand,
+        model,
 
-        // include ONLY if both exist
-        if (typeof salePrice !== "number" || typeof originalPrice !== "number") return;
+        salePrice,
+        originalPrice,
+        discountPercent,
 
-        const discountPercent = computeDiscountPercent(salePrice, originalPrice);
-        const { brand, model } = parseBrandModel(listingName);
+        salePriceLow: null,
+        salePriceHigh: null,
+        originalPriceLow: null,
+        originalPriceHigh: null,
+        discountPercentUpTo: null,
 
-        allDeals.push({
-          schemaVersion: SCHEMA_VERSION,
+        store: STORE,
 
-          listingName,
+        listingURL,
+        imageURL,
 
-          brand,
-          model,
-
-          salePrice,
-          originalPrice,
-          discountPercent,
-
-          salePriceLow: null,
-          salePriceHigh: null,
-          originalPriceLow: null,
-          originalPriceHigh: null,
-          discountPercentUpTo: null,
-
-          store: STORE,
-
-          listingURL,
-          imageURL,
-
-          gender,
-          shoeType,
-        });
+        gender,
+        shoeType,
       });
-    }
+    });
 
     dealsExtracted = allDeals.length;
 
@@ -304,61 +268,43 @@ if (saleNode.length && !/\$\s*\d/.test(saleTextRaw)) {
       ok: true,
       error: null,
 
-      // optional but useful; remove if you want strict top-level only
       priceInBagSkipped,
 
       deals: allDeals,
     };
 
-    await put("finishline.json", JSON.stringify(payload, null, 2), {
+    // ✅ Blob write (HOKA-style logging)
+    console.log(
+      `[${runId}] FINISHLINE blob write start: ${BLOB_PATHNAME} dealsExtracted=${payload.dealsExtracted}`
+    );
+
+    const blobRes = await put(BLOB_PATHNAME, JSON.stringify(payload, null, 2), {
       access: "public",
+      addRandomSuffix: false,
       contentType: "application/json",
-      addRandomSuffix: false, // ✅ stable name
     });
 
-    console.log(`[Finish Line] priceInBagSkipped=${priceInBagSkipped}`);
+    console.log(
+      `[${runId}] FINISHLINE blob write done: url=${blobRes.url} time=${Date.now() - t0}ms`
+    );
+    console.log(
+      `[${runId}] FINISHLINE expected env url: ${process.env.FINISHLINE_DEALS_BLOB_URL || "not set"}`
+    );
 
     return res.status(200).json({
       ok: true,
+      runId,
       store: STORE,
       pagesFetched,
       dealsFound,
       dealsExtracted,
       priceInBagSkipped,
-      blobPath: "/finishline.json",
+      blobUrl: blobRes.url,
+      elapsedMs: Date.now() - t0,
     });
   } catch (err) {
     const msg = err?.message ? String(err.message) : String(err);
 
-    const payload = {
-      store: STORE,
-      schemaVersion: SCHEMA_VERSION,
-
-      lastUpdated: nowIso(),
-      via: VIA,
-
-      sourceUrls: [BASE_URL],
-      pagesFetched,
-
-      dealsFound,
-      dealsExtracted,
-
-      scrapeDurationMs: Date.now() - t0,
-
-      ok: false,
-      error: msg,
-    };
-
-    try {
-      await put("finishline.json", JSON.stringify(payload, null, 2), {
-        access: "public",
-        contentType: "application/json",
-        addRandomSuffix: false,
-      });
-    } catch (e) {
-      console.error("Failed writing error payload to blob:", e?.message || e);
-    }
-
-    return res.status(500).json({ ok: false, error: msg });
+    return res.status(500).json({ ok: false, runId, error: msg, elapsedMs: Date.now() - t0 });
   }
 }
