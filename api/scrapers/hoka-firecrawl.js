@@ -169,50 +169,35 @@ function extractDealsFromHtml(html, runId, sourceKey) {
   const $ = cheerio.load(html);
   const deals = [];
 
-  const cardCount = $(".tile-suggest").length;
+  const cardCount = $(".product-tile__primary").length;
   console.log(`[${runId}] HOKA parse ${sourceKey}: cardsFound=${cardCount}`);
 
-  $(".tile-suggest").each((_, el) => {
+  $(".product-tile__primary").each((_, el) => {
     const $tile = $(el);
 
-    const a = $tile.find("a.product-suggestion__link").first();
-    const href = a.attr("href") || "";
-    const listingURL = absUrl(href);
-    if (!listingURL) return;
-
-    // Gender MUST come from listing label ONLY — no fallback
-    const genderLabel = $tile.find(".name > span").first().text().trim();
+    // Gender — MUST come from .product-group, no fallback
+    const genderLabel = $tile.find(".tile-product-name .product-group").first().text().trim();
     const gender = normalizeGender(genderLabel);
     if (!gender) return;
 
-    // Model name: full .name text minus the gender label prefix
-    let nameText = $tile.find(".name").first().text().replace(/\s+/g, " ").trim();
-    if (genderLabel) {
-      nameText = nameText
-        .replace(new RegExp(`^${escapeRegExp(genderLabel)}\\s*`, "i"), "")
-        .trim();
-    }
-    const model = nameText || null;
+    // Model name — full link text minus the gender label
+    const fullNameText = $tile.find(".tile-product-name .pdp-link a").first().text().replace(/\s+/g, " ").trim();
+    const model = fullNameText.replace(new RegExp(`^${escapeRegExp(genderLabel)}\\s*`, "i"), "").trim();
     if (!model) return;
 
     const listingName = `${genderLabel} ${model}`.trim();
 
-    const imageURL =
-      $tile.find("img.suggestion-img, img").first().attr("data-src") ||
-      $tile.find("img.suggestion-img, img").first().attr("src") ||
-      null;
+    // Listing URL
+    const href = $tile.find(".tile-product-name .pdp-link a").first().attr("href") || null;
+    const listingURL = absUrl(href);
+    if (!listingURL) return;
 
-    // Prices — require BOTH sale and original
-    const salePriceText =
-      $tile.find(".price .sales").first().text().trim() ||
-      $tile.find(".sales").first().text().trim() ||
-      "";
-    const originalPriceText =
-      $tile.find(".price .strike-through").first().text().trim() ||
-      $tile.find(".price .list").first().text().trim() ||
-      $tile.find(".strike-through").first().text().trim() ||
-      $tile.find(".list").first().text().trim() ||
-      "";
+    // Image — already hydrated src, no data-src needed
+    const imageURL = $tile.find(".image-container .tile-image").first().attr("src") || null;
+
+    // Prices — require both
+    const salePriceText = $tile.find(".price .sales").first().text().trim();
+    const originalPriceText = $tile.find(".price .strike-through .value").first().text().trim();
 
     const salePrice = parseMoney(salePriceText);
     const originalPrice = parseMoney(originalPriceText);
