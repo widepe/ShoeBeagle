@@ -281,67 +281,52 @@ async function firecrawlScrapeHtml(url) {
 // --------------------------
 // handler
 // --------------------------
-module.exports = async (req, res) => {
-  if (req.method !== "GET") return res.status(405).json({ ok: false, error: "Method not allowed" });
+module.exports = async function handler(req, res) {
+  const runId = `backcountry-${Date.now().toString(36)}`;
+  const t0 = Date.now();
 
-  // Optional CRON protection (matches your other scrapers)
-  const auth = req.headers.authorization;
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  // REQUIRE CRON SECRET
+  const CRON_SECRET = process.env.CRON_SECRET;
+  if (!CRON_SECRET) {
+    return res.status(500).json({
+      ok: false,
+      error: "CRON_SECRET not configured"
+    });
+  }
+
+  const provided =
+    req.headers["x-cron-secret"] ||
+    req.query?.key ||
+    "";
+
+  if (provided !== CRON_SECRET) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 
-  const start = Date.now();
-  const lastUpdated = nowIso();
-
-  const sourceUrls = [START_URL];
-  const pagesFetched = 1;
-
-  let ok = true;
-  let error = null;
-
   try {
-    const html = await firecrawlScrapeHtml(START_URL);
-    const parsed = parseDealsFromHtml(html);
+    const payload = await scrapeAll(runId);
 
-    const payload = {
-      store: STORE,
-      schemaVersion: 1,
-
-      lastUpdated,
-      via: "firecrawl",
-
-      sourceUrls,
-      pagesFetched,
-
-      dealsFound: parsed.dealsFound,
-      dealsExtracted: parsed.dealsExtracted,
-
-      scrapeDurationMs: Date.now() - start,
-
-      ok: true,
-      error: null,
-
-      deals: parsed.deals,
-    };
-
-    const blob = await put(OUT_BLOB_NAME, JSON.stringify(payload, null, 2), {
+    const blobRes = await put("backcountry.json", JSON.stringify(payload, null, 2), {
       access: "public",
       addRandomSuffix: false,
+      contentType: "application/json",
     });
 
-    return res.status(200).json({
+    res.status(200).json({
       ok: true,
-      store: STORE,
-      savedAs: OUT_BLOB_NAME,
-      blobUrl: blob.url,
-      dealsFound: parsed.dealsFound,
-      dealsExtracted: parsed.dealsExtracted,
-      scrapeDurationMs: payload.scrapeDurationMs,
-      lastUpdated,
+      runId,
+      dealsExtracted: payload.dealsExtracted,
+      blobUrl: blobRes.url,
+      elapsedMs: Date.now() - t0,
     });
-  } catch (e) {
-    ok = false;
-    error = e?.message || String(e);
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      error: err.message,
+    });
+  }
+};
+
 
     const payload = {
       store: STORE,
