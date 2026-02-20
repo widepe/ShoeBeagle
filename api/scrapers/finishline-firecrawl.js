@@ -56,19 +56,26 @@ function computeDiscountPercent(sale, original) {
 
 function detectGender(listingName) {
   const s = String(listingName || "").toLowerCase();
+
   if (s.startsWith("men's") || s.startsWith("mens")) return "mens";
   if (s.startsWith("women's") || s.startsWith("womens")) return "womens";
   if (s.startsWith("unisex")) return "unisex";
-  return null; // exclude
+
+  return "unknown"; // ✅ no longer excluded
 }
+
 
 function detectShoeType(listingName) {
   const s = String(listingName || "").toLowerCase();
+
   if (/\btrail\b/.test(s)) return "trail";
   if (/\btrack\b/.test(s)) return "track";
+  if (/\bspikes?\b/.test(s)) return "track"; // ✅ new rule
   if (/\broad\b/.test(s)) return "road";
+
   return "unknown";
 }
+
 
 function stripLeadingGender(listingName) {
   return String(listingName || "")
@@ -247,7 +254,6 @@ export default async function handler(req, res) {
       if (!listingName) return;
 
       const gender = detectGender(listingName);
-      if (!gender) return;
 
       const shoeType = detectShoeType(listingName);
 
