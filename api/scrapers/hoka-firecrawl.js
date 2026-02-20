@@ -210,11 +210,6 @@ function extractDealsFromHtml(html, runId, sourceKey) {
     const discountPercent = calcDiscountPercent(salePrice, originalPrice);
     const shoeType = detectShoeType(listingName);
 
-// Listing URL
-const href = $tile.find(".tile-product-name .pdp-link a").first().attr("href") || null;
-const listingURL = absUrl(href);
-if (!listingURL) return;
-
 // ✅ Image URL (missing key field)
 const imgSrc =
   $tile.find("img.tile-image").first().attr("src") ||
