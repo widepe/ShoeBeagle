@@ -1,9 +1,9 @@
 // /api/scrapers/dicks-firecrawl.js  (CommonJS)
 //
-// TEMP FAST MODE (per your request):
-// - Scrape ONLY 1 page (page 0) of MEN'S source
-// - WOMEN'S source disabled (commented out)
-// - Everything else unchanged as much as possible
+// TEMP FAST MODE:
+// - Scrape ONLY MEN'S source
+// - Scrape 3 pages total (pageNumber 0,1,2)
+// - WOMEN'S still disabled
 //
 // Env vars required:
 //   FIRECRAWL_API_KEY
@@ -17,7 +17,7 @@ const { put } = require("@vercel/blob");
 
 const STORE = "Dicks Sporting Goods";
 
-// ✅ ONLY MEN'S, ONE PAGE
+// ✅ ONLY MEN'S for now
 const SOURCES = [
   {
     key: "mens",
@@ -34,8 +34,8 @@ const SOURCES = [
 const BLOB_PATHNAME = "dicks-sporting-goods.json";
 const MAX_ITEMS_TOTAL = 5000;
 
-// ✅ Hard cap to 1 page total (pageNumber=0 only)
-const MAX_PAGES_PER_SOURCE = 1;
+// ✅ Scrape 3 pages total (0,1,2)
+const MAX_PAGES_PER_SOURCE = 3;
 
 const SCHEMA_VERSION = 1;
 
@@ -109,15 +109,12 @@ function detectGenderFromTitle(listingName) {
   return "unknown";
 }
 
-// Your rule:
-// - "trail running shoes" => trail
-// - "running shoes" => road
-// - otherwise exclude
+// STRICT running-only rule
 function detectShoeTypeStrict(listingName) {
   const s = String(listingName || "").toLowerCase();
   if (s.includes("trail running shoes")) return "trail";
   if (s.includes("running shoes")) return "road";
-  return null; // means EXCLUDE
+  return null; // EXCLUDE
 }
 
 function uniqByKey(items, keyFn) {
@@ -244,43 +241,28 @@ async function fetchHtmlViaFirecrawl(url, runId, label = "DSG") {
   let res;
   let json;
 
-  try {
-    res = await fetch("https://api.firecrawl.dev/v1/scrape", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        url,
-        formats: ["html"],
-        onlyMainContent: false,
-        waitFor: 3500,
-        timeout: 60000,
-      }),
-    });
-  } catch (e) {
-    console.error(`[${runId}] ${label} firecrawl network error:`, e);
-    throw e;
-  }
+  res = await fetch("https://api.firecrawl.dev/v1/scrape", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      url,
+      formats: ["html"],
+      onlyMainContent: false,
+      waitFor: 3500,
+      timeout: 60000,
+    }),
+  });
 
-  try {
-    json = await res.json();
-  } catch (e) {
-    const text = await res.text().catch(() => "");
-    console.error(
-      `[${runId}] ${label} firecrawl JSON parse error. Body:`,
-      (text || "").slice(0, 300)
-    );
-    throw e;
-  }
+  json = await res.json();
 
   console.log(
     `[${runId}] ${label} firecrawl done: status=${res.status} ok=${res.ok} time=${msSince(t0)}ms`
   );
 
   if (!res.ok || !json?.success) {
-    console.log(`[${runId}] ${label} firecrawl error:`, JSON.stringify(json).slice(0, 300));
     throw new Error(`Firecrawl failed: ${res.status} — ${json?.error || "unknown error"}`);
   }
 
@@ -429,27 +411,6 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
     )}ms`
   );
 
-  if (deduped.length) {
-    const s = deduped[0];
-    console.log(`[${runId}] DSG sample ${sourceKey}:`, {
-      listingName: shortText(s.listingName, 80),
-      listingURL: s.listingURL ? s.listingURL.slice(0, 80) : null,
-      imageURL: s.imageURL ? s.imageURL.slice(0, 80) : null,
-      salePrice: s.salePrice,
-      originalPrice: s.originalPrice,
-      salePriceLow: s.salePriceLow,
-      salePriceHigh: s.salePriceHigh,
-      originalPriceLow: s.originalPriceLow,
-      originalPriceHigh: s.originalPriceHigh,
-      discountPercent: s.discountPercent,
-      discountPercentUpTo: s.discountPercentUpTo,
-      gender: s.gender,
-      shoeType: s.shoeType,
-    });
-  } else {
-    console.log(`[${runId}] DSG sample ${sourceKey}: none`);
-  }
-
   return deduped;
 }
 
@@ -467,14 +428,13 @@ function withPageNumber(baseUrl, pageNumber) {
 }
 
 // -----------------------------
-// SCRAPE SOURCE (ONE PAGE ONLY)
+// SCRAPE SOURCE (3 PAGES)
 // -----------------------------
 async function scrapeSourceWithPagination(runId, src) {
   const sourceDeals = [];
   const visited = [];
   let pagesFetched = 0;
 
-  // ✅ Force exactly 1 iteration: pageNumber=0
   for (let pageNumber = 0; pageNumber < MAX_PAGES_PER_SOURCE; pageNumber++) {
     const pageUrl = withPageNumber(src.url, pageNumber);
     visited.push(pageUrl);
@@ -513,7 +473,6 @@ async function scrapeAll(runId) {
   const startedAt = Date.now();
   const allDeals = [];
   const sourceUrls = [];
-
   let pagesFetchedTotal = 0;
 
   for (const src of SOURCES) {
@@ -562,16 +521,6 @@ async function scrapeAll(runId) {
 module.exports = async function handler(req, res) {
   const runId = `dsg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
   const t0 = Date.now();
-
-  // OPTIONAL CRON SECRET (still commented)
-  // const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
-  // if (!CRON_SECRET) {
-  //   return res.status(500).json({ ok: false, error: "CRON_SECRET not configured" });
-  // }
-  // const provided = String(req.headers["x-cron-secret"] || req.query?.key || "").trim();
-  // if (provided !== CRON_SECRET) {
-  //   return res.status(401).json({ ok: false, error: "Unauthorized" });
-  // }
 
   console.log(`[${runId}] DSG handler start ${nowIso()}`);
   console.log(`[${runId}] method=${req.method} path=${req.url || ""}`);
