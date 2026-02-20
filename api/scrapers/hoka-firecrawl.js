@@ -3,7 +3,7 @@
 //
 // Purpose:
 // - Fetch HOKA sale shoes page via Firecrawl
-// - Extract canonical 10-field deals (no imageURL)
+// - Extract canonical 11-field deals (no imageURL)
 // - Upload to Vercel Blob as hoka.json
 //
 // Env vars required:
