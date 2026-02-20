@@ -3,7 +3,7 @@
 //
 // Purpose:
 // - Fetch Kohl's sale + clearance running shoes pages via Firecrawl
-// - Extract canonical 11-field deals
+// - Extract canonical deals with optional range fields (imageURL included)
 // - Upload to Vercel Blob as kohls.json
 //
 // Env vars required:
@@ -73,13 +73,27 @@ function calcDiscountPercent(salePrice, originalPrice) {
   return Number.isFinite(pct) ? pct : null;
 }
 
-// Gender detected from listing title text — no fallback.
-// Allowed: "womens", "mens", "unisex" — anything else returns "unknown".
+// For ranges: "up to" based on (originalHigh - saleLow) / originalHigh
+function calcDiscountPercentUpTo(saleLow, originalHigh) {
+  if (saleLow == null || originalHigh == null) return null;
+  if (!(originalHigh > 0)) return null;
+  const pct = Math.round(((originalHigh - saleLow) / originalHigh) * 100);
+  return Number.isFinite(pct) ? pct : null;
+}
+
 function detectGender(listingName) {
   const s = (listingName || "").toLowerCase();
   if (s.includes("women's") || s.includes("womens")) return "womens";
   if (s.includes("men's") || s.includes("mens")) return "mens";
   if (s.includes("unisex")) return "unisex";
+  return "unknown";
+}
+
+function detectShoeType(listingName) {
+  const s = (listingName || "").toLowerCase();
+  if (s.includes("trail")) return "trail";
+  if (s.includes("track") || s.includes("spike")) return "track";
+  if (s.includes("road")) return "road";
   return "unknown";
 }
 
@@ -96,6 +110,46 @@ function uniqByKey(items, keyFn) {
   return out;
 }
 
+function firstUrlFromSrcset(srcset) {
+  if (!srcset) return null;
+  const first = String(srcset).split(",")[0]?.trim();
+  if (!first) return null;
+  return first.split(/\s+/)[0] || null;
+}
+
+function getImageUrlFromCard($card) {
+  const $img = $card.find('img[data-dte="product-image"]').first();
+  if (!$img.length) return null;
+
+  const src =
+    $img.attr("src") ||
+    $img.attr("data-src") ||
+    $img.attr("data-original") ||
+    null;
+
+  const srcset =
+    $img.attr("srcset") ||
+    $img.attr("data-srcset") ||
+    null;
+
+  const fromSrcset = firstUrlFromSrcset(srcset);
+
+  return absUrl(src || fromSrcset);
+}
+
+function collectMoneyValues($elements) {
+  const nums = [];
+  $elements.each((_, el) => {
+    const t = cheerio(el).text ? cheerio(el).text() : null;
+    const n = parseMoney(t);
+    if (n != null && Number.isFinite(n)) nums.push(n);
+  });
+  // de-dupe exact duplicates (common with nested spans)
+  const uniq = Array.from(new Set(nums.map((x) => Number(x.toFixed(2))))).map(Number);
+  uniq.sort((a, b) => a - b);
+  return uniq;
+}
+
 // -----------------------------
 // FIRECRAWL FETCH
 // -----------------------------
@@ -109,31 +163,21 @@ async function fetchHtmlViaFirecrawl(url, runId) {
   let res;
   let json;
 
-  try {
-    res = await fetch("https://api.firecrawl.dev/v1/scrape", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        url,
-        formats: ["html"],
-        onlyMainContent: false,
-        waitFor: 3000,
-      }),
-    });
-  } catch (e) {
-    console.error(`[${runId}] KOHLS firecrawl network error:`, e);
-    throw e;
-  }
+  res = await fetch("https://api.firecrawl.dev/v1/scrape", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      url,
+      formats: ["html"],
+      onlyMainContent: false,
+      waitFor: 3000,
+    }),
+  });
 
-  try {
-    json = await res.json();
-  } catch (e) {
-    console.error(`[${runId}] KOHLS firecrawl parse error:`, e);
-    throw e;
-  }
+  json = await res.json();
 
   console.log(
     `[${runId}] KOHLS firecrawl done: status=${res.status} ok=${res.ok} time=${msSince(t0)}ms`
@@ -159,101 +203,135 @@ function extractDealsFromHtml(html, runId, sourceKey) {
   const $ = cheerio.load(html);
   const deals = [];
 
-  // Each product card is identified by data-webid
   const cardCount = $("[data-webid]").length;
   console.log(`[${runId}] KOHLS parse ${sourceKey}: cardsFound=${cardCount}`);
 
   $("[data-webid]").each((_, el) => {
     const $card = $(el);
 
-    // Listing name from product title link
-    const listingName = $card
-      .find('[data-dte="product-title"]')
-      .first()
-      .text()
-      .replace(/\s+/g, " ")
-      .trim();
+    // Listing name + URL
+    const $title = $card.find('a[data-dte="product-title"]').first();
+    const listingName = $title.text().replace(/\s+/g, " ").trim();
     if (!listingName) return;
 
-    // Listing URL
-    const href =
-      $card.find('[data-dte="product-title"]').first().attr("href") ||
-      $card.find("a[href]").first().attr("href") ||
-      null;
+    const href = $title.attr("href") || null;
     const listingURL = absUrl(href);
     if (!listingURL) return;
 
-    // Image
-    const imageURL =
-      $card.find('[data-dte="product-image"]').first().attr("src") || null;
+    // Image URL (reliable for your pasted HTML)
+    const imageURL = getImageUrlFromCard($card);
+    if (!imageURL) return;
 
-    // Prices — require BOTH sale and original, otherwise drop
-    const salePriceText = $card
-      .find('[data-dte="product-sub-sale-price"]')
-      .first()
-      .text()
-      .trim();
-    const originalPriceText = $card
-      .find('[data-dte="product-sub-regular-price"]')
-      .first()
-      .text()
-      .trim();
+    // Price values (support multiple)
+    const saleValues = collectMoneyValues($card.find('[data-dte="product-sub-sale-price"]'));
+    const originalValues = collectMoneyValues($card.find('[data-dte="product-sub-regular-price"]'));
 
-    const salePrice = parseMoney(salePriceText);
-    const originalPrice = parseMoney(originalPriceText);
-    if (salePrice == null || originalPrice == null) return;
-    if (salePrice <= 0 || originalPrice <= 0) return;
+    if (!saleValues.length || !originalValues.length) return;
 
-    const discountPercent = calcDiscountPercent(salePrice, originalPrice);
+    const saleLow = saleValues[0];
+    const saleHigh = saleValues[saleValues.length - 1];
+    const origLow = originalValues[0];
+    const origHigh = originalValues[originalValues.length - 1];
 
-    // Gender from listing title — unknown if not found
+    if (!(saleLow > 0) || !(origLow > 0)) return;
+
+    const isSaleRange = saleValues.length > 1 && saleLow !== saleHigh;
+    const isOrigRange = originalValues.length > 1 && origLow !== origHigh;
+    const isAnyRange = isSaleRange || isOrigRange;
+
+    let salePrice = null;
+    let originalPrice = null;
+    let discountPercent = null;
+
+    let salePriceLow = null;
+    let salePriceHigh = null;
+    let originalPriceLow = null;
+    let originalPriceHigh = null;
+    let discountPercentUpTo = null;
+
+    if (!isAnyRange) {
+      salePrice = saleLow;
+      originalPrice = origLow;
+      discountPercent = calcDiscountPercent(salePrice, originalPrice);
+    } else {
+      salePriceLow = saleLow;
+      salePriceHigh = saleHigh;
+      originalPriceLow = origLow;
+      originalPriceHigh = origHigh;
+
+      // Up-to uses originalHigh and saleLow
+      discountPercentUpTo = calcDiscountPercentUpTo(salePriceLow, originalPriceHigh);
+    }
+
     const gender = detectGender(listingName);
+    const shoeType = detectShoeType(listingName);
 
-    // Brand — first word of listing name
+    // Brand/model heuristic (same spirit as your original)
     const brand = listingName.split(/\s+/)[0] || "unknown";
-
-    // Model — everything after brand, with gender/shoes noise stripped
-    const model = listingName
-      .slice(brand.length)
-      .replace(/\bwomen'?s\b/gi, "")
-      .replace(/\bmen'?s\b/gi, "")
-      .replace(/\bunisex\b/gi, "")
-      .replace(/\brunning shoes?\b/gi, "")
-      .replace(/\bshoes?\b/gi, "")
-      .replace(/\s+/g, " ")
-      .trim() || "unknown";
+    const model =
+      listingName
+        .slice(brand.length)
+        .replace(/\bwomen'?s\b/gi, "")
+        .replace(/\bmen'?s\b/gi, "")
+        .replace(/\bunisex\b/gi, "")
+        .replace(/\brunning shoes?\b/gi, "")
+        .replace(/\bshoes?\b/gi, "")
+        .replace(/\s+/g, " ")
+        .trim() || "unknown";
 
     deals.push({
       listingName,
+
       brand,
       model,
+
       salePrice,
       originalPrice,
       discountPercent,
+
+      salePriceLow,
+      salePriceHigh,
+      originalPriceLow,
+      originalPriceHigh,
+      discountPercentUpTo,
+
       store: "Kohls",
+
       listingURL,
-      imageURL: imageURL ?? null,
+      imageURL,
+
       gender,
-      shoeType: "unknown",
+      shoeType,
     });
   });
 
-  const deduped = uniqByKey(
-    deals,
-    (d) => d.listingURL || d.listingName
-  ).slice(0, MAX_ITEMS_TOTAL);
+  const deduped = uniqByKey(deals, (d) => d.listingURL || d.listingName).slice(
+    0,
+    MAX_ITEMS_TOTAL
+  );
 
   console.log(
-    `[${runId}] KOHLS parse ${sourceKey}: extracted=${deals.length} deduped=${deduped.length} time=${msSince(t0)}ms`
+    `[${runId}] KOHLS parse ${sourceKey}: extracted=${deals.length} deduped=${deduped.length} time=${msSince(
+      t0
+    )}ms`
   );
 
   if (deduped.length) {
     const s = deduped[0];
     console.log(`[${runId}] KOHLS sample ${sourceKey}:`, {
       listingName: shortText(s.listingName, 80),
+      listingURL: s.listingURL ? s.listingURL.slice(0, 80) : null,
+      imageURL: s.imageURL ? s.imageURL.slice(0, 80) : null,
       salePrice: s.salePrice,
       originalPrice: s.originalPrice,
-      listingURL: s.listingURL ? s.listingURL.slice(0, 80) : null,
+      salePriceLow: s.salePriceLow,
+      salePriceHigh: s.salePriceHigh,
+      originalPriceLow: s.originalPriceLow,
+      originalPriceHigh: s.originalPriceHigh,
+      discountPercent: s.discountPercent,
+      discountPercentUpTo: s.discountPercentUpTo,
+      gender: s.gender,
+      shoeType: s.shoeType,
     });
   } else {
     console.log(`[${runId}] KOHLS sample ${sourceKey}: none`);
@@ -268,22 +346,20 @@ function extractDealsFromHtml(html, runId, sourceKey) {
 async function scrapeAll(runId) {
   const startedAt = Date.now();
   const sourceUrls = SOURCES.map((s) => s.url);
-  const countsBySource = {};
   const allDeals = [];
 
   for (const src of SOURCES) {
     console.log(`[${runId}] KOHLS source start: ${src.key}`);
     const html = await fetchHtmlViaFirecrawl(src.url, runId);
     const deals = extractDealsFromHtml(html, runId, src.key);
-    countsBySource[src.key] = deals.length;
     allDeals.push(...deals);
     console.log(`[${runId}] KOHLS source done: ${src.key} deals=${deals.length}`);
   }
 
-  const deals = uniqByKey(
-    allDeals,
-    (d) => d.listingURL || d.listingName
-  ).slice(0, MAX_ITEMS_TOTAL);
+  const deals = uniqByKey(allDeals, (d) => d.listingURL || d.listingName).slice(
+    0,
+    MAX_ITEMS_TOTAL
+  );
 
   const scrapeDurationMs = msSince(startedAt);
 
