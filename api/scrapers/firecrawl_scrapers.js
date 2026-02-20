@@ -23,6 +23,8 @@ const RUN_CONCURRENTLY = true; // set false to run one-after-another (safer)
 const ENABLED = {
   hoka: true,
   kohls: true,
+  // ✅ added
+  backcountry: true,
 };
 
 // ===========================
@@ -39,6 +41,12 @@ const TARGETS = [
     key: "kohls",
     name: "Kohl's Firecrawl",
     path: "/api/scrapers/kohls-firecrawl",
+  },
+  // ✅ added
+  {
+    key: "backcountry",
+    name: "Backcountry Firecrawl",
+    path: "/api/scrapers/backcountry",
   },
 ];
 
@@ -79,7 +87,7 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = DEFAULT_TIMEOUT_MS) 
   }
 }
 
-async function runOneTarget(baseUrl, runId, t) {
+async function runOneTarget(baseUrl, runId, t, cronSecret) {
   const url = `${baseUrl}${t.path}`;
   const t0 = Date.now();
 
@@ -87,19 +95,23 @@ async function runOneTarget(baseUrl, runId, t) {
 
   try {
     // Use GET because your scrapers are GET-testable routes.
-    // Add a bypass query param if you ever want to detect "trigger runs" in the scraper logs.
     const { res, json, text } = await fetchWithTimeout(
       `${url}?trigger=1`,
-      { method: "GET", headers: { "User-Agent": "ShoeBeagle-FirecrawlRunner/1.0" } },
+      {
+        method: "GET",
+        headers: {
+          "User-Agent": "ShoeBeagle-FirecrawlRunner/1.0",
+          // ✅ pass through cron secret so /api/scrapers/backcountry (and others that enforce it) can run
+          ...(cronSecret ? { "x-cron-secret": cronSecret } : {}),
+        },
+      },
       DEFAULT_TIMEOUT_MS
     );
 
     const elapsedMs = msSince(t0);
 
     // Many of your scrapers return { ok: true/false, ... }
-    const ok =
-      (json && (json.ok === true || json.success === true)) ||
-      res.ok;
+    const ok = (json && (json.ok === true || json.success === true)) || res.ok;
 
     console.log(
       `[${runId}] FIRECRAWL trigger done: ${t.key} status=${res.status} ok=${ok} time=${elapsedMs}ms`
@@ -144,6 +156,9 @@ module.exports = async function handler(req, res) {
   console.log(`[${runId}] method=${req.method} url=${req.url || ""}`);
   console.log(`[${runId}] baseUrl=${baseUrl}`);
 
+  // ✅ grab CRON_SECRET from env and pass to child scrapers that require it
+  const CRON_SECRET = String(process.env.CRON_SECRET || "").trim() || null;
+
   // select enabled targets
   const enabledTargets = TARGETS.filter((t) => ENABLED[t.key]);
   const disabledTargets = TARGETS.filter((t) => !ENABLED[t.key]).map((t) => t.key);
@@ -161,11 +176,13 @@ module.exports = async function handler(req, res) {
   let results = [];
 
   if (RUN_CONCURRENTLY) {
-    results = await Promise.all(enabledTargets.map((t) => runOneTarget(baseUrl, runId, t)));
+    results = await Promise.all(
+      enabledTargets.map((t) => runOneTarget(baseUrl, runId, t, CRON_SECRET))
+    );
   } else {
     for (const t of enabledTargets) {
       // eslint-disable-next-line no-await-in-loop
-      results.push(await runOneTarget(baseUrl, runId, t));
+      results.push(await runOneTarget(baseUrl, runId, t, CRON_SECRET));
     }
   }
 
@@ -181,7 +198,7 @@ module.exports = async function handler(req, res) {
     // helpful if your scraper returns blobUrl
     blobUrl: r.json?.blobUrl || r.json?.url || null,
     dealsExtracted: r.json?.dealsExtracted ?? null,
-    error: r.error || null,
+    error: r.error || r.json?.error || null,
   }));
 
   console.log(`[${runId}] FIRECRAWL runner end okAll=${okAll} time=${elapsedMs}ms`);
