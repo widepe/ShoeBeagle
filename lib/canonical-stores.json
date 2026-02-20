@@ -34,6 +34,26 @@
     "scraperType": "cheerio",
     "notes": "no notes"
   },
+
+{
+  "id": "backcountry",
+  "displayName": "Backcountry",
+  "addedAt": "2026-02-19",
+  "lastUpdated": "2026-02-19",
+  "scrapedUrls": [
+    "https://www.backcountry.com/rc/footwear-on-sale?p=u_categoryPathId:%22bc-running-shoes%22"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/backcountry.json"
+  ],
+  "aliases": ["backcountry"],
+  "enabled": true,
+  "scraperType": "firecrawl",
+  "notes": "Backcountry running shoes sale page via Firecrawl. Excludes cards without an original (strikethrough) price. Supports current-price ranges. Writes to backcountry.json."
+},
+
+
+  
   {
     "id": "brooks-running",
     "displayName": "Brooks Running",
