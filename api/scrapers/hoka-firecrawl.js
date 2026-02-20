@@ -1,82 +1,205 @@
+// /api/scrapers/hoka-sale.js
+//
+// HOKA Sale (Shoes) scraper
+// URL: https://www.hoka.com/en/us/sale/?prefn1=type&prefv1=shoes
+//
+// RULES (per you):
+// - Gender MUST be present in the listing tile text (NO fallback to URL or elsewhere).
+// - Allowed genders only: "womens", "mens", "unisex"
+// - If gender missing OR not one of those -> EXCLUDE the deal.
+// - Keep unisex if explicitly present.
+// - Deal included only if BOTH sale and original prices are present as numbers.
+//
+// Output schema aligns with Shoe Beagle canonical fields.
+
 const cheerio = require("cheerio");
 
-function decodeHtmlEntities(s = "") {
-  // Minimal decode for the patterns you’ll see in data-* JSON
-  return s
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
+const TARGET_URL = "https://www.hoka.com/en/us/sale/?prefn1=type&prefv1=shoes";
+
+function nowIso() {
+  return new Date().toISOString();
 }
 
-function absUrl(href, base = "https://www.hoka.com") {
+function toAbsUrl(href) {
   if (!href) return null;
   if (/^https?:\/\//i.test(href)) return href;
-  return base.replace(/\/+$/, "") + "/" + href.replace(/^\/+/, "");
+  return new URL(href, "https://www.hoka.com").toString();
 }
 
-function parseMoney(text) {
-  // "$112.00" -> 112, "112.00" -> 112
-  if (!text) return null;
-  const m = String(text).replace(/,/g, "").match(/(\d+(\.\d+)?)/);
-  return m ? Number(m[1]) : null;
+function parseMoney(s) {
+  const m = String(s || "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .match(/(\d+(?:\.\d{1,2})?)/);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) ? n : null;
 }
 
-/**
- * Parse one Hoka product tile HTML node (the `.product` wrapper or its inner HTML).
- * Returns Shoe Beagle canonical-ish object. (You still need to find originalPrice.)
- */
-function parseHokaProductTile(tileHtml) {
-  const $ = cheerio.load(tileHtml);
+function normalizeGenderFromListing(label) {
+  const s = String(label || "").trim().toLowerCase();
 
-  const $product = $(".product").first();
-  const $imgContainer = $product.find(".image-container[data-product-price]").first();
-  const $link = $product.find('a.js-pdp-link.pdp-link').first();
-  const $img = $product.find("img.tile-image").first();
+  // NO fallback. If empty => reject.
+  if (!s) return null;
 
-  // ✅ listingName: pick the cleanest raw source you have (don’t mutate later)
-  const listingName =
-    $imgContainer.attr("data-product-name") ||
-    $img.attr("alt") ||
-    null;
+  if (s === "women" || s === "women's" || s === "womens") return "womens";
+  if (s === "men" || s === "men's" || s === "mens") return "mens";
+  if (s === "unisex") return "unisex";
 
-  const listingURL = absUrl($link.attr("href"));
-  const imageURL = $img.attr("src") || $img.attr("data-src") || null;
+  return null;
+}
 
-  const salePrice = parseMoney($imgContainer.attr("data-product-price"));
+// Try common price patterns you might see on SFCC / Deckers sites.
+// We REQUIRE both sale & original; if we can't confidently find both, skip.
+function extractPrices($tile) {
+  // sale often appears in: .price .sales
+  const saleText =
+    $tile.find(".price .sales").first().text().trim() ||
+    $tile.find(".sales").first().text().trim() ||
+    "";
 
-  // 🔎 original price: NOT shown in your snippet.
-  // Common patterns to try:
-  // - ".price .value" / ".strike-through" / ".price--original" etc.
-  // You’ll need to inspect the rest of the tile HTML to confirm the selector.
-  const originalPrice =
-    parseMoney($product.find(".price .strike-through, .price .price--original, .product-price__original").first().text()) ||
-    null;
+  // original often appears in: .price .strike-through, .price .list, .price .value (varies)
+  const originalText =
+    $tile.find(".price .strike-through").first().text().trim() ||
+    $tile.find(".price .list").first().text().trim() ||
+    $tile.find(".strike-through").first().text().trim() ||
+    $tile.find(".list").first().text().trim() ||
+    "";
 
-  // Sizes: data-all-sizes is JSON but HTML-escaped
-  let allSizes = null;
-  const rawSizes = $product.attr("data-all-sizes");
-  if (rawSizes) {
-    try {
-      allSizes = JSON.parse(decodeHtmlEntities(rawSizes));
-    } catch (e) {
-      allSizes = null;
+  const salePrice = parseMoney(saleText);
+  const originalPrice = parseMoney(originalText);
+
+  // Require both
+  if (salePrice == null || originalPrice == null) return null;
+
+  // Basic sanity
+  if (originalPrice <= 0 || salePrice <= 0) return null;
+
+  return { salePrice, originalPrice };
+}
+
+function computeDiscountPercent(salePrice, originalPrice) {
+  if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice) || originalPrice <= 0) return null;
+  const pct = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+  if (!Number.isFinite(pct)) return null;
+  // allow 0% but usually sale < original
+  return pct;
+}
+
+module.exports = async function handler(req, res) {
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 25000);
+
+    const resp = await fetch(TARGET_URL, {
+      method: "GET",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "accept-language": "en-US,en;q=0.9",
+      },
+    }).finally(() => clearTimeout(t));
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      return res.status(502).json({
+        success: false,
+        error: `Fetch failed: ${resp.status} ${resp.statusText}`,
+        url: TARGET_URL,
+        sample: text ? text.slice(0, 400) : null,
+        lastUpdated: nowIso(),
+      });
     }
-  }
 
-  return {
-    listingName,         // IMPORTANT: keep exactly what you set here
-    brand: "hoka",
-    model: listingName,  // or parse model from listingName if you want
-    salePrice,
-    originalPrice,
-    store: "HOKA",
-    listingURL,
-    imageURL,
-    gender: "unknown",
-    shoeType: "unknown",
-    // optional debug:
-    _sizes: allSizes,
-  };
+    const html = await resp.text();
+    const $ = cheerio.load(html);
+
+    const deals = [];
+
+    // This matches your snippet: div.tile-suggest ... a.product-suggestion__link ... etc.
+    $(".tile-suggest").each((_, el) => {
+      const $tile = $(el);
+
+      const a = $tile.find("a.product-suggestion__link").first();
+      const href = a.attr("href") || "";
+      const listingURL = toAbsUrl(href);
+      if (!listingURL) return;
+
+      // ✅ Gender MUST come from listing label ONLY (NO fallback)
+      const genderLabel = $tile.find(".name > span").first().text();
+      const gender = normalizeGenderFromListing(genderLabel);
+      if (!gender) return; // exclude if missing/unknown
+
+      // Product name (model) from listing tile
+      // Your snippet is:
+      // <div class="name"><span>Women's</span><br/>Bondi 9</div>
+      // We'll take the text content of .name, remove the gender label, and trim.
+      let nameText = $tile.find(".name").first().text().replace(/\s+/g, " ").trim();
+      const gl = String(genderLabel || "").replace(/\s+/g, " ").trim();
+      if (gl) nameText = nameText.replace(new RegExp(`^${escapeRegExp(gl)}\\s*`, "i"), "").trim();
+      const modelName = nameText || null;
+      if (!modelName) return;
+
+      // Image
+      const img = $tile.find("img.suggestion-img, img").first();
+      const imageURL = img.attr("data-src") || img.attr("src") || null;
+
+      // Prices: require both sale + original
+      const prices = extractPrices($tile);
+      if (!prices) return;
+
+      const { salePrice, originalPrice } = prices;
+      const discountPercent = computeDiscountPercent(salePrice, originalPrice);
+
+      // listingName: keep it simple and stable (don’t “parse-clean” it)
+      // NOTE: You did not mention a listingName rule here; this preserves the visible name.
+      const listingName = `${genderLabel ? String(genderLabel).trim() : ""} ${modelName}`.trim();
+
+      deals.push({
+        listingName,
+        brand: "hoka",
+        model: modelName,
+
+        salePrice,
+        originalPrice,
+        discountPercent,
+
+        store: "HOKA",
+        listingURL,
+        imageURL,
+
+        gender,
+        shoeType: "shoes",
+      });
+    });
+
+    return res.status(200).json({
+      success: true,
+      store: "HOKA",
+      url: TARGET_URL,
+      lastUpdated: nowIso(),
+      totalDeals: deals.length,
+      deals,
+      metadata: {
+        genderRule: "MUST be present in tile listing label; no fallback; allowed: womens/mens/unisex",
+        priceRule: "requires both salePrice and originalPrice",
+      },
+    });
+  } catch (err) {
+    const msg = err && err.name === "AbortError" ? "Fetch timed out" : String(err?.message || err);
+    return res.status(500).json({
+      success: false,
+      error: msg,
+      url: TARGET_URL,
+      lastUpdated: nowIso(),
+    });
+  }
+};
+
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
