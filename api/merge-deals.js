@@ -546,11 +546,11 @@ function dedupeDeals(deals) {
   return unique;
 }
 
-/** ------------ Blob-only fetch helpers CACHE BUSTER fetch fresh data ------------ **/
+/** ------------ -only fetch helpers CACHE BUSTER fetch fresh data ------------ **/
 
 async function fetchJson(url) {
   try {
-    // ✅ CACHE-BUST: force a fresh fetch from Blob CDN (prevents stale week-old JSON)
+    // ✅ CACHE-BUST: force a fresh fetch from  CDN (prevents stale week-old JSON)
     const cacheBustedUrl = `${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`;
 
     const resp = await axios.get(cacheBustedUrl, {
@@ -572,22 +572,22 @@ async function fetchJson(url) {
   }
 }
 
-async function loadDealsFromBlobOnly({ name, blobUrl }) {
+async function loadDealsFromOnly({ name, Url }) {
   const metadata = {
     name,
     source: null,
     deals: [],
-    blobUrl: null,
+    Url: null,
     timestamp: null,
     duration: null,
     payloadMeta: null,
     error: null,
   };
 
-  const u = String(blobUrl || "").trim();
+  const u = String(Url || "").trim();
   if (!u) {
     metadata.source = "error";
-    metadata.error = `Missing required env var / blobUrl for ${name}`;
+    metadata.error = `Missing required env var / Url for ${name}`;
     return metadata;
   }
 
@@ -595,9 +595,9 @@ async function loadDealsFromBlobOnly({ name, blobUrl }) {
     const payload = await fetchJson(u);
     const deals = extractDealsFromPayload(payload);
 
-    metadata.source = "blob";
+    metadata.source = "";
     metadata.deals = deals;
-    metadata.blobUrl = u;
+    metadata.Url = u;
 
     // Support multiple timestamp field names
     metadata.timestamp = payload.lastUpdated || payload.timestamp || payload.scrapedAt || null;
@@ -1060,13 +1060,13 @@ function toIsoDayUTC(isoOrDate) {
   return d.toISOString().split("T")[0];
 }
 
-// UPDATED: supports payload.scraperResult (singular) for per-store cheerio blobs
+// UPDATED: supports payload.scraperResult (singular) for per-store cheerio s
 function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
   const payload = meta?.payloadMeta || null;
   const timestamp = meta?.timestamp || payload?.lastUpdated || payload?.timestamp || payload?.scrapedAt || null;
   const durationMs = parseDurationMs(meta?.duration || payload?.scrapeDurationMs || payload?.duration || null);
   const via = meta?.source || null;
-  const blobUrl = meta?.blobUrl || null;
+  const Url = meta?.Url || null;
 
   if (!perSourceOk) {
     return [
@@ -1077,7 +1077,7 @@ function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
         durationMs,
         timestamp,
         via,
-        blobUrl,
+        Url,
         error: meta?.error || "Unknown error",
       },
     ];
@@ -1098,7 +1098,7 @@ function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
         durationMs: dMs,
         timestamp: payload.lastUpdated || payload.timestamp || payload.scrapedAt || timestamp || null,
         via,
-        blobUrl,
+        Url,
       });
     }
     if (records.length) return records;
@@ -1119,7 +1119,7 @@ function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
         durationMs: dMs,
         timestamp: payload.lastUpdated || payload.timestamp || payload.scrapedAt || timestamp || null,
         via,
-        blobUrl,
+        Url,
         error: r?.error || null,
       },
     ];
@@ -1134,7 +1134,7 @@ function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
       durationMs,
       timestamp,
       via,
-      blobUrl,
+      Url,
     },
   ];
 }
@@ -1175,11 +1175,12 @@ module.exports = async (req, res) => {
   const nowMs = Date.now();
 
   // ============================================================================
-  // BLOB URLs (blob-only mode)
+  //  URLs (-only mode)
   // ============================================================================
 
-  const ALS_SALE_BLOB_URL = String(process.env.ALS_SALE_BLOB_URL || "").trim();
-  const ASICS_SALE_BLOB_URL = String(process.env.ASICS_SALE_BLOB_URL || "").trim();
+  const ALS_SALE__URL = String(process.env.ALS_SALE__URL || "").trim();
+  const ASICS_SALE__URL = String(process.env.ASICS_SALE__URL || "").trim();
+  const BACKCOUNTRY_DEALS_BLOB_URL = String(process.env.BACKCOUNTRY_DEALS_BLOB_URL || "").trim();
   const BROOKS_DEALS_BLOB_URL = String(process.env.BROOKS_DEALS_BLOB_URL || "").trim();
   const FLEET_FEET_CHEERIO_BLOB_URL = String(process.env.FLEET_FEET_CHEERIO_BLOB_URL || "").trim();
   const FOOTLOCKER_DEALS_BLOB_URL = String(process.env.FOOTLOCKER_DEALS_BLOB_URL || "").trim();
@@ -1219,41 +1220,43 @@ module.exports = async (req, res) => {
     console.log("[MERGE] Starting merge:", new Date().toISOString());
     console.log("[MERGE] Blob-only mode: endpoints disabled.");
 
-    console.log("[MERGE] RUNNING_WAREHOUSE_CHEERIO_BLOB_URL set?", !!RUNNING_WAREHOUSE_CHEERIO_BLOB_URL);
+    console.log("[MERGE] BACKCOUNTRY_DEALS_BLOB_URL set?", !!BACKCOUNTRY_DEALS_BLOB_URL);
+    console.log("[MERGE] BROOKS_DEALS_BLOB_URL set?", !!BROOKS_DEALS_BLOB_URL);
     console.log("[MERGE] FLEET_FEET_CHEERIO_BLOB_URL set?", !!FLEET_FEET_CHEERIO_BLOB_URL);
+    console.log("[MERGE] FOOTLOCKER_DEALS_BLOB_URL set?", !!FOOTLOCKER_DEALS_BLOB_URL);
     console.log("[MERGE] HOKA_DEALS_BLOB_URL set?", !!HOKA_DEALS_BLOB_URL);
     console.log("[MERGE] KOHLS_DEALS_BLOB_URL set?", !!KOHLS_DEALS_BLOB_URL);
     console.log("[MERGE] LUKES_LOCKER_CHEERIO_BLOB_URL set?", !!LUKES_LOCKER_CHEERIO_BLOB_URL);
     console.log("[MERGE] MARATHON_SPORTS_CHEERIO_BLOB_URL set?", !!MARATHON_SPORTS_CHEERIO_BLOB_URL);
-
-    console.log("[MERGE] BROOKS_DEALS_BLOB_URL set?", !!BROOKS_DEALS_BLOB_URL);
-    console.log("[MERGE] FOOTLOCKER_DEALS_BLOB_URL set?", !!FOOTLOCKER_DEALS_BLOB_URL);
-    console.log("[MERGE] ROADRUNNER_DEALS_BLOB_URL set?", !!ROADRUNNER_DEALS_BLOB_URL);
     console.log("[MERGE] REI_DEALS_BLOB_URL set?", !!REI_DEALS_BLOB_URL);
-    console.log("[MERGE] ZAPPOS_DEALS_BLOB_URL set?", !!ZAPPOS_DEALS_BLOB_URL);
     console.log("[MERGE] RNJSPORTS_DEALS_BLOB_URL set?", !!RNJSPORTS_DEALS_BLOB_URL);
+    console.log("[MERGE] ROADRUNNER_DEALS_BLOB_URL set?", !!ROADRUNNER_DEALS_BLOB_URL);
+    console.log("[MERGE] RUNNING_WAREHOUSE_CHEERIO_BLOB_URL set?", !!RUNNING_WAREHOUSE_CHEERIO_BLOB_URL);
+    console.log("[MERGE] ZAPPOS_DEALS_BLOB_URL set?", !!ZAPPOS_DEALS_BLOB_URL);
+
 
     const sources = [
     
       
       { id: "als", name: "ALS", blobUrl: ALS_SALE_BLOB_URL }, 
       { id: "asics", name: "ASICS", blobUrl: ASICS_SALE_BLOB_URL },
-      { id: "running-warehouse", name: "Running Warehouse", blobUrl: RUNNING_WAREHOUSE_CHEERIO_BLOB_URL },
+      { id: "backcountry", name: "Backcountry", blobUrl: BACKCOUNTRY_DEALS_BLOB_URL },
+      { id: "brooks-running", name: "Brooks Running", blobUrl: BROOKS_DEALS_BLOB_URL },
       { id: "fleet-feet", name: "Fleet Feet", blobUrl: FLEET_FEET_CHEERIO_BLOB_URL },
+      { id: "foot-locker", name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
+      { id: "hoka", name: "HOKA", blobUrl: HOKA_DEALS_BLOB_URL },
             // Holabird is split across 3 blobs but shares 1 id
       { id: "holabird-sports", name: "Holabird Sports (Mens Road)", blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL },
       { id: "holabird-sports", name: "Holabird Sports (Womens Road)", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
       { id: "holabird-sports", name: "Holabird Sports (Trail + Unisex)", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
-      { id: "hoka", name: "HOKA", blobUrl: HOKA_DEALS_BLOB_URL },
       { id: "kohls", name: "Kohls", blobUrl: KOHLS_DEALS_BLOB_URL },
       { id: "lukes-locker", name: "Luke's Locker", blobUrl: LUKES_LOCKER_CHEERIO_BLOB_URL },
       { id: "marathon-sports", name: "Marathon Sports", blobUrl: MARATHON_SPORTS_CHEERIO_BLOB_URL },
-      { id: "brooks-running", name: "Brooks Running", blobUrl: BROOKS_DEALS_BLOB_URL },
-      { id: "foot-locker", name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
       { id: "mizuno", name: "Mizuno", blobUrl: MIZUNO_DEALS_BLOB_URL },
       { id: "rei-outlet", name: "REI Outlet", blobUrl: REI_DEALS_BLOB_URL },
       { id: "rnj-sports", name: "RNJ Sports", blobUrl: RNJSPORTS_DEALS_BLOB_URL },
       { id: "road-runner-sports", name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
+      { id: "running-warehouse", name: "Running Warehouse", blobUrl: RUNNING_WAREHOUSE_CHEERIO_BLOB_URL },
       { id: "shoebacca", name: "Shoebacca", blobUrl: SHOEBACCA_CLEARANCE_BLOB_URL },
       { id: "track-shack", name: "Track Shack", blobUrl: TRACKSHACK_CLEARANCE_BLOB_URL },
       { id: "zappos", name: "Zappos", blobUrl: ZAPPOS_DEALS_BLOB_URL },
