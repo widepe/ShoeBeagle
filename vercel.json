@@ -2,6 +2,9 @@
   "crons": [
     { "path": "/api/scrapers/cheerio_scrapers", "schedule": "0 9 * * *" },
     { "path": "/api/scrapers/apify_scrapers", "schedule": "5 9 * * *" },
+
+    { "path": "/api/scrapers/firecrawl_scrapers", "schedule": "10 9 * * *" },
+
     { "path": "/api/scrapers/als-sale", "schedule": "20 9 * * *" },
     { "path": "/api/scrapers/shoebacca-clearance", "schedule": "25 9 * * *" },
     { "path": "/api/scrapers/holabird-mens-road", "schedule": "30 9 * * *" },
