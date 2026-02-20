@@ -293,11 +293,12 @@ function storeBaseUrl(store) {
   if (s === "als") return "https://www.als.com";
   if (s.includes("asics")) return "https://www.asics.com";
   if (s.includes("brooks")) return "https://www.brooksrunning.com";
+  if (s.includes("finish line") || s.includes("finishline")) return "https://www.finishline.com";
   if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
   if (s.includes("foot locker") || s.includes("footlocker")) return "https://www.footlocker.com";
   if (s.includes("holabird")) return "https://www.holabirdsports.com";
   if (s.includes("hoka")) return "https://www.hoka.com";
-if (s.includes("kohls") || s.includes("kohl's")) return "https://www.kohls.com";
+  if (s.includes("kohls") || s.includes("kohl's")) return "https://www.kohls.com";
   if (s.includes("luke")) return "https://lukeslocker.com";
   if (s.includes("marathon sports")) return "https://www.marathonsports.com";
   if (s === "rei") return "https://www.rei.com";
@@ -1182,6 +1183,7 @@ module.exports = async (req, res) => {
   const ASICS_SALE__URL = String(process.env.ASICS_SALE__URL || "").trim();
   const BACKCOUNTRY_DEALS_BLOB_URL = String(process.env.BACKCOUNTRY_DEALS_BLOB_URL || "").trim();
   const BROOKS_DEALS_BLOB_URL = String(process.env.BROOKS_DEALS_BLOB_URL || "").trim();
+  const FINISHLINE_DEALS_BLOB_URL = String(process.env.FINISHLINE_DEALS_BLOB_URL || "").trim();
   const FLEET_FEET_CHEERIO_BLOB_URL = String(process.env.FLEET_FEET_CHEERIO_BLOB_URL || "").trim();
   const FOOTLOCKER_DEALS_BLOB_URL = String(process.env.FOOTLOCKER_DEALS_BLOB_URL || "").trim();
   const HOKA_DEALS_BLOB_URL = String(process.env.HOKA_DEALS_BLOB_URL || "").trim();
@@ -1222,6 +1224,7 @@ module.exports = async (req, res) => {
 
     console.log("[MERGE] BACKCOUNTRY_DEALS_BLOB_URL set?", !!BACKCOUNTRY_DEALS_BLOB_URL);
     console.log("[MERGE] BROOKS_DEALS_BLOB_URL set?", !!BROOKS_DEALS_BLOB_URL);
+    console.log("[MERGE] FINISHLINE_DEALS_BLOB_URL set?", !!FINISHLINE_DEALS_BLOB_URL);
     console.log("[MERGE] FLEET_FEET_CHEERIO_BLOB_URL set?", !!FLEET_FEET_CHEERIO_BLOB_URL);
     console.log("[MERGE] FOOTLOCKER_DEALS_BLOB_URL set?", !!FOOTLOCKER_DEALS_BLOB_URL);
     console.log("[MERGE] HOKA_DEALS_BLOB_URL set?", !!HOKA_DEALS_BLOB_URL);
@@ -1242,6 +1245,7 @@ module.exports = async (req, res) => {
       { id: "asics", name: "ASICS", blobUrl: ASICS_SALE_BLOB_URL },
       { id: "backcountry", name: "Backcountry", blobUrl: BACKCOUNTRY_DEALS_BLOB_URL },
       { id: "brooks-running", name: "Brooks Running", blobUrl: BROOKS_DEALS_BLOB_URL },
+      { id: "finishline", name: "Finish Line", blobUrl: FINISHLINE_DEALS_BLOB_URL },
       { id: "fleet-feet", name: "Fleet Feet", blobUrl: FLEET_FEET_CHEERIO_BLOB_URL },
       { id: "foot-locker", name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
       { id: "hoka", name: "HOKA", blobUrl: HOKA_DEALS_BLOB_URL },
