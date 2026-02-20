@@ -122,12 +122,20 @@ function detectGenderFromTitle(listingName) {
   return "unknown";
 }
 
-// Strict rule: only capture cards explicitly labeled as running shoes
-function detectShoeTypeStrict(listingName) {
+// Classify shoe type from title. Returns a shoeType string for ALL shoes —
+// never returns null (nothing is excluded based on type).
+//   "trail running shoes" / "trail running"  => "trail"
+//   "road running shoes" / "road running"    => "road"
+//   "track" / "spike"                        => "track"
+//   anything else with "running"             => "road"  (default for running)
+//   otherwise                                => "unknown"
+function detectShoeType(listingName) {
   const s = String(listingName || "").toLowerCase();
-  if (s.includes("trail running shoes")) return "trail";
-  if (s.includes("running shoes")) return "road";
-  return null;
+  if (s.includes("trail running")) return "trail";
+  if (s.includes("road running")) return "road";
+  if (s.includes("track") || s.includes("spike")) return "track";
+  if (s.includes("running")) return "road";
+  return "unknown";
 }
 
 function uniqByKey(items, keyFn) {
@@ -143,73 +151,19 @@ function uniqByKey(items, keyFn) {
   return out;
 }
 
-function firstUrlFromSrcset(srcset) {
-  if (!srcset) return null;
-  const first = String(srcset).split(",")[0]?.trim();
-  if (!first) return null;
-  return first.split(/\s+/)[0] || null;
-}
-
-// DSG product images live on dks.scene7.com with a real SKU in the path.
-// The Golf Galaxy "productImageUnavailable" placeholder must be rejected.
-// We try itemprop="image" first, then fall back to any img in the card,
-// skipping any URL that matches a known placeholder pattern.
-const PLACEHOLDER_PATTERNS = [
-  /productImageUnavailable/i,
-  /GolfGalaxy/i,
-  /no[_-]?image/i,
-];
-
-function isPlaceholderUrl(url) {
-  if (!url) return true;
-  return PLACEHOLDER_PATTERNS.some((re) => re.test(url));
-}
-
-function getBestUrlFromImg($img) {
-  const candidates = [
-    $img.attr("src"),
-    $img.attr("data-src"),
-    $img.attr("data-original"),
-    firstUrlFromSrcset($img.attr("srcset")),
-    firstUrlFromSrcset($img.attr("data-srcset")),
-  ];
-  for (const raw of candidates) {
-    if (!raw) continue;
-    const url = absUrl(raw);
-    if (url && !isPlaceholderUrl(url)) return url;
-  }
-  return null;
-}
-
-function getImageUrlFromCard($card) {
-  // Pass 1: prefer itemprop="image" if it resolves to a real URL
-  const $itemprop = $card.find('img[itemprop="image"]').first();
-  if ($itemprop.length) {
-    const url = getBestUrlFromImg($itemprop);
-    if (url) return url;
-  }
-
-  // Pass 2: any img in the card that resolves to a real dks.scene7.com URL
-  let found = null;
-  $card.find("img").each((_, el) => {
-    if (found) return false; // break
-    const $img = $card.find("img").eq(_);
-    const url = getBestUrlFromImg($img);
-    if (url && url.includes("scene7.com")) {
-      found = url;
-    }
-  });
-  if (found) return found;
-
-  // Pass 3: any non-placeholder img anywhere in the card
-  $card.find("img").each((_, el) => {
-    if (found) return false;
-    const $img = $card.find("img").eq(_);
-    const url = getBestUrlFromImg($img);
-    if (url) found = url;
-  });
-
-  return found;
+// Derive the product image URL directly from the SKU embedded in the listing URL.
+// DSG listing URLs follow: /p/some-slug-SKUCODE/SKUCODE?...
+// The image CDN pattern is: https://dks.scene7.com/is/image/dkscdn/SKUCODE_is/
+// This is reliable because it doesn't depend on lazy-load rendering.
+function getImageUrlFromListingUrl(listingUrl) {
+  if (!listingUrl) return null;
+  // Extract SKU from the path — it's the last path segment before the query string
+  // e.g. /p/nike-mens-pegasus-41-running-shoes-24nikmpgss41vltccrnn/24nikmpgss41vltccrnn
+  const match = listingUrl.match(/\/([^/?]+)(?:\?|$)/);
+  if (!match) return null;
+  const sku = match[1];
+  if (!sku || sku.length < 6) return null;
+  return `https://dks.scene7.com/is/image/dkscdn/${sku}_is/?wid=252&hei=252&qlt=85,0&fmt=jpg&op_sharpen=1`;
 }
 
 function extractPriceSignalsFromCardText($card) {
@@ -377,8 +331,7 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
     const listingName = $title.text().replace(/\s+/g, " ").trim();
     if (!listingName) continue;
 
-    const shoeType = detectShoeTypeStrict(listingName);
-    if (!shoeType) continue;
+    const shoeType = detectShoeType(listingName);
 
     runningCardsFound++;
 
@@ -386,7 +339,8 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
     const listingURL = absUrl(href);
     if (!listingURL) continue;
 
-    const imageURL = getImageUrlFromCard($card);
+    // Derive image URL from the SKU in the listing URL — reliable, no lazy-load issues
+    const imageURL = getImageUrlFromListingUrl(listingURL);
     if (!imageURL) {
       missingImageSkipped++;
       continue;
@@ -523,14 +477,17 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
 //   page 1  => no pageNumber param
 //   page 2  => pageNumber=2
 //   page 3  => pageNumber=3
-//   page 4  => pageNumber=4
+// A cache-busting param (_cb) is added so Firecrawl doesn't serve a
+// cached copy of page 1 when we request page 2+.
 function withPageNumber(baseUrl, pageNumber) {
   const u = new URL(baseUrl);
   if (pageNumber <= 1) {
-    u.searchParams.delete("pageNumber");  // page 1 = no param
+    u.searchParams.delete("pageNumber");
   } else {
     u.searchParams.set("pageNumber", String(pageNumber));
   }
+  // Cache-bust so Firecrawl fetches fresh HTML for each page
+  u.searchParams.set("_cb", Date.now().toString(36));
   return u.toString();
 }
 
@@ -557,6 +514,12 @@ async function scrapeSourceWithPagination(runId, src) {
     pagesFetched++;
 
     console.log(`[${runId}] DSG ${src.key} page ${pageNumber} start: ${pageUrl}`);
+
+    // Small delay between pages (except the first) to prevent Firecrawl
+    // from returning a cached copy of the previous page
+    if (pageNumber > 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
 
     let html;
     try {
