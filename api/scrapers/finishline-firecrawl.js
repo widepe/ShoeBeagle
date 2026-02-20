@@ -162,6 +162,38 @@ function extractImageUrlFromCard(card) {
     if (m && m[0]) imageURL = m[0];
   }
 
+
+  // 3) LAST CHANCE: pull media url from the card's HTML fragment
+  if (!imageURL) {
+    const frag = card.html() || "";
+    const m = frag.match(/https:\/\/media\.finishline\.com\/[^"'\s<>]+/i);
+    if (m && m[0]) imageURL = m[0];
+  }
+
+  // ✅ 4) SKU fallback (ADD THIS BLOCK HERE)
+  if (!imageURL) {
+    const sku =
+      card.attr("data-sku") ||
+      card.find("[data-sku]").first().attr("data-sku") ||
+      null;
+
+    if (sku) {
+      imageURL = `https://media.finishline.com/s/finishline/${sku}?$Main$?&w=660&h=660&fmt=auto`;
+    }
+  }
+
+  // 5) Decode HTML entities and normalize to absolute
+  if (imageURL) {
+    imageURL = String(imageURL).replace(/&amp;/g, "&").trim();
+    imageURL = normalizeUrl(imageURL);
+  }
+
+  return imageURL || null;
+}
+
+
+
+  
   // 4) Decode HTML entities and normalize to absolute
   if (imageURL) {
     imageURL = String(imageURL).replace(/&amp;/g, "&").trim();
