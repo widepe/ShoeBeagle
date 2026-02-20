@@ -21,9 +21,9 @@ const RUN_CONCURRENTLY = true; // set false to run one-after-another (safer)
 // EASY TOGGLES (on/off here)
 // ===========================
 const ENABLED = {
+  finishline: true,
   hoka: true,
   kohls: true,
-  // ✅ added
   backcountry: true,
 };
 
@@ -31,6 +31,16 @@ const ENABLED = {
 // SCRAPER TARGETS (add new ones here)
 // ===========================
 const TARGETS = [
+    
+    {
+    key: "backcountry",
+    name: "Backcountry Firecrawl",
+    path: "/api/scrapers/backcountry",
+  },  {
+    key: "finishline",
+    name: "Finish Line Firecrawl",
+    path: "/api/scrapers/finishline-firecrawl",
+  },  
   {
     key: "hoka",
     name: "HOKA Firecrawl",
@@ -42,12 +52,7 @@ const TARGETS = [
     name: "Kohl's Firecrawl",
     path: "/api/scrapers/kohls-firecrawl",
   },
-  // ✅ added
-  {
-    key: "backcountry",
-    name: "Backcountry Firecrawl",
-    path: "/api/scrapers/backcountry",
-  },
+
 ];
 
 // -----------------------------
