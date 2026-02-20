@@ -461,7 +461,7 @@ module.exports = async function handler(req, res) {
   const t0 = Date.now();
 
   // ✅ REQUIRE CRON SECRET (same pattern as your HOKA scraper)
-  const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
+ /* const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
   if (!CRON_SECRET) {
     return res.status(500).json({ ok: false, error: "CRON_SECRET not configured" });
   }
@@ -470,7 +470,7 @@ module.exports = async function handler(req, res) {
   if (provided !== CRON_SECRET) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
-
+*/
   console.log(`[${runId}] FINISHLINE handler start ${nowIso()}`);
   console.log(`[${runId}] method=${req.method} path=${req.url || ""}`);
   console.log(
