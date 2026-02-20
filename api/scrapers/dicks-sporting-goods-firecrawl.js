@@ -7,15 +7,14 @@
 //
 // Purpose:
 // - Fetch Dick's Sporting Goods men's + women's sale running pages via Firecrawl
-// - Follow pagination (Next page) per source
+// - Follow pagination (pageNumber param) per source
 // - Extract canonical deals with optional range fields (imageURL included)
 // - STRICT running filter:
 //    * "trail running shoes" => shoeType "trail"
 //    * "running shoes"       => shoeType "road"
 //    * otherwise EXCLUDE (non-running shoes appear even with filters)
-// - Handle "See Price In Cart":
-//    * If card says price-in-cart, attempt to fetch product page via Firecrawl and extract price there
-//    * If sale price still can't be found => EXCLUDE the deal
+// - TEMP: Skip "See Price In Cart" items to avoid Vercel timeouts
+//   * Log how many were skipped per source page parse.
 // - Prices can have multiple sale + original values; support range fields.
 //
 // Env vars required:
@@ -154,8 +153,7 @@ function getImageUrlFromCard($card) {
   const $img = $card.find('img[itemprop="image"]').first();
   if (!$img.length) return null;
 
-  const src =
-    $img.attr("src") || $img.attr("data-src") || $img.attr("data-original") || null;
+  const src = $img.attr("src") || $img.attr("data-src") || $img.attr("data-original") || null;
   const srcset = $img.attr("srcset") || $img.attr("data-srcset") || null;
   const fromSrcset = firstUrlFromSrcset(srcset);
 
@@ -214,7 +212,10 @@ function guessBrandModel(listingName) {
   const match = brandPrefixes
     .slice()
     .sort((a, b) => b.length - a.length)
-    .find((b) => raw.toLowerCase().startsWith(b.toLowerCase() + " ") || raw.toLowerCase() === b.toLowerCase());
+    .find(
+      (b) =>
+        raw.toLowerCase().startsWith(b.toLowerCase() + " ") || raw.toLowerCase() === b.toLowerCase()
+    );
 
   let brand;
   let rest;
@@ -278,7 +279,10 @@ async function fetchHtmlViaFirecrawl(url, runId, label = "DSG") {
     json = await res.json();
   } catch (e) {
     const text = await res.text().catch(() => "");
-    console.error(`[${runId}] ${label} firecrawl JSON parse error. Body:`, (text || "").slice(0, 300));
+    console.error(
+      `[${runId}] ${label} firecrawl JSON parse error. Body:`,
+      (text || "").slice(0, 300)
+    );
     throw e;
   }
 
@@ -300,6 +304,7 @@ async function fetchHtmlViaFirecrawl(url, runId, label = "DSG") {
 
 // -----------------------------
 // PRODUCT PAGE PRICE (for "See Price In Cart")
+// NOTE: kept in file for later, but TEMP disabled in parser below.
 // -----------------------------
 function tryParseJsonLdOffersPrices($) {
   const out = { saleValues: [], originalValues: [] };
@@ -318,40 +323,36 @@ function tryParseJsonLdOffersPrices($) {
     const nodes = Array.isArray(obj) ? obj : [obj];
 
     for (const node of nodes) {
-      // offers can be object or array; price can be string/number; can include lowPrice/highPrice
       const offers = node?.offers;
       const offerArr = Array.isArray(offers) ? offers : offers ? [offers] : [];
 
       for (const o of offerArr) {
         const price = o?.price ?? o?.lowPrice ?? null;
         const highPrice = o?.highPrice ?? null;
-        const listPrice = o?.priceSpecification?.price ?? null; // sometimes
+        const listPrice = o?.priceSpecification?.price ?? null;
         const n1 = parseMoney(price);
         const n2 = parseMoney(highPrice);
         const n3 = parseMoney(listPrice);
 
         if (n1 != null) out.saleValues.push(n1);
         if (n2 != null) out.saleValues.push(n2);
-
-        // Some JSON-LD uses priceSpecification with type "ListPrice"
-        // We can't reliably distinguish sale vs list without more structure, so we also collect all money-like values.
         if (n3 != null) out.originalValues.push(n3);
       }
     }
   });
 
-  // De-dupe + sort
-  out.saleValues = Array.from(new Set(out.saleValues.map((x) => Number(x.toFixed(2))))).sort((a, b) => a - b);
-  out.originalValues = Array.from(new Set(out.originalValues.map((x) => Number(x.toFixed(2))))).sort((a, b) => a - b);
+  out.saleValues = Array.from(new Set(out.saleValues.map((x) => Number(x.toFixed(2))))).sort(
+    (a, b) => a - b
+  );
+  out.originalValues = Array.from(
+    new Set(out.originalValues.map((x) => Number(x.toFixed(2))))
+  ).sort((a, b) => a - b);
 
   return out;
 }
 
 function tryRegexPricesFromHtml(html) {
-  // Last-resort: try a few common keys found in embedded JSON blobs.
-  // We keep this conservative: only accept plausible prices ($10-$1000).
   const vals = [];
-
   const patterns = [
     /"finalPrice"\s*:\s*([0-9]+(?:\.[0-9]{1,2})?)/gi,
     /"salePrice"\s*:\s*([0-9]+(?:\.[0-9]{1,2})?)/gi,
@@ -370,24 +371,20 @@ function tryRegexPricesFromHtml(html) {
     if (vals.length > 50) break;
   }
 
-  const uniq = Array.from(new Set(vals)).sort((a, b) => a - b);
-  return uniq;
+  return Array.from(new Set(vals)).sort((a, b) => a - b);
 }
 
 async function resolvePriceInCartByProductPage(listingURL, runId) {
-  // returns { saleValues: number[], originalValues: number[] }
   try {
     const html = await fetchHtmlViaFirecrawl(listingURL, runId, "DSG-PDP");
     const $ = cheerio.load(html);
 
-    // Try JSON-LD first (cleanest)
     const fromLd = tryParseJsonLdOffersPrices($);
-
-    // Also try visible DOM cues
-    // We collect all money-like values from typical price areas; keep separate buckets by best guess.
     const domSale = collectMoneyValues(
       $,
-      $('[class*="price"], [data-test*="price"], [data-testid*="price"], [itemprop="price"]').find("*")
+      $('[class*="price"], [data-test*="price"], [data-testid*="price"], [itemprop="price"]').find(
+        "*"
+      )
     );
     const regexVals = tryRegexPricesFromHtml(html);
 
@@ -395,19 +392,17 @@ async function resolvePriceInCartByProductPage(listingURL, runId) {
       .map((x) => Number(x.toFixed(2)))
       .sort((a, b) => a - b);
 
-    // Heuristic:
-    // - If we find 2+ distinct values, treat lowest as sale candidates and highest as original candidates
-    // - If only 1 value, treat it as sale candidate; original unknown (caller may exclude)
     const saleValues = all.length ? [all[0]] : [];
     const originalValues = all.length >= 2 ? [all[all.length - 1]] : [];
 
     return { saleValues, originalValues };
   } catch (e) {
-    console.log(`[${runId}] DSG-PDP price-in-cart fetch failed for ${listingURL}: ${String(e?.message || e)}`);
+    console.log(
+      `[${runId}] DSG-PDP price-in-cart fetch failed for ${listingURL}: ${String(e?.message || e)}`
+    );
     return { saleValues: [], originalValues: [] };
   }
 }
-
 
 // -----------------------------
 // PARSE / EXTRACT
@@ -416,6 +411,8 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
   const t0 = Date.now();
   const $ = cheerio.load(html);
   const deals = [];
+
+  let skippedPriceInCart = 0;
 
   const $cards = $("div.product-card");
   console.log(`[${runId}] DSG parse ${sourceKey}: cardsFound=${$cards.length}`);
@@ -430,10 +427,7 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
     if (!listingName) continue;
 
     const shoeType = detectShoeTypeStrict(listingName);
-    if (!shoeType) {
-      // strict running-only filter
-      continue;
-    }
+    if (!shoeType) continue; // strict running-only filter
 
     const href = $title.attr("href") || null;
     const listingURL = absUrl(href);
@@ -443,15 +437,23 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
     const imageURL = getImageUrlFromCard($card);
     if (!imageURL) continue;
 
+    // Price-in-cart handling (TEMP: skip for speed)
+    const { seePriceInCart } = extractPriceSignalsFromCardText($card);
+    if (seePriceInCart) {
+      skippedPriceInCart++;
+      continue;
+    }
+
     // Price in card (when available)
     const saleEls = $card.find(".price-sale, .hmf-body-bold-l.price-sale, [class*='price-sale']");
-    const origEls = $card.find(".hmf-text-decoration-linethrough, [class*='linethrough'], [class*='strike']");
+    const origEls = $card.find(
+      ".hmf-text-decoration-linethrough, [class*='linethrough'], [class*='strike']"
+    );
 
     let saleValues = collectMoneyValues($, saleEls);
     let originalValues = collectMoneyValues($, origEls);
 
     // Some cards embed pricing in aria-label:
-    // aria-label="..., New Lower Price: $135.97 , Previous Price: $169.99, ..."
     if (!saleValues.length || !originalValues.length) {
       const aria = $title.attr("aria-label") || "";
       const nums = [];
@@ -463,34 +465,9 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
       }
       const uniq = Array.from(new Set(nums)).sort((a, b) => a - b);
       if (uniq.length >= 2) {
-        // assume lowest is sale, highest is original
         saleValues = saleValues.length ? saleValues : [uniq[0]];
         originalValues = originalValues.length ? originalValues : [uniq[uniq.length - 1]];
       }
-    }
-
-    // Price-in-cart handling
-    const { seePriceInCart } = extractPriceSignalsFromCardText($card);
-
-    if (seePriceInCart) {
-      // We must find sale price elsewhere, or exclude.
-      const resolved = await resolvePriceInCartByProductPage(listingURL, runId);
-
-      // Merge any found values (dedupe)
-      saleValues = Array.from(new Set([...(saleValues || []), ...(resolved.saleValues || [])]))
-        .map((x) => Number(x.toFixed(2)))
-        .sort((a, b) => a - b);
-
-      originalValues = Array.from(new Set([...(originalValues || []), ...(resolved.originalValues || [])]))
-        .map((x) => Number(x.toFixed(2)))
-        .sort((a, b) => a - b);
-
-      if (!saleValues.length) {
-        // per your requirement: exclude if sale can't be found for "price in cart"
-        continue;
-      }
-      // If original is still missing, we exclude because your pipeline requires both.
-      if (!originalValues.length) continue;
     }
 
     // Require BOTH (as in your Kohls rules)
@@ -530,9 +507,10 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
       discountPercentUpTo = calcDiscountPercentUpTo(salePriceLow, originalPriceHigh);
     }
 
-    const gender = detectGenderFromTitle(listingName) !== "unknown"
-      ? detectGenderFromTitle(listingName)
-      : detectGenderFromSource(sourceKey);
+    const gender =
+      detectGenderFromTitle(listingName) !== "unknown"
+        ? detectGenderFromTitle(listingName)
+        : detectGenderFromSource(sourceKey);
 
     const { brand, model } = guessBrandModel(listingName);
 
@@ -566,7 +544,9 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
   const deduped = uniqByKey(deals, (d) => d.listingURL || d.listingName).slice(0, MAX_ITEMS_TOTAL);
 
   console.log(
-    `[${runId}] DSG parse ${sourceKey}: extracted=${deals.length} deduped=${deduped.length} time=${msSince(t0)}ms`
+    `[${runId}] DSG parse ${sourceKey}: extracted=${deals.length} deduped=${deduped.length} skippedPriceInCart=${skippedPriceInCart} time=${msSince(
+      t0
+    )}ms`
   );
 
   if (deduped.length) {
@@ -635,9 +615,7 @@ async function scrapeSourceWithPagination(runId, src) {
     const deals = await extractDealsFromHtml(html, runId, src.key);
     sourceDeals.push(...deals);
 
-    console.log(
-      `[${runId}] DSG ${src.key} page ${pageNumber + 1} done: deals=${deals.length}`
-    );
+    console.log(`[${runId}] DSG ${src.key} page ${pageNumber + 1} done: deals=${deals.length}`);
   }
 
   return {
