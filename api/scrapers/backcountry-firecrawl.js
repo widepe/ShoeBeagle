@@ -13,19 +13,30 @@
 //    * if contains "track" OR "spike" OR "spikes" -> "track"
 // - gender is inferred from listing/title ("Men", "Men's", "Women's", etc).
 //
-// Output deal schema:
-// listingName, brand, model,
-// salePrice, originalPrice, discountPercent,
-// salePriceLow, salePriceHigh, originalPriceLow, originalPriceHigh, discountPercentUpTo,
-// store, listingURL, imageURL, gender, shoeType
+// Output deal schema (per-deal):
+//   listingName, brand, model,
+//   salePrice, originalPrice, discountPercent,
+//   salePriceLow, salePriceHigh, originalPriceLow, originalPriceHigh, discountPercentUpTo,
+//   store, listingURL, imageURL, gender, shoeType
 //
-// Top-level structure matches your standard.
+// Top-level structure:
+//   store, schemaVersion, lastUpdated, via, sourceUrls, pagesFetched,
+//   dealsFound, dealsExtracted, scrapeDurationMs, ok, error, deals[]
+//
+// SECURITY:
+// - Requires CRON_SECRET via header `x-cron-secret` OR query `?key=`
+//
+// ENV REQUIRED:
+// - FIRECRAWL_API_KEY
+// - BLOB_READ_WRITE_TOKEN (for @vercel/blob)
+// - CRON_SECRET
 
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
 
 const STORE = "Backcountry";
 const OUT_BLOB_NAME = "backcountry.json";
+const SCHEMA_VERSION = 1;
 
 // Your target URL (provided)
 const START_URL =
@@ -101,15 +112,22 @@ function modelFromTitle(title) {
  * Some cards may have:
  *  "Current price: $89.00 - $129.00 Original price: $165.00"
  * or multiple occurrences (we take min/max).
+ *
+ * EXCLUDE RULE:
+ * - If there is no "Original price:" present => return null
  */
 function extractPriceShapeFromPriceText(priceText) {
   const text = normalizeWhitespace(priceText);
 
   // Require original price to be present (your exclude rule)
-  const origMatches = [...text.matchAll(/Original price:\s*\$([\d.,]+)(?:\s*-\s*\$([\d.,]+))?/gi)];
+  const origMatches = [
+    ...text.matchAll(/Original price:\s*\$([\d.,]+)(?:\s*-\s*\$([\d.,]+))?/gi),
+  ];
   if (!origMatches.length) return null;
 
-  const curMatches = [...text.matchAll(/Current price:\s*\$([\d.,]+)(?:\s*-\s*\$([\d.,]+))?/gi)];
+  const curMatches = [
+    ...text.matchAll(/Current price:\s*\$([\d.,]+)(?:\s*-\s*\$([\d.,]+))?/gi),
+  ];
   if (!curMatches.length) return null;
 
   // Collect possible ranges across matches
@@ -153,10 +171,14 @@ function extractPriceShapeFromPriceText(priceText) {
 
   if (!anyRange) {
     const pct = ((originalPrice - salePrice) / originalPrice) * 100;
-    if (Number.isFinite(pct) && pct > 0) discountPercent = Math.round(Math.min(pct, 95));
+    if (Number.isFinite(pct) && pct > 0) {
+      discountPercent = Math.round(Math.min(pct, 95));
+    }
   } else {
     const pctUpTo = ((origHigh - saleLow) / origHigh) * 100;
-    if (Number.isFinite(pctUpTo) && pctUpTo > 0) discountPercentUpTo = Math.round(Math.min(pctUpTo, 95));
+    if (Number.isFinite(pctUpTo) && pctUpTo > 0) {
+      discountPercentUpTo = Math.round(Math.min(pctUpTo, 95));
+    }
   }
 
   return {
@@ -183,7 +205,10 @@ function parseDealsFromHtml(html) {
   cards.each((_, el) => {
     const $card = $(el);
 
-    const brand = normalizeWhitespace($card.find('[data-id="brandName"]').first().text()) || "Unknown";
+    const brand =
+      normalizeWhitespace($card.find('[data-id="brandName"]').first().text()) ||
+      "Unknown";
+
     const title = normalizeWhitespace($card.find('[data-id="title"]').first().text());
     if (!title) return;
 
@@ -192,7 +217,7 @@ function parseDealsFromHtml(html) {
     const listingURL = absolutizeUrl(href);
     if (!listingURL) return;
 
-    // Image
+    // Image (prefer data-id=image from example)
     const imgSrc =
       $card.find('img[data-id="image"]').first().attr("src") ||
       $card.find("img").first().attr("src") ||
@@ -213,7 +238,7 @@ function parseDealsFromHtml(html) {
     const shoeType = inferShoeTypeFromTitle(title);
 
     deals.push({
-      schemaVersion: 1,
+      schemaVersion: SCHEMA_VERSION,
 
       listingName,
 
@@ -250,7 +275,6 @@ async function firecrawlScrapeHtml(url) {
   const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY env var");
 
-  // Firecrawl scrape endpoint (HTML format)
   const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
     headers: {
@@ -259,9 +283,7 @@ async function firecrawlScrapeHtml(url) {
     },
     body: JSON.stringify({
       url,
-      // Most Firecrawl accounts support formats like: ["html"] / ["markdown","html"]
       formats: ["html"],
-      // Best-effort; ignore if not supported by your plan
       waitFor: 1500,
       timeout: 60000,
     }),
@@ -279,6 +301,58 @@ async function firecrawlScrapeHtml(url) {
 }
 
 // --------------------------
+// scrapeAll (single page for now)
+// --------------------------
+async function scrapeAll(runId) {
+  const start = Date.now();
+  const lastUpdated = nowIso();
+
+  const sourceUrls = [START_URL];
+  const pagesFetched = 1;
+
+  let ok = true;
+  let error = null;
+
+  let dealsFound = 0;
+  let dealsExtracted = 0;
+  let deals = [];
+
+  try {
+    const html = await firecrawlScrapeHtml(START_URL);
+    const parsed = parseDealsFromHtml(html);
+
+    dealsFound = parsed.dealsFound;
+    dealsExtracted = parsed.dealsExtracted;
+    deals = parsed.deals;
+  } catch (e) {
+    ok = false;
+    error = e?.message || String(e);
+  }
+
+  return {
+    store: STORE,
+    schemaVersion: SCHEMA_VERSION,
+
+    lastUpdated,
+    via: "firecrawl",
+
+    sourceUrls,
+    pagesFetched,
+
+    dealsFound,
+    dealsExtracted,
+
+    scrapeDurationMs: Date.now() - start,
+
+    ok,
+    error,
+
+    deals,
+    runId,
+  };
+}
+
+// --------------------------
 // handler
 // --------------------------
 module.exports = async function handler(req, res) {
@@ -286,89 +360,85 @@ module.exports = async function handler(req, res) {
   const t0 = Date.now();
 
   // REQUIRE CRON SECRET
-  const CRON_SECRET = process.env.CRON_SECRET;
+  const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
   if (!CRON_SECRET) {
-    return res.status(500).json({
-      ok: false,
-      error: "CRON_SECRET not configured"
-    });
+    return res.status(500).json({ ok: false, error: "CRON_SECRET not configured" });
   }
 
   const provided =
-    req.headers["x-cron-secret"] ||
-    req.query?.key ||
-    "";
+    String(req.headers["x-cron-secret"] || "").trim() ||
+    String(req.query?.key || "").trim();
 
   if (provided !== CRON_SECRET) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 
-  try {
-    const payload = await scrapeAll(runId);
+  let payload = null;
 
-    const blobRes = await put("backcountry.json", JSON.stringify(payload, null, 2), {
+  try {
+    payload = await scrapeAll(runId);
+
+    // Always write payload (even if ok:false) so dashboards see metadata
+    const blobRes = await put(OUT_BLOB_NAME, JSON.stringify(payload, null, 2), {
       access: "public",
       addRandomSuffix: false,
       contentType: "application/json",
     });
 
-    res.status(200).json({
-      ok: true,
+    return res.status(200).json({
+      ok: payload.ok,
       runId,
-      dealsExtracted: payload.dealsExtracted,
+      store: STORE,
+      savedAs: OUT_BLOB_NAME,
       blobUrl: blobRes.url,
+      dealsExtracted: payload.dealsExtracted,
       elapsedMs: Date.now() - t0,
+      error: payload.error || null,
     });
   } catch (err) {
-    res.status(500).json({
-      ok: false,
-      error: err.message,
-    });
-  }
-};
+    const lastUpdated = nowIso();
+    const fallbackError = err?.message || String(err);
 
-
-    const payload = {
+    // Attempt to write a failure payload so dashboard can see it
+    const failPayload = {
       store: STORE,
-      schemaVersion: 1,
-
+      schemaVersion: SCHEMA_VERSION,
       lastUpdated,
       via: "firecrawl",
-
-      sourceUrls,
-      pagesFetched,
-
+      sourceUrls: [START_URL],
+      pagesFetched: 0,
       dealsFound: 0,
       dealsExtracted: 0,
-
-      scrapeDurationMs: Date.now() - start,
-
-      ok,
-      error,
-
+      scrapeDurationMs: Date.now() - t0,
+      ok: false,
+      error: fallbackError,
       deals: [],
+      runId,
     };
 
-    // Still write a blob so dashboards can see failure metadata
     try {
-      const blob = await put(OUT_BLOB_NAME, JSON.stringify(payload, null, 2), {
+      const blobRes = await put(OUT_BLOB_NAME, JSON.stringify(failPayload, null, 2), {
         access: "public",
         addRandomSuffix: false,
+        contentType: "application/json",
       });
+
       return res.status(200).json({
         ok: false,
+        runId,
         store: STORE,
         savedAs: OUT_BLOB_NAME,
-        blobUrl: blob.url,
-        error,
-        lastUpdated,
+        blobUrl: blobRes.url,
+        error: fallbackError,
+        elapsedMs: Date.now() - t0,
       });
     } catch (writeErr) {
       return res.status(500).json({
         ok: false,
+        runId,
         store: STORE,
-        error: `${error} | plus failed to write blob: ${writeErr?.message || String(writeErr)}`,
-        lastUpdated,
+        error: `${fallbackError} | plus failed to write blob: ${writeErr?.message || String(writeErr)}`,
+        elapsedMs: Date.now() - t0,
       });
     }
   }
