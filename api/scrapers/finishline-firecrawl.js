@@ -2,11 +2,16 @@
 //
 // Finish Line (Firecrawl -> Cheerio parse) -> writes blob /finishline.json
 //
+// Pagination pattern:
+//   page 1: https://www.finishline.com/plp/<slug>
+//   page 2: https://www.finishline.com/plp/<slug>?page=2
+//   page 3: https://www.finishline.com/plp/<slug>?page=3
+//
 // Rules (per your spec):
 // - shoeType: "unknown" unless listingName includes trail / track / road
 // - gender must be womens / mens / unisex (otherwise exclude deal)
 // - if card shows "price in bag" (or similar), skip and count skips
-// - use your deal schema + your top-level structure
+// - output your deal schema + your top-level structure
 // - Cron Secret check included, but commented out for testing
 
 import * as cheerio from "cheerio";
@@ -16,9 +21,11 @@ const STORE = "Finish Line";
 const SCHEMA_VERSION = 1;
 const VIA = "firecrawl";
 
-const SOURCE_URLS = [
-  "https://www.finishline.com/plp/all-sale/category=shoes+activity=running",
-];
+// Your running-sale URL (shoe deals)
+const BASE_URL =
+  "https://www.finishline.com/plp/all-sale/category=shoes+activity=running";
+
+const MAX_PAGES = 6; // adjust as you like
 
 const FIRECRAWL_ENDPOINT = "https://api.firecrawl.dev/v1/scrape";
 
@@ -34,12 +41,10 @@ function asText($el) {
 function normalizeUrl(href) {
   if (!href) return null;
   if (href.startsWith("http")) return href;
-  // Finish Line uses relative PDP links like /pdp/...
   return `https://www.finishline.com${href.startsWith("/") ? "" : "/"}${href}`;
 }
 
 function parseMoney(str) {
-  // "$45.00" -> 45
   const m = String(str || "").match(/(\d+(?:\.\d{1,2})?)/);
   return m ? Number(m[1]) : null;
 }
@@ -52,7 +57,6 @@ function computeDiscountPercent(sale, original) {
 }
 
 function detectGender(listingName) {
-  // examples from your outerHTML: "Men's adidas Duramo SL 2.0 Running Shoes"
   const s = String(listingName || "").toLowerCase();
   if (s.startsWith("men's") || s.startsWith("mens")) return "mens";
   if (s.startsWith("women's") || s.startsWith("womens")) return "womens";
@@ -69,7 +73,6 @@ function detectShoeType(listingName) {
 }
 
 function stripLeadingGender(listingName) {
-  // Keep listingName unchanged in output; this is only for brand/model parsing.
   return String(listingName || "")
     .replace(/^Men’s\s+/i, "")
     .replace(/^Men's\s+/i, "")
@@ -82,7 +85,6 @@ function stripLeadingGender(listingName) {
 }
 
 function parseBrandModel(listingName) {
-  // Heuristic: after gender prefix, first token(s) = brand (handles common multiword brands)
   const s = stripLeadingGender(listingName);
 
   const multiWordBrands = [
@@ -102,7 +104,6 @@ function parseBrandModel(listingName) {
   }
 
   const firstWord = s.split(/\s+/)[0] || "";
-  // Normalize a couple common stylings
   const brand = firstWord || s || "unknown";
   const model = s.slice(brand.length).trim() || s || "unknown";
   return { brand, model };
@@ -119,6 +120,16 @@ function looksLikePriceInBag(cardText) {
   );
 }
 
+function buildPageUrl(baseUrl, pageNum) {
+  const u = new URL(baseUrl);
+  if (pageNum <= 1) {
+    u.searchParams.delete("page");
+  } else {
+    u.searchParams.set("page", String(pageNum));
+  }
+  return u.toString();
+}
+
 async function firecrawlScrape(url) {
   const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
@@ -131,10 +142,7 @@ async function firecrawlScrape(url) {
     },
     body: JSON.stringify({
       url,
-      // Ensure we get HTML we can parse and Firecrawl renders the page.
       formats: ["html"],
-      // These options are supported by Firecrawl for dynamic pages in many cases.
-      // If your account/config differs, remove/adjust safely.
       render: true,
       waitFor: 3000,
     }),
@@ -146,8 +154,20 @@ async function firecrawlScrape(url) {
   }
 
   const data = await res.json();
-  const html = data?.data?.html || "";
-  if (!html) throw new Error("Firecrawl returned no html");
+
+  // Try a couple common shapes so it "just works" across Firecrawl versions.
+  const html =
+    data?.data?.html ||
+    data?.data?.[0]?.html ||
+    data?.html ||
+    "";
+
+  if (!html) {
+    // Useful debug without dumping everything:
+    const keys = Object.keys(data || {});
+    throw new Error(`Firecrawl returned no html. Top-level keys: ${keys.join(", ")}`);
+  }
+
   return html;
 }
 
@@ -173,24 +193,23 @@ export default async function handler(req, res) {
     const allDeals = [];
     const sourceUrls = [];
 
-    for (const url of SOURCE_URLS) {
-      sourceUrls.push(url);
-      const html = await firecrawlScrape(url);
+    for (let pageNum = 1; pageNum <= MAX_PAGES; pageNum++) {
+      const pageUrl = buildPageUrl(BASE_URL, pageNum);
+      sourceUrls.push(pageUrl);
+
+      const html = await firecrawlScrape(pageUrl);
       pagesFetched += 1;
 
       const $ = cheerio.load(html);
 
-      // ---- stable selectors from your outerHTML ----
-      // Card root:
-      //   div[data-testid="product-item"]
-      // Within:
-      //   a[href*="/pdp/"] (PDP link)
-      //   img (image)
-      //   h4 (title)
-      //   h4.text-default-onSale (sale)
-      //   p.line-through (original)
-
+      // stable selectors from your outerHTML
       const cards = $('div[data-testid="product-item"]');
+
+      // If a page has no products, assume we're past the end and stop.
+      if (cards.length === 0) {
+        break;
+      }
+
       dealsFound += cards.length;
 
       cards.each((_, el) => {
@@ -209,12 +228,11 @@ export default async function handler(req, res) {
         const img = card.find("img").first();
         const imageURL = img.attr("src") || null;
 
-        const title = asText(card.find("h4").first());
-        const listingName = title || null;
+        const listingName = asText(card.find("h4").first());
         if (!listingName) return;
 
         const gender = detectGender(listingName);
-        if (!gender) return; // exclude anything not mens/womens/unisex
+        if (!gender) return; // exclude
 
         const shoeType = detectShoeType(listingName);
 
@@ -224,11 +242,10 @@ export default async function handler(req, res) {
         const salePrice = parseMoney(saleText);
         const originalPrice = parseMoney(originalText);
 
-        // Your merge rules later require both sale + original; we match that here too.
+        // include ONLY if both exist
         if (typeof salePrice !== "number" || typeof originalPrice !== "number") return;
 
         const discountPercent = computeDiscountPercent(salePrice, originalPrice);
-
         const { brand, model } = parseBrandModel(listingName);
 
         allDeals.push({
@@ -243,7 +260,6 @@ export default async function handler(req, res) {
           originalPrice,
           discountPercent,
 
-          // Range fields: not provided by this PLP snippet -> null
           salePriceLow: null,
           salePriceHigh: null,
           originalPriceLow: null,
@@ -263,7 +279,6 @@ export default async function handler(req, res) {
 
     dealsExtracted = allDeals.length;
 
-    // write blob
     const payload = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
@@ -283,19 +298,16 @@ export default async function handler(req, res) {
       ok: true,
       error: null,
 
-      // Not part of your required top-level structure, but harmless if you want it.
-      // If you want STRICT top-level fields only, delete this line.
+      // optional but useful; remove if you want strict top-level only
       priceInBagSkipped,
-    };
 
-    // Put deals array under payload.deals? You didn't include it in your sample top-level,
-    // but your other scrapers usually include it. If you want it, keep it:
-    payload.deals = allDeals;
+      deals: allDeals,
+    };
 
     await put("finishline.json", JSON.stringify(payload, null, 2), {
       access: "public",
       contentType: "application/json",
-      addRandomSuffix: false, // ✅ stable path: /finishline.json
+      addRandomSuffix: false, // ✅ stable name
     });
 
     console.log(`[Finish Line] priceInBagSkipped=${priceInBagSkipped}`);
@@ -303,9 +315,9 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       store: STORE,
+      pagesFetched,
       dealsFound,
       dealsExtracted,
-      pagesFetched,
       priceInBagSkipped,
       blobPath: "/finishline.json",
     });
@@ -319,8 +331,7 @@ export default async function handler(req, res) {
       lastUpdated: nowIso(),
       via: VIA,
 
-      sourceUrls: SOURCE_URLS,
-
+      sourceUrls: [BASE_URL],
       pagesFetched,
 
       dealsFound,
