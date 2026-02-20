@@ -140,12 +140,17 @@ async function firecrawlScrape(url) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      url,
-      formats: ["html"],
-      render: true,
-      waitFor: 3000,
-    }),
+ body: JSON.stringify({
+  url,
+  // use html (or rawHtml) per current API
+  formats: ["html"],
+  // supported in current scrape endpoint
+  waitFor: 3000,
+  // optional but often helpful on retail sites
+  proxy: "auto",
+  blockAds: true,
+}),
+
   });
 
   if (!res.ok) {
