@@ -282,8 +282,9 @@ async function fetchHtmlViaFirecrawl(url, runId, label = "DSG") {
       url,
       formats: ["html"],
       onlyMainContent: false,
-      waitFor: 5000,    // increased from 3500 to give slow pages more time to render
-      timeout: 75000,   // increased from 60000
+      waitFor: 5000,
+      timeout: 75000,
+      skipCache: true,   // force fresh fetch — prevents Firecrawl returning cached page 1 for all pages
     }),
   });
 
@@ -324,6 +325,7 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
   let seePriceInCartSkipped = 0;
   let missingPriceSkipped = 0;
   let missingImageSkipped = 0;
+  let missingTitleSkipped = 0;
 
   const $cards = $("div.product-card");
   console.log(`[${runId}] DSG parse ${sourceKey}: cardsFound=${$cards.length}`);
@@ -334,7 +336,10 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
 
     const $title = $card.find("a.product-title-link").first();
     const listingName = $title.text().replace(/\s+/g, " ").trim();
-    if (!listingName) continue;
+    if (!listingName) {
+      missingTitleSkipped++;
+      continue;
+    }
 
     const shoeType = detectShoeType(listingName);
 
@@ -460,9 +465,7 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
   const deduped = uniqByKey(deals, (d) => d.listingURL || d.listingName).slice(0, MAX_ITEMS_TOTAL);
 
   console.log(
-    `[${runId}] DSG parse ${sourceKey}: runningCardsFound=${runningCardsFound} extracted=${deals.length} deduped=${deduped.length} seePriceInCartSkipped=${seePriceInCartSkipped} missingPriceSkipped=${missingPriceSkipped} missingImageSkipped=${missingImageSkipped} time=${msSince(
-      t0
-    )}ms`
+    `[${runId}] DSG parse ${sourceKey}: cardsFound=${$cards.length} missingTitleSkipped=${missingTitleSkipped} runningCardsFound=${runningCardsFound} extracted=${deals.length} deduped=${deduped.length} seePriceInCartSkipped=${seePriceInCartSkipped} missingPriceSkipped=${missingPriceSkipped} missingImageSkipped=${missingImageSkipped} time=${msSince(t0)}ms`
   );
 
   return {
@@ -471,6 +474,7 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
     seePriceInCartSkipped,
     missingPriceSkipped,
     missingImageSkipped,
+    missingTitleSkipped,
   };
 }
 
@@ -504,8 +508,7 @@ async function scrapeSourceWithPagination(runId, src) {
   let seePriceInCartSkipped = 0;
   let missingPriceSkipped = 0;
   let missingImageSkipped = 0;
-
-  // Seen URL sets for duplicate/loop detection
+  let missingTitleSkipped = 0;
   const seenListingUrls = new Set();   // all URLs scraped so far across pages
   let lastPageFingerprint = null;      // fingerprint of the previous page's URL set
 
@@ -589,6 +592,7 @@ async function scrapeSourceWithPagination(runId, src) {
     seePriceInCartSkipped += parsed.seePriceInCartSkipped || 0;
     missingPriceSkipped += parsed.missingPriceSkipped || 0;
     missingImageSkipped += parsed.missingImageSkipped || 0;
+    missingTitleSkipped += parsed.missingTitleSkipped || 0;
 
     console.log(`[${runId}] DSG ${src.key} page ${pageNumber} newDeals=${newDeals.length} totalSoFar=${sourceDeals.length}`);
   }
@@ -602,6 +606,7 @@ async function scrapeSourceWithPagination(runId, src) {
     seePriceInCartSkipped,
     missingPriceSkipped,
     missingImageSkipped,
+    missingTitleSkipped,
   };
 }
 
@@ -619,6 +624,7 @@ async function scrapeAll(runId) {
   let seePriceInCartSkippedTotal = 0;
   let missingPriceSkippedTotal = 0;
   let missingImageSkippedTotal = 0;
+  let missingTitleSkippedTotal = 0;
 
   for (const src of SOURCES) {
     console.log(`[${runId}] DSG source start: ${src.key}`);
@@ -633,6 +639,7 @@ async function scrapeAll(runId) {
     seePriceInCartSkippedTotal += out.seePriceInCartSkipped || 0;
     missingPriceSkippedTotal += out.missingPriceSkipped || 0;
     missingImageSkippedTotal += out.missingImageSkipped || 0;
+    missingTitleSkippedTotal += out.missingTitleSkipped || 0;
 
     console.log(
       `[${runId}] DSG source done: ${src.key} extractedDeals=${(out.deals || []).length} pagesFetched=${out.pagesFetched} runningCardsFound=${out.runningCardsFound} seePriceInCartSkipped=${out.seePriceInCartSkipped}`
@@ -657,6 +664,7 @@ async function scrapeAll(runId) {
 
     seePriceInCartSkipped: seePriceInCartSkippedTotal,
 
+    missingTitleSkipped: missingTitleSkippedTotal,
     missingPriceSkipped: missingPriceSkippedTotal,
     missingImageSkipped: missingImageSkippedTotal,
 
@@ -700,6 +708,7 @@ module.exports = async function handler(req, res) {
       dealsFound: data.dealsFound,
       dealsExtracted: data.dealsExtracted,
       seePriceInCartSkipped: data.seePriceInCartSkipped,
+      missingTitleSkipped: data.missingTitleSkipped,
       missingPriceSkipped: data.missingPriceSkipped,
       missingImageSkipped: data.missingImageSkipped,
       pagesFetched: data.pagesFetched,
