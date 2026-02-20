@@ -6,8 +6,8 @@
 // It does NOT paginate and does not attempt ?page=2+.
 //
 // Rules (per your spec):
-// - shoeType: "unknown" unless listingName includes trail / track / road
-// - gender must be womens / mens / unisex (otherwise exclude deal)
+// - shoeType: "unknown" unless listingName includes trail / track / road (spikes => track)
+// - gender: mens / womens / unisex else "unknown"
 // - if on-sale text is not a $ price (e.g. "See price in bag"), skip and count skips
 // - output your deal schema + your top-level structure
 // - Cron Secret check included, but commented out for testing
@@ -38,8 +38,10 @@ function asText($el) {
 
 function normalizeUrl(href) {
   if (!href) return null;
-  if (href.startsWith("http")) return href;
-  return `https://www.finishline.com${href.startsWith("/") ? "" : "/"}${href}`;
+  const h = String(href).trim();
+  if (!h) return null;
+  if (h.startsWith("http")) return h;
+  return `https://www.finishline.com${h.startsWith("/") ? "" : "/"}${h}`;
 }
 
 function parseMoney(str) {
@@ -61,21 +63,19 @@ function detectGender(listingName) {
   if (s.startsWith("women's") || s.startsWith("womens")) return "womens";
   if (s.startsWith("unisex")) return "unisex";
 
-  return "unknown"; // ✅ no longer excluded
+  return "unknown";
 }
-
 
 function detectShoeType(listingName) {
   const s = String(listingName || "").toLowerCase();
 
   if (/\btrail\b/.test(s)) return "trail";
   if (/\btrack\b/.test(s)) return "track";
-  if (/\bspikes?\b/.test(s)) return "track"; // ✅ new rule
+  if (/\bspikes?\b/.test(s)) return "track";
   if (/\broad\b/.test(s)) return "road";
 
   return "unknown";
 }
-
 
 function stripLeadingGender(listingName) {
   return String(listingName || "")
@@ -112,6 +112,63 @@ function parseBrandModel(listingName) {
   const brand = firstWord || s || "unknown";
   const model = s.slice(brand.length).trim() || s || "unknown";
   return { brand, model };
+}
+
+// Extract media.finishline.com image URL robustly, even if Firecrawl strips src
+function extractImageUrlFromCard(card) {
+  // 1) Try the product image in the square image wrapper first
+  let img = card.find('div.aspect-square img').first();
+  if (!img || !img.length) img = card.find("img").first();
+
+  let imageURL = null;
+
+  if (img && img.length) {
+    imageURL =
+      img.attr("src") ||
+      img.attr("data-src") ||
+      img.attr("data-lazy-src") ||
+      img.attr("data-original") ||
+      null;
+
+    if (!imageURL) {
+      const rawSrcset =
+        img.attr("srcset") ||
+        img.attr("data-srcset") ||
+        img.attr("data-lazy-srcset") ||
+        null;
+
+      if (rawSrcset) {
+        imageURL = String(rawSrcset).split(",")[0].trim().split(/\s+/)[0] || null;
+      }
+    }
+  }
+
+  // 2) Try <picture><source> if present
+  if (!imageURL) {
+    const sourceSrcset =
+      card.find("picture source").first().attr("srcset") ||
+      card.find("picture source").first().attr("data-srcset") ||
+      null;
+
+    if (sourceSrcset) {
+      imageURL = String(sourceSrcset).split(",")[0].trim().split(/\s+/)[0] || null;
+    }
+  }
+
+  // 3) LAST CHANCE: pull media url from the card's HTML fragment (works when attrs get stripped)
+  if (!imageURL) {
+    const frag = card.html() || "";
+    const m = frag.match(/https:\/\/media\.finishline\.com\/[^"'\s<>]+/i);
+    if (m && m[0]) imageURL = m[0];
+  }
+
+  // 4) Decode HTML entities and normalize to absolute
+  if (imageURL) {
+    imageURL = String(imageURL).replace(/&amp;/g, "&").trim();
+    imageURL = normalizeUrl(imageURL);
+  }
+
+  return imageURL || null;
 }
 
 async function firecrawlScrape(url) {
@@ -204,57 +261,13 @@ export default async function handler(req, res) {
       const listingURL = normalizeUrl(href);
       if (!listingURL) return;
 
-       // --- imageURL (robust for lazy-loading / srcset) ---
-      const img = card.find("img").first();
-
-      // Try src first
-      let imageURL =
-        img.attr("src") ||
-        img.attr("data-src") ||
-        img.attr("data-lazy-src") ||
-        img.attr("data-original") ||
-        null;
-
-      // If no direct src, try srcset variants
-      if (!imageURL) {
-        const rawSrcset =
-          img.attr("srcset") ||
-          img.attr("data-srcset") ||
-          img.attr("data-lazy-srcset") ||
-          null;
-
-        if (rawSrcset) {
-          imageURL = String(rawSrcset)
-            .split(",")[0]
-            .trim()
-            .split(/\s+/)[0] || null;
-        }
-      }
-
-      // If still no image, check <picture><source>
-      if (!imageURL) {
-        const sourceSrcset =
-          card.find("picture source").first().attr("srcset") ||
-          card.find("picture source").first().attr("data-srcset") ||
-          null;
-
-        if (sourceSrcset) {
-          imageURL = String(sourceSrcset)
-            .split(",")[0]
-            .trim()
-            .split(/\s+/)[0] || null;
-        }
-      }
-
-      // Normalize to absolute URL
-      imageURL = imageURL ? normalizeUrl(imageURL) : null;
-
+      // ✅ FIXED imageURL extraction
+      const imageURL = extractImageUrlFromCard(card);
 
       const listingName = asText(card.find("h4").first());
       if (!listingName) return;
 
       const gender = detectGender(listingName);
-
       const shoeType = detectShoeType(listingName);
 
       const saleText = asText(card.find("h4.text-default-onSale").first());
