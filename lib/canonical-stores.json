@@ -82,6 +82,25 @@
     "scraperType": "apify",
     "notes": "no notes"
   },
+
+
+{
+  "id": "hoka",
+  "displayName": "HOKA",
+  "addedAt": "2026-02-19",
+  "lastUpdated": "2026-02-19",
+  "scrapedUrls": [
+    "https://www.hoka.com/en/us/sale/?prefn1=type&prefv1=shoes"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/hoka.json"
+  ],
+  "aliases": ["hoka", "hoka one one"],
+  "enabled": true,
+  "scraperType": "firecrawl",
+  "notes": "HOKA sale shoes page. Fetched via Firecrawl (waitFor:3000 for JS rendering). Writes to hoka.json via HOKA_DEALS_BLOB_URL / BLOB_READ_WRITE_TOKEN."
+},
+  
   {
     "id": "holabird-sports",
     "displayName": "Holabird Sports",
