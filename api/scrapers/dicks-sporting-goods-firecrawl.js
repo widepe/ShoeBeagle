@@ -2,7 +2,7 @@
 //
 // Purpose:
 // - Fetch Dick's Sporting Goods men's + women's sale running pages via Firecrawl
-// - Follow pagination (pageNumber param) per source (MAX_PAGES_PER_SOURCE = 3)
+// - Follow pagination (pageNumber param) per source (MAX_PAGES_PER_SOURCE = 4)
 // - Extract canonical deals with optional range fields
 // - STRICT running filter:
 //    * "trail running shoes" => shoeType "trail"
@@ -12,6 +12,9 @@
 //   * BUT count them in metadata (seePriceInCartSkipped)
 // - FIX: dealsFound counts ALL strict-running cards (including skipped)
 // - FIX: price ranges are captured from the price container text
+// - FIX: page number loop corrected — DSG uses 1-based pageNumber param;
+//        omitting param = page 1, so loop now runs 1..MAX_PAGES_PER_SOURCE
+//        and withPageNumber drops the param for page 1, sets it for pages 2+
 //
 // Env vars required:
 //   FIRECRAWL_API_KEY
@@ -38,7 +41,7 @@ const SOURCES = [
 
 const BLOB_PATHNAME = "dicks-sporting-goods.json";
 const MAX_ITEMS_TOTAL = 5000;
-const MAX_PAGES_PER_SOURCE = 3;
+const MAX_PAGES_PER_SOURCE = 4;  // bumped from 3; men's has 4 pages (155 products / 48 per page)
 const SCHEMA_VERSION = 1;
 
 // -----------------------------
@@ -114,7 +117,7 @@ function detectGenderFromTitle(listingName) {
   return "unknown";
 }
 
-// Your strict rule
+// Strict rule: only capture cards explicitly labeled as running shoes
 function detectShoeTypeStrict(listingName) {
   const s = String(listingName || "").toLowerCase();
   if (s.includes("trail running shoes")) return "trail";
@@ -220,8 +223,8 @@ function guessBrandModel(listingName) {
   return { brand, model };
 }
 
-// ✅ NEW: parse sale/original price values directly from the container text
-// Works with your exact DOM:
+// Parse sale/original price values directly from the container text.
+// Works with DSG's DOM:
 //   <div class="price-sale"> $63.97 <span> - $122.97 </span></div>
 //   <div class="hmf-text-decoration-linethrough"> $139.99 <span> - $144.99 </span> *</div>
 function extractSaleAndOriginalValuesFromCard($card) {
@@ -264,8 +267,8 @@ async function fetchHtmlViaFirecrawl(url, runId, label = "DSG") {
       url,
       formats: ["html"],
       onlyMainContent: false,
-      waitFor: 3500,
-      timeout: 60000,
+      waitFor: 5000,    // increased from 3500 to give slow pages more time to render
+      timeout: 75000,   // increased from 60000
     }),
   });
 
@@ -339,10 +342,10 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
       continue;
     }
 
-    // ✅ Robust extraction from the actual price containers (matches your outerHTML)
+    // Robust extraction from the actual price containers
     let { saleValues, originalValues, saleText, origText } = extractSaleAndOriginalValuesFromCard($card);
 
-    // aria-label fallback (your outerHTML includes "New Lower Price: $63.97 to $122.97 , Previous Price: $139.99 to $144.99")
+    // aria-label fallback (e.g. "New Lower Price: $63.97 to $122.97 , Previous Price: $139.99 to $144.99")
     if (!saleValues.length || !originalValues.length) {
       const aria = $title.attr("aria-label") || "";
       const nums = parseMoneyAll(aria).map((x) => Number(x.toFixed(2)));
@@ -399,7 +402,6 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
       originalPriceHigh = origHigh;
       discountPercentUpTo = calcDiscountPercentUpTo(salePriceLow, originalPriceHigh);
 
-      // leave for a run to confirm
       console.log(
         `[${runId}] DSG RANGE ${sourceKey}: ${shortText(listingName, 80)} | saleText="${shortText(
           saleText,
@@ -460,10 +462,16 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
 // -----------------------------
 // PAGINATION (pageNumber param)
 // -----------------------------
+// FIX: DSG uses 1-based page numbers. Omitting the param = page 1.
+// Setting pageNumber=1 also = page 1 (duplicate). So:
+//   page 1  => no pageNumber param
+//   page 2  => pageNumber=2
+//   page 3  => pageNumber=3
+//   page 4  => pageNumber=4
 function withPageNumber(baseUrl, pageNumber) {
   const u = new URL(baseUrl);
-  if (pageNumber == null || pageNumber === 0) {
-    u.searchParams.delete("pageNumber");
+  if (pageNumber <= 1) {
+    u.searchParams.delete("pageNumber");  // page 1 = no param
   } else {
     u.searchParams.set("pageNumber", String(pageNumber));
   }
@@ -483,21 +491,29 @@ async function scrapeSourceWithPagination(runId, src) {
   let missingPriceSkipped = 0;
   let missingImageSkipped = 0;
 
-  for (let pageNumber = 0; pageNumber < MAX_PAGES_PER_SOURCE; pageNumber++) {
+  // FIX: loop from 1..MAX_PAGES_PER_SOURCE (1-based) to match DSG's URL scheme
+  for (let pageNumber = 1; pageNumber <= MAX_PAGES_PER_SOURCE; pageNumber++) {
     const pageUrl = withPageNumber(src.url, pageNumber);
     visited.push(pageUrl);
     pagesFetched++;
 
-    console.log(`[${runId}] DSG ${src.key} page ${pageNumber + 1} start: ${pageUrl}`);
+    console.log(`[${runId}] DSG ${src.key} page ${pageNumber} start: ${pageUrl}`);
 
-    const html = await fetchHtmlViaFirecrawl(pageUrl, runId, `DSG-${src.key}`);
+    let html;
+    try {
+      html = await fetchHtmlViaFirecrawl(pageUrl, runId, `DSG-${src.key}`);
+    } catch (err) {
+      console.error(`[${runId}] DSG ${src.key} page ${pageNumber} fetch error:`, err.message);
+      // Don't crash the whole run — stop this source and move on
+      break;
+    }
 
     const $ = cheerio.load(html);
     const cardCount = $("div.product-card").length;
-    console.log(`[${runId}] DSG ${src.key} page ${pageNumber + 1} cardsFound=${cardCount}`);
+    console.log(`[${runId}] DSG ${src.key} page ${pageNumber} cardsFound=${cardCount}`);
 
     if (!cardCount) {
-      console.log(`[${runId}] DSG ${src.key} stop: no cards`);
+      console.log(`[${runId}] DSG ${src.key} stop: no cards on page ${pageNumber}`);
       break;
     }
 
@@ -570,8 +586,8 @@ async function scrapeAll(runId) {
     sourceUrls,
     pagesFetched: pagesFetchedTotal,
 
-    dealsFound: runningCardsFoundTotal, // all strict-running cards
-    dealsExtracted: deals.length,       // priced (single or range)
+    dealsFound: runningCardsFoundTotal, // all strict-running cards (including skipped)
+    dealsExtracted: deals.length,       // priced deals only (single price or range)
 
     seePriceInCartSkipped: seePriceInCartSkippedTotal,
 
