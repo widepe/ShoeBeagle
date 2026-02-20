@@ -215,11 +215,17 @@ export default async function handler(req, res) {
       cards.each((_, el) => {
         const card = $(el);
 
-        const cardText = asText(card);
-        if (looksLikePriceInBag(cardText)) {
-          priceInBagSkipped += 1;
-          return;
-        }
+   // Price-in-bag detection (selector-based, stable)
+// If the on-sale node isn't a $ price, it's "See price in bag" (skip + count)
+const saleNode = card.find("h4.text-default-onSale").first();
+const saleTextRaw = asText(saleNode);
+
+// if the element exists and doesn't contain a currency price, skip
+if (saleNode.length && !/\$\s*\d/.test(saleTextRaw)) {
+  priceInBagSkipped += 1;
+  return;
+}
+
 
         const href = card.find('a[href*="/pdp/"]').first().attr("href");
         const listingURL = normalizeUrl(href);
