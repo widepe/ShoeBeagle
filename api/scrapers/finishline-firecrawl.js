@@ -116,11 +116,11 @@ function parseBrandModel(listingName) {
 
 // Extract media.finishline.com image URL robustly, even if Firecrawl strips src
 function extractImageUrlFromCard(card) {
-  // 1) Try the product image in the square image wrapper first
+  let imageURL = null;
+
+  // 1) Prefer the product image inside the square wrapper
   let img = card.find('div.aspect-square img').first();
   if (!img || !img.length) img = card.find("img").first();
-
-  let imageURL = null;
 
   if (img && img.length) {
     imageURL =
@@ -143,46 +143,32 @@ function extractImageUrlFromCard(card) {
     }
   }
 
-  // 2) Try <picture><source> if present
+  // 2) Try <picture><source>
   if (!imageURL) {
-    const sourceSrcset =
-      card.find("picture source").first().attr("srcset") ||
-      card.find("picture source").first().attr("data-srcset") ||
-      null;
+    const source = card.find("picture source").first();
+    const sourceSrcset = source.attr("srcset") || source.attr("data-srcset") || null;
 
     if (sourceSrcset) {
       imageURL = String(sourceSrcset).split(",")[0].trim().split(/\s+/)[0] || null;
     }
   }
 
-  // 3) LAST CHANCE: pull media url from the card's HTML fragment (works when attrs get stripped)
+  // 3) Regex pull from the card HTML
   if (!imageURL) {
     const frag = card.html() || "";
     const m = frag.match(/https:\/\/media\.finishline\.com\/[^"'\s<>]+/i);
     if (m && m[0]) imageURL = m[0];
   }
 
-
-  // 3) LAST CHANCE: pull media url from the card's HTML fragment
+  // 4) SKU fallback
   if (!imageURL) {
-    const frag = card.html() || "";
-    const m = frag.match(/https:\/\/media\.finishline\.com\/[^"'\s<>]+/i);
-    if (m && m[0]) imageURL = m[0];
-  }
-
-  // ✅ 4) SKU fallback (ADD THIS BLOCK HERE)
-  if (!imageURL) {
-    const sku =
-      card.attr("data-sku") ||
-      card.find("[data-sku]").first().attr("data-sku") ||
-      null;
-
+    const sku = card.attr("data-sku") || card.find("[data-sku]").first().attr("data-sku") || null;
     if (sku) {
       imageURL = `https://media.finishline.com/s/finishline/${sku}?$Main$?&w=660&h=660&fmt=auto`;
     }
   }
 
-  // 5) Decode HTML entities and normalize to absolute
+  // 5) Decode &amp; and normalize
   if (imageURL) {
     imageURL = String(imageURL).replace(/&amp;/g, "&").trim();
     imageURL = normalizeUrl(imageURL);
@@ -190,6 +176,7 @@ function extractImageUrlFromCard(card) {
 
   return imageURL || null;
 }
+
 
 
 
