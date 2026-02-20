@@ -1,5 +1,6 @@
 // /api/scrapers/kohls-firecrawl.js  (CommonJS)
-// Hit this route manually to test: /api/scrapers/kohls-firecrawl
+// Hit this route manually to test (must include secret):
+//   /api/scrapers/kohls-firecrawl?key=YOUR_CRON_SECRET
 //
 // Purpose:
 // - Fetch Kohl's sale + clearance running shoes pages via Firecrawl
@@ -9,9 +10,15 @@
 // Env vars required:
 //   FIRECRAWL_API_KEY
 //   BLOB_READ_WRITE_TOKEN
+//   CRON_SECRET   (required for this route; runner passes x-cron-secret)
+//
+// Auth:
+// - Requires CRON_SECRET via header "x-cron-secret" OR query ?key=...
 
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
+
+const STORE = "Kohls";
 
 const SOURCES = [
   {
@@ -50,8 +57,11 @@ function shortText(s, n = 220) {
 // -----------------------------
 function absUrl(href) {
   if (!href) return null;
-  if (/^https?:\/\//i.test(href)) return href;
-  return new URL(href, "https://www.kohls.com").toString();
+  const h = String(href).trim();
+  if (!h) return null;
+  if (/^https?:\/\//i.test(h)) return h;
+  if (h.startsWith("//")) return "https:" + h;
+  return new URL(h, "https://www.kohls.com").toString();
 }
 
 function parseMoney(text) {
@@ -82,7 +92,7 @@ function calcDiscountPercentUpTo(saleLow, originalHigh) {
 }
 
 function detectGender(listingName) {
-  const s = (listingName || "").toLowerCase();
+  const s = String(listingName || "").toLowerCase();
   if (s.includes("women's") || s.includes("womens")) return "womens";
   if (s.includes("men's") || s.includes("mens")) return "mens";
   if (s.includes("unisex")) return "unisex";
@@ -90,7 +100,7 @@ function detectGender(listingName) {
 }
 
 function detectShoeType(listingName) {
-  const s = (listingName || "").toLowerCase();
+  const s = String(listingName || "").toLowerCase();
   if (s.includes("trail")) return "trail";
   if (s.includes("track") || s.includes("spike")) return "track";
   if (s.includes("road")) return "road";
@@ -121,16 +131,9 @@ function getImageUrlFromCard($card) {
   const $img = $card.find('img[data-dte="product-image"]').first();
   if (!$img.length) return null;
 
-  const src =
-    $img.attr("src") ||
-    $img.attr("data-src") ||
-    $img.attr("data-original") ||
-    null;
+  const src = $img.attr("src") || $img.attr("data-src") || $img.attr("data-original") || null;
 
-  const srcset =
-    $img.attr("srcset") ||
-    $img.attr("data-srcset") ||
-    null;
+  const srcset = $img.attr("srcset") || $img.attr("data-srcset") || null;
 
   const fromSrcset = firstUrlFromSrcset(srcset);
 
@@ -151,13 +154,12 @@ function collectMoneyValues($, $elements) {
   return uniq;
 }
 
-
 // -----------------------------
 // FIRECRAWL FETCH
 // -----------------------------
 async function fetchHtmlViaFirecrawl(url, runId) {
   const t0 = Date.now();
-  const apiKey = process.env.FIRECRAWL_API_KEY;
+  const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
   if (!apiKey) throw new Error("FIRECRAWL_API_KEY env var is not set");
 
   console.log(`[${runId}] KOHLS firecrawl start: ${url}`);
@@ -165,32 +167,44 @@ async function fetchHtmlViaFirecrawl(url, runId) {
   let res;
   let json;
 
-  res = await fetch("https://api.firecrawl.dev/v1/scrape", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      url,
-      formats: ["html"],
-      onlyMainContent: false,
-      waitFor: 3000,
-    }),
-  });
+  try {
+    res = await fetch("https://api.firecrawl.dev/v1/scrape", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        url,
+        formats: ["html"],
+        onlyMainContent: false,
+        waitFor: 3000,
+        timeout: 60000,
+      }),
+    });
+  } catch (e) {
+    console.error(`[${runId}] KOHLS firecrawl network error:`, e);
+    throw e;
+  }
 
-  json = await res.json();
+  try {
+    json = await res.json();
+  } catch (e) {
+    const text = await res.text().catch(() => "");
+    console.error(`[${runId}] KOHLS firecrawl JSON parse error. Body:`, (text || "").slice(0, 300));
+    throw e;
+  }
 
   console.log(
     `[${runId}] KOHLS firecrawl done: status=${res.status} ok=${res.ok} time=${msSince(t0)}ms`
   );
 
-  if (!res.ok || !json.success) {
+  if (!res.ok || !json?.success) {
     console.log(`[${runId}] KOHLS firecrawl error:`, JSON.stringify(json).slice(0, 300));
     throw new Error(`Firecrawl failed: ${res.status} — ${json?.error || "unknown error"}`);
   }
 
-  const html = json?.data?.html || "";
+  const html = json?.data?.html || json?.html || "";
   console.log(`[${runId}] KOHLS firecrawl htmlLen=${html.length}`);
   if (!html) throw new Error("Firecrawl returned empty HTML");
 
@@ -220,15 +234,15 @@ function extractDealsFromHtml(html, runId, sourceKey) {
     const listingURL = absUrl(href);
     if (!listingURL) return;
 
-    // Image URL (reliable for your pasted HTML)
+    // Image URL
     const imageURL = getImageUrlFromCard($card);
     if (!imageURL) return;
 
     // Price values (support multiple)
-const saleValues = collectMoneyValues($, $card.find('[data-dte="product-sub-sale-price"]'));
-const originalValues = collectMoneyValues($, $card.find('[data-dte="product-sub-regular-price"]'));
+    const saleValues = collectMoneyValues($, $card.find('[data-dte="product-sub-sale-price"]'));
+    const originalValues = collectMoneyValues($, $card.find('[data-dte="product-sub-regular-price"]'));
 
-
+    // Require BOTH
     if (!saleValues.length || !originalValues.length) return;
 
     const saleLow = saleValues[0];
@@ -242,6 +256,7 @@ const originalValues = collectMoneyValues($, $card.find('[data-dte="product-sub-
     const isOrigRange = originalValues.length > 1 && origLow !== origHigh;
     const isAnyRange = isSaleRange || isOrigRange;
 
+    // Legacy + range fields
     let salePrice = null;
     let originalPrice = null;
     let discountPercent = null;
@@ -261,15 +276,13 @@ const originalValues = collectMoneyValues($, $card.find('[data-dte="product-sub-
       salePriceHigh = saleHigh;
       originalPriceLow = origLow;
       originalPriceHigh = origHigh;
-
-      // Up-to uses originalHigh and saleLow
       discountPercentUpTo = calcDiscountPercentUpTo(salePriceLow, originalPriceHigh);
     }
 
     const gender = detectGender(listingName);
     const shoeType = detectShoeType(listingName);
 
-    // Brand/model heuristic (same spirit as your original)
+    // Brand/model heuristic
     const brand = listingName.split(/\s+/)[0] || "unknown";
     const model =
       listingName
@@ -283,8 +296,9 @@ const originalValues = collectMoneyValues($, $card.find('[data-dte="product-sub-
         .trim() || "unknown";
 
     deals.push({
-      listingName,
+      schemaVersion: SCHEMA_VERSION,
 
+      listingName,
       brand,
       model,
 
@@ -298,7 +312,7 @@ const originalValues = collectMoneyValues($, $card.find('[data-dte="product-sub-
       originalPriceHigh,
       discountPercentUpTo,
 
-      store: "Kohls",
+      store: STORE,
 
       listingURL,
       imageURL,
@@ -308,10 +322,7 @@ const originalValues = collectMoneyValues($, $card.find('[data-dte="product-sub-
     });
   });
 
-  const deduped = uniqByKey(deals, (d) => d.listingURL || d.listingName).slice(
-    0,
-    MAX_ITEMS_TOTAL
-  );
+  const deduped = uniqByKey(deals, (d) => d.listingURL || d.listingName).slice(0, MAX_ITEMS_TOTAL);
 
   console.log(
     `[${runId}] KOHLS parse ${sourceKey}: extracted=${deals.length} deduped=${deduped.length} time=${msSince(
@@ -359,11 +370,7 @@ async function scrapeAll(runId) {
     console.log(`[${runId}] KOHLS source done: ${src.key} deals=${deals.length}`);
   }
 
-  const deals = uniqByKey(allDeals, (d) => d.listingURL || d.listingName).slice(
-    0,
-    MAX_ITEMS_TOTAL
-  );
-
+  const deals = uniqByKey(allDeals, (d) => d.listingURL || d.listingName).slice(0, MAX_ITEMS_TOTAL);
   const scrapeDurationMs = msSince(startedAt);
 
   console.log(
@@ -371,32 +378,51 @@ async function scrapeAll(runId) {
   );
 
   return {
-    store: "Kohls",
+    store: STORE,
     schemaVersion: SCHEMA_VERSION,
+
     lastUpdated: nowIso(),
     via: "firecrawl",
+
     sourceUrls,
     pagesFetched: SOURCES.length,
+
     dealsFound: allDeals.length,
     dealsExtracted: deals.length,
+
     scrapeDurationMs,
+
     ok: true,
     error: null,
+
     deals,
   };
 }
 
 // -----------------------------
-// HANDLER
+// HANDLER (WITH CRON SECRET)
 // -----------------------------
 module.exports = async function handler(req, res) {
   const runId = `kohls-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
   const t0 = Date.now();
 
+  // ✅ REQUIRE CRON SECRET (same pattern as your other scrapers)
+  const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
+  if (!CRON_SECRET) {
+    return res.status(500).json({ ok: false, error: "CRON_SECRET not configured" });
+  }
+
+  const provided = String(req.headers["x-cron-secret"] || req.query?.key || "").trim();
+  if (provided !== CRON_SECRET) {
+    return res.status(401).json({ ok: false, error: "Unauthorized" });
+  }
+
   console.log(`[${runId}] KOHLS handler start ${nowIso()}`);
   console.log(`[${runId}] method=${req.method} path=${req.url || ""}`);
   console.log(
-    `[${runId}] env: hasBlobToken=${Boolean(process.env.BLOB_READ_WRITE_TOKEN)} hasFirecrawlKey=${Boolean(process.env.FIRECRAWL_API_KEY)} node=${process.version}`
+    `[${runId}] env: hasBlobToken=${Boolean(process.env.BLOB_READ_WRITE_TOKEN)} hasFirecrawlKey=${Boolean(
+      process.env.FIRECRAWL_API_KEY
+    )} node=${process.version}`
   );
 
   try {
