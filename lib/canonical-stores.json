@@ -119,6 +119,25 @@
     "scraperType": "cheerio",
     "notes": "Holabird is split into multiple blobs (mens, womens, trail/unisex)."
   },
+
+{
+  "id": "kohls",
+  "displayName": "Kohl's",
+  "addedAt": "2026-02-19",
+  "lastUpdated": "2026-02-19",
+  "scrapedUrls": [
+    "https://www.kohls.com/catalog/sale-adult-running-shoes.jsp?CN=Promotions:Sale+AgeAppropriate:Adult+Activity:Running+Department:Shoes",
+    "https://www.kohls.com/catalog/clearance-adult-running-shoes.jsp?CN=Promotions:Clearance+AgeAppropriate:Adult+Activity:Running+Department:Shoes"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/kohls.json"
+  ],
+  "aliases": ["kohls", "kohl's"],
+  "enabled": true,
+  "scraperType": "firecrawl",
+  "notes": "Kohl's running shoes Sale + Clearance via Firecrawl. Extracts canonical fields including imageURL, supports price ranges (sale/original) and discountPercentUpTo. Writes to xxx/kohls.json."
+},
+  
   {
     "id": "lukes-locker",
     "displayName": "Luke's Locker",
