@@ -177,19 +177,6 @@ function extractImageUrlFromCard(card) {
   return imageURL || null;
 }
 
-
-
-
-  
-  // 4) Decode HTML entities and normalize to absolute
-  if (imageURL) {
-    imageURL = String(imageURL).replace(/&amp;/g, "&").trim();
-    imageURL = normalizeUrl(imageURL);
-  }
-
-  return imageURL || null;
-}
-
 async function firecrawlScrape(url) {
   const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
@@ -280,7 +267,7 @@ export default async function handler(req, res) {
       const listingURL = normalizeUrl(href);
       if (!listingURL) return;
 
-      // ✅ FIXED imageURL extraction
+      // ✅ imageURL extraction (now includes SKU fallback)
       const imageURL = extractImageUrlFromCard(card);
 
       const listingName = asText(card.find("h4").first());
