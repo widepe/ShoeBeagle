@@ -481,6 +481,7 @@ module.exports = async function handler(req, res) {
   const runId = `finishline-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
   const t0 = Date.now();
 
+  /*  CRON_SECRET
   const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
   if (!CRON_SECRET) {
     return res.status(500).json({ ok: false, error: "CRON_SECRET not configured" });
@@ -490,7 +491,7 @@ module.exports = async function handler(req, res) {
   if (provided !== CRON_SECRET) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
-
+*/
   console.log(`[${runId}] FINISHLINE handler start ${nowIso()}`);
   console.log(`[${runId}] method=${req.method} path=${req.url || ""}`);
   console.log(
