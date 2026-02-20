@@ -152,18 +152,23 @@ function uniqByKey(items, keyFn) {
 }
 
 // Derive the product image URL directly from the SKU embedded in the listing URL.
-// DSG listing URLs follow: /p/some-slug-SKUCODE/SKUCODE?...
-// The image CDN pattern is: https://dks.scene7.com/is/image/dkscdn/SKUCODE_is/
-// This is reliable because it doesn't depend on lazy-load rendering.
+// DSG listing URLs follow: /p/some-slug-SKUCODE/SKUCODE?categoryId=...&color=...
+// The SKU is the LAST segment of the pathname (before the query string).
+// Using URL().pathname avoids the regex-on-full-string bug where color params
+// like "color=Crimson/Coral" would cause the wrong segment to be extracted.
+// Image CDN pattern: https://dks.scene7.com/is/image/dkscdn/SKUCODE_is/
 function getImageUrlFromListingUrl(listingUrl) {
   if (!listingUrl) return null;
-  // Extract SKU from the path — it's the last path segment before the query string
-  // e.g. /p/nike-mens-pegasus-41-running-shoes-24nikmpgss41vltccrnn/24nikmpgss41vltccrnn
-  const match = listingUrl.match(/\/([^/?]+)(?:\?|$)/);
-  if (!match) return null;
-  const sku = match[1];
-  if (!sku || sku.length < 6) return null;
-  return `https://dks.scene7.com/is/image/dkscdn/${sku}_is/?wid=252&hei=252&qlt=85,0&fmt=jpg&op_sharpen=1`;
+  try {
+    const u = new URL(listingUrl);
+    // pathname: /p/nike-mens-pegasus-41-running-shoes-24nikmpgss41vltccrnn/24nikmpgss41vltccrnn
+    const segments = u.pathname.split("/").filter(Boolean);
+    const sku = segments[segments.length - 1];
+    if (!sku || sku.length < 6) return null;
+    return `https://dks.scene7.com/is/image/dkscdn/${sku}_is/?wid=252&hei=252&qlt=85,0&fmt=jpg&op_sharpen=1`;
+  } catch {
+    return null;
+  }
 }
 
 function extractPriceSignalsFromCardText($card) {
@@ -472,13 +477,11 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
 // -----------------------------
 // PAGINATION (pageNumber param)
 // -----------------------------
-// FIX: DSG uses 1-based page numbers. Omitting the param = page 1.
+// DSG uses 1-based page numbers. Omitting the param = page 1.
 // Setting pageNumber=1 also = page 1 (duplicate). So:
 //   page 1  => no pageNumber param
 //   page 2  => pageNumber=2
 //   page 3  => pageNumber=3
-// A cache-busting param (_cb) is added so Firecrawl doesn't serve a
-// cached copy of page 1 when we request page 2+.
 function withPageNumber(baseUrl, pageNumber) {
   const u = new URL(baseUrl);
   if (pageNumber <= 1) {
@@ -486,8 +489,6 @@ function withPageNumber(baseUrl, pageNumber) {
   } else {
     u.searchParams.set("pageNumber", String(pageNumber));
   }
-  // Cache-bust so Firecrawl fetches fresh HTML for each page
-  u.searchParams.set("_cb", Date.now().toString(36));
   return u.toString();
 }
 
