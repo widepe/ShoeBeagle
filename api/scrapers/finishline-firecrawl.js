@@ -1,16 +1,20 @@
 // /api/scrapers/finishline-firecrawl.js  (CommonJS)
-// Hit this route manually to test: /api/scrapers/finishline-firecrawl
+// Hit manually: /api/scrapers/finishline-firecrawl
 //
 // Purpose:
 // - Fetch Finish Line running sale PLP pages via Firecrawl
 // - Extract canonical deals
 // - Upload to Vercel Blob as finishline.json (stable)
-// - Pagination fix: STOP when page repeats (Finish Line often serves page 1 again)
+//
+// Key fixes:
+// - Pagination stops if a page repeats OR adds zero NEW extracted deals.
+// - Selector-based "price in bag" skip (based on your outerHTML).
+// - BLOB_PATHNAME is stable ("finishline.json").
 //
 // Env vars required:
 //   FIRECRAWL_API_KEY
 //   BLOB_READ_WRITE_TOKEN
-//   CRON_SECRET   (required for this route; runner passes x-cron-secret)
+//   CRON_SECRET
 //
 // Auth:
 // - Requires CRON_SECRET via header "x-cron-secret" OR query ?key=...
@@ -22,13 +26,12 @@ const STORE = "Finish Line";
 const SCHEMA_VERSION = 1;
 const VIA = "firecrawl";
 
-const BLOB_PATHNAME = "finishline.json"; // ✅ stable blob name -> .../finishline.json
+const BLOB_PATHNAME = "finishline.json"; // ✅ stable -> .../finishline.json
 
-// Canonical running-sale base (page param pattern: ?page=2, ?page=3, ...)
-// NOTE: You already confirmed this is your base.
+// Your intended base URL (Finish Line may canonicalize / rewrite this)
 const BASE_URL = "https://www.finishline.com/plp/all-sale/activity%3Drunning";
 
-// How many pages max to attempt before repeat/empty stops us
+// How many pages max to attempt (we will stop early when pagination stalls)
 const MAX_PAGES = 12;
 const MAX_ITEMS_TOTAL = 5000;
 
@@ -43,7 +46,7 @@ function msSince(t0) {
   return Date.now() - t0;
 }
 
-function shortText(s, n = 220) {
+function shortText(s, n = 160) {
   if (!s) return "";
   const t = String(s).replace(/\s+/g, " ").trim();
   return t.length > n ? t.slice(0, n) + "…" : t;
@@ -80,19 +83,16 @@ function calcDiscountPercent(salePrice, originalPrice) {
   return Number.isFinite(pct) ? pct : null;
 }
 
-// Allowed ONLY: "womens", "mens", "unisex" — anything else returns null (exclude deal).
+// Allowed ONLY: "womens", "mens", "unisex" — anything else returns null (exclude).
 function normalizeGenderFromListingName(listingName) {
   const s = String(listingName || "").trim().toLowerCase();
+  if (!s) return null;
 
-  // Finish Line tiles often start with:
-  // "Men's ...", "Women's ...", "Unisex ..."
   if (s.startsWith("women's") || s.startsWith("womens")) return "womens";
   if (s.startsWith("men's") || s.startsWith("mens")) return "mens";
   if (s.startsWith("unisex")) return "unisex";
 
-  // Explicitly exclude kids/grade school etc (your example: "Big Kids' ...")
-  // If it doesn't match allowed set, return null anyway.
-  return null;
+  return null; // exclude kids, big kids, grade school, etc.
 }
 
 function detectShoeType(listingName) {
@@ -115,10 +115,6 @@ function stripLeadingGender(listingName) {
     .trim();
 }
 
-// Simple brand/model heuristic:
-// - Remove leading gender label
-// - Brand is first token (with a few multiword brands handled)
-// - Model is rest
 function parseBrandModel(listingName) {
   const s = stripLeadingGender(listingName);
 
@@ -167,6 +163,13 @@ function buildPageUrl(baseUrl, pageNum) {
   return u.toString();
 }
 
+function extractCanonicalHrefFromHtml(html) {
+  // Try to detect when Finish Line drops the filter and canonicalizes
+  // to /plp/all-sale (symptom you saw in the address bar).
+  const m = String(html || "").match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i);
+  return m ? m[1] : null;
+}
+
 // -----------------------------
 // FIRECRAWL FETCH
 // -----------------------------
@@ -193,7 +196,7 @@ async function fetchHtmlViaFirecrawl(url, runId) {
         onlyMainContent: false,
         waitFor: 3000,
         timeout: 60000,
-        // (Optional) If your plan supports it and you want it:
+        // If your plan supports and you want it:
         // proxy: "auto",
         // blockAds: true,
       }),
@@ -237,16 +240,19 @@ function extractDealsFromHtml(html, runId, pageUrl) {
   const t0 = Date.now();
   const $ = cheerio.load(html);
 
+  const canonical = extractCanonicalHrefFromHtml(html);
+
   // Stable selector from your outerHTML
   const $cards = $('div[data-testid="product-item"]');
   const cardsFound = $cards.length;
 
-  console.log(`[${runId}] FINISHLINE parse: cardsFound=${cardsFound} url=${pageUrl}`);
-
-  // Pagination fingerprint: if page repeats, first item tends to match exactly
+  // Fingerprint for "same page again" detection
   const firstHref = $cards.first().find('a[href*="/pdp/"]').first().attr("href") || "";
   const firstTitle = $cards.first().find("h4").first().text().replace(/\s+/g, " ").trim() || "";
-  const fingerprint = `${cardsFound}|${firstHref}|${firstTitle}`.slice(0, 600);
+  const fingerprint = `${cardsFound}|${firstHref}|${firstTitle}`.slice(0, 700);
+
+  console.log(`[${runId}] FINISHLINE parse: cardsFound=${cardsFound} url=${pageUrl}`);
+  if (canonical) console.log(`[${runId}] FINISHLINE canonical: ${canonical}`);
 
   const deals = [];
   let priceInBagSkipped = 0;
@@ -257,7 +263,6 @@ function extractDealsFromHtml(html, runId, pageUrl) {
     const listingName = $card.find("h4").first().text().replace(/\s+/g, " ").trim();
     if (!listingName) return;
 
-    // Gender must be womens/mens/unisex else EXCLUDE
     const gender = normalizeGenderFromListingName(listingName);
     if (!gender) return;
 
@@ -268,16 +273,11 @@ function extractDealsFromHtml(html, runId, pageUrl) {
     if (!listingURL) return;
 
     const imgSrc = $card.find("img").first().attr("src") || null;
-    const imageURL = absFinishlineUrl(imgSrc); // handles https already; fine
+    const imageURL = absFinishlineUrl(imgSrc);
     if (!imageURL) return;
 
-    // Prices:
-    // - sale node: h4.text-default-onSale
-    // - original: p.line-through
-    //
-    // Price-in-bag cards have:
-    //   <h4 class="... text-default-onSale">See price in bag</h4>
-    // So: if sale node exists AND isn't a $ price -> skip + count
+    // Price-in-bag detection (based on your real card):
+    // <h4 class="... text-default-onSale">See price in bag</h4>
     const saleTextRaw = $card
       .find("h4.text-default-onSale")
       .first()
@@ -300,19 +300,16 @@ function extractDealsFromHtml(html, runId, pageUrl) {
     const salePrice = parseMoney(saleTextRaw);
     const originalPrice = parseMoney(originalText);
 
-    // Require BOTH
     if (salePrice == null || originalPrice == null) return;
     if (salePrice <= 0 || originalPrice <= 0) return;
 
     const discountPercent = calcDiscountPercent(salePrice, originalPrice);
-
     const { brand, model } = parseBrandModel(listingName);
 
     deals.push({
       schemaVersion: SCHEMA_VERSION,
 
       listingName,
-
       brand,
       model,
 
@@ -320,7 +317,6 @@ function extractDealsFromHtml(html, runId, pageUrl) {
       originalPrice,
       discountPercent,
 
-      // range fields unused here
       salePriceLow: null,
       salePriceHigh: null,
       originalPriceLow: null,
@@ -328,7 +324,6 @@ function extractDealsFromHtml(html, runId, pageUrl) {
       discountPercentUpTo: null,
 
       store: STORE,
-
       listingURL,
       imageURL,
 
@@ -343,17 +338,15 @@ function extractDealsFromHtml(html, runId, pageUrl) {
     )}ms`
   );
 
-  if (deals.length) {
-    const s = deals[0];
-    console.log(`[${runId}] FINISHLINE sample:`, {
-      listingName: shortText(s.listingName, 80),
-      salePrice: s.salePrice,
-      originalPrice: s.originalPrice,
-      listingURL: s.listingURL ? s.listingURL.slice(0, 80) : null,
-    });
-  }
-
-  return { deals, cardsFound, fingerprint, firstHref, firstTitle, priceInBagSkipped };
+  return {
+    deals,
+    cardsFound,
+    fingerprint,
+    firstHref,
+    firstTitle,
+    priceInBagSkipped,
+    canonical,
+  };
 }
 
 // -----------------------------
@@ -369,10 +362,11 @@ async function scrapeAll(runId) {
   let dealsFound = 0;
   let priceInBagSkippedTotal = 0;
 
-  // Pagination stall protection:
-  // - break if no cards
-  // - break if fingerprint repeats (same content page served again)
   const seenFingerprints = new Set();
+  const seenListingUrls = new Set();
+
+  // Optional debug to prove pagination behavior in the blob
+  const pageDebug = [];
 
   for (let pageNum = 1; pageNum <= MAX_PAGES; pageNum++) {
     const pageUrl = buildPageUrl(BASE_URL, pageNum);
@@ -383,24 +377,35 @@ async function scrapeAll(runId) {
     const html = await fetchHtmlViaFirecrawl(pageUrl, runId);
     pagesFetched += 1;
 
-    const { deals, cardsFound, fingerprint, firstHref, firstTitle, priceInBagSkipped } =
-      extractDealsFromHtml(html, runId, pageUrl);
+    const {
+      deals,
+      cardsFound,
+      fingerprint,
+      firstHref,
+      firstTitle,
+      priceInBagSkipped,
+      canonical,
+    } = extractDealsFromHtml(html, runId, pageUrl);
 
-    // If no products, stop (past end)
+    pageDebug.push({
+      pageNum,
+      pageUrl,
+      canonical: canonical || null,
+      cardsFound,
+      extractedThisPage: deals.length,
+      firstHref: firstHref ? absFinishlineUrl(firstHref) : null,
+      firstTitle: firstTitle || null,
+    });
+
+    // Stop if no cards
     if (cardsFound === 0) {
       console.log(`[${runId}] FINISHLINE stop: cardsFound=0 page=${pageNum}`);
       break;
     }
 
-    // If fingerprint repeats, stop (pagination not advancing; repeats page 1 behavior)
+    // Stop if exact same page repeats
     if (seenFingerprints.has(fingerprint)) {
       console.log(`[${runId}] FINISHLINE stop: pagination stalled (repeat fingerprint) page=${pageNum}`);
-      console.log(`[${runId}] FINISHLINE repeat details:`, {
-        pageNum,
-        cardsFound,
-        firstHref: (firstHref || "").slice(0, 90),
-        firstTitle: shortText(firstTitle, 90),
-      });
       break;
     }
     seenFingerprints.add(fingerprint);
@@ -408,13 +413,31 @@ async function scrapeAll(runId) {
     dealsFound += cardsFound;
     priceInBagSkippedTotal += priceInBagSkipped;
 
-    allDeals.push(...deals);
+    // Add deals, but track whether the page contributed anything NEW.
+    let newOnThisPage = 0;
+    for (const d of deals) {
+      const key = d.listingURL;
+      if (!key) continue;
+      if (seenListingUrls.has(key)) continue;
+      seenListingUrls.add(key);
+      allDeals.push(d);
+      newOnThisPage += 1;
+
+      if (allDeals.length >= MAX_ITEMS_TOTAL) break;
+    }
 
     console.log(
-      `[${runId}] FINISHLINE page done: page=${pageNum} cardsFound=${cardsFound} extracted=${deals.length} priceInBagSkipped=${priceInBagSkipped}`
+      `[${runId}] FINISHLINE page done: page=${pageNum} cardsFound=${cardsFound} extracted=${deals.length} newUnique=${newOnThisPage}`
     );
 
-    // Hard cap just in case
+    // ✅ Critical stop condition for your exact scenario:
+    // If there is no real page 2, Finish Line serves page 1 again or serves a page
+    // that contributes zero NEW extracted deals — so stop.
+    if (pageNum > 1 && newOnThisPage === 0) {
+      console.log(`[${runId}] FINISHLINE stop: page contributed 0 new unique deals page=${pageNum}`);
+      break;
+    }
+
     if (allDeals.length >= MAX_ITEMS_TOTAL) {
       console.log(`[${runId}] FINISHLINE stop: MAX_ITEMS_TOTAL reached (${MAX_ITEMS_TOTAL})`);
       break;
@@ -423,10 +446,6 @@ async function scrapeAll(runId) {
 
   const deduped = uniqByKey(allDeals, (d) => d.listingURL || d.listingName).slice(0, MAX_ITEMS_TOTAL);
   const scrapeDurationMs = msSince(startedAt);
-
-  console.log(
-    `[${runId}] FINISHLINE scrapeAll: totalBeforeDedupe=${allDeals.length} totalAfterDedupe=${deduped.length} pagesFetched=${pagesFetched} durationMs=${scrapeDurationMs}`
-  );
 
   return {
     store: STORE,
@@ -438,7 +457,7 @@ async function scrapeAll(runId) {
     sourceUrls,
     pagesFetched,
 
-    dealsFound, // total cards found across fetched pages (not just extracted)
+    dealsFound, // total product cards seen across fetched pages
     dealsExtracted: deduped.length,
 
     scrapeDurationMs,
@@ -446,8 +465,10 @@ async function scrapeAll(runId) {
     ok: true,
     error: null,
 
-    // helpful counter you asked for
     priceInBagSkipped: priceInBagSkippedTotal,
+
+    // helpful proof of behavior (remove if you want it ultra-minimal)
+    pageDebug,
 
     deals: deduped,
   };
@@ -460,8 +481,7 @@ module.exports = async function handler(req, res) {
   const runId = `finishline-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
   const t0 = Date.now();
 
-  // ✅ REQUIRE CRON SECRET (same pattern as your HOKA scraper)
- /* const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
+  const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
   if (!CRON_SECRET) {
     return res.status(500).json({ ok: false, error: "CRON_SECRET not configured" });
   }
@@ -470,7 +490,7 @@ module.exports = async function handler(req, res) {
   if (provided !== CRON_SECRET) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
-*/
+
   console.log(`[${runId}] FINISHLINE handler start ${nowIso()}`);
   console.log(`[${runId}] method=${req.method} path=${req.url || ""}`);
   console.log(
@@ -493,9 +513,6 @@ module.exports = async function handler(req, res) {
     });
 
     console.log(`[${runId}] FINISHLINE blob write done: url=${blobRes.url} time=${msSince(t0)}ms`);
-    console.log(
-      `[${runId}] FINISHLINE expected public url endswith: /${BLOB_PATHNAME} (yours: .../finishline.json)`
-    );
 
     res.status(200).json({
       ok: true,
