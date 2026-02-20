@@ -1,205 +1,355 @@
-// /api/scrapers/hoka-sale.js
+// /api/scrapers/hoka-firecrawl.js 
+// Hit this route manually to test: /api/run-hoka
 //
-// HOKA Sale (Shoes) scraper
-// URL: https://www.hoka.com/en/us/sale/?prefn1=type&prefv1=shoes
+// Purpose:
+// - Fetch HOKA sale shoes page via Firecrawl (scrape endpoint)
+// - Extract canonical 11-field deals
+// - Upload to Vercel Blob as hoka.json
 //
-// RULES (per you):
-// - Gender MUST be present in the listing tile text (NO fallback to URL or elsewhere).
-// - Allowed genders only: "womens", "mens", "unisex"
-// - If gender missing OR not one of those -> EXCLUDE the deal.
-// - Keep unisex if explicitly present.
-// - Deal included only if BOTH sale and original prices are present as numbers.
-//
-// Output schema aligns with Shoe Beagle canonical fields.
+// Debug logging:
+// - Logs request start, fetch status, HTML size, extraction counts, sample deal, blob write result.
 
 const cheerio = require("cheerio");
+const { put } = require("@vercel/blob");
 
-const TARGET_URL = "https://www.hoka.com/en/us/sale/?prefn1=type&prefv1=shoes";
+const SOURCES = [
+  {
+    key: "sale",
+    url: "https://www.hoka.com/en/us/sale/?prefn1=type&prefv1=shoes",
+  },
+];
 
+const BLOB_PATHNAME = "hoka.json";
+const MAX_ITEMS_TOTAL = 5000;
+
+// -----------------------------
+// DEBUG HELPERS
+// -----------------------------
 function nowIso() {
   return new Date().toISOString();
 }
 
-function toAbsUrl(href) {
+function msSince(t0) {
+  const ms = Date.now() - t0;
+  return `${ms}ms`;
+}
+
+function shortText(s, n = 220) {
+  if (!s) return "";
+  const t = String(s).replace(/\s+/g, " ").trim();
+  return t.length > n ? t.slice(0, n) + "…" : t;
+}
+
+// -----------------------------
+// CORE HELPERS
+// -----------------------------
+function absUrl(href) {
   if (!href) return null;
   if (/^https?:\/\//i.test(href)) return href;
   return new URL(href, "https://www.hoka.com").toString();
 }
 
-function parseMoney(s) {
-  const m = String(s || "")
+function parseMoney(text) {
+  if (!text) return null;
+  const m = String(text)
     .replace(/&nbsp;/g, " ")
     .replace(/\s+/g, " ")
     .trim()
-    .match(/(\d+(?:\.\d{1,2})?)/);
+    .match(/\$?\s*([\d,]+(\.\d{1,2})?)/);
   if (!m) return null;
-  const n = Number(m[1]);
-  return Number.isFinite(n) ? n : null;
+  const num = Number(m[1].replace(/,/g, ""));
+  return Number.isFinite(num) ? num : null;
 }
 
-function normalizeGenderFromListing(label) {
+function calcDiscountPercent(salePrice, originalPrice) {
+  if (salePrice == null || originalPrice == null) return null;
+  if (!(originalPrice > 0)) return null;
+  const pct = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+  return Number.isFinite(pct) ? pct : null;
+}
+
+// Gender MUST be present in listing tile text (NO fallback to URL or elsewhere).
+// Allowed: "womens", "mens", "unisex" — anything else returns null (exclude deal).
+function normalizeGender(label) {
   const s = String(label || "").trim().toLowerCase();
-
-  // NO fallback. If empty => reject.
   if (!s) return null;
-
   if (s === "women" || s === "women's" || s === "womens") return "womens";
   if (s === "men" || s === "men's" || s === "mens") return "mens";
   if (s === "unisex") return "unisex";
-
   return null;
 }
 
-// Try common price patterns you might see on SFCC / Deckers sites.
-// We REQUIRE both sale & original; if we can't confidently find both, skip.
-function extractPrices($tile) {
-  // sale often appears in: .price .sales
-  const saleText =
-    $tile.find(".price .sales").first().text().trim() ||
-    $tile.find(".sales").first().text().trim() ||
-    "";
-
-  // original often appears in: .price .strike-through, .price .list, .price .value (varies)
-  const originalText =
-    $tile.find(".price .strike-through").first().text().trim() ||
-    $tile.find(".price .list").first().text().trim() ||
-    $tile.find(".strike-through").first().text().trim() ||
-    $tile.find(".list").first().text().trim() ||
-    "";
-
-  const salePrice = parseMoney(saleText);
-  const originalPrice = parseMoney(originalText);
-
-  // Require both
-  if (salePrice == null || originalPrice == null) return null;
-
-  // Basic sanity
-  if (originalPrice <= 0 || salePrice <= 0) return null;
-
-  return { salePrice, originalPrice };
+function detectShoeTypeFromListingName(listingName) {
+  const s = (listingName || "").toLowerCase();
+  if (s.includes("trail")) return "trail";
+  if (s.includes("road")) return "road";
+  if (s.includes("track")) return "track";
+  return "unknown";
 }
-
-function computeDiscountPercent(salePrice, originalPrice) {
-  if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice) || originalPrice <= 0) return null;
-  const pct = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
-  if (!Number.isFinite(pct)) return null;
-  // allow 0% but usually sale < original
-  return pct;
-}
-
-module.exports = async function handler(req, res) {
-  try {
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 25000);
-
-    const resp = await fetch(TARGET_URL, {
-      method: "GET",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
-        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "accept-language": "en-US,en;q=0.9",
-      },
-    }).finally(() => clearTimeout(t));
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      return res.status(502).json({
-        success: false,
-        error: `Fetch failed: ${resp.status} ${resp.statusText}`,
-        url: TARGET_URL,
-        sample: text ? text.slice(0, 400) : null,
-        lastUpdated: nowIso(),
-      });
-    }
-
-    const html = await resp.text();
-    const $ = cheerio.load(html);
-
-    const deals = [];
-
-    // This matches your snippet: div.tile-suggest ... a.product-suggestion__link ... etc.
-    $(".tile-suggest").each((_, el) => {
-      const $tile = $(el);
-
-      const a = $tile.find("a.product-suggestion__link").first();
-      const href = a.attr("href") || "";
-      const listingURL = toAbsUrl(href);
-      if (!listingURL) return;
-
-      // ✅ Gender MUST come from listing label ONLY (NO fallback)
-      const genderLabel = $tile.find(".name > span").first().text();
-      const gender = normalizeGenderFromListing(genderLabel);
-      if (!gender) return; // exclude if missing/unknown
-
-      // Product name (model) from listing tile
-      // Your snippet is:
-      // <div class="name"><span>Women's</span><br/>Bondi 9</div>
-      // We'll take the text content of .name, remove the gender label, and trim.
-      let nameText = $tile.find(".name").first().text().replace(/\s+/g, " ").trim();
-      const gl = String(genderLabel || "").replace(/\s+/g, " ").trim();
-      if (gl) nameText = nameText.replace(new RegExp(`^${escapeRegExp(gl)}\\s*`, "i"), "").trim();
-      const modelName = nameText || null;
-      if (!modelName) return;
-
-      // Image
-      const img = $tile.find("img.suggestion-img, img").first();
-      const imageURL = img.attr("data-src") || img.attr("src") || null;
-
-      // Prices: require both sale + original
-      const prices = extractPrices($tile);
-      if (!prices) return;
-
-      const { salePrice, originalPrice } = prices;
-      const discountPercent = computeDiscountPercent(salePrice, originalPrice);
-
-      // listingName: keep it simple and stable (don’t “parse-clean” it)
-      // NOTE: You did not mention a listingName rule here; this preserves the visible name.
-      const listingName = `${genderLabel ? String(genderLabel).trim() : ""} ${modelName}`.trim();
-
-      deals.push({
-        listingName,
-        brand: "hoka",
-        model: modelName,
-
-        salePrice,
-        originalPrice,
-        discountPercent,
-
-        store: "HOKA",
-        listingURL,
-        imageURL,
-
-        gender,
-        shoeType: "shoes",
-      });
-    });
-
-    return res.status(200).json({
-      success: true,
-      store: "HOKA",
-      url: TARGET_URL,
-      lastUpdated: nowIso(),
-      totalDeals: deals.length,
-      deals,
-      metadata: {
-        genderRule: "MUST be present in tile listing label; no fallback; allowed: womens/mens/unisex",
-        priceRule: "requires both salePrice and originalPrice",
-      },
-    });
-  } catch (err) {
-    const msg = err && err.name === "AbortError" ? "Fetch timed out" : String(err?.message || err);
-    return res.status(500).json({
-      success: false,
-      error: msg,
-      url: TARGET_URL,
-      lastUpdated: nowIso(),
-    });
-  }
-};
 
 function escapeRegExp(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+function uniqByKey(items, keyFn) {
+  const seen = new Set();
+  const out = [];
+  for (const it of items) {
+    const k = keyFn(it);
+    if (!k) continue;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(it);
+  }
+  return out;
+}
+
+// -----------------------------
+// FIRECRAWL FETCH
+// -----------------------------
+async function fetchHtmlViaFirecrawl(url, runId) {
+  const t0 = Date.now();
+  const apiKey = process.env.FIRECRAWL_API_KEY;
+
+  if (!apiKey) throw new Error("FIRECRAWL_API_KEY env var is not set");
+
+  console.log(`[${runId}] HOKA firecrawl start: ${url}`);
+
+  let res;
+  let json;
+
+  try {
+    res = await fetch("https://api.firecrawl.dev/v1/scrape", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        url,
+        formats: ["html"],
+        onlyMainContent: false,
+        waitFor: 3000, // allow JS-rendered content to settle
+      }),
+    });
+  } catch (e) {
+    console.error(`[${runId}] HOKA firecrawl network error after ${msSince(t0)}:`, e);
+    throw e;
+  }
+
+  try {
+    json = await res.json();
+  } catch (e) {
+    console.error(`[${runId}] HOKA firecrawl parse error after ${msSince(t0)}:`, e);
+    throw e;
+  }
+
+  console.log(
+    `[${runId}] HOKA firecrawl done: status=${res.status} ok=${res.ok} time=${msSince(t0)}`
+  );
+
+  if (!res.ok || !json.success) {
+    console.log(`[${runId}] HOKA firecrawl error response:`, JSON.stringify(json).slice(0, 300));
+    throw new Error(`Firecrawl failed: ${res.status} — ${json?.error || "unknown error"}`);
+  }
+
+  const html = json?.data?.html || "";
+  console.log(`[${runId}] HOKA firecrawl htmlLen=${html.length}`);
+
+  if (!html) throw new Error("Firecrawl returned empty HTML");
+
+  return html;
+}
+
+// -----------------------------
+// PARSE / EXTRACT
+// -----------------------------
+function extractDealsFromHtml(html, runId, sourceKey) {
+  const t0 = Date.now();
+  const $ = cheerio.load(html);
+  const deals = [];
+
+  const cardCount = $(".tile-suggest").length;
+  console.log(`[${runId}] HOKA parse ${sourceKey}: cardsFound=${cardCount}`);
+
+  $(".tile-suggest").each((_, el) => {
+    const $tile = $(el);
+
+    const a = $tile.find("a.product-suggestion__link").first();
+    const href = a.attr("href") || "";
+    const listingURL = absUrl(href);
+    if (!listingURL) return;
+
+    // Gender MUST come from listing label ONLY — no fallback
+    const genderLabel = $tile.find(".name > span").first().text().trim();
+    const gender = normalizeGender(genderLabel);
+    if (!gender) return;
+
+    // Model name: full .name text minus the gender label prefix
+    let nameText = $tile.find(".name").first().text().replace(/\s+/g, " ").trim();
+    if (genderLabel) {
+      nameText = nameText
+        .replace(new RegExp(`^${escapeRegExp(genderLabel)}\\s*`, "i"), "")
+        .trim();
+    }
+    const model = nameText || null;
+    if (!model) return;
+
+    const listingName = `${genderLabel} ${model}`.trim();
+
+    const imageURL =
+      $tile.find("img.suggestion-img, img").first().attr("data-src") ||
+      $tile.find("img.suggestion-img, img").first().attr("src") ||
+      null;
+
+    // Prices — require BOTH sale and original
+    const salePriceText =
+      $tile.find(".price .sales").first().text().trim() ||
+      $tile.find(".sales").first().text().trim() ||
+      "";
+    const originalPriceText =
+      $tile.find(".price .strike-through").first().text().trim() ||
+      $tile.find(".price .list").first().text().trim() ||
+      $tile.find(".strike-through").first().text().trim() ||
+      $tile.find(".list").first().text().trim() ||
+      "";
+
+    const salePrice = parseMoney(salePriceText);
+    const originalPrice = parseMoney(originalPriceText);
+    if (salePrice == null || originalPrice == null) return;
+    if (salePrice <= 0 || originalPrice <= 0) return;
+
+    const discountPercent = calcDiscountPercent(salePrice, originalPrice);
+    const shoeType = detectShoeTypeFromListingName(listingName);
+
+    deals.push({
+      listingName,
+      brand: "hoka",
+      model,
+      salePrice,
+      originalPrice,
+      discountPercent,
+      store: "HOKA",
+      listingURL,
+      imageURL: imageURL ?? null,
+      gender,
+      shoeType,
+    });
+  });
+
+  const deduped = uniqByKey(
+    deals,
+    (d) => d.listingURL || `${d.listingName}||${d.imageURL || ""}`
+  ).slice(0, MAX_ITEMS_TOTAL);
+
+  console.log(
+    `[${runId}] HOKA parse ${sourceKey}: extracted=${deals.length} deduped=${deduped.length} time=${msSince(t0)}`
+  );
+
+  if (deduped.length) {
+    const s = deduped[0];
+    console.log(`[${runId}] HOKA sample ${sourceKey}:`, {
+      listingName: shortText(s.listingName, 80),
+      salePrice: s.salePrice,
+      originalPrice: s.originalPrice,
+      listingURL: s.listingURL ? s.listingURL.slice(0, 80) : null,
+    });
+  } else {
+    console.log(`[${runId}] HOKA sample ${sourceKey}: none`);
+  }
+
+  return deduped;
+}
+
+async function scrapeAll(runId) {
+  const startedAt = nowIso();
+  const t0 = Date.now();
+  const perSourceCounts = {};
+  const allDeals = [];
+
+  for (const src of SOURCES) {
+    console.log(`[${runId}] HOKA source start: ${src.key}`);
+    const html = await fetchHtmlViaFirecrawl(src.url, runId);
+    const deals = extractDealsFromHtml(html, runId, src.key);
+    perSourceCounts[src.key] = deals.length;
+    allDeals.push(...deals);
+    console.log(`[${runId}] HOKA source done: ${src.key} deals=${deals.length}`);
+  }
+
+  const deals = uniqByKey(
+    allDeals,
+    (d) => d.listingURL || `${d.listingName}||${d.imageURL || ""}`
+  ).slice(0, MAX_ITEMS_TOTAL);
+
+  console.log(
+    `[${runId}] HOKA scrapeAll: totalBeforeDedupe=${allDeals.length} totalAfterDedupe=${deals.length} time=${msSince(t0)}`
+  );
+
+  return {
+    meta: {
+      store: "HOKA",
+      scrapedAt: nowIso(),
+      startedAt,
+      sourcePages: SOURCES,
+      countsBySource: perSourceCounts,
+      totalDeals: deals.length,
+      notes: [
+        "Gender MUST be present in tile listing label; no fallback; allowed: womens/mens/unisex.",
+        "shoeType only set if listingName contains trail/road/track; otherwise 'unknown'.",
+        "Both salePrice and originalPrice required — tiles missing either are excluded.",
+        "Fetched via Firecrawl scrape API with waitFor:3000 to allow JS rendering.",
+      ],
+      runId,
+    },
+    deals,
+  };
+}
+
+// -----------------------------
+// HANDLER
+// -----------------------------
+module.exports = async function handler(req, res) {
+  const runId = `hoka-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  const t0 = Date.now();
+
+  console.log(`[${runId}] HOKA handler start ${nowIso()}`);
+  console.log(`[${runId}] method=${req.method} path=${req.url || ""}`);
+  console.log(
+    `[${runId}] env: hasBlobToken=${Boolean(process.env.BLOB_READ_WRITE_TOKEN)} hasFirecrawlKey=${Boolean(process.env.FIRECRAWL_API_KEY)} node=${process.version}`
+  );
+
+  try {
+    const data = await scrapeAll(runId);
+
+    console.log(
+      `[${runId}] HOKA blob write start: ${BLOB_PATHNAME} totalDeals=${data.meta.totalDeals}`
+    );
+
+    const blobRes = await put(BLOB_PATHNAME, JSON.stringify(data, null, 2), {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: "application/json",
+    });
+
+    console.log(`[${runId}] HOKA blob write done: url=${blobRes.url} time=${msSince(t0)}`);
+
+    res.status(200).json({
+      ok: true,
+      runId,
+      totalDeals: data.meta.totalDeals,
+      countsBySource: data.meta.countsBySource,
+      blobUrl: blobRes.url,
+      elapsedMs: Date.now() - t0,
+    });
+  } catch (err) {
+    console.error(`[${runId}] HOKA scrape failed:`, err);
+    res.status(500).json({
+      ok: false,
+      runId,
+      error: String(err && err.message ? err.message : err),
+      elapsedMs: Date.now() - t0,
+    });
+  } finally {
+    console.log(`[${runId}] HOKA handler end time=${msSince(t0)}`);
+  }
+};
