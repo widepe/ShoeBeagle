@@ -41,7 +41,12 @@ const SOURCES = [
 
 const BLOB_PATHNAME = "dicks-sporting-goods.json";
 const MAX_ITEMS_TOTAL = 5000;
-const MAX_PAGES_PER_SOURCE = 4;  // bumped from 3; men's has 4 pages (155 products / 48 per page)
+// No fixed page limit — scraper stops automatically when:
+//   1. A page returns 0 product cards (end of catalogue)
+//   2. A page returns 0 new deals not already seen (pure duplicate page)
+//   3. The same page fingerprint repeats (DSG looping on last page)
+//   4. MAX_PAGES_SAFETY_CEILING is hit (absolute backstop against infinite loops)
+const MAX_PAGES_SAFETY_CEILING = 20;
 const SCHEMA_VERSION = 1;
 
 // -----------------------------
@@ -145,15 +150,66 @@ function firstUrlFromSrcset(srcset) {
   return first.split(/\s+/)[0] || null;
 }
 
+// DSG product images live on dks.scene7.com with a real SKU in the path.
+// The Golf Galaxy "productImageUnavailable" placeholder must be rejected.
+// We try itemprop="image" first, then fall back to any img in the card,
+// skipping any URL that matches a known placeholder pattern.
+const PLACEHOLDER_PATTERNS = [
+  /productImageUnavailable/i,
+  /GolfGalaxy/i,
+  /no[_-]?image/i,
+];
+
+function isPlaceholderUrl(url) {
+  if (!url) return true;
+  return PLACEHOLDER_PATTERNS.some((re) => re.test(url));
+}
+
+function getBestUrlFromImg($img) {
+  const candidates = [
+    $img.attr("src"),
+    $img.attr("data-src"),
+    $img.attr("data-original"),
+    firstUrlFromSrcset($img.attr("srcset")),
+    firstUrlFromSrcset($img.attr("data-srcset")),
+  ];
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const url = absUrl(raw);
+    if (url && !isPlaceholderUrl(url)) return url;
+  }
+  return null;
+}
+
 function getImageUrlFromCard($card) {
-  const $img = $card.find('img[itemprop="image"]').first();
-  if (!$img.length) return null;
+  // Pass 1: prefer itemprop="image" if it resolves to a real URL
+  const $itemprop = $card.find('img[itemprop="image"]').first();
+  if ($itemprop.length) {
+    const url = getBestUrlFromImg($itemprop);
+    if (url) return url;
+  }
 
-  const src = $img.attr("src") || $img.attr("data-src") || $img.attr("data-original") || null;
-  const srcset = $img.attr("srcset") || $img.attr("data-srcset") || null;
-  const fromSrcset = firstUrlFromSrcset(srcset);
+  // Pass 2: any img in the card that resolves to a real dks.scene7.com URL
+  let found = null;
+  $card.find("img").each((_, el) => {
+    if (found) return false; // break
+    const $img = $card.find("img").eq(_);
+    const url = getBestUrlFromImg($img);
+    if (url && url.includes("scene7.com")) {
+      found = url;
+    }
+  });
+  if (found) return found;
 
-  return absUrl(src || fromSrcset);
+  // Pass 3: any non-placeholder img anywhere in the card
+  $card.find("img").each((_, el) => {
+    if (found) return false;
+    const $img = $card.find("img").eq(_);
+    const url = getBestUrlFromImg($img);
+    if (url) found = url;
+  });
+
+  return found;
 }
 
 function extractPriceSignalsFromCardText($card) {
@@ -491,8 +547,11 @@ async function scrapeSourceWithPagination(runId, src) {
   let missingPriceSkipped = 0;
   let missingImageSkipped = 0;
 
-  // FIX: loop from 1..MAX_PAGES_PER_SOURCE (1-based) to match DSG's URL scheme
-  for (let pageNumber = 1; pageNumber <= MAX_PAGES_PER_SOURCE; pageNumber++) {
+  // Seen URL sets for duplicate/loop detection
+  const seenListingUrls = new Set();   // all URLs scraped so far across pages
+  let lastPageFingerprint = null;      // fingerprint of the previous page's URL set
+
+  for (let pageNumber = 1; pageNumber <= MAX_PAGES_SAFETY_CEILING; pageNumber++) {
     const pageUrl = withPageNumber(src.url, pageNumber);
     visited.push(pageUrl);
     pagesFetched++;
@@ -512,19 +571,62 @@ async function scrapeSourceWithPagination(runId, src) {
     const cardCount = $("div.product-card").length;
     console.log(`[${runId}] DSG ${src.key} page ${pageNumber} cardsFound=${cardCount}`);
 
+    // Stop condition 1: no cards at all — end of catalogue
     if (!cardCount) {
       console.log(`[${runId}] DSG ${src.key} stop: no cards on page ${pageNumber}`);
       break;
     }
 
-    const parsed = await extractDealsFromHtml(html, runId, src.key);
+    // Build a fingerprint from ALL product-title-link hrefs on this page
+    // (not just priced deals) so we can detect when DSG loops on the last page.
+    // Must happen BEFORE extractDealsFromHtml so it uses the raw card set.
+    const pageUrls = [];
+    $("a.product-title-link").each((_, el) => {
+      const href = $(el).attr("href");
+      if (href) pageUrls.push(href.split("?")[0]); // strip query string for stable fingerprint
+    });
+    pageUrls.sort();
+    const pageFingerprint = pageUrls.join("|");
 
-    sourceDeals.push(...(parsed.deals || []));
+    // Stop condition 3: same page returned twice in a row — DSG is looping on last page
+    if (pageFingerprint && pageFingerprint === lastPageFingerprint) {
+      console.log(`[${runId}] DSG ${src.key} stop: duplicate page fingerprint on page ${pageNumber} — DSG looping`);
+      break;
+    }
+    lastPageFingerprint = pageFingerprint;
+
+    const parsed = await extractDealsFromHtml(html, runId, src.key);
+    const pageDeals = parsed.deals || [];
+
+    // Stop condition 2: count how many deals on this page are genuinely new.
+    // Note: we only check priced deals here (seePriceInCart items are excluded).
+    // A page with cards but 0 priced deals is still valid (all MAP-protected) —
+    // only stop if we HAD priced deals last time and now have zero new ones.
+    const newDeals = pageDeals.filter((d) => {
+      const key = d.listingURL || d.listingName;
+      return key && !seenListingUrls.has(key);
+    });
+
+    if (pageDeals.length > 0 && newDeals.length === 0) {
+      console.log(`[${runId}] DSG ${src.key} stop: page ${pageNumber} had ${pageDeals.length} deals but 0 new — pure duplicate`);
+      break;
+    }
+
+    // Track ALL card URLs as seen (using raw hrefs) so the duplicate-deal check
+    // works correctly on subsequent pages regardless of pricing status
+    $("a.product-title-link").each((_, el) => {
+      const href = $(el).attr("href");
+      if (href) seenListingUrls.add(href.split("?")[0]);
+    });
+
+    sourceDeals.push(...pageDeals);
 
     runningCardsFound += parsed.runningCardsFound || 0;
     seePriceInCartSkipped += parsed.seePriceInCartSkipped || 0;
     missingPriceSkipped += parsed.missingPriceSkipped || 0;
     missingImageSkipped += parsed.missingImageSkipped || 0;
+
+    console.log(`[${runId}] DSG ${src.key} page ${pageNumber} newDeals=${newDeals.length} totalSoFar=${sourceDeals.length}`);
   }
 
   return {
