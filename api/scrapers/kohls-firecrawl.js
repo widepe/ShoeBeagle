@@ -137,18 +137,20 @@ function getImageUrlFromCard($card) {
   return absUrl(src || fromSrcset);
 }
 
-function collectMoneyValues($elements) {
+function collectMoneyValues($, $elements) {
   const nums = [];
   $elements.each((_, el) => {
-    const t = cheerio(el).text ? cheerio(el).text() : null;
+    const t = $(el).text();
     const n = parseMoney(t);
     if (n != null && Number.isFinite(n)) nums.push(n);
   });
+
   // de-dupe exact duplicates (common with nested spans)
   const uniq = Array.from(new Set(nums.map((x) => Number(x.toFixed(2))))).map(Number);
   uniq.sort((a, b) => a - b);
   return uniq;
 }
+
 
 // -----------------------------
 // FIRECRAWL FETCH
@@ -223,8 +225,9 @@ function extractDealsFromHtml(html, runId, sourceKey) {
     if (!imageURL) return;
 
     // Price values (support multiple)
-    const saleValues = collectMoneyValues($card.find('[data-dte="product-sub-sale-price"]'));
-    const originalValues = collectMoneyValues($card.find('[data-dte="product-sub-regular-price"]'));
+const saleValues = collectMoneyValues($, $card.find('[data-dte="product-sub-sale-price"]'));
+const originalValues = collectMoneyValues($, $card.find('[data-dte="product-sub-regular-price"]'));
+
 
     if (!saleValues.length || !originalValues.length) return;
 
