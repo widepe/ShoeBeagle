@@ -29,7 +29,7 @@
 // ENV REQUIRED:
 // - FIRECRAWL_API_KEY
 // - BLOB_READ_WRITE_TOKEN (for @vercel/blob)
-// - CRON_SECRET
+// - _SECRET
 
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
