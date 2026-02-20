@@ -222,13 +222,13 @@ export default async function handler(req, res) {
   const runId = `finishline-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
   // ✅ Cron Secret (commented out for testing)
-  /*
+  
   const expected = String(process.env.CRON_SECRET || "").trim();
   const got = String(req.headers["x-cron-secret"] || "").trim();
   if (!expected || got !== expected) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
-  */
+  
 
   let pagesFetched = 0;
   let dealsFound = 0;
