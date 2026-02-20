@@ -46,7 +46,7 @@ const MAX_ITEMS_TOTAL = 5000;
 //   2. A page returns 0 new deals not already seen (pure duplicate page)
 //   3. The same page fingerprint repeats (DSG looping on last page)
 //   4. MAX_PAGES_SAFETY_CEILING is hit (absolute backstop against infinite loops)
-const MAX_PAGES_SAFETY_CEILING = 20;
+const MAX_PAGES_SAFETY_CEILING = 8;
 const SCHEMA_VERSION = 1;
 
 // -----------------------------
