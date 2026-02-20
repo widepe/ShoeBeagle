@@ -3,15 +3,21 @@
 //
 // Purpose:
 // - Fetch HOKA sale shoes page via Firecrawl
-// - Extract canonical 11-field deals (no imageURL)
+// - Extract canonical deals
 // - Upload to Vercel Blob as hoka.json
 //
 // Env vars required:
 //   FIRECRAWL_API_KEY
 //   BLOB_READ_WRITE_TOKEN
+//   CRON_SECRET   (required for this route; runner passes x-cron-secret)
+//
+// Auth:
+// - Requires CRON_SECRET via header "x-cron-secret" OR query ?key=...
 
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
+
+const STORE = "HOKA";
 
 const SOURCES = [
   {
@@ -46,8 +52,11 @@ function shortText(s, n = 220) {
 // -----------------------------
 function absUrl(href) {
   if (!href) return null;
-  if (/^https?:\/\//i.test(href)) return href;
-  return new URL(href, "https://www.hoka.com").toString();
+  const h = String(href).trim();
+  if (!h) return null;
+  if (/^https?:\/\//i.test(h)) return h;
+  if (h.startsWith("//")) return "https:" + h;
+  return new URL(h, "https://www.hoka.com").toString();
 }
 
 function parseMoney(text) {
@@ -81,7 +90,7 @@ function normalizeGender(label) {
 }
 
 function detectShoeType(listingName) {
-  const s = (listingName || "").toLowerCase();
+  const s = String(listingName || "").toLowerCase();
   if (s.includes("trail")) return "trail";
   if (s.includes("road")) return "road";
   if (s.includes("track")) return "track";
@@ -110,7 +119,7 @@ function uniqByKey(items, keyFn) {
 // -----------------------------
 async function fetchHtmlViaFirecrawl(url, runId) {
   const t0 = Date.now();
-  const apiKey = process.env.FIRECRAWL_API_KEY;
+  const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
   if (!apiKey) throw new Error("FIRECRAWL_API_KEY env var is not set");
 
   console.log(`[${runId}] HOKA firecrawl start: ${url}`);
@@ -130,6 +139,7 @@ async function fetchHtmlViaFirecrawl(url, runId) {
         formats: ["html"],
         onlyMainContent: false,
         waitFor: 3000,
+        timeout: 60000,
       }),
     });
   } catch (e) {
@@ -140,7 +150,8 @@ async function fetchHtmlViaFirecrawl(url, runId) {
   try {
     json = await res.json();
   } catch (e) {
-    console.error(`[${runId}] HOKA firecrawl parse error:`, e);
+    const text = await res.text().catch(() => "");
+    console.error(`[${runId}] HOKA firecrawl JSON parse error. Body:`, (text || "").slice(0, 300));
     throw e;
   }
 
@@ -148,12 +159,12 @@ async function fetchHtmlViaFirecrawl(url, runId) {
     `[${runId}] HOKA firecrawl done: status=${res.status} ok=${res.ok} time=${msSince(t0)}ms`
   );
 
-  if (!res.ok || !json.success) {
+  if (!res.ok || !json?.success) {
     console.log(`[${runId}] HOKA firecrawl error:`, JSON.stringify(json).slice(0, 300));
     throw new Error(`Firecrawl failed: ${res.status} — ${json?.error || "unknown error"}`);
   }
 
-  const html = json?.data?.html || "";
+  const html = json?.data?.html || json?.html || "";
   console.log(`[${runId}] HOKA firecrawl htmlLen=${html.length}`);
   if (!html) throw new Error("Firecrawl returned empty HTML");
 
@@ -186,6 +197,7 @@ function extractDealsFromHtml(html, runId, sourceKey) {
       .text()
       .replace(/\s+/g, " ")
       .trim();
+
     const model = fullNameText
       .replace(new RegExp(`^${escapeRegExp(genderLabel)}\\s*`, "i"), "")
       .trim();
@@ -210,22 +222,34 @@ function extractDealsFromHtml(html, runId, sourceKey) {
     const discountPercent = calcDiscountPercent(salePrice, originalPrice);
     const shoeType = detectShoeType(listingName);
 
-// ✅ Image URL (missing key field)
-const imgSrc =
-  $tile.find("img.tile-image").first().attr("src") ||
-  $tile.find("picture img").first().attr("src") ||
-  null;
-const imageURL = absUrl(imgSrc);
-if (!imageURL) return;
-    
+    // Image URL
+    const imgSrc =
+      $tile.find("img.tile-image").first().attr("src") ||
+      $tile.find("picture img").first().attr("src") ||
+      null;
+
+    const imageURL = absUrl(imgSrc);
+    if (!imageURL) return;
+
     deals.push({
+      schemaVersion: SCHEMA_VERSION,
+
       listingName,
       brand: "HOKA",
       model,
+
       salePrice,
       originalPrice,
       discountPercent,
-      store: "HOKA",
+
+      // range fields not used on HOKA currently
+      salePriceLow: null,
+      salePriceHigh: null,
+      originalPriceLow: null,
+      originalPriceHigh: null,
+      discountPercentUpTo: null,
+
+      store: STORE,
       listingURL,
       imageURL,
       gender,
@@ -233,10 +257,7 @@ if (!imageURL) return;
     });
   });
 
-  const deduped = uniqByKey(
-    deals,
-    (d) => d.listingURL || d.listingName
-  ).slice(0, MAX_ITEMS_TOTAL);
+  const deduped = uniqByKey(deals, (d) => d.listingURL || d.listingName).slice(0, MAX_ITEMS_TOTAL);
 
   console.log(
     `[${runId}] HOKA parse ${sourceKey}: extracted=${deals.length} deduped=${deduped.length} time=${msSince(t0)}ms`
@@ -263,23 +284,17 @@ if (!imageURL) return;
 async function scrapeAll(runId) {
   const startedAt = Date.now();
   const sourceUrls = SOURCES.map((s) => s.url);
-  const countsBySource = {};
   const allDeals = [];
 
   for (const src of SOURCES) {
     console.log(`[${runId}] HOKA source start: ${src.key}`);
     const html = await fetchHtmlViaFirecrawl(src.url, runId);
     const deals = extractDealsFromHtml(html, runId, src.key);
-    countsBySource[src.key] = deals.length;
     allDeals.push(...deals);
     console.log(`[${runId}] HOKA source done: ${src.key} deals=${deals.length}`);
   }
 
-  const deals = uniqByKey(
-    allDeals,
-    (d) => d.listingURL || d.listingName
-  ).slice(0, MAX_ITEMS_TOTAL);
-
+  const deals = uniqByKey(allDeals, (d) => d.listingURL || d.listingName).slice(0, MAX_ITEMS_TOTAL);
   const scrapeDurationMs = msSince(startedAt);
 
   console.log(
@@ -287,17 +302,23 @@ async function scrapeAll(runId) {
   );
 
   return {
-    store: "HOKA",
+    store: STORE,
     schemaVersion: SCHEMA_VERSION,
+
     lastUpdated: nowIso(),
     via: "firecrawl",
+
     sourceUrls,
     pagesFetched: SOURCES.length,
+
     dealsFound: allDeals.length,
     dealsExtracted: deals.length,
+
     scrapeDurationMs,
+
     ok: true,
     error: null,
+
     deals,
   };
 }
@@ -309,10 +330,23 @@ module.exports = async function handler(req, res) {
   const runId = `hoka-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
   const t0 = Date.now();
 
+  // ✅ REQUIRE CRON SECRET (same pattern as your other scrapers)
+  const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
+  if (!CRON_SECRET) {
+    return res.status(500).json({ ok: false, error: "CRON_SECRET not configured" });
+  }
+
+  const provided = String(req.headers["x-cron-secret"] || req.query?.key || "").trim();
+  if (provided !== CRON_SECRET) {
+    return res.status(401).json({ ok: false, error: "Unauthorized" });
+  }
+
   console.log(`[${runId}] HOKA handler start ${nowIso()}`);
   console.log(`[${runId}] method=${req.method} path=${req.url || ""}`);
   console.log(
-    `[${runId}] env: hasBlobToken=${Boolean(process.env.BLOB_READ_WRITE_TOKEN)} hasFirecrawlKey=${Boolean(process.env.FIRECRAWL_API_KEY)} node=${process.version}`
+    `[${runId}] env: hasBlobToken=${Boolean(process.env.BLOB_READ_WRITE_TOKEN)} hasFirecrawlKey=${Boolean(
+      process.env.FIRECRAWL_API_KEY
+    )} node=${process.version}`
   );
 
   try {
