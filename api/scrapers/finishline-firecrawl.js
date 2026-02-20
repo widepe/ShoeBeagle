@@ -197,8 +197,51 @@ export default async function handler(req, res) {
       const listingURL = normalizeUrl(href);
       if (!listingURL) return;
 
+       // --- imageURL (robust for lazy-loading / srcset) ---
       const img = card.find("img").first();
-      const imageURL = img.attr("src") || null;
+
+      // Try src first
+      let imageURL =
+        img.attr("src") ||
+        img.attr("data-src") ||
+        img.attr("data-lazy-src") ||
+        img.attr("data-original") ||
+        null;
+
+      // If no direct src, try srcset variants
+      if (!imageURL) {
+        const rawSrcset =
+          img.attr("srcset") ||
+          img.attr("data-srcset") ||
+          img.attr("data-lazy-srcset") ||
+          null;
+
+        if (rawSrcset) {
+          imageURL = String(rawSrcset)
+            .split(",")[0]
+            .trim()
+            .split(/\s+/)[0] || null;
+        }
+      }
+
+      // If still no image, check <picture><source>
+      if (!imageURL) {
+        const sourceSrcset =
+          card.find("picture source").first().attr("srcset") ||
+          card.find("picture source").first().attr("data-srcset") ||
+          null;
+
+        if (sourceSrcset) {
+          imageURL = String(sourceSrcset)
+            .split(",")[0]
+            .trim()
+            .split(/\s+/)[0] || null;
+        }
+      }
+
+      // Normalize to absolute URL
+      imageURL = imageURL ? normalizeUrl(imageURL) : null;
+
 
       const listingName = asText(card.find("h4").first());
       if (!listingName) return;
