@@ -444,7 +444,6 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
     if (!imageURL) continue;
 
     // Price in card (when available)
-    const pricingBlock = $card.find(".product-pricing, hmf-price, [class*='pricing']").first();
     const saleEls = $card.find(".price-sale, .hmf-body-bold-l.price-sale, [class*='price-sale']");
     const origEls = $card.find(".hmf-text-decoration-linethrough, [class*='linethrough'], [class*='strike']");
 
