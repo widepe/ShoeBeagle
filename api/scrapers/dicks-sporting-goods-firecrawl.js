@@ -166,8 +166,8 @@ function normalizeHtmlUrl(u) {
 function getImageUrlFromCard($card) {
   const candidates = [];
 
-  $card.find("img").each((_, img) => {
-    const $img = $card.find(img);
+  $card.find("img").each((_, imgEl) => {
+    const $img = cheerio(imgEl); // ✅ wrap element directly
 
     const attrsToCheck = ["src", "data-src", "data-original", "srcset", "data-srcset"];
     for (const a of attrsToCheck) {
@@ -187,27 +187,23 @@ function getImageUrlFromCard($card) {
   const cleaned = candidates
     .map((u) => String(u).trim())
     .filter(Boolean)
-    .filter((u) => !u.startsWith("data:image/")) // reject inline payloads
+    .filter((u) => !u.startsWith("data:image/"))
     .map((u) => absUrl(u))
     .filter(Boolean);
 
   if (!cleaned.length) return null;
 
-  // 1) Prefer any real Scene7 /is/image/* that is NOT the placeholder
+  // Prefer any real Scene7 image (dkscdn OR GolfGalaxy OR others), not the placeholder
   const scene7Real = cleaned.find((u) => {
     const lower = u.toLowerCase();
-    return (
-      lower.includes("dks.scene7.com/is/image/") &&
-      !lower.includes("productimageunavailable")
-    );
+    return lower.includes("dks.scene7.com/is/image/") && !lower.includes("productimageunavailable");
   });
   if (scene7Real) return scene7Real;
 
-  // 2) Otherwise, take any non-placeholder non-data image we found
+  // Otherwise any non-placeholder
   const nonPlaceholder = cleaned.find((u) => !u.toLowerCase().includes("productimageunavailable"));
   if (nonPlaceholder) return nonPlaceholder;
 
-  // 3) If all we saw is placeholder, treat as missing
   return null;
 }
 
