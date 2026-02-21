@@ -81,7 +81,7 @@ module.exports = async (req, res) => {
   if (req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
-
+/*
   // ✅ Accept either header style:
   // - Authorization: Bearer <CRON_SECRET>
   // - x-cron-secret: <CRON_SECRET>
@@ -95,7 +95,7 @@ module.exports = async (req, res) => {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
   }
-
+*/
   const startedAtIso = nowIso();
   const overallStart = Date.now();
 
