@@ -1179,8 +1179,8 @@ module.exports = async (req, res) => {
   //  URLs (-only mode)
   // ============================================================================
 
-  const ALS_SALE__BLOB_URL = String(process.env.ALS_SALE_BLOB_URL || "").trim();
-  const ASICS_SALE__BLOB_URL = String(process.env.ASICS_SAL_BLOB_URL || "").trim();
+  const ALS_SALE_BLOB_URL = String(process.env.ALS_SALE_BLOB_URL || "").trim();
+  const ASICS_SALE_BLOB_URL = String(process.env.ASICS_SALE_BLOB_URL || "").trim();
   const BACKCOUNTRY_DEALS_BLOB_URL = String(process.env.BACKCOUNTRY_DEALS_BLOB_URL || "").trim();
   const BROOKS_DEALS_BLOB_URL = String(process.env.BROOKS_DEALS_BLOB_URL || "").trim();
   const FINISHLINE_DEALS_BLOB_URL = String(process.env.FINISHLINE_DEALS_BLOB_URL || "").trim();
