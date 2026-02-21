@@ -151,21 +151,29 @@ function uniqByKey(items, keyFn) {
   return out;
 }
 
-// Derive the product image URL directly from the SKU embedded in the listing URL.
-// DSG listing URLs follow: /p/some-slug-SKUCODE/SKUCODE?categoryId=...&color=...
-// The SKU is the LAST segment of the pathname (before the query string).
-// Using URL().pathname avoids the regex-on-full-string bug where color params
-// like "color=Crimson/Coral" would cause the wrong segment to be extracted.
-// Image CDN pattern: https://dks.scene7.com/is/image/dkscdn/SKUCODE_is/
+// Derive the product image URL from the listing URL.
+// DSG CDN pattern: https://dks.scene7.com/is/image/dkscdn/SKU_Color_is/
+// The listing URL contains both the SKU (last path segment, uppercase) and
+// the color param (e.g. color=Gray). We combine them: SKU_Color_is
+// Example listing URL:
+//   /p/altra-mens-experience-wild-trail-running-shoes-25altmxprncwld2grmns/25altmxprncwld2grmns?categoryId=...&color=Gray
+// Produces:
+//   https://dks.scene7.com/is/image/dkscdn/25ALTMXPRNCWLD2GRMNS_Gray_is/?wid=252&hei=252&qlt=85,0&fmt=jpg&op_sharpen=1
 function getImageUrlFromListingUrl(listingUrl) {
   if (!listingUrl) return null;
   try {
     const u = new URL(listingUrl);
-    // pathname: /p/nike-mens-pegasus-41-running-shoes-24nikmpgss41vltccrnn/24nikmpgss41vltccrnn
+    // SKU is the last path segment, uppercased
     const segments = u.pathname.split("/").filter(Boolean);
-    const sku = segments[segments.length - 1];
+    const sku = segments[segments.length - 1].toUpperCase();
     if (!sku || sku.length < 6) return null;
-    return `https://dks.scene7.com/is/image/dkscdn/${sku}_is/?wid=252&hei=252&qlt=85,0&fmt=jpg&op_sharpen=1`;
+
+    // Color param — take the first word only (e.g. "Crimson/Coral" -> "Crimson")
+    const colorRaw = u.searchParams.get("color") || "";
+    const colorFirst = colorRaw.split("/")[0].replace(/\s+/g, "_").trim();
+
+    const imageId = colorFirst ? `${sku}_${colorFirst}_is` : `${sku}_is`;
+    return `https://dks.scene7.com/is/image/dkscdn/${imageId}/?wid=252&hei=252&qlt=85,0&fmt=jpg&op_sharpen=1`;
   } catch {
     return null;
   }
@@ -284,7 +292,7 @@ async function fetchHtmlViaFirecrawl(url, runId, label = "DSG") {
       onlyMainContent: false,
       waitFor: 5000,
       timeout: 75000,
-      skipCache: true,   // force fresh fetch — prevents Firecrawl returning cached page 1 for all pages
+      maxAge: 0,   // force fresh fetch — bypass Firecrawl's 2-day default cache
     }),
   });
 
