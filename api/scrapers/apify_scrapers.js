@@ -80,6 +80,22 @@ module.exports = async (req, res) => {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
+  // ✅ Accept either header style:
+  // - Authorization: Bearer <CRON_SECRET>
+  // - x-cron-secret: <CRON_SECRET>
+  const CRON_SECRET = requireEnv("CRON_SECRET");
+  if (CRON_SECRET) {
+    const auth = String(req.headers.authorization || "").trim();
+    const xCron = String(req.headers["x-cron-secret"] || "").trim();
+    const okAuth = auth === `Bearer ${CRON_SECRET}` || xCron === CRON_SECRET;
+
+    if (!okAuth) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+  }
+
+
+  
   const startedAtIso = nowIso();
   const overallStart = Date.now();
 
