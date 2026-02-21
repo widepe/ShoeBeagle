@@ -383,7 +383,7 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
       continue;
     }
 
-    const imageURL = getImageUrlFromCard($card);
+    const imageURL = getImageUrlFromCard($, $card);
     if (!imageURL) {
       imageMissingSkipped++;
       continue;
