@@ -35,7 +35,7 @@ const TARGETS = [
     {
     key: "backcountry",
     name: "Backcountry Firecrawl",
-    path: "/api/scrapers/backcountry",
+    path: "/api/scrapers/backcountry-firecrawl",
   },
   {
     key: "finishline",
