@@ -86,9 +86,7 @@
   "enabled": true,
   "scraperType": "firecrawl",
   "notes": "Finish Line running shoes sale page via Firecrawl. Scrapes ONE page only (no pagination). Skips 'See price in bag' items and counts skips. imageURL uses media.finishline.com img/srcset fallback, then data-sku fallback. Writes to finishline.json."
-}
-
-
+},
   
   {
     "id": "fleet-feet",
