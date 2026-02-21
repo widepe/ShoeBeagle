@@ -305,7 +305,7 @@ async function fetchHtmlViaFirecrawl(url, runId, label = "DSG") {
 
   console.log(`[${runId}] ${label} firecrawl start: ${url}`);
 
-  const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
+  const res = await fetch("https://api.firecrawl.dev/v2/scrape", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -313,11 +313,57 @@ async function fetchHtmlViaFirecrawl(url, runId, label = "DSG") {
     },
     body: JSON.stringify({
       url,
-      formats: ["html"],
+
+      // ✅ request rawHtml (often captures more of the hydrated DOM)
+      formats: ["rawHtml"],
+
       onlyMainContent: false,
-      waitFor: 3500,
-      timeout: 60000,
-      maxAge: 0, // force fresh
+      maxAge: 0,
+
+      // ✅ give it a little more time up-front
+      waitFor: 2000,
+      timeout: 90000,
+
+      // ✅ hydrate + trigger lazy-load
+      actions: [
+        // wait for product cards to exist
+        { type: "wait", selector: "div#product-card" },
+
+        // scroll down a few times (triggers intersection-observer image loading)
+        { type: "scroll", direction: "down" },
+        { type: "wait", milliseconds: 800 },
+        { type: "scroll", direction: "down" },
+        { type: "wait", milliseconds: 800 },
+        { type: "scroll", direction: "down" },
+        { type: "wait", milliseconds: 800 },
+
+        // force-load images by touching them + scrolling them into view
+        {
+          type: "executeJavascript",
+          script: `
+            (async () => {
+              const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+              const imgs = Array.from(document.querySelectorAll('img[itemprop="image"], img'));
+              for (const img of imgs) {
+                try {
+                  img.loading = 'eager';
+                  img.fetchPriority = 'high';
+                  img.decoding = 'sync';
+                  img.scrollIntoView({behavior:'instant', block:'center'});
+                } catch(e) {}
+                await sleep(50);
+              }
+              window.scrollTo(0, 0);
+              await sleep(500);
+              window.scrollTo(0, document.body.scrollHeight);
+              await sleep(1200);
+            })();
+          `,
+        },
+
+        // final settle
+        { type: "wait", milliseconds: 1500 },
+      ],
     }),
   });
 
@@ -333,17 +379,17 @@ async function fetchHtmlViaFirecrawl(url, runId, label = "DSG") {
   console.log(`[${runId}] ${label} firecrawl done: status=${res.status} ok=${res.ok} time=${msSince(t0)}ms`);
 
   if (!res.ok || !json?.success) {
-    console.log(`[${runId}] ${label} firecrawl error:`, JSON.stringify(json).slice(0, 300));
+    console.log(`[${runId}] ${label} firecrawl error:`, JSON.stringify(json).slice(0, 500));
     throw new Error(`Firecrawl failed: ${res.status} — ${json?.error || "unknown error"}`);
   }
 
-  const html = json?.data?.html || json?.html || "";
+  // v2 shape: data.rawHtml
+  const html = json?.data?.rawHtml || json?.data?.html || "";
   console.log(`[${runId}] ${label} firecrawl htmlLen=${html.length}`);
   if (!html) throw new Error("Firecrawl returned empty HTML");
 
   return html;
 }
-
 // -----------------------------
 // PARSE / EXTRACT (single page)
 // -----------------------------
