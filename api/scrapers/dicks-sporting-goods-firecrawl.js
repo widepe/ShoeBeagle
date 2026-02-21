@@ -156,14 +156,30 @@ function firstUrlFromSrcset(srcset) {
   if (!first) return null;
   return first.split(/\s+/)[0] || null;
 }
-
+function normalizeHtmlUrl(u) {
+  if (!u) return null;
+  return String(u)
+    .replace(/&amp;/g, "&")
+    .replace(/&#38;/g, "&")
+    .trim();
+}
 function getImageUrlFromCard($card) {
   const $img = $card.find('img[itemprop="image"]').first();
   if (!$img.length) return null;
 
-  const src = $img.attr("src") || $img.attr("data-src") || $img.attr("data-original") || null;
-  const srcset = $img.attr("srcset") || $img.attr("data-srcset") || null;
-  const fromSrcset = firstUrlFromSrcset(srcset);
+  const srcRaw =
+    $img.attr("src") ||
+    $img.attr("data-src") ||
+    $img.attr("data-original") ||
+    null;
+
+  const srcsetRaw =
+    $img.attr("srcset") ||
+    $img.attr("data-srcset") ||
+    null;
+
+  const src = normalizeHtmlUrl(srcRaw);
+  const fromSrcset = normalizeHtmlUrl(firstUrlFromSrcset(srcsetRaw));
 
   return absUrl(src || fromSrcset);
 }
