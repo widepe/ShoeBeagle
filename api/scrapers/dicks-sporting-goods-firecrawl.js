@@ -2,12 +2,16 @@
 //
 // Purpose:
 // - Fetch Dick's Sporting Goods men's + women's sale running pages via Firecrawl
-// - Follow pagination (pageNumber param)
+// - Follow pagination (pageNumber param) per source (MAX_PAGES_PER_SOURCE = 3)
 // - Extract canonical deals with optional range fields
+// - STRICT running filter:
+//    * "trail running shoes" => shoeType "trail"
+//    * "running shoes"       => shoeType "road"
+//    * otherwise EXCLUDE
 // - TEMP: Skip "See Price In Cart" items to avoid timeouts
 //   * BUT count them in metadata (seePriceInCartSkipped)
-// - dealsFound counts ALL cards we processed (including skipped)
-// - Price ranges captured from the price container text
+// - FIX: dealsFound counts ALL strict-running cards (including skipped)
+// - FIX: price ranges are captured from the price container text
 //
 // Env vars required:
 //   FIRECRAWL_API_KEY
@@ -34,10 +38,7 @@ const SOURCES = [
 
 const BLOB_PATHNAME = "dicks-sporting-goods.json";
 const MAX_ITEMS_TOTAL = 5000;
-
-// Backstop against infinite loops
-const MAX_PAGES_SAFETY_CEILING = 8;
-
+const MAX_PAGES_PER_SOURCE = 3;
 const SCHEMA_VERSION = 1;
 
 // -----------------------------
@@ -67,15 +68,6 @@ function absUrl(href) {
   if (/^https?:\/\//i.test(h)) return h;
   if (h.startsWith("//")) return "https:" + h;
   return new URL(h, "https://www.dickssportinggoods.com").toString();
-}
-
-// ✅ DSG card selector (fix for product-card-content / id="product-card")
-function selectProductCards($) {
-  // Based on your outerHTML: <div id="product-card" class="product-card-content ...">
-  // Keep fallback for older markup: div.product-card
-  return $(
-    'div#product-card.product-card-content, div.product-card-content[id="product-card"], div[id="product-card"], div.product-card'
-  );
 }
 
 // Extract ALL $ values from any string (supports "$63.97 - $122.97")
@@ -122,17 +114,12 @@ function detectGenderFromTitle(listingName) {
   return "unknown";
 }
 
-// ✅ Shoe type: ONLY explicit signals set a type.
-// "trail running" => trail
-// "road running"  => road
-// "track"|"spike" => track
-// else            => unknown
-function detectShoeType(listingName) {
+// Your strict rule
+function detectShoeTypeStrict(listingName) {
   const s = String(listingName || "").toLowerCase();
-  if (s.includes("trail running")) return "trail";
-  if (s.includes("road running")) return "road";
-  if (s.includes("track") || s.includes("spike")) return "track";
-  return "unknown";
+  if (s.includes("trail running shoes")) return "trail";
+  if (s.includes("running shoes")) return "road";
+  return null;
 }
 
 function uniqByKey(items, keyFn) {
@@ -148,23 +135,22 @@ function uniqByKey(items, keyFn) {
   return out;
 }
 
-// Derive the product image URL from the listing URL.
-function getImageUrlFromListingUrl(listingUrl) {
-  if (!listingUrl) return null;
-  try {
-    const u = new URL(listingUrl);
-    const segments = u.pathname.split("/").filter(Boolean);
-    const sku = segments[segments.length - 1].toUpperCase();
-    if (!sku || sku.length < 6) return null;
+function firstUrlFromSrcset(srcset) {
+  if (!srcset) return null;
+  const first = String(srcset).split(",")[0]?.trim();
+  if (!first) return null;
+  return first.split(/\s+/)[0] || null;
+}
 
-    const colorRaw = u.searchParams.get("color") || "";
-    const colorFirst = colorRaw.split("/")[0].replace(/\s+/g, "_").trim();
+function getImageUrlFromCard($card) {
+  const $img = $card.find('img[itemprop="image"]').first();
+  if (!$img.length) return null;
 
-    const imageId = colorFirst ? `${sku}_${colorFirst}_is` : `${sku}_is`;
-    return `https://dks.scene7.com/is/image/dkscdn/${imageId}/?wid=252&hei=252&qlt=85,0&fmt=jpg&op_sharpen=1`;
-  } catch {
-    return null;
-  }
+  const src = $img.attr("src") || $img.attr("data-src") || $img.attr("data-original") || null;
+  const srcset = $img.attr("srcset") || $img.attr("data-srcset") || null;
+  const fromSrcset = firstUrlFromSrcset(srcset);
+
+  return absUrl(src || fromSrcset);
 }
 
 function extractPriceSignalsFromCardText($card) {
@@ -206,8 +192,7 @@ function guessBrandModel(listingName) {
     .sort((a, b) => b.length - a.length)
     .find(
       (b) =>
-        raw.toLowerCase().startsWith(b.toLowerCase() + " ") ||
-        raw.toLowerCase() === b.toLowerCase()
+        raw.toLowerCase().startsWith(b.toLowerCase() + " ") || raw.toLowerCase() === b.toLowerCase()
     );
 
   let brand;
@@ -227,9 +212,6 @@ function guessBrandModel(listingName) {
       .replace(/\bmen'?s\b/gi, "")
       .replace(/\bunisex\b/gi, "")
       .replace(/\btrail running shoes\b/gi, "")
-      .replace(/\btrail running\b/gi, "")
-      .replace(/\broad running shoes\b/gi, "")
-      .replace(/\broad running\b/gi, "")
       .replace(/\brunning shoes\b/gi, "")
       .replace(/\bshoes?\b/gi, "")
       .replace(/\s+/g, " ")
@@ -238,7 +220,10 @@ function guessBrandModel(listingName) {
   return { brand, model };
 }
 
-// Parse sale/original price values directly from the container text.
+// ✅ NEW: parse sale/original price values directly from the container text
+// Works with your exact DOM:
+//   <div class="price-sale"> $63.97 <span> - $122.97 </span></div>
+//   <div class="hmf-text-decoration-linethrough"> $139.99 <span> - $144.99 </span> *</div>
 function extractSaleAndOriginalValuesFromCard($card) {
   const saleText = $card.find(".price-sale, [class*='price-sale']").first().text() || "";
   const origText = $card
@@ -249,12 +234,9 @@ function extractSaleAndOriginalValuesFromCard($card) {
   const saleVals = parseMoneyAll(saleText);
   const origVals = parseMoneyAll(origText);
 
-  const saleValues = Array.from(new Set(saleVals.map((x) => Number(x.toFixed(2))))).sort(
-    (a, b) => a - b
-  );
-  const originalValues = Array.from(
-    new Set(origVals.map((x) => Number(x.toFixed(2))))
-  ).sort((a, b) => a - b);
+  // normalize
+  const saleValues = Array.from(new Set(saleVals.map((x) => Number(x.toFixed(2))))).sort((a, b) => a - b);
+  const originalValues = Array.from(new Set(origVals.map((x) => Number(x.toFixed(2))))).sort((a, b) => a - b);
 
   return { saleValues, originalValues, saleText, origText };
 }
@@ -269,7 +251,10 @@ async function fetchHtmlViaFirecrawl(url, runId, label = "DSG") {
 
   console.log(`[${runId}] ${label} firecrawl start: ${url}`);
 
-  const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
+  let res;
+  let json;
+
+  res = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -279,13 +264,11 @@ async function fetchHtmlViaFirecrawl(url, runId, label = "DSG") {
       url,
       formats: ["html"],
       onlyMainContent: false,
-      waitFor: 5000,
-      timeout: 75000,
-      maxAge: 0, // force fresh fetch — bypass cache
+      waitFor: 3500,
+      timeout: 60000,
     }),
   });
 
-  let json;
   try {
     json = await res.json();
   } catch (e) {
@@ -294,7 +277,9 @@ async function fetchHtmlViaFirecrawl(url, runId, label = "DSG") {
     throw e;
   }
 
-  console.log(`[${runId}] ${label} firecrawl done: status=${res.status} ok=${res.ok} time=${msSince(t0)}ms`);
+  console.log(
+    `[${runId}] ${label} firecrawl done: status=${res.status} ok=${res.ok} time=${msSince(t0)}ms`
+  );
 
   if (!res.ok || !json?.success) {
     console.log(`[${runId}] ${label} firecrawl error:`, JSON.stringify(json).slice(0, 300));
@@ -317,18 +302,13 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
 
   const deals = [];
 
-  let cardsFound = 0;
-  let dealsFound = 0;
-
+  let runningCardsFound = 0;
   let seePriceInCartSkipped = 0;
   let missingPriceSkipped = 0;
   let missingImageSkipped = 0;
-  let missingTitleSkipped = 0;
-  let missingUrlSkipped = 0;
 
-  const $cards = selectProductCards($);
-  cardsFound = $cards.length;
-  console.log(`[${runId}] DSG parse ${sourceKey}: cardsFound=${cardsFound}`);
+  const $cards = $("div.product-card");
+  console.log(`[${runId}] DSG parse ${sourceKey}: cardsFound=${$cards.length}`);
 
   for (let i = 0; i < $cards.length; i++) {
     const el = $cards.get(i);
@@ -336,24 +316,18 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
 
     const $title = $card.find("a.product-title-link").first();
     const listingName = $title.text().replace(/\s+/g, " ").trim();
-    if (!listingName) {
-      missingTitleSkipped++;
-      continue;
-    }
+    if (!listingName) continue;
 
-    // Count this as a "found deal card" (regardless of whether we extract it)
-    dealsFound++;
+    const shoeType = detectShoeTypeStrict(listingName);
+    if (!shoeType) continue;
 
-    const shoeType = detectShoeType(listingName);
+    runningCardsFound++;
 
     const href = $title.attr("href") || null;
     const listingURL = absUrl(href);
-    if (!listingURL) {
-      missingUrlSkipped++;
-      continue;
-    }
+    if (!listingURL) continue;
 
-    const imageURL = getImageUrlFromListingUrl(listingURL);
+    const imageURL = getImageUrlFromCard($card);
     if (!imageURL) {
       missingImageSkipped++;
       continue;
@@ -365,14 +339,17 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
       continue;
     }
 
+    // ✅ Robust extraction from the actual price containers (matches your outerHTML)
     let { saleValues, originalValues, saleText, origText } = extractSaleAndOriginalValuesFromCard($card);
 
-    // aria-label fallback
+    // aria-label fallback (your outerHTML includes "New Lower Price: $63.97 to $122.97 , Previous Price: $139.99 to $144.99")
     if (!saleValues.length || !originalValues.length) {
       const aria = $title.attr("aria-label") || "";
       const nums = parseMoneyAll(aria).map((x) => Number(x.toFixed(2)));
       const uniq = Array.from(new Set(nums)).sort((a, b) => a - b);
 
+      // heuristic: first two likely sale range, last two likely original range
+      // if we only got 2 total, use low as sale and high as original
       if (uniq.length >= 4) {
         if (!saleValues.length) saleValues = [uniq[0], uniq[1]];
         if (!originalValues.length) originalValues = [uniq[uniq.length - 2], uniq[uniq.length - 1]];
@@ -422,6 +399,7 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
       originalPriceHigh = origHigh;
       discountPercentUpTo = calcDiscountPercentUpTo(salePriceLow, originalPriceHigh);
 
+      // leave for a run to confirm
       console.log(
         `[${runId}] DSG RANGE ${sourceKey}: ${shortText(listingName, 80)} | saleText="${shortText(
           saleText,
@@ -465,29 +443,26 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
   const deduped = uniqByKey(deals, (d) => d.listingURL || d.listingName).slice(0, MAX_ITEMS_TOTAL);
 
   console.log(
-    `[${runId}] DSG parse ${sourceKey}: cardsFound=${cardsFound} dealsFound=${dealsFound} missingTitleSkipped=${missingTitleSkipped} missingUrlSkipped=${missingUrlSkipped} extracted=${deals.length} deduped=${deduped.length} seePriceInCartSkipped=${seePriceInCartSkipped} missingPriceSkipped=${missingPriceSkipped} missingImageSkipped=${missingImageSkipped} time=${msSince(
+    `[${runId}] DSG parse ${sourceKey}: runningCardsFound=${runningCardsFound} extracted=${deals.length} deduped=${deduped.length} seePriceInCartSkipped=${seePriceInCartSkipped} missingPriceSkipped=${missingPriceSkipped} missingImageSkipped=${missingImageSkipped} time=${msSince(
       t0
     )}ms`
   );
 
   return {
     deals: deduped,
-    cardsFound,
-    dealsFound,
+    runningCardsFound,
     seePriceInCartSkipped,
     missingPriceSkipped,
     missingImageSkipped,
-    missingTitleSkipped,
-    missingUrlSkipped,
   };
 }
 
 // -----------------------------
-// PAGINATION
+// PAGINATION (pageNumber param)
 // -----------------------------
 function withPageNumber(baseUrl, pageNumber) {
   const u = new URL(baseUrl);
-  if (pageNumber <= 1) {
+  if (pageNumber == null || pageNumber === 0) {
     u.searchParams.delete("pageNumber");
   } else {
     u.searchParams.set("pageNumber", String(pageNumber));
@@ -503,98 +478,37 @@ async function scrapeSourceWithPagination(runId, src) {
   const visited = [];
   let pagesFetched = 0;
 
-  let cardsFound = 0;
-  let dealsFound = 0;
-
+  let runningCardsFound = 0;
   let seePriceInCartSkipped = 0;
   let missingPriceSkipped = 0;
   let missingImageSkipped = 0;
-  let missingTitleSkipped = 0;
-  let missingUrlSkipped = 0;
 
-  const seenDealKeys = new Set();
-  let lastPageFingerprint = null;
-
-  for (let pageNumber = 1; pageNumber <= MAX_PAGES_SAFETY_CEILING; pageNumber++) {
+  for (let pageNumber = 0; pageNumber < MAX_PAGES_PER_SOURCE; pageNumber++) {
     const pageUrl = withPageNumber(src.url, pageNumber);
     visited.push(pageUrl);
     pagesFetched++;
 
-    console.log(`[${runId}] DSG ${src.key} page ${pageNumber} start: ${pageUrl}`);
+    console.log(`[${runId}] DSG ${src.key} page ${pageNumber + 1} start: ${pageUrl}`);
 
-    if (pageNumber > 1) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    let html;
-    try {
-      html = await fetchHtmlViaFirecrawl(pageUrl, runId, `DSG-${src.key}`);
-    } catch (err) {
-      console.error(`[${runId}] DSG ${src.key} page ${pageNumber} fetch error:`, err.message);
-      break;
-    }
+    const html = await fetchHtmlViaFirecrawl(pageUrl, runId, `DSG-${src.key}`);
 
     const $ = cheerio.load(html);
-    const cardCount = selectProductCards($).length;
-    console.log(`[${runId}] DSG ${src.key} page ${pageNumber} cardsFound=${cardCount}`);
+    const cardCount = $("div.product-card").length;
+    console.log(`[${runId}] DSG ${src.key} page ${pageNumber + 1} cardsFound=${cardCount}`);
 
     if (!cardCount) {
-      console.log(`[${runId}] DSG ${src.key} stop: no cards on page ${pageNumber}`);
+      console.log(`[${runId}] DSG ${src.key} stop: no cards`);
       break;
     }
-
-    // fingerprint by title link hrefs
-    const pageUrls = [];
-    $("a.product-title-link").each((_, el) => {
-      const href = $(el).attr("href");
-      if (href) pageUrls.push(href.split("?")[0]);
-    });
-    pageUrls.sort();
-    const pageFingerprint = pageUrls.join("|");
-
-    if (pageFingerprint && pageFingerprint === lastPageFingerprint) {
-      console.log(
-        `[${runId}] DSG ${src.key} stop: duplicate page fingerprint on page ${pageNumber} — looping`
-      );
-      break;
-    }
-    lastPageFingerprint = pageFingerprint;
 
     const parsed = await extractDealsFromHtml(html, runId, src.key);
-    const pageDeals = parsed.deals || [];
 
-    // stop if we only get duplicates of extracted deals
-    const newDeals = pageDeals.filter((d) => {
-      const key = d.listingURL || d.listingName;
-      return key && !seenDealKeys.has(key);
-    });
+    sourceDeals.push(...(parsed.deals || []));
 
-    if (pageDeals.length > 0 && newDeals.length === 0) {
-      console.log(
-        `[${runId}] DSG ${src.key} stop: page ${pageNumber} had ${pageDeals.length} deals but 0 new — duplicate`
-      );
-      break;
-    }
-
-    for (const d of pageDeals) {
-      const key = d.listingURL || d.listingName;
-      if (key) seenDealKeys.add(key);
-    }
-
-    sourceDeals.push(...pageDeals);
-
-    cardsFound += parsed.cardsFound || 0;
-    dealsFound += parsed.dealsFound || 0;
-
+    runningCardsFound += parsed.runningCardsFound || 0;
     seePriceInCartSkipped += parsed.seePriceInCartSkipped || 0;
     missingPriceSkipped += parsed.missingPriceSkipped || 0;
     missingImageSkipped += parsed.missingImageSkipped || 0;
-    missingTitleSkipped += parsed.missingTitleSkipped || 0;
-    missingUrlSkipped += parsed.missingUrlSkipped || 0;
-
-    console.log(
-      `[${runId}] DSG ${src.key} page ${pageNumber} newDeals=${newDeals.length} totalSoFar=${sourceDeals.length}`
-    );
   }
 
   return {
@@ -602,12 +516,8 @@ async function scrapeSourceWithPagination(runId, src) {
     pagesFetched,
     sourceUrlsVisited: visited,
 
-    cardsFound,
-    dealsFound,
-
+    runningCardsFound,
     seePriceInCartSkipped,
-    missingTitleSkipped,
-    missingUrlSkipped,
     missingPriceSkipped,
     missingImageSkipped,
   };
@@ -623,12 +533,8 @@ async function scrapeAll(runId) {
 
   let pagesFetchedTotal = 0;
 
-  let cardsFoundTotal = 0;
-  let dealsFoundTotal = 0;
-
+  let runningCardsFoundTotal = 0;
   let seePriceInCartSkippedTotal = 0;
-  let missingTitleSkippedTotal = 0;
-  let missingUrlSkippedTotal = 0;
   let missingPriceSkippedTotal = 0;
   let missingImageSkippedTotal = 0;
 
@@ -641,17 +547,13 @@ async function scrapeAll(runId) {
     pagesFetchedTotal += out.pagesFetched || 0;
     sourceUrls.push(...(out.sourceUrlsVisited || []));
 
-    cardsFoundTotal += out.cardsFound || 0;
-    dealsFoundTotal += out.dealsFound || 0;
-
+    runningCardsFoundTotal += out.runningCardsFound || 0;
     seePriceInCartSkippedTotal += out.seePriceInCartSkipped || 0;
-    missingTitleSkippedTotal += out.missingTitleSkipped || 0;
-    missingUrlSkippedTotal += out.missingUrlSkipped || 0;
     missingPriceSkippedTotal += out.missingPriceSkipped || 0;
     missingImageSkippedTotal += out.missingImageSkipped || 0;
 
     console.log(
-      `[${runId}] DSG source done: ${src.key} extractedDeals=${(out.deals || []).length} pagesFetched=${out.pagesFetched} dealsFound=${out.dealsFound} seePriceInCartSkipped=${out.seePriceInCartSkipped}`
+      `[${runId}] DSG source done: ${src.key} extractedDeals=${(out.deals || []).length} pagesFetched=${out.pagesFetched} runningCardsFound=${out.runningCardsFound} seePriceInCartSkipped=${out.seePriceInCartSkipped}`
     );
   }
 
@@ -668,14 +570,11 @@ async function scrapeAll(runId) {
     sourceUrls,
     pagesFetched: pagesFetchedTotal,
 
-    cardsFound: cardsFoundTotal,     // how many card nodes we saw
-    dealsFound: dealsFoundTotal,     // how many titled cards we counted
-    dealsExtracted: deals.length,    // how many we kept (priced, not MAP-protected)
+    dealsFound: runningCardsFoundTotal, // all strict-running cards
+    dealsExtracted: deals.length,       // priced (single or range)
 
     seePriceInCartSkipped: seePriceInCartSkippedTotal,
 
-    missingTitleSkipped: missingTitleSkippedTotal,
-    missingUrlSkipped: missingUrlSkippedTotal,
     missingPriceSkipped: missingPriceSkippedTotal,
     missingImageSkipped: missingImageSkippedTotal,
 
@@ -716,12 +615,9 @@ module.exports = async function handler(req, res) {
     res.status(200).json({
       ok: true,
       runId,
-      cardsFound: data.cardsFound,
       dealsFound: data.dealsFound,
       dealsExtracted: data.dealsExtracted,
       seePriceInCartSkipped: data.seePriceInCartSkipped,
-      missingTitleSkipped: data.missingTitleSkipped,
-      missingUrlSkipped: data.missingUrlSkipped,
       missingPriceSkipped: data.missingPriceSkipped,
       missingImageSkipped: data.missingImageSkipped,
       pagesFetched: data.pagesFetched,
