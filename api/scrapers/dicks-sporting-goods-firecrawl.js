@@ -335,17 +335,14 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
   let missingImageSkipped = 0;
   let missingTitleSkipped = 0;
 
-  // DSG product listing HTML structure (server-rendered, no div.product-card wrapper):
-  //   <a href="/p/.../SKU?...&color=..."><img itemprop="image" src="https://dks.scene7.com/...SKU_Color_is/..." /></a>
-  //   <a class="product-title-link" href="/p/.../SKU?...&color=...">Product Name</a>
-  //   <div>...price text...</div>
-  // We iterate over each a.product-title-link as the "card anchor",
-  // then look nearby for the product image.
-  const $titles = $("a.product-title-link");
-  console.log(`[${runId}] DSG parse ${sourceKey}: titleLinksFound=${$titles.length}`);
+  const $cards = $("div.product-card");
+  console.log(`[${runId}] DSG parse ${sourceKey}: cardsFound=${$cards.length}`);
 
-  for (let i = 0; i < $titles.length; i++) {
-    const $title = $titles.eq(i);
+  for (let i = 0; i < $cards.length; i++) {
+    const el = $cards.get(i);
+    const $card = $(el);
+
+    const $title = $card.find("a.product-title-link").first();
     const listingName = $title.text().replace(/\s+/g, " ").trim();
     if (!listingName) {
       missingTitleSkipped++;
@@ -353,57 +350,28 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
     }
 
     const shoeType = detectShoeType(listingName);
+
     runningCardsFound++;
 
     const href = $title.attr("href") || null;
     const listingURL = absUrl(href);
     if (!listingURL) continue;
 
-    // The product image is in an <a> tag that immediately precedes (or is near)
-    // the title link, containing an <img itemprop="image">.
-    // Walk up to the shared parent container and find the img there.
-    const $container = $title.parent();
-    // Try: img in same parent, then grandparent, then great-grandparent
-    let imageURL = null;
-    for (let depth = 0; depth < 5; depth++) {
-      const $ancestor = $title.parents().eq(depth);
-      const $img = $ancestor.find('img[itemprop="image"]').first();
-      if ($img.length) {
-        const src = $img.attr("src") || "";
-        if (src && src.includes("dks.scene7.com") && !src.includes("productImageUnavailable") && !src.includes("GolfGalaxy")) {
-          imageURL = src;
-          break;
-        }
-      }
-    }
-    // Fallback: derive from URL if img not found
-    if (!imageURL) {
-      imageURL = getImageUrlFromListingUrl(listingURL);
-    }
+    // Derive image URL from the SKU in the listing URL — reliable, no lazy-load issues
+    const imageURL = getImageUrlFromListingUrl(listingURL);
     if (!imageURL) {
       missingImageSkipped++;
       continue;
     }
 
-    // The price text and "See Price In Cart" are in siblings/nearby elements.
-    // Walk up to find a container that includes both image and price.
-    let $priceContainer = $title.parent();
-    for (let depth = 0; depth < 4; depth++) {
-      const ancestor = $title.parents().eq(depth);
-      if (ancestor.text().length > 20) {
-        $priceContainer = ancestor;
-        break;
-      }
-    }
-
-    const { seePriceInCart } = extractPriceSignalsFromCardText($priceContainer);
+    const { seePriceInCart } = extractPriceSignalsFromCardText($card);
     if (seePriceInCart) {
       seePriceInCartSkipped++;
       continue;
     }
 
     // Robust extraction from the actual price containers
-    let { saleValues, originalValues, saleText, origText } = extractSaleAndOriginalValuesFromCard($priceContainer);
+    let { saleValues, originalValues, saleText, origText } = extractSaleAndOriginalValuesFromCard($card);
 
     // aria-label fallback (e.g. "New Lower Price: $63.97 to $122.97 , Previous Price: $139.99 to $144.99")
     if (!saleValues.length || !originalValues.length) {
@@ -505,7 +473,7 @@ async function extractDealsFromHtml(html, runId, sourceKey) {
   const deduped = uniqByKey(deals, (d) => d.listingURL || d.listingName).slice(0, MAX_ITEMS_TOTAL);
 
   console.log(
-    `[${runId}] DSG parse ${sourceKey}: titleLinksFound=${$titles.length} missingTitleSkipped=${missingTitleSkipped} runningCardsFound=${runningCardsFound} extracted=${deals.length} deduped=${deduped.length} seePriceInCartSkipped=${seePriceInCartSkipped} missingPriceSkipped=${missingPriceSkipped} missingImageSkipped=${missingImageSkipped} time=${msSince(t0)}ms`
+    `[${runId}] DSG parse ${sourceKey}: cardsFound=${$cards.length} missingTitleSkipped=${missingTitleSkipped} runningCardsFound=${runningCardsFound} extracted=${deals.length} deduped=${deduped.length} seePriceInCartSkipped=${seePriceInCartSkipped} missingPriceSkipped=${missingPriceSkipped} missingImageSkipped=${missingImageSkipped} time=${msSince(t0)}ms`
   );
 
   return {
@@ -575,12 +543,12 @@ async function scrapeSourceWithPagination(runId, src) {
     }
 
     const $ = cheerio.load(html);
-    const cardCount = $("a.product-title-link").length;
-    console.log(`[${runId}] DSG ${src.key} page ${pageNumber} titleLinksFound=${cardCount}`);
+    const cardCount = $("div.product-card").length;
+    console.log(`[${runId}] DSG ${src.key} page ${pageNumber} cardsFound=${cardCount}`);
 
-    // Stop condition 1: no title links at all — end of catalogue
+    // Stop condition 1: no cards at all — end of catalogue
     if (!cardCount) {
-      console.log(`[${runId}] DSG ${src.key} stop: no product links on page ${pageNumber}`);
+      console.log(`[${runId}] DSG ${src.key} stop: no cards on page ${pageNumber}`);
       break;
     }
 
