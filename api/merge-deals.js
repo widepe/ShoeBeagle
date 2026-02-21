@@ -113,7 +113,7 @@ function formatAgeDays(ts, nowMs = Date.now()) {
   return Math.round((age / (24 * 60 * 60 * 1000)) * 10) / 10; // 1 decimal
 }
 
-// NEW: freshness boolean (<= N hours old)
+// freshness boolean (<= N hours old)
 function isFreshWithinHours(ts, hours, nowMs = Date.now()) {
   const age = ageMsFromTimestamp(ts, nowMs);
   if (age == null) return false; // no timestamp => treat as NOT fresh
@@ -547,11 +547,10 @@ function dedupeDeals(deals) {
   return unique;
 }
 
-/** ------------ -only fetch helpers CACHE BUSTER fetch fresh data ------------ **/
+/** ------------ Blob-only fetch helpers (cache buster) ------------ **/
 
 async function fetchJson(url) {
   try {
-    // ✅ CACHE-BUST: force a fresh fetch from  CDN (prevents stale week-old JSON)
     const cacheBustedUrl = `${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`;
 
     const resp = await axios.get(cacheBustedUrl, {
@@ -560,8 +559,6 @@ async function fetchJson(url) {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         Accept: "application/json,text/plain,*/*",
-
-        // ✅ Best-effort (some CDNs still ignore; cb param above is the real fix)
         "Cache-Control": "no-cache",
         Pragma: "no-cache",
       },
@@ -573,22 +570,28 @@ async function fetchJson(url) {
   }
 }
 
-async function loadDealsFromOnly({ name, Url }) {
+/**
+ * ✅ RIGHT FIX:
+ * - ONE canonical loader name: loadDealsFromBlobOnly
+ * - ONE canonical field name: blobUrl (not Url)
+ * - Return shape matches what the merge loop destructures.
+ */
+async function loadDealsFromBlobOnly({ name, blobUrl }) {
   const metadata = {
     name,
-    source: null,
+    source: null, // "blob" | "error"
     deals: [],
-    Url: null,
+    blobUrl: null,
     timestamp: null,
     duration: null,
     payloadMeta: null,
     error: null,
   };
 
-  const u = String(Url || "").trim();
+  const u = String(blobUrl || "").trim();
   if (!u) {
     metadata.source = "error";
-    metadata.error = `Missing required env var / Url for ${name}`;
+    metadata.error = `Missing required env var / blobUrl for ${name}`;
     return metadata;
   }
 
@@ -596,9 +599,9 @@ async function loadDealsFromOnly({ name, Url }) {
     const payload = await fetchJson(u);
     const deals = extractDealsFromPayload(payload);
 
-    metadata.source = "";
+    metadata.source = "blob";
     metadata.deals = deals;
-    metadata.Url = u;
+    metadata.blobUrl = u;
 
     // Support multiple timestamp field names
     metadata.timestamp = payload.lastUpdated || payload.timestamp || payload.scrapedAt || null;
@@ -610,6 +613,7 @@ async function loadDealsFromOnly({ name, Url }) {
   } catch (e) {
     metadata.source = "error";
     metadata.error = e?.message || String(e);
+    metadata.blobUrl = u;
     return metadata;
   }
 }
@@ -1061,13 +1065,13 @@ function toIsoDayUTC(isoOrDate) {
   return d.toISOString().split("T")[0];
 }
 
-// UPDATED: supports payload.scraperResult (singular) for per-store cheerio s
+// supports payload.scraperResult (singular) for per-store cheerio
 function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
   const payload = meta?.payloadMeta || null;
   const timestamp = meta?.timestamp || payload?.lastUpdated || payload?.timestamp || payload?.scrapedAt || null;
   const durationMs = parseDurationMs(meta?.duration || payload?.scrapeDurationMs || payload?.duration || null);
   const via = meta?.source || null;
-  const Url = meta?.Url || null;
+  const blobUrl = meta?.blobUrl || null;
 
   if (!perSourceOk) {
     return [
@@ -1078,7 +1082,7 @@ function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
         durationMs,
         timestamp,
         via,
-        Url,
+        blobUrl,
         error: meta?.error || "Unknown error",
       },
     ];
@@ -1099,7 +1103,7 @@ function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
         durationMs: dMs,
         timestamp: payload.lastUpdated || payload.timestamp || payload.scrapedAt || timestamp || null,
         via,
-        Url,
+        blobUrl,
       });
     }
     if (records.length) return records;
@@ -1120,7 +1124,7 @@ function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
         durationMs: dMs,
         timestamp: payload.lastUpdated || payload.timestamp || payload.scrapedAt || timestamp || null,
         via,
-        Url,
+        blobUrl,
         error: r?.error || null,
       },
     ];
@@ -1135,7 +1139,7 @@ function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
       durationMs,
       timestamp,
       via,
-      Url,
+      blobUrl,
     },
   ];
 }
@@ -1176,7 +1180,7 @@ module.exports = async (req, res) => {
   const nowMs = Date.now();
 
   // ============================================================================
-  //  URLs (-only mode)
+  //  URLs (blob-only mode)
   // ============================================================================
 
   const ALS_SALE_BLOB_URL = String(process.env.ALS_SALE_BLOB_URL || "").trim();
@@ -1204,24 +1208,17 @@ module.exports = async (req, res) => {
 
   const SCRAPER_DATA_BLOB_URL = String(process.env.SCRAPER_DATA_BLOB_URL || "").trim();
 
-  // --------------------------------------------------------------------------
-  // Freshness policy (your requirement):
-  //
-  // - If a scraper's last successful data is not from the last 24 hours:
-  //     we STILL merge it (that's fine).
-  // - BUT if the source timestamp is OLDER THAN 7 DAYS:
-  //     we DO NOT add ANY deals from that source to the merged deals.
-  //     That store should show 0 deals.
-  // --------------------------------------------------------------------------
+  // Freshness policy:
+  // - If source timestamp is OLDER THAN 7 DAYS: exclude that store's deals from merge
   const MAX_STORE_DATA_AGE_DAYS = 7;
 
-  // NEW: your "freshData" threshold
+  // "freshData" threshold
   const FRESHNESS_THRESHOLD_HOURS = 26;
 
   try {
     console.log("[MERGE] Starting merge:", new Date().toISOString());
     console.log("[MERGE] Blob-only mode: endpoints disabled.");
-    
+
     console.log("[MERGE] ALS_SALE_BLOB_URL set?", !!ALS_SALE_BLOB_URL);
     console.log("[MERGE] ASICS_SALE_BLOB_URL set?", !!ASICS_SALE_BLOB_URL);
     console.log("[MERGE] BACKCOUNTRY_DEALS_BLOB_URL set?", !!BACKCOUNTRY_DEALS_BLOB_URL);
@@ -1239,11 +1236,8 @@ module.exports = async (req, res) => {
     console.log("[MERGE] RUNNING_WAREHOUSE_CHEERIO_BLOB_URL set?", !!RUNNING_WAREHOUSE_CHEERIO_BLOB_URL);
     console.log("[MERGE] ZAPPOS_DEALS_BLOB_URL set?", !!ZAPPOS_DEALS_BLOB_URL);
 
-
     const sources = [
-    
-      
-      { id: "als", name: "ALS", blobUrl: ALS_SALE_BLOB_URL }, 
+      { id: "als", name: "ALS", blobUrl: ALS_SALE_BLOB_URL },
       { id: "asics", name: "ASICS", blobUrl: ASICS_SALE_BLOB_URL },
       { id: "backcountry", name: "Backcountry", blobUrl: BACKCOUNTRY_DEALS_BLOB_URL },
       { id: "brooks-running", name: "Brooks Running", blobUrl: BROOKS_DEALS_BLOB_URL },
@@ -1251,7 +1245,7 @@ module.exports = async (req, res) => {
       { id: "fleet-feet", name: "Fleet Feet", blobUrl: FLEET_FEET_CHEERIO_BLOB_URL },
       { id: "foot-locker", name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
       { id: "hoka", name: "HOKA", blobUrl: HOKA_DEALS_BLOB_URL },
-            // Holabird is split across 3 blobs but shares 1 id
+      // Holabird split across 3 blobs but shares 1 id
       { id: "holabird-sports", name: "Holabird Sports (Mens Road)", blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL },
       { id: "holabird-sports", name: "Holabird Sports (Womens Road)", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
       { id: "holabird-sports", name: "Holabird Sports (Trail + Unisex)", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
@@ -1268,6 +1262,7 @@ module.exports = async (req, res) => {
       { id: "zappos", name: "Zappos", blobUrl: ZAPPOS_DEALS_BLOB_URL },
     ];
 
+    // ✅ Correct loader call
     const settled = await Promise.allSettled(sources.map((s) => loadDealsFromBlobOnly(s)));
 
     const perSource = {};
@@ -1275,15 +1270,9 @@ module.exports = async (req, res) => {
     const allDealsRaw = [];
     const perSourceMeta = {};
 
-    // NEW: map id->display store name for the report
-    const storeDisplayNameById = {};
-    for (const s of sources) {
-      if (!storeDisplayNameById[s.id]) storeDisplayNameById[s.id] = s.name;
-    }
-
     for (let i = 0; i < settled.length; i++) {
       const src = sources[i];
-      const key = src.id || src.name; // ✅ id is the real key
+      const key = src.id || src.name; // id is the real key
       const name = src.name; // display name only
 
       if (settled[i].status === "fulfilled") {
@@ -1291,9 +1280,8 @@ module.exports = async (req, res) => {
 
         if (source === "error") {
           perSource[key] = { ok: false, error: error || "Unknown error" };
-          // accumulate storeMetadata even on error (keep the last error)
           storeMetadata[key] = { ...(storeMetadata[key] || {}), error: error || "Unknown error" };
-          perSourceMeta[key] = { name, error: error || "Unknown error", source: "error", deals: [] };
+          perSourceMeta[key] = { name, error: error || "Unknown error", source: "error", deals: [], blobUrl };
           continue;
         }
 
@@ -1308,16 +1296,18 @@ module.exports = async (req, res) => {
         const tsMsNew = parseTimestampMs(timestamp);
         const newestTs =
           tsMsPrev != null && tsMsNew != null
-            ? (tsMsNew >= tsMsPrev ? timestamp : prev.timestamp)
-            : (timestamp || prev.timestamp || null);
+            ? tsMsNew >= tsMsPrev
+              ? timestamp
+              : prev.timestamp
+            : timestamp || prev.timestamp || null;
 
         storeMetadata[key] = {
-          blobUrl: blobUrl || prev.blobUrl || null, // keep latest non-empty
+          blobUrl: blobUrl || prev.blobUrl || null,
           timestamp: newestTs,
           duration: duration || prev.duration || null,
           count: prevCount + safeArray(deals).length,
           ageDays: ageDays != null ? ageDays : prev.ageDays ?? null,
-          staleExcluded: !!isTooOld, // if any blob is too old, this might be true; fine for your use
+          staleExcluded: !!isTooOld,
           staleThresholdDays: MAX_STORE_DATA_AGE_DAYS,
         };
 
@@ -1333,19 +1323,20 @@ module.exports = async (req, res) => {
             note: `Excluded: source data older than ${MAX_STORE_DATA_AGE_DAYS} days`,
           };
           console.log(
-            `[MERGE] EXCLUDING SOURCE (too old): ${name} | id=${key} | ageDays=${ageDays ?? "unknown"} | ts=${timestamp ?? "none"}`
+            `[MERGE] EXCLUDING SOURCE (too old): ${name} | id=${key} | ageDays=${ageDays ?? "unknown"} | ts=${
+              timestamp ?? "none"
+            }`
           );
           continue;
         }
 
-        // note: perSource[key].count is “this blob’s” count; storeMetadata[key].count is accumulated
         perSource[key] = { ok: true, via: source, count: safeArray(deals).length };
         allDealsRaw.push(...safeArray(deals));
       } else {
         const msg = settled[i].reason?.message || String(settled[i].reason);
         perSource[key] = { ok: false, error: msg };
         storeMetadata[key] = { ...(storeMetadata[key] || {}), error: msg };
-        perSourceMeta[key] = { name, error: msg, source: "error", deals: [] };
+        perSourceMeta[key] = { name, error: msg, source: "error", deals: [], blobUrl: src.blobUrl || null };
       }
     }
 
@@ -1369,10 +1360,7 @@ module.exports = async (req, res) => {
       const errs = assertDealSchema(d);
       if (errs.length) {
         schemaWarnings++;
-        console.log("[SCHEMA WARNING]", errs.join("; "), {
-          store: d.store,
-          listingURL: d.listingURL,
-        });
+        console.log("[SCHEMA WARNING]", errs.join("; "), { store: d.store, listingURL: d.listingURL });
       }
     }
     console.log(`[SCHEMA] warnings: ${schemaWarnings}`);
@@ -1392,9 +1380,6 @@ module.exports = async (req, res) => {
       dealsByStore[s] = (dealsByStore[s] || 0) + 1;
     }
 
-    // NEW: freshness report (store, storeLastUpdated, freshData)
-    // - storeLastUpdated is pulled from each store blob's payload timestamp
-    // - freshData is true iff age <= 26 hours (your rule)
     const sourceFreshness = Object.keys(storeMetadata)
       .sort((a, b) => String(a).localeCompare(String(b)))
       .map((storeId) => {
@@ -1413,8 +1398,8 @@ module.exports = async (req, res) => {
       dealsByStore,
       scraperResults: perSource,
 
-      // ✅ WRITTEN INTO deals.json (as requested)
-      sourceFreshness, // [{ store, storeLastUpdated, freshData }]
+      // written into deals.json
+      sourceFreshness,
 
       deals: unique,
     };
@@ -1439,7 +1424,6 @@ module.exports = async (req, res) => {
       const key = src.id || src.name;
       const ok = !!perSource[key]?.ok;
       const meta = perSourceMeta[key] || null;
-
       todayRecords.push(...buildTodayScraperRecords({ sourceName: key, meta, perSourceOk: ok }));
     }
 
@@ -1472,8 +1456,6 @@ module.exports = async (req, res) => {
       dealsByStore,
       scraperResults: perSource,
       storeMetadata,
-
-      // NEW: return it in API response too (handy for quick checks)
       sourceFreshness,
 
       dealsBlobUrl: dealsBlob.url,
@@ -1485,10 +1467,9 @@ module.exports = async (req, res) => {
       duration: `${durationMs}ms`,
       timestamp: output.lastUpdated,
 
-      note:
-        SCRAPER_DATA_BLOB_URL
-          ? "scraper-data history appended (SCRAPER_DATA_BLOB_URL was set)"
-          : "scraper-data written, but to persist rolling 30-day history you should set SCRAPER_DATA_BLOB_URL to scraperDataBlobUrl",
+      note: SCRAPER_DATA_BLOB_URL
+        ? "scraper-data history appended (SCRAPER_DATA_BLOB_URL was set)"
+        : "scraper-data written, but to persist rolling 30-day history you should set SCRAPER_DATA_BLOB_URL to scraperDataBlobUrl",
     });
   } catch (err) {
     console.error("[MERGE] Fatal error:", err);
