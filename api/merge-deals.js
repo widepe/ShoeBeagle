@@ -1221,7 +1221,9 @@ module.exports = async (req, res) => {
   try {
     console.log("[MERGE] Starting merge:", new Date().toISOString());
     console.log("[MERGE] Blob-only mode: endpoints disabled.");
-
+    
+    console.log("[MERGE] ALS_SALE_BLOB_URL set?", !!ALS_SALE_BLOB_URL);
+    console.log("[MERGE] ASICS_SALE_BLOB_URL set?", !!ASICS_SALE_BLOB_URL);
     console.log("[MERGE] BACKCOUNTRY_DEALS_BLOB_URL set?", !!BACKCOUNTRY_DEALS_BLOB_URL);
     console.log("[MERGE] BROOKS_DEALS_BLOB_URL set?", !!BROOKS_DEALS_BLOB_URL);
     console.log("[MERGE] FINISHLINE_DEALS_BLOB_URL set?", !!FINISHLINE_DEALS_BLOB_URL);
