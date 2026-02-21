@@ -122,19 +122,19 @@ function detectGenderFromTitle(listingName) {
   return "unknown";
 }
 
-// Classify shoe type from title. Returns a shoeType string for ALL shoes —
-// never returns null (nothing is excluded based on type).
-//   "trail running shoes" / "trail running"  => "trail"
-//   "road running shoes" / "road running"    => "road"
-//   "track" / "spike"                        => "track"
-//   anything else with "running"             => "road"  (default for running)
-//   otherwise                                => "unknown"
+// Classify shoe type from title.
+// Only explicit signals set a type.
+//   "trail running"                      => "trail"
+//   "road running"                       => "road"
+//   "track" or "spike"                   => "track"
+//   otherwise                            => "unknown"
 function detectShoeType(listingName) {
   const s = String(listingName || "").toLowerCase();
+
   if (s.includes("trail running")) return "trail";
   if (s.includes("road running")) return "road";
   if (s.includes("track") || s.includes("spike")) return "track";
-  if (s.includes("running")) return "road";
+
   return "unknown";
 }
 
