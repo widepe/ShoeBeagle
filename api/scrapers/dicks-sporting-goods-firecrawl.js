@@ -128,11 +128,9 @@ function detectGenderFromTitleOnly(listingName) {
 function detectShoeType(listingName) {
   const s = String(listingName || "").toLowerCase();
 
-  // track/spikes can coexist with other words; you still want these mapped
-  if (s.includes("track") || s.includes("spike")) return "track";
-
   if (s.includes("trail running shoes")) return "trail";
   if (s.includes("running shoes")) return "road";
+  if (s.includes("track") || s.includes("spike")) return "track";
 
   return "unknown";
 }
