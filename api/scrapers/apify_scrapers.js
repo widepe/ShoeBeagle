@@ -1,8 +1,6 @@
 // /api/scrapers/apify_scrapers.js
 // Trigger-only runner for Apify Actors (does NOT wait for completion, does NOT write blobs)
 
-const { ApifyClient } = require("apify-client");
-
 function nowIso() {
   return new Date().toISOString();
 }
@@ -14,7 +12,7 @@ function requireEnv(name) {
 
 function parseOptionalJsonEnv(envName) {
   const raw = String(process.env[envName] || "").trim();
-  if (!raw) return null; // ✅ not required
+  if (!raw) return null;
   try {
     return JSON.parse(raw);
   } catch (e) {
@@ -81,21 +79,7 @@ module.exports = async (req, res) => {
   if (req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
-/*
-  // ✅ Accept either header style:
-  // - Authorization: Bearer <CRON_SECRET>
-  // - x-cron-secret: <CRON_SECRET>
-  const CRON_SECRET = requireEnv("CRON_SECRET");
-  if (CRON_SECRET) {
-    const auth = String(req.headers.authorization || "").trim();
-    const xCron = String(req.headers["x-cron-secret"] || "").trim();
-    const okAuth = auth === `Bearer ${CRON_SECRET}` || xCron === CRON_SECRET;
 
-    if (!okAuth) {
-      return res.status(401).json({ success: false, error: "Unauthorized" });
-    }
-  }
-*/
   const startedAtIso = nowIso();
   const overallStart = Date.now();
 
@@ -104,13 +88,9 @@ module.exports = async (req, res) => {
     return res.status(500).json({ success: false, error: "Missing APIFY_TOKEN env var" });
   }
 
-  // ✅ Create client INSIDE handler (guarantees correct token at runtime)
-  const apifyClient = new ApifyClient({ token: APIFY_TOKEN });
-
   const onlySet = parseCsvParam(req.query?.only);
   const skipSet = parseCsvParam(req.query?.skip);
 
-  // Optional: cap concurrency (default: all at once)
   const concurrencyParam = parseInt(String(req.query?.concurrency || ""), 10);
   const TRIGGER_CONCURRENCY = Number.isFinite(concurrencyParam) && concurrencyParam > 0 ? concurrencyParam : TARGETS.length;
 
@@ -129,7 +109,6 @@ module.exports = async (req, res) => {
 
     const actorId = requireEnv(t.actorEnv);
     if (!actorId) {
-      // ✅ This is the #1 reason you’d see “200 but no runs”
       return [key, { ok: false, error: `${t.actorEnv} is not set`, actorEnv: t.actorEnv, key }];
     }
 
@@ -142,7 +121,23 @@ module.exports = async (req, res) => {
     }
 
     try {
-      const run = await apifyClient.actor(actorId).start(maybeInput || {});
+      const url = `https://api.apify.com/v2/acts/${encodeURIComponent(actorId)}/runs`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${APIFY_TOKEN}`,
+        },
+        body: JSON.stringify(maybeInput || {}),
+      });
+
+      const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json?.error?.message || `HTTP ${response.status}`);
+      }
+
+      const r = json.data;
       return [
         key,
         {
@@ -150,11 +145,11 @@ module.exports = async (req, res) => {
           key,
           name: t.name,
           actorId,
-          runId: run.id,
-          status: run.status,
-          startedAt: run.startedAt || null,
-          finishedAt: run.finishedAt || null,
-          defaultDatasetId: run.defaultDatasetId || null,
+          runId: r.id,
+          status: r.status,
+          startedAt: r.startedAt || null,
+          finishedAt: r.finishedAt || null,
+          defaultDatasetId: r.defaultDatasetId || null,
         },
       ];
     } catch (err) {
@@ -174,7 +169,6 @@ module.exports = async (req, res) => {
     }
   }
 
-  // Run triggers with concurrency cap
   const tuples = await runWithConcurrency(TARGETS, TRIGGER_CONCURRENCY, triggerOne);
 
   const results = {};
@@ -187,7 +181,6 @@ module.exports = async (req, res) => {
 
   const durationMs = Date.now() - overallStart;
 
-  // Helpful summary counts
   const keys = Object.keys(results);
   const okCount = keys.filter((k) => results[k]?.ok).length;
   const skippedCount = keys.filter((k) => results[k]?.skipped).length;
