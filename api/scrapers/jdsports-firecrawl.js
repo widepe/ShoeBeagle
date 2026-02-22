@@ -1,5 +1,6 @@
 // /api/scrapers/jdsports-firecrawl.js
-// Vercel route: scrape 1 JD Sports page via Firecrawl, parse HTML, filter, write /jdsports.json blob.
+// Vercel route: scrape 1 JD Sports page via Firecrawl, parse HTML, apply your rules,
+// and write JSON to Vercel Blob key: jdsports.json  (=> .../jdsports.json)
 
 import { put } from "@vercel/blob";
 import * as cheerio from "cheerio";
@@ -43,15 +44,35 @@ function inferShoeType(listingName) {
   return "unknown";
 }
 
-// IMPORTANT: do not edit listingName; only derive brand/model
+// IMPORTANT: do not edit listingName; only derive brand/model.
+// Fixes multi-word brand "New Balance".
 function deriveBrandModel(listingName) {
   let s = cleanText(listingName);
+
+  // Remove gender prefix
   s = s.replace(/^(Women's|Men's|Unisex)\s+/i, "");
+
+  // Remove trailing running shoes phrase
   s = s.replace(/\s+Running\s+Shoes\s*$/i, "");
   s = s.replace(/\s+(Trail|Road)\s+Running\s+Shoes\s*$/i, "");
   s = cleanText(s);
+
   if (!s) return { brand: "unknown", model: "unknown" };
 
+  // Multi-word brands
+  const multiWordBrands = ["New Balance"];
+
+  for (const b of multiWordBrands) {
+    const bl = b.toLowerCase();
+    const sl = s.toLowerCase();
+    if (sl === bl) return { brand: b, model: "unknown" };
+    if (sl.startsWith(bl + " ")) {
+      const model = cleanText(s.slice(b.length));
+      return { brand: b, model: model || "unknown" };
+    }
+  }
+
+  // Default: brand first token
   const parts = s.split(" ");
   const brand = parts[0] ? cleanText(parts[0]) : "unknown";
   const model = parts.length > 1 ? cleanText(parts.slice(1).join(" ")) : "unknown";
@@ -62,7 +83,6 @@ async function firecrawlScrapeHtml(url) {
   const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
 
-  // Firecrawl scrape endpoint
   const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
     headers: {
@@ -72,39 +92,29 @@ async function firecrawlScrapeHtml(url) {
     body: JSON.stringify({
       url,
       formats: ["html"],
-
-      // Optional knobs that sometimes help; safe to remove if you want minimal:
-      // waitFor: 2500,
-      // blockAds: true,
-      // parsePDF: false,
     }),
   });
 
   const json = await resp.json().catch(() => null);
 
   if (!resp.ok) {
-    const msg =
-      json?.error ||
-      json?.message ||
-      `Firecrawl HTTP ${resp.status}`;
+    const msg = json?.error || json?.message || `Firecrawl HTTP ${resp.status}`;
     throw new Error(`Firecrawl failed: ${msg}`);
   }
 
-  // Firecrawl typically returns { data: { html: "<...>" } }
   const html = json?.data?.html || "";
   if (!html) throw new Error("Firecrawl returned empty html");
   return html;
 }
 
 function parseDealsFromHtml(html) {
-  // Quick block detection (matches what you saw)
+  // Block detection (matches what you saw in debug.html)
   if (html.includes("Your Access Has Been Denied")) {
     return { blocked: true, dealsFound: 0, deals: [] };
   }
 
   const $ = cheerio.load(html);
 
-  // Your known tile wrapper
   const tiles = $('div[data-testid="product-item"]');
   const dealsFound = tiles.length;
 
@@ -116,24 +126,24 @@ function parseDealsFromHtml(html) {
     const a = node.find('a[href*="/pdp/"]').first();
     const href = a.attr("href") || "";
     const listingURL = href
-      ? (href.startsWith("http") ? href : `https://www.jdsports.com${href}`)
+      ? href.startsWith("http")
+        ? href
+        : `https://www.jdsports.com${href}`
       : "";
 
-    const imageURL =
-      node.find("img").first().attr("src") ||
-      "";
+    const imageURL = node.find("img").first().attr("src") || "";
 
     const listingName = cleanText(
       node.find("h4.text-default-primary").first().text() ||
-      node.find("h4").first().text() ||
-      ""
+        node.find("h4").first().text() ||
+        ""
     );
 
-    // Drop: gender must be womens/mens/unisex
+    // Drop rule: gender must be womens/mens/unisex
     const gender = inferGender(listingName);
     if (!gender) return;
 
-    // Drop: must say "running shoes"
+    // Drop rule: listing must state "running shoes"
     if (!mustBeRunningShoes(listingName)) return;
 
     const shoeType = inferShoeType(listingName);
@@ -144,7 +154,11 @@ function parseDealsFromHtml(html) {
     const salePrice = parseMoney(saleText);
     const originalPrice = parseMoney(originalText);
 
-    if (!(Number.isFinite(salePrice) && Number.isFinite(originalPrice) && originalPrice > salePrice)) return;
+    // ✅ Fix: drop $0 / missing prices
+    if (!(Number.isFinite(salePrice) && salePrice > 0)) return;
+    if (!(Number.isFinite(originalPrice) && originalPrice > 0)) return;
+    if (!(originalPrice > salePrice)) return;
+
     if (!listingURL) return;
 
     const discountPercent = roundInt(((originalPrice - salePrice) / originalPrice) * 100);
@@ -181,7 +195,7 @@ function parseDealsFromHtml(html) {
   return { blocked: false, dealsFound, deals };
 }
 
-async function writeBlob(key, obj) {
+async function writeBlobJson(key, obj) {
   const token = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
   if (!token) throw new Error("Missing BLOB_READ_WRITE_TOKEN");
 
@@ -199,17 +213,13 @@ export default async function handler(req, res) {
 
   const t0 = Date.now();
 
-  let output;
   try {
     const html = await firecrawlScrapeHtml(startUrl);
-
-    // Optional: save debug html when you’re diagnosing
-    // await writeBlob("jdsports-debug.html", { html });
-
     const parsed = parseDealsFromHtml(html);
 
     const scrapeDurationMs = Date.now() - t0;
 
+    let output;
     if (parsed.blocked) {
       output = {
         store: "JD Sports",
@@ -256,14 +266,14 @@ export default async function handler(req, res) {
       };
     }
 
-    // ✅ Write to your blob path: /jdsports.json
-    await writeBlob("jdsports.json", output);
+    // ✅ Write to blob key "jdsports.json" => .../jdsports.json
+    await writeBlobJson("jdsports.json", output);
 
-    res.status(200).json(output);
+    return res.status(200).json(output);
   } catch (err) {
     const scrapeDurationMs = Date.now() - t0;
 
-    output = {
+    const output = {
       store: "JD Sports",
       schemaVersion: 1,
 
@@ -285,11 +295,11 @@ export default async function handler(req, res) {
       deals: [],
     };
 
-    // Still write failure blob so your dashboard stays consistent
+    // Best-effort: still write failure blob so your dashboard stays consistent
     try {
-      await writeBlob("jdsports.json", output);
+      await writeBlobJson("jdsports.json", output);
     } catch {}
 
-    res.status(500).json(output);
+    return res.status(500).json(output);
   }
 }
