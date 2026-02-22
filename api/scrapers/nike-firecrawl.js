@@ -64,7 +64,7 @@ async function fetchHtmlViaFirecrawl(url) {
   const timeout = setTimeout(() => controller.abort(), 120000);
 
   try {
-    const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
+    const resp = await fetch("https://api.firecrawl.dev/v2/scrape", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -74,10 +74,30 @@ async function fetchHtmlViaFirecrawl(url) {
       body: JSON.stringify({
         url,
         formats: ["html"],
-        // Helpful for ecommerce pages:
         onlyMainContent: false,
-        // If Nike is heavy, Firecrawl still often returns rendered HTML here.
-        // If this fails due to bot-block, you may need to switch to a JS-render path.
+
+        // Give Nike time to render initial products
+        waitFor: 1500,
+
+        // Scroll to trigger infinite loading
+        actions: [
+          { type: "scroll", direction: "down" },
+          { type: "wait", milliseconds: 1200 },
+
+          { type: "scroll", direction: "down" },
+          { type: "wait", milliseconds: 1200 },
+
+          { type: "scroll", direction: "down" },
+          { type: "wait", milliseconds: 1200 },
+
+          { type: "scroll", direction: "down" },
+          { type: "wait", milliseconds: 1200 },
+
+          { type: "scroll", direction: "down" },
+          { type: "wait", milliseconds: 1200 }
+        ],
+
+        timeout: 120000
       }),
     });
 
