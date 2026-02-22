@@ -71,38 +71,40 @@ async function fetchHtmlViaFirecrawl(url) {
         Authorization: `Bearer ${apiKey}`,
       },
       signal: controller.signal,
-body: JSON.stringify({
-  url,
-  formats: ["html"],
-  onlyMainContent: false,
+      body: JSON.stringify({
+        url,
+        formats: ["html"],
+        onlyMainContent: false,
 
-  // ✅ IMPORTANT: avoid cached snapshots
-  maxAge: 0,
+        // ✅ IMPORTANT: avoid cached snapshots
+        maxAge: 0,
 
-  // give first render time
-  waitFor: 2000,
+        // give first render time
+        waitFor: 2000,
 
-  actions: [
-    { type: "wait", selector: '[data-testid="product-card"]' },
+        // scroll + wait for product cards to load
+        actions: [
+          { type: "wait", selector: '[data-testid="product-card"]' },
 
-    { type: "scroll", direction: "down" },
-    { type: "wait", selector: '[data-testid="product-card"]' },
+          { type: "scroll", direction: "down" },
+          { type: "wait", milliseconds: 1200 },
 
-    { type: "scroll", direction: "down" },
-    { type: "wait", selector: '[data-testid="product-card"]' },
+          { type: "scroll", direction: "down" },
+          { type: "wait", milliseconds: 1200 },
 
-    { type: "scroll", direction: "down" },
-    { type: "wait", selector: '[data-testid="product-card"]' },
+          { type: "scroll", direction: "down" },
+          { type: "wait", milliseconds: 1200 },
 
-    { type: "scroll", direction: "down" },
-    { type: "wait", selector: '[data-testid="product-card"]' },
+          { type: "scroll", direction: "down" },
+          { type: "wait", milliseconds: 1200 },
 
-    { type: "scroll", direction: "down" },
-    { type: "wait", selector: '[data-testid="product-card"]' },
-  ],
+          { type: "scroll", direction: "down" },
+          { type: "wait", milliseconds: 1200 },
+        ],
 
-  timeout: 120000
-}),
+        timeout: 120000,
+      }),
+    });
 
     if (!resp.ok) {
       const txt = await resp.text().catch(() => "");
@@ -128,18 +130,23 @@ function parseNikeCardsFromHtml(html, baseUrl = "https://www.nike.com") {
   const cards = $('[data-testid="product-card"]');
   const deals = [];
 
-  let totalTiles = 0;
+  // Use both DOM count + max data-product-position (virtualization-safe)
+  let domTiles = 0;
+  let maxPosition = 0;
+
   let droppedSeePriceInBag = 0;
 
   cards.each((_, el) => {
-    totalTiles++;
+    domTiles++;
 
     const $card = $(el);
 
-    // Detect “See Price In Bag” anywhere in the card text (Nike sometimes shows it instead of a price)
+    const pos = Number($card.attr("data-product-position") || 0);
+    if (Number.isFinite(pos) && pos > maxPosition) maxPosition = pos;
+
+    // Detect “See Price In Bag”
     const cardText = cleanText($card.text());
-    const hasSeePriceInBag = /see price in bag/i.test(cardText);
-    if (hasSeePriceInBag) {
+    if (/see price in bag/i.test(cardText)) {
       droppedSeePriceInBag++;
       return;
     }
@@ -161,24 +168,17 @@ function parseNikeCardsFromHtml(html, baseUrl = "https://www.nike.com") {
       : null;
 
     // Image URL
-    const imageURL = cleanText($card.find('img.product-card__hero-image').attr("src") || "") || null;
+    const imageURL = cleanText($card.find("img.product-card__hero-image").attr("src") || "") || null;
 
     // Prices (current + original)
-    const saleText = cleanText(
-      $card.find('[data-testid="product-price-reduced"]').first().text()
-    );
-    const origText = cleanText(
-      $card.find('[data-testid="product-price"]').first().text()
-    );
+    const saleText = cleanText($card.find('[data-testid="product-price-reduced"]').first().text());
+    const origText = cleanText($card.find('[data-testid="product-price"]').first().text());
 
     const salePrice = toNumPrice(saleText);
     const originalPrice = toNumPrice(origText);
 
     // If either is missing, skip (your merge rules require both)
-    if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) {
-      // Not requested to count these drops, so we just skip silently
-      return;
-    }
+    if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
 
     const discountPercent = computeDiscountPercent(salePrice, originalPrice);
 
@@ -220,10 +220,14 @@ function parseNikeCardsFromHtml(html, baseUrl = "https://www.nike.com") {
     });
   });
 
+  const totalTiles = Math.max(domTiles, maxPosition);
+
   return {
     deals,
     totals: {
       totalTiles,
+      domTiles,
+      maxPosition,
       droppedSeePriceInBag,
     },
   };
@@ -244,7 +248,6 @@ module.exports = async function handler(req, res) {
 
   try {
     const html = await fetchHtmlViaFirecrawl(SOURCE_URL);
-
     const parsed = parseNikeCardsFromHtml(html, "https://www.nike.com");
 
     const body = {
@@ -265,9 +268,10 @@ module.exports = async function handler(req, res) {
       ok: true,
       error: null,
 
-      // ✅ you requested this metadata
       dropCounts: {
         totalTiles: parsed.totals.totalTiles,
+        domTiles: parsed.totals.domTiles, // helpful debug: how many were actually in DOM
+        maxPosition: parsed.totals.maxPosition, // helpful debug: virtualization-safe count
         dropped_seePriceInBag: parsed.totals.droppedSeePriceInBag,
       },
 
@@ -277,23 +281,21 @@ module.exports = async function handler(req, res) {
     const blobToken = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
     if (!blobToken) throw new Error("BLOB_READ_WRITE_TOKEN env var is not set");
 
-    // Writes to ".../nike.json" (root path name "nike.json")
     const blob = await put("nike.json", JSON.stringify(body, null, 2), {
       access: "public",
       contentType: "application/json",
       token: blobToken,
-      addRandomSuffix: false, // IMPORTANT: stable path
+      addRandomSuffix: false,
     });
 
-const {
-  deals,        // remove deals from response
-  ...metaOnly
-} = body;
+    // ✅ Return META ONLY (no deals array)
+    // eslint-disable-next-line no-unused-vars
+    const { deals, ...metaOnly } = body;
 
-return res.status(200).json({
-  ...metaOnly,
-  blobUrl: blob?.url || null,
-});
+    return res.status(200).json({
+      ...metaOnly,
+      blobUrl: blob?.url || null,
+    });
   } catch (err) {
     return res.status(500).json({
       store: STORE,
