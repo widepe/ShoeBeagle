@@ -1,4 +1,22 @@
 // /api/scrapers/jdsports-firecrawl.js
+//
+// ✅ Scrapes 1 JD Sports sale running page via Firecrawl (HTML)
+// ✅ Applies your rules
+// ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: jdsports.json
+// ✅ Returns LIGHTWEIGHT response (no deals array) + blobUrl
+//
+// ENV required:
+// - FIRECRAWL_API_KEY
+// - BLOB_READ_WRITE_TOKEN
+// Optional:
+// - JDSPORTS_DEALS_BLOB_URL (for your merge system / debugging)
+//
+// Optional (recommended for cron security):
+// - CRON_SECRET
+//
+// To test in browser: visit /api/scrapers/jdsports-firecrawl
+// For cron: call /api/scrapers/jdsports-firecrawl?cron=1 and enable the CRON_SECRET block.
+
 import { put } from "@vercel/blob";
 import * as cheerio from "cheerio";
 
@@ -24,9 +42,10 @@ function inferGender(listingName) {
   if (n.startsWith("women's ")) return "womens";
   if (n.startsWith("men's ")) return "mens";
   if (n.startsWith("unisex ")) return "unisex";
-  return null;
+  return null; // drop
 }
 function mustBeRunningShoes(listingName) {
+  // Drop if listing does not state "running shoes"
   return listingName.toLowerCase().includes("running shoes");
 }
 function inferShoeType(listingName) {
@@ -35,12 +54,19 @@ function inferShoeType(listingName) {
   if (n.includes("road running")) return "road";
   return "unknown";
 }
+
+// IMPORTANT: Never edit listingName; only derive brand/model.
 function deriveBrandModel(listingName) {
   let s = cleanText(listingName);
+
+  // Remove gender prefix
   s = s.replace(/^(Women's|Men's|Unisex)\s+/i, "");
+
+  // Remove trailing running shoes phrases
   s = s.replace(/\s+Running\s+Shoes\s*$/i, "");
   s = s.replace(/\s+(Trail|Road)\s+Running\s+Shoes\s*$/i, "");
   s = cleanText(s);
+
   if (!s) return { brand: "unknown", model: "unknown" };
 
   // multi-word brand fix
@@ -54,6 +80,7 @@ function deriveBrandModel(listingName) {
     }
   }
 
+  // default: first token is brand
   const parts = s.split(" ");
   const brand = parts[0] ? cleanText(parts[0]) : "unknown";
   const model = parts.length > 1 ? cleanText(parts.slice(1).join(" ")) : "unknown";
@@ -70,20 +97,26 @@ async function firecrawlScrapeHtml(url) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ url, formats: ["html"] }),
+    body: JSON.stringify({
+      url,
+      formats: ["html"],
+    }),
   });
 
   const json = await resp.json().catch(() => null);
+
   if (!resp.ok) {
     const msg = json?.error || json?.message || `Firecrawl HTTP ${resp.status}`;
     throw new Error(`Firecrawl failed: ${msg}`);
   }
+
   const html = json?.data?.html || "";
   if (!html) throw new Error("Firecrawl returned empty html");
   return html;
 }
 
 function parseDealsFromHtml(html) {
+  // Block detection
   if (html.includes("Your Access Has Been Denied")) {
     return { blocked: true, dealsFound: 0, deals: [] };
   }
@@ -112,9 +145,11 @@ function parseDealsFromHtml(html) {
         ""
     );
 
+    // Drop: gender must be womens/mens/unisex
     const gender = inferGender(listingName);
     if (!gender) return;
 
+    // Drop: must include "running shoes"
     if (!mustBeRunningShoes(listingName)) return;
 
     const shoeType = inferShoeType(listingName);
@@ -125,7 +160,7 @@ function parseDealsFromHtml(html) {
     const salePrice = parseMoney(saleText);
     const originalPrice = parseMoney(originalText);
 
-    // drop $0/missing/invalid
+    // Drop invalid/missing/zero prices
     if (!(Number.isFinite(salePrice) && salePrice > 0)) return;
     if (!(Number.isFinite(originalPrice) && originalPrice > 0)) return;
     if (!(originalPrice > salePrice)) return;
@@ -166,13 +201,46 @@ async function writeBlobJson(key, obj) {
     access: "public",
     token,
     contentType: "application/json",
-    addRandomSuffix: false, // keep exactly key name
+    addRandomSuffix: false, // keep exactly jdsports.json
   });
 
   return result?.url || null;
 }
 
+// ✅ Lightweight response: no deals[]
+function toLightweightResponse(output) {
+  return {
+    store: output.store,
+    schemaVersion: output.schemaVersion,
+    lastUpdated: output.lastUpdated,
+    via: output.via,
+    sourceUrls: output.sourceUrls,
+    pagesFetched: output.pagesFetched,
+    dealsFound: output.dealsFound,
+    dealsExtracted: output.dealsExtracted,
+    scrapeDurationMs: output.scrapeDurationMs,
+    ok: output.ok,
+    error: output.error,
+    blobUrl: output.blobUrl || null,
+    configuredBlobUrl: output.configuredBlobUrl || null,
+  };
+}
+
 export default async function handler(req, res) {
+  // -----------------------------
+  // CRON SECRET (commented for testing)
+  // -----------------------------
+  // If you use Vercel Cron, set CRON_SECRET in env vars and call:
+  // /api/scrapers/jdsports-firecrawl?cron=1&secret=YOUR_SECRET
+  //
+  // const isCron = String(req.query?.cron || "") === "1";
+  // if (isCron) {
+  //   const expected = String(process.env.CRON_SECRET || "").trim();
+  //   const got = String(req.query?.secret || req.headers["x-cron-secret"] || "").trim();
+  //   if (!expected) return res.status(500).json({ ok: false, error: "Missing CRON_SECRET env var" });
+  //   if (!got || got !== expected) return res.status(401).json({ ok: false, error: "Unauthorized" });
+  // }
+
   const startUrl =
     String(req.query?.url || "").trim() ||
     "https://www.jdsports.com/plp/all-sale/category=shoes+activity=running";
@@ -220,13 +288,12 @@ export default async function handler(req, res) {
       };
     }
 
-    const blobUrl = await writeBlobJson("jdsports.json", output);
-
-    // Include these in the response so you can copy/paste into env var once
-    output.blobUrl = blobUrl;
+    // ✅ Write FULL JSON (including deals[]) to blob
+    output.blobUrl = await writeBlobJson("jdsports.json", output);
     output.configuredBlobUrl = configuredBlobUrl;
 
-    return res.status(200).json(output);
+    // ✅ Return lightweight response
+    return res.status(200).json(toLightweightResponse(output));
   } catch (err) {
     const scrapeDurationMs = Date.now() - t0;
 
@@ -247,10 +314,12 @@ export default async function handler(req, res) {
       configuredBlobUrl,
     };
 
+    // Best-effort: still write failure blob
     try {
       output.blobUrl = await writeBlobJson("jdsports.json", output);
     } catch {}
 
-    return res.status(500).json(output);
+    // ✅ Return lightweight response
+    return res.status(500).json(toLightweightResponse(output));
   }
 }
