@@ -454,6 +454,25 @@
     }
 
     // =======================
+    // OPTIMISTIC UI HELPERS
+    // =======================
+    function upsertLocalAlert(alertId, patch) {
+      const idx = currentAlerts.findIndex(a => String(a.id) === String(alertId));
+      if (idx === -1) return;
+      currentAlerts[idx] = { ...currentAlerts[idx], ...patch };
+    }
+
+    function removeLocalAlert(alertId) {
+      currentAlerts = currentAlerts.filter(a => String(a.id) !== String(alertId));
+    }
+
+    function reconcileSoon(delayMs = 1200) {
+      setTimeout(() => {
+        refreshAlerts().catch(() => {});
+      }, delayMs);
+    }
+
+    // =======================
     // API CALLS WITH RETRY LOGIC
     // =======================
     async function apiWithRetry(apiFn, maxRetries = 3, delayMs = 1000) {
@@ -585,8 +604,19 @@
 
         try {
           await apiUpdateAlert(alert.id, newPrice);
+
+          // ✅ optimistic UI update (instant)
+          upsertLocalAlert(alert.id, {
+            targetPrice: newPrice,
+            setAt: Date.now(),     // reset to 30 days immediately in UI
+            cancelledAt: null
+          });
+
+          renderAlertsDashboard();
           showStatus("Alert updated and reset to 30 days!", "success");
-          await refreshAlerts();
+
+          // ✅ reconcile with backend shortly after (handles eventual consistency)
+          reconcileSoon(1200);
         } catch (err) {
           showStatus(err.message || "Failed to update alert.", "error");
         } finally {
@@ -786,8 +816,13 @@
               ev.stopPropagation();
               showConfirmationDialog(actionsDiv, "Cancel this alert?", async () => {
                 await apiCancelAlert(a.id);
+
+                // ✅ optimistic UI update (instant)
+                upsertLocalAlert(a.id, { cancelledAt: Date.now() });
+                renderAlertsDashboard();
                 showStatus("Alert cancelled.", "success");
-                await refreshAlerts();
+
+                reconcileSoon(1200);
               });
             });
             actionsDiv.appendChild(cancelBtn);
@@ -799,8 +834,13 @@
               ev.stopPropagation();
               showConfirmationDialog(actionsDiv, "Remove this alert?", async () => {
                 await apiRemoveAlert(a.id);
+
+                // ✅ optimistic UI update (instant)
+                removeLocalAlert(a.id);
+                renderAlertsDashboard();
                 showStatus("Alert removed.", "success");
-                await refreshAlerts();
+
+                reconcileSoon(1200);
               });
             });
             actionsDiv.appendChild(removeBtn);
