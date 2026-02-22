@@ -282,10 +282,15 @@ module.exports = async function handler(req, res) {
       addRandomSuffix: false, // IMPORTANT: stable path
     });
 
-    return res.status(200).json({
-      ...body,
-      blobUrl: blob?.url || null,
-    });
+const {
+  deals,        // remove deals from response
+  ...metaOnly
+} = body;
+
+return res.status(200).json({
+  ...metaOnly,
+  blobUrl: blob?.url || null,
+});
   } catch (err) {
     return res.status(500).json({
       store: STORE,
