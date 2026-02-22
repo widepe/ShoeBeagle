@@ -21,10 +21,12 @@ const RUN_CONCURRENTLY = true; // set false to run one-after-another (safer)
 // EASY TOGGLES (on/off here)
 // ===========================
 const ENABLED = {
+  backcountry: true,
   finishline: true,
   hoka: true,
+  jdsports: true,
   kohls: true,
-  backcountry: true,
+
 };
 
 // ===========================
@@ -48,6 +50,11 @@ const TARGETS = [
     // internal route path (no domain needed)
     path: "/api/scrapers/hoka-firecrawl",
   },
+  {
+    key: "jdsports",
+    name: "JD Sports Firecrawl",
+    path: "/api/scrapers/jdsports-firecrawl",
+  },  
   {
     key: "kohls",
     name: "Kohl's Firecrawl",
