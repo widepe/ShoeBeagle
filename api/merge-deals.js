@@ -298,6 +298,7 @@ function storeBaseUrl(store) {
   if (s.includes("foot locker") || s.includes("footlocker")) return "https://www.footlocker.com";
   if (s.includes("holabird")) return "https://www.holabirdsports.com";
   if (s.includes("hoka")) return "https://www.hoka.com";
+  if (s.includes("jd sports") || s.includes("jdsports")) return "https://www.jdsports.com";
   if (s.includes("kohls") || s.includes("kohl's")) return "https://www.kohls.com";
   if (s.includes("luke")) return "https://lukeslocker.com";
   if (s.includes("marathon sports")) return "https://www.marathonsports.com";
@@ -1194,6 +1195,7 @@ module.exports = async (req, res) => {
   const HOLABIRD_MENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_MENS_ROAD_BLOB_URL || "").trim();
   const HOLABIRD_TRAIL_UNISEX_BLOB_URL = String(process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "").trim();
   const HOLABIRD_WOMENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "").trim();
+  const JDSPORTS_DEALS_BLOB_URL = String(process.env.JDSPORTS_DEALS_BLOB_URL || "").trim();
   const KOHLS_DEALS_BLOB_URL = String(process.env.KOHLS_DEALS_BLOB_URL || "").trim();
   const LUKES_LOCKER_CHEERIO_BLOB_URL = String(process.env.LUKES_LOCKER_CHEERIO_BLOB_URL || "").trim();
   const MARATHON_SPORTS_CHEERIO_BLOB_URL = String(process.env.MARATHON_SPORTS_CHEERIO_BLOB_URL || "").trim();
@@ -1227,6 +1229,7 @@ module.exports = async (req, res) => {
     console.log("[MERGE] FLEET_FEET_CHEERIO_BLOB_URL set?", !!FLEET_FEET_CHEERIO_BLOB_URL);
     console.log("[MERGE] FOOTLOCKER_DEALS_BLOB_URL set?", !!FOOTLOCKER_DEALS_BLOB_URL);
     console.log("[MERGE] HOKA_DEALS_BLOB_URL set?", !!HOKA_DEALS_BLOB_URL);
+    console.log("[MERGE] JDSPORTS_DEALS_BLOB_URL set?", !!JDSPORTS_DEALS_BLOB_URL);
     console.log("[MERGE] KOHLS_DEALS_BLOB_URL set?", !!KOHLS_DEALS_BLOB_URL);
     console.log("[MERGE] LUKES_LOCKER_CHEERIO_BLOB_URL set?", !!LUKES_LOCKER_CHEERIO_BLOB_URL);
     console.log("[MERGE] MARATHON_SPORTS_CHEERIO_BLOB_URL set?", !!MARATHON_SPORTS_CHEERIO_BLOB_URL);
@@ -1249,6 +1252,7 @@ module.exports = async (req, res) => {
       { id: "holabird-sports", name: "Holabird Sports (Mens Road)", blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL },
       { id: "holabird-sports", name: "Holabird Sports (Womens Road)", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
       { id: "holabird-sports", name: "Holabird Sports (Trail + Unisex)", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
+      { id: "jd-sports", name: "JD Sports", blobUrl: JDSPORTS_DEALS_BLOB_URL },
       { id: "kohls", name: "Kohls", blobUrl: KOHLS_DEALS_BLOB_URL },
       { id: "lukes-locker", name: "Luke's Locker", blobUrl: LUKES_LOCKER_CHEERIO_BLOB_URL },
       { id: "marathon-sports", name: "Marathon Sports", blobUrl: MARATHON_SPORTS_CHEERIO_BLOB_URL },
