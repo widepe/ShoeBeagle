@@ -292,6 +292,7 @@ function storeBaseUrl(store) {
 
   if (s === "als") return "https://www.als.com";
   if (s.includes("asics")) return "https://www.asics.com";
+  if (s.includes("backcountry")) return "https://www.backcountry.com";
   if (s.includes("brooks")) return "https://www.brooksrunning.com";
   if (s.includes("finish line") || s.includes("finishline")) return "https://www.finishline.com";
   if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
@@ -302,9 +303,10 @@ function storeBaseUrl(store) {
   if (s.includes("kohls") || s.includes("kohl's")) return "https://www.kohls.com";
   if (s.includes("luke")) return "https://lukeslocker.com";
   if (s.includes("marathon sports")) return "https://www.marathonsports.com";
-  if (s === "rei") return "https://www.rei.com";
   if (s.includes("mizuno")) return "https://usa.mizuno.com";
-  if (s.includes("rei outlet")) return "https://www.rei.com/rei-garage";
+  if (s.includes("nike")) return "https://www.nike.com";
+  if (s === "rei") return "https://www.rei.com";
+  if (s.includes("rei outlet")) return "https://www.rei.com/rei-garage";   // not sure what is going on here, two rei
   if (s.includes("rei")) return "https://www.rei.com";
   if (s.includes("road runner")) return "https://www.roadrunnersports.com";
   if (s.includes("rnj")) return "https://www.rnjsports.com";
@@ -1200,6 +1202,7 @@ module.exports = async (req, res) => {
   const LUKES_LOCKER_CHEERIO_BLOB_URL = String(process.env.LUKES_LOCKER_CHEERIO_BLOB_URL || "").trim();
   const MARATHON_SPORTS_CHEERIO_BLOB_URL = String(process.env.MARATHON_SPORTS_CHEERIO_BLOB_URL || "").trim();
   const MIZUNO_DEALS_BLOB_URL = String(process.env.MIZUNO_DEALS_BLOB_URL || "").trim();
+  const NIKE_DEALS_BLOB_URL = String(process.env.NIKE_DEALS_BLOB_URL || "").trim();
   const REI_DEALS_BLOB_URL = String(process.env.REI_DEALS_BLOB_URL || "").trim();
   const RNJSPORTS_DEALS_BLOB_URL = String(process.env.RNJSPORTS_DEALS_BLOB_URL || "").trim();
   const ROADRUNNER_DEALS_BLOB_URL = String(process.env.ROADRUNNER_DEALS_BLOB_URL || "").trim();
@@ -1233,6 +1236,8 @@ module.exports = async (req, res) => {
     console.log("[MERGE] KOHLS_DEALS_BLOB_URL set?", !!KOHLS_DEALS_BLOB_URL);
     console.log("[MERGE] LUKES_LOCKER_CHEERIO_BLOB_URL set?", !!LUKES_LOCKER_CHEERIO_BLOB_URL);
     console.log("[MERGE] MARATHON_SPORTS_CHEERIO_BLOB_URL set?", !!MARATHON_SPORTS_CHEERIO_BLOB_URL);
+    console.log("[MERGE] MIZUNO_DEALS_BLOB_URL set?", !!MIZUNO_DEALS_BLOB_URL);
+    console.log("[MERGE] NIKE_DEALS_BLOB_URL set?", !!NIKE_DEALS_BLOB_URL);
     console.log("[MERGE] REI_DEALS_BLOB_URL set?", !!REI_DEALS_BLOB_URL);
     console.log("[MERGE] RNJSPORTS_DEALS_BLOB_URL set?", !!RNJSPORTS_DEALS_BLOB_URL);
     console.log("[MERGE] ROADRUNNER_DEALS_BLOB_URL set?", !!ROADRUNNER_DEALS_BLOB_URL);
@@ -1257,6 +1262,7 @@ module.exports = async (req, res) => {
       { id: "lukes-locker", name: "Luke's Locker", blobUrl: LUKES_LOCKER_CHEERIO_BLOB_URL },
       { id: "marathon-sports", name: "Marathon Sports", blobUrl: MARATHON_SPORTS_CHEERIO_BLOB_URL },
       { id: "mizuno", name: "Mizuno", blobUrl: MIZUNO_DEALS_BLOB_URL },
+      { id: "nike", name: "Nike", blobUrl: NIKE_DEALS_BLOB_URL },
       { id: "rei-outlet", name: "REI Outlet", blobUrl: REI_DEALS_BLOB_URL },
       { id: "rnj-sports", name: "RNJ Sports", blobUrl: RNJSPORTS_DEALS_BLOB_URL },
       { id: "road-runner-sports", name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
