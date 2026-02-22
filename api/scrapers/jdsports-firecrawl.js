@@ -1,18 +1,13 @@
 // /api/scrapers/jdsports-firecrawl.js
-// Vercel route: scrape 1 JD Sports page via Firecrawl, parse HTML, apply your rules,
-// and write JSON to Vercel Blob key: jdsports.json  (=> .../jdsports.json)
-
 import { put } from "@vercel/blob";
 import * as cheerio from "cheerio";
 
 function nowIso() {
   return new Date().toISOString();
 }
-
 function cleanText(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
 }
-
 function parseMoney(s) {
   const t = String(s || "").trim();
   if (!t) return null;
@@ -20,7 +15,6 @@ function parseMoney(s) {
   const n = Number(m);
   return Number.isFinite(n) ? n : null;
 }
-
 function roundInt(n) {
   return Number.isFinite(n) ? Math.round(n) : null;
 }
@@ -30,49 +24,36 @@ function inferGender(listingName) {
   if (n.startsWith("women's ")) return "womens";
   if (n.startsWith("men's ")) return "mens";
   if (n.startsWith("unisex ")) return "unisex";
-  return null; // drop
+  return null;
 }
-
 function mustBeRunningShoes(listingName) {
   return listingName.toLowerCase().includes("running shoes");
 }
-
 function inferShoeType(listingName) {
   const n = listingName.toLowerCase();
   if (n.includes("trail running")) return "trail";
   if (n.includes("road running")) return "road";
   return "unknown";
 }
-
-// IMPORTANT: do not edit listingName; only derive brand/model.
-// Fixes multi-word brand "New Balance".
 function deriveBrandModel(listingName) {
   let s = cleanText(listingName);
-
-  // Remove gender prefix
   s = s.replace(/^(Women's|Men's|Unisex)\s+/i, "");
-
-  // Remove trailing running shoes phrase
   s = s.replace(/\s+Running\s+Shoes\s*$/i, "");
   s = s.replace(/\s+(Trail|Road)\s+Running\s+Shoes\s*$/i, "");
   s = cleanText(s);
-
   if (!s) return { brand: "unknown", model: "unknown" };
 
-  // Multi-word brands
+  // multi-word brand fix
   const multiWordBrands = ["New Balance"];
-
   for (const b of multiWordBrands) {
     const bl = b.toLowerCase();
     const sl = s.toLowerCase();
     if (sl === bl) return { brand: b, model: "unknown" };
     if (sl.startsWith(bl + " ")) {
-      const model = cleanText(s.slice(b.length));
-      return { brand: b, model: model || "unknown" };
+      return { brand: b, model: cleanText(s.slice(b.length)) || "unknown" };
     }
   }
 
-  // Default: brand first token
   const parts = s.split(" ");
   const brand = parts[0] ? cleanText(parts[0]) : "unknown";
   const model = parts.length > 1 ? cleanText(parts.slice(1).join(" ")) : "unknown";
@@ -89,37 +70,29 @@ async function firecrawlScrapeHtml(url) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      url,
-      formats: ["html"],
-    }),
+    body: JSON.stringify({ url, formats: ["html"] }),
   });
 
   const json = await resp.json().catch(() => null);
-
   if (!resp.ok) {
     const msg = json?.error || json?.message || `Firecrawl HTTP ${resp.status}`;
     throw new Error(`Firecrawl failed: ${msg}`);
   }
-
   const html = json?.data?.html || "";
   if (!html) throw new Error("Firecrawl returned empty html");
   return html;
 }
 
 function parseDealsFromHtml(html) {
-  // Block detection (matches what you saw in debug.html)
   if (html.includes("Your Access Has Been Denied")) {
     return { blocked: true, dealsFound: 0, deals: [] };
   }
 
   const $ = cheerio.load(html);
-
   const tiles = $('div[data-testid="product-item"]');
   const dealsFound = tiles.length;
 
   const deals = [];
-
   tiles.each((_, el) => {
     const node = $(el);
 
@@ -139,11 +112,9 @@ function parseDealsFromHtml(html) {
         ""
     );
 
-    // Drop rule: gender must be womens/mens/unisex
     const gender = inferGender(listingName);
     if (!gender) return;
 
-    // Drop rule: listing must state "running shoes"
     if (!mustBeRunningShoes(listingName)) return;
 
     const shoeType = inferShoeType(listingName);
@@ -154,11 +125,10 @@ function parseDealsFromHtml(html) {
     const salePrice = parseMoney(saleText);
     const originalPrice = parseMoney(originalText);
 
-    // ✅ Fix: drop $0 / missing prices
+    // drop $0/missing/invalid
     if (!(Number.isFinite(salePrice) && salePrice > 0)) return;
     if (!(Number.isFinite(originalPrice) && originalPrice > 0)) return;
     if (!(originalPrice > salePrice)) return;
-
     if (!listingURL) return;
 
     const discountPercent = roundInt(((originalPrice - salePrice) / originalPrice) * 100);
@@ -166,27 +136,20 @@ function parseDealsFromHtml(html) {
 
     deals.push({
       schemaVersion: 1,
-
       listingName,
-
       brand,
       model,
-
       salePrice,
       originalPrice,
       discountPercent,
-
       salePriceLow: null,
       salePriceHigh: null,
       originalPriceLow: null,
       originalPriceHigh: null,
       discountPercentUpTo: null,
-
       store: "JD Sports",
-
       listingURL,
       imageURL,
-
       gender,
       shoeType,
     });
@@ -199,17 +162,22 @@ async function writeBlobJson(key, obj) {
   const token = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
   if (!token) throw new Error("Missing BLOB_READ_WRITE_TOKEN");
 
-  await put(key, JSON.stringify(obj, null, 2), {
+  const result = await put(key, JSON.stringify(obj, null, 2), {
     access: "public",
     token,
     contentType: "application/json",
+    addRandomSuffix: false, // keep exactly key name
   });
+
+  return result?.url || null;
 }
 
 export default async function handler(req, res) {
   const startUrl =
     String(req.query?.url || "").trim() ||
     "https://www.jdsports.com/plp/all-sale/category=shoes+activity=running";
+
+  const configuredBlobUrl = String(process.env.JDSPORTS_DEALS_BLOB_URL || "").trim() || null;
 
   const t0 = Date.now();
 
@@ -224,50 +192,39 @@ export default async function handler(req, res) {
       output = {
         store: "JD Sports",
         schemaVersion: 1,
-
         lastUpdated: nowIso(),
         via: "firecrawl",
-
         sourceUrls: [startUrl],
-
         pagesFetched: 1,
-
         dealsFound: 0,
         dealsExtracted: 0,
-
         scrapeDurationMs,
-
         ok: false,
         error: "Blocked: Your Access Has Been Denied",
-
         deals: [],
       };
     } else {
       output = {
         store: "JD Sports",
         schemaVersion: 1,
-
         lastUpdated: nowIso(),
         via: "firecrawl",
-
         sourceUrls: [startUrl],
-
         pagesFetched: 1,
-
         dealsFound: parsed.dealsFound,
         dealsExtracted: parsed.deals.length,
-
         scrapeDurationMs,
-
         ok: true,
         error: null,
-
         deals: parsed.deals,
       };
     }
 
-    // ✅ Write to blob key "jdsports.json" => .../jdsports.json
-    await writeBlobJson("jdsports.json", output);
+    const blobUrl = await writeBlobJson("jdsports.json", output);
+
+    // Include these in the response so you can copy/paste into env var once
+    output.blobUrl = blobUrl;
+    output.configuredBlobUrl = configuredBlobUrl;
 
     return res.status(200).json(output);
   } catch (err) {
@@ -276,28 +233,22 @@ export default async function handler(req, res) {
     const output = {
       store: "JD Sports",
       schemaVersion: 1,
-
       lastUpdated: nowIso(),
       via: "firecrawl",
-
       sourceUrls: [startUrl],
-
       pagesFetched: 1,
-
       dealsFound: 0,
       dealsExtracted: 0,
-
       scrapeDurationMs,
-
       ok: false,
       error: String(err?.message || err),
-
       deals: [],
+      blobUrl: null,
+      configuredBlobUrl,
     };
 
-    // Best-effort: still write failure blob so your dashboard stays consistent
     try {
-      await writeBlobJson("jdsports.json", output);
+      output.blobUrl = await writeBlobJson("jdsports.json", output);
     } catch {}
 
     return res.status(500).json(output);
