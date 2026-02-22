@@ -247,8 +247,22 @@
   "notes": "Mizuno USA running sale pages (mens + womens). Writes to mizuno.json via APIFY + Vercel Blob."
 },
 
-
-
+{
+  "id": "nike",
+  "displayName": "Nike",
+  "addedAt": "2026-02-22",
+  "lastUpdated": "2026-02-22",
+  "scrapedUrls": [
+    "https://www.nike.com/w/sale-running-shoes-37v7jz3rauvz3yaepz5e1x6znik1zy7ok"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/nike.json"
+  ],
+  "aliases": ["nike"],
+  "enabled": true,
+  "scraperType": "firecrawl",
+  "notes": "Nike sale running shoes page via Firecrawl. Uses scroll actions to load more tiles (infinite scroll). Drops 'See Price in Bag' items and counts drops. ShoeType inferred from title keywords: road/trail/track; gender inferred from title: Women's/Men's/Unisex else unknown. Writes to nike.json."
+},
   
   {
     "id": "rei-outlet",
