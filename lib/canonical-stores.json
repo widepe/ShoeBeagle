@@ -158,6 +158,26 @@
     "notes": "Holabird is split into multiple blobs (mens, womens, trail/unisex)."
   },
 
+
+{
+  "id": "jd-sports",
+  "displayName": "JD Sports",
+  "addedAt": "2026-02-22",
+  "lastUpdated": "2026-02-22",
+  "scrapedUrls": [
+    "https://www.jdsports.com/plp/all-sale/category=shoes+activity=running"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/jdsports.json"
+  ],
+  "aliases": ["jd sports", "jdsports"],
+  "enabled": true,
+  "scraperType": "firecrawl",
+  "notes": "JD Sports running shoes sale page via Firecrawl. Scrapes ONE page only. Drops $0 prices and items without original strikethrough price. Writes to jdsports.json via JDSPORTS_DEALS_BLOB_URL / BLOB_READ_WRITE_TOKEN."
+},
+
+
+  
 {
   "id": "kohls",
   "displayName": "Kohl's",
