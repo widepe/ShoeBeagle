@@ -4,6 +4,7 @@
 // ✅ Applies your rules
 // ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: jdsports.json
 // ✅ Returns LIGHTWEIGHT response (no deals array) + blobUrl
+// ✅ Includes dropCounts + dropReasons[] in the BLOB (and in the lightweight response)
 //
 // ENV required:
 // - FIRECRAWL_API_KEY
@@ -15,7 +16,7 @@
 // - CRON_SECRET
 //
 // To test in browser: visit /api/scrapers/jdsports-firecrawl
-// For cron: call /api/scrapers/jdsports-firecrawl?cron=1 and enable the CRON_SECRET block.
+// For cron: call /api/scrapers/jdsports-firecrawl?cron=1  (and enable the CRON_SECRET block)
 
 import { put } from "@vercel/blob";
 import * as cheerio from "cheerio";
@@ -100,6 +101,8 @@ async function firecrawlScrapeHtml(url) {
     body: JSON.stringify({
       url,
       formats: ["html"],
+      // optional: uncomment if JD needs more JS time
+      // waitFor: 3000,
     }),
   });
 
@@ -115,7 +118,44 @@ async function firecrawlScrapeHtml(url) {
   return html;
 }
 
-function parseDealsFromHtml(html) {
+function makeDropTracker() {
+  const counts = {
+    totalTiles: 0,
+
+    dropped_gender: 0,
+    dropped_notRunningShoes: 0,
+    dropped_missingUrl: 0,
+
+    dropped_saleMissingOrZero: 0,
+    dropped_originalMissingOrZero: 0,
+    dropped_notADeal: 0,
+
+    kept: 0,
+  };
+
+  const bump = (key) => {
+    if (Object.prototype.hasOwnProperty.call(counts, key)) counts[key] += 1;
+  };
+
+  function toSummaryArray() {
+    const rows = [
+      { reason: "dropped_gender", count: counts.dropped_gender, note: "Name must start with Women's / Men's / Unisex" },
+      { reason: "dropped_notRunningShoes", count: counts.dropped_notRunningShoes, note: "Name must include 'running shoes'" },
+      { reason: "dropped_missingUrl", count: counts.dropped_missingUrl, note: "No PDP link found" },
+      { reason: "dropped_saleMissingOrZero", count: counts.dropped_saleMissingOrZero, note: "Sale price missing/invalid/0" },
+      { reason: "dropped_originalMissingOrZero", count: counts.dropped_originalMissingOrZero, note: "Original price missing/invalid/0" },
+      { reason: "dropped_notADeal", count: counts.dropped_notADeal, note: "originalPrice must be > salePrice" },
+      { reason: "kept", count: counts.kept, note: "Included in deals[]" },
+    ];
+
+    // keep it clean: only show non-zero rows (plus kept)
+    return rows.filter((r) => r.count > 0 || r.reason === "kept");
+  }
+
+  return { counts, bump, toSummaryArray };
+}
+
+function parseDealsFromHtml(html, drop) {
   // Block detection
   if (html.includes("Your Access Has Been Denied")) {
     return { blocked: true, dealsFound: 0, deals: [] };
@@ -123,9 +163,11 @@ function parseDealsFromHtml(html) {
 
   const $ = cheerio.load(html);
   const tiles = $('div[data-testid="product-item"]');
-  const dealsFound = tiles.length;
+  drop.counts.totalTiles = tiles.length;
 
+  const dealsFound = tiles.length;
   const deals = [];
+
   tiles.each((_, el) => {
     const node = $(el);
 
@@ -137,6 +179,11 @@ function parseDealsFromHtml(html) {
         : `https://www.jdsports.com${href}`
       : "";
 
+    if (!listingURL) {
+      drop.bump("dropped_missingUrl");
+      return;
+    }
+
     const imageURL = node.find("img").first().attr("src") || "";
 
     const listingName = cleanText(
@@ -147,10 +194,16 @@ function parseDealsFromHtml(html) {
 
     // Drop: gender must be womens/mens/unisex
     const gender = inferGender(listingName);
-    if (!gender) return;
+    if (!gender) {
+      drop.bump("dropped_gender");
+      return;
+    }
 
     // Drop: must include "running shoes"
-    if (!mustBeRunningShoes(listingName)) return;
+    if (!mustBeRunningShoes(listingName)) {
+      drop.bump("dropped_notRunningShoes");
+      return;
+    }
 
     const shoeType = inferShoeType(listingName);
 
@@ -161,10 +214,18 @@ function parseDealsFromHtml(html) {
     const originalPrice = parseMoney(originalText);
 
     // Drop invalid/missing/zero prices
-    if (!(Number.isFinite(salePrice) && salePrice > 0)) return;
-    if (!(Number.isFinite(originalPrice) && originalPrice > 0)) return;
-    if (!(originalPrice > salePrice)) return;
-    if (!listingURL) return;
+    if (!(Number.isFinite(salePrice) && salePrice > 0)) {
+      drop.bump("dropped_saleMissingOrZero");
+      return;
+    }
+    if (!(Number.isFinite(originalPrice) && originalPrice > 0)) {
+      drop.bump("dropped_originalMissingOrZero");
+      return;
+    }
+    if (!(originalPrice > salePrice)) {
+      drop.bump("dropped_notADeal");
+      return;
+    }
 
     const discountPercent = roundInt(((originalPrice - salePrice) / originalPrice) * 100);
     const { brand, model } = deriveBrandModel(listingName);
@@ -188,6 +249,8 @@ function parseDealsFromHtml(html) {
       gender,
       shoeType,
     });
+
+    drop.bump("kept");
   });
 
   return { blocked: false, dealsFound, deals };
@@ -221,6 +284,11 @@ function toLightweightResponse(output) {
     scrapeDurationMs: output.scrapeDurationMs,
     ok: output.ok,
     error: output.error,
+
+    // NEW: drop info (small + consistent)
+    dropCounts: output.dropCounts || null,
+    dropReasons: output.dropReasons || null,
+
     blobUrl: output.blobUrl || null,
     configuredBlobUrl: output.configuredBlobUrl || null,
   };
@@ -251,7 +319,9 @@ export default async function handler(req, res) {
 
   try {
     const html = await firecrawlScrapeHtml(startUrl);
-    const parsed = parseDealsFromHtml(html);
+
+    const drop = makeDropTracker();
+    const parsed = parseDealsFromHtml(html, drop);
 
     const scrapeDurationMs = Date.now() - t0;
 
@@ -270,6 +340,9 @@ export default async function handler(req, res) {
         ok: false,
         error: "Blocked: Your Access Has Been Denied",
         deals: [],
+
+        dropCounts: { totalTiles: 0, kept: 0 },
+        dropReasons: [{ reason: "blocked", count: 1, note: "JD Sports returned an access denied page" }],
       };
     } else {
       output = {
@@ -285,6 +358,10 @@ export default async function handler(req, res) {
         ok: true,
         error: null,
         deals: parsed.deals,
+
+        // NEW: drop info written into the blob
+        dropCounts: drop.counts,
+        dropReasons: drop.toSummaryArray(),
       };
     }
 
@@ -292,7 +369,7 @@ export default async function handler(req, res) {
     output.blobUrl = await writeBlobJson("jdsports.json", output);
     output.configuredBlobUrl = configuredBlobUrl;
 
-    // ✅ Return lightweight response
+    // ✅ Return lightweight response (no deals[])
     return res.status(200).json(toLightweightResponse(output));
   } catch (err) {
     const scrapeDurationMs = Date.now() - t0;
@@ -310,6 +387,10 @@ export default async function handler(req, res) {
       ok: false,
       error: String(err?.message || err),
       deals: [],
+
+      dropCounts: null,
+      dropReasons: null,
+
       blobUrl: null,
       configuredBlobUrl,
     };
@@ -319,7 +400,6 @@ export default async function handler(req, res) {
       output.blobUrl = await writeBlobJson("jdsports.json", output);
     } catch {}
 
-    // ✅ Return lightweight response
     return res.status(500).json(toLightweightResponse(output));
   }
 }
