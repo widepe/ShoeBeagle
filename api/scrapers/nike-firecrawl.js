@@ -71,35 +71,38 @@ async function fetchHtmlViaFirecrawl(url) {
         Authorization: `Bearer ${apiKey}`,
       },
       signal: controller.signal,
-      body: JSON.stringify({
-        url,
-        formats: ["html"],
-        onlyMainContent: false,
+body: JSON.stringify({
+  url,
+  formats: ["html"],
+  onlyMainContent: false,
 
-        // Give Nike time to render initial products
-        waitFor: 1500,
+  // ✅ IMPORTANT: avoid cached snapshots
+  maxAge: 0,
 
-        // Scroll to trigger infinite loading
-        actions: [
-          { type: "scroll", direction: "down" },
-          { type: "wait", milliseconds: 1200 },
+  // give first render time
+  waitFor: 2000,
 
-          { type: "scroll", direction: "down" },
-          { type: "wait", milliseconds: 1200 },
+  actions: [
+    { type: "wait", selector: '[data-testid="product-card"]' },
 
-          { type: "scroll", direction: "down" },
-          { type: "wait", milliseconds: 1200 },
+    { type: "scroll", direction: "down" },
+    { type: "wait", selector: '[data-testid="product-card"]' },
 
-          { type: "scroll", direction: "down" },
-          { type: "wait", milliseconds: 1200 },
+    { type: "scroll", direction: "down" },
+    { type: "wait", selector: '[data-testid="product-card"]' },
 
-          { type: "scroll", direction: "down" },
-          { type: "wait", milliseconds: 1200 }
-        ],
+    { type: "scroll", direction: "down" },
+    { type: "wait", selector: '[data-testid="product-card"]' },
 
-        timeout: 120000
-      }),
-    });
+    { type: "scroll", direction: "down" },
+    { type: "wait", selector: '[data-testid="product-card"]' },
+
+    { type: "scroll", direction: "down" },
+    { type: "wait", selector: '[data-testid="product-card"]' },
+  ],
+
+  timeout: 120000
+}),
 
     if (!resp.ok) {
       const txt = await resp.text().catch(() => "");
