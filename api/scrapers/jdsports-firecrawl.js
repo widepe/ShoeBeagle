@@ -165,7 +165,17 @@ function parseDealsFromHtml(html, drop) {
   const tiles = $('div[data-testid="product-item"]');
   drop.counts.totalTiles = tiles.length;
 
-  const dealsFound = tiles.length;
+  // ✅ dealsFound should mean "unique products", not raw tiles
+const hrefSet = new Set();
+tiles.each((_, el) => {
+  const href = $(el).find('a[href*="/pdp/"]').first().attr("href") || "";
+  if (!href) return;
+
+  const abs = href.startsWith("http") ? href : `https://www.jdsports.com${href}`;
+  hrefSet.add(abs);
+});
+const dealsFound = hrefSet.size;
+  
   const deals = [];
 
   tiles.each((_, el) => {
