@@ -1,10 +1,18 @@
 // /api/scrapers/jdsports-firecrawl.js
 //
-// ✅ Scrapes 1 JD Sports sale running page via Firecrawl (HTML or RAW HTML)
+// ✅ Scrapes 1 JD Sports sale running page via Firecrawl (RAW/HTML)
 // ✅ Applies your rules
 // ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: jdsports.json
 // ✅ Returns LIGHTWEIGHT response (no deals array) + blobUrl
 // ✅ Includes dropCounts + dropReasons[] in the BLOB (and in the lightweight response)
+//
+// ENV required:
+// - FIRECRAWL_API_KEY
+// - BLOB_READ_WRITE_TOKEN
+//
+// Optional:
+// - JDSPORTS_DEALS_BLOB_URL (for your merge system / debugging)
+// - CRON_SECRET (if you enable cron auth)
 
 import { put } from "@vercel/blob";
 import * as cheerio from "cheerio";
@@ -94,6 +102,7 @@ function normalizeImgUrl(u) {
   if (url.startsWith("//")) url = "https:" + url;
   return url;
 }
+
 function extractImageURLFromDom(node, $) {
   const c = [];
 
@@ -122,32 +131,46 @@ function extractImageURLFromDom(node, $) {
   );
 }
 
-// If DOM has no <img>, JD still provides a SKU we can use.
 function buildImageUrlFromSku(sku) {
   const s = String(sku || "").trim();
   if (!s) return "";
-  // Known JD pattern from your browser outerHTML
   return `https://media.jdsports.com/s/jdsports/${encodeURIComponent(s)}?$Main$?&w=660&h=660&fmt=auto`;
 }
 
-function getSkuFromTile(node, $) {
-  // Often on the product-item itself: data-sku="3MF11003_002"
-  return (
-    node.attr("data-sku") ||
-    node.find("[data-sku]").first().attr("data-sku") ||
-    ""
-  );
+function deriveSkuFromListingURL(listingURL) {
+  try {
+    const u = new URL(listingURL);
+    const parts = u.pathname.split("/").filter(Boolean);
+    // Example:
+    // /pdp/mens-on-cloudswift-4-running-shoes/prod2872829/3MF11003/002
+    // parts = ["pdp","mens-on-cloudswift-4-running-shoes","prod2872829","3MF11003","002"]
+    if (parts.length >= 2) {
+      const last = parts[parts.length - 1];
+      const prev = parts[parts.length - 2];
+      if (prev && last && /^[A-Za-z0-9]+$/.test(prev) && /^[A-Za-z0-9]+$/.test(last)) {
+        return `${prev}_${last}`;
+      }
+    }
+  } catch {}
+  return "";
 }
 
-function extractImageURL(node, $) {
-  // 1) Try DOM <img> extraction
+function extractImageURL(node, $, listingURL) {
+  // 1) DOM extraction
   const fromDom = extractImageURLFromDom(node, $);
   if (fromDom) return fromDom;
 
-  // 2) Fallback to SKU-derived image URL
-  const sku = getSkuFromTile(node, $);
-  const fromSku = buildImageUrlFromSku(sku);
-  if (fromSku) return fromSku;
+  // 2) data-sku attribute (if Firecrawl kept it)
+  const skuAttr = node.attr("data-sku") || node.find("[data-sku]").first().attr("data-sku") || "";
+  if (skuAttr) {
+    const url = buildImageUrlFromSku(skuAttr);
+    if (url) return url;
+  }
+
+  // 3) derive SKU from listingURL path segments
+  const derivedSku = deriveSkuFromListingURL(listingURL);
+  const fromUrl = buildImageUrlFromSku(derivedSku);
+  if (fromUrl) return fromUrl;
 
   return "";
 }
@@ -168,12 +191,14 @@ async function firecrawlScrapeHtml(url) {
     body: JSON.stringify({
       url,
 
-      // We ask for rawHtml first, but we’ll accept html fallback below.
+      // ask for rawHtml first, but accept html as fallback
       formats: ["rawHtml", "html"],
 
+      // always fresh
       maxAge: 0,
       storeInCache: false,
 
+      // let SPA hydrate
       waitFor: 6000,
       removeBase64Images: true,
 
@@ -240,20 +265,26 @@ function parseDealsFromHtml(html, drop) {
 
   drop.counts.totalTiles = tiles.length;
 
-  // Debug: confirm we can compute image URL even without <img>
+  // Debug: use PDP URL to derive SKU and image URL
   const first = tiles.first();
+  const firstHref = first.find('a[href*="/pdp/"]').first().attr("href") || "";
+  const firstListingURL = firstHref
+    ? firstHref.startsWith("http")
+      ? firstHref
+      : `https://www.jdsports.com${firstHref}`
+    : "";
+  const derivedSku = deriveSkuFromListingURL(firstListingURL);
   const firstImg = first.find("img").first();
-  const firstSku = getSkuFromTile(first, $);
 
   drop.counts.__debug_firstTile = {
     tileExists: tiles.length > 0,
     imgCount: first.find("img").length,
     imgSrc: firstImg.attr("src") || null,
-    imgDataSrc: firstImg.attr("data-src") || null,
-    imgSrcset: firstImg.attr("srcset") || null,
-    sku: firstSku || null,
-    fallbackImageURL: firstSku ? buildImageUrlFromSku(firstSku) : null,
-    extractedImageURL: extractImageURL(first, $) || null,
+    skuAttr: first.attr("data-sku") || null,
+    firstListingURL: firstListingURL || null,
+    derivedSku: derivedSku || null,
+    fallbackImageURL: derivedSku ? buildImageUrlFromSku(derivedSku) : null,
+    extractedImageURL: firstListingURL ? extractImageURL(first, $, firstListingURL) : null,
     snippet: cleanText(first.html() || "").slice(0, 260),
   };
 
@@ -323,7 +354,7 @@ function parseDealsFromHtml(html, drop) {
       return;
     }
 
-    const imageURL = extractImageURL(node, $) || "";
+    const imageURL = extractImageURL(node, $, listingURL) || "";
 
     const discountPercent = roundInt(((originalPrice - salePrice) / originalPrice) * 100);
     const { brand, model } = deriveBrandModel(listingName);
@@ -362,7 +393,7 @@ async function writeBlobJson(key, obj) {
     access: "public",
     token,
     contentType: "application/json",
-    addRandomSuffix: false,
+    addRandomSuffix: false, // keep exactly jdsports.json
   });
 
   return result?.url || null;
@@ -381,14 +412,27 @@ function toLightweightResponse(output) {
     scrapeDurationMs: output.scrapeDurationMs,
     ok: output.ok,
     error: output.error,
+
     dropCounts: output.dropCounts || null,
     dropReasons: output.dropReasons || null,
+
     blobUrl: output.blobUrl || null,
     configuredBlobUrl: output.configuredBlobUrl || null,
   };
 }
 
 export default async function handler(req, res) {
+  // -----------------------------
+  // CRON SECRET (commented for testing)
+  // -----------------------------
+  // const isCron = String(req.query?.cron || "") === "1";
+  // if (isCron) {
+  //   const expected = String(process.env.CRON_SECRET || "").trim();
+  //   const got = String(req.query?.secret || req.headers["x-cron-secret"] || "").trim();
+  //   if (!expected) return res.status(500).json({ ok: false, error: "Missing CRON_SECRET env var" });
+  //   if (!got || got !== expected) return res.status(401).json({ ok: false, error: "Unauthorized" });
+  // }
+
   const startUrl =
     String(req.query?.url || "").trim() ||
     "https://www.jdsports.com/plp/all-sale/category=shoes+activity=running";
@@ -468,6 +512,7 @@ export default async function handler(req, res) {
       configuredBlobUrl,
     };
 
+    // Best-effort failure blob
     try {
       output.blobUrl = await writeBlobJson("jdsports.json", output);
     } catch {}
