@@ -99,8 +99,8 @@ function normalizeImgUrl(u) {
 }
 
 function extractImageURL(node, $) {
-  // 1. Try standard img src extraction
   const c = [];
+
   node.find("img").each((_, img) => {
     const el = $(img);
     c.push(el.attr("src") || "");
@@ -116,55 +116,46 @@ function extractImageURL(node, $) {
   });
 
   const urls = c.map(normalizeImgUrl).filter(Boolean);
-  const fromImg =
+  if (!urls.length) return "";
+
+  return (
     urls.find((u) => u.includes("media.jdsports.com/")) ||
     urls.find((u) => u.includes("jdsports")) ||
     urls[0] ||
-    "";
-
-  if (fromImg) return fromImg;
-
-  // 2. Fallback: construct from data-sku (always present, matches observed URL pattern)
-  const sku = cleanText(node.attr("data-sku") || "");
-  if (sku) {
-    return `https://media.jdsports.com/s/jdsports/${sku}?$Main$&w=660&h=660&fmt=auto`;
-  }
-
-  return "";
+    ""
+  );
 }
 
 // -----------------------------
 // FIRECRAWL
 // -----------------------------
-async function firecrawlScrapeHtml(url) {
-  const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
-  if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
+body: JSON.stringify({
+  url,
 
-  const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      url,
-      formats: ["html"],
+  // keep html
+  formats: ["html"],
 
-      // Try to avoid cached snapshots
-      maxAge: 0,
-      storeInCache: false,
+  // ✅ KEY: stop "main content" reduction from stripping stuff
+  onlyMainContent: false,
 
-      // Give hydration time
-      waitFor: 4000,
+  // ✅ KEY: ensure img tags survive the pipeline
+  includeTags: ["img", "picture", "source", "a", "div", "h4", "p"],
 
-      actions: [
-        { type: "wait", selector: 'div[data-testid="product-item"]' },
-        { type: "wait", milliseconds: 1500 },
-      ],
+  // avoid cached snapshots
+  maxAge: 0,
+  storeInCache: false,
 
-      timeout: 60000,
-    }),
-  });
+  // let the SPA hydrate
+  waitFor: 6000,
+
+  actions: [
+    { type: "wait", selector: 'div[data-testid="product-item"]' },
+    { type: "wait", milliseconds: 1500 },
+  ],
+
+  timeout: 60000,
+}),
+
 
   const json = await resp.json().catch(() => null);
 
@@ -221,6 +212,18 @@ function parseDealsFromHtml(html, drop) {
 
   const $ = cheerio.load(html);
   const tiles = $('div[data-testid="product-item"]');
+const first = tiles.first();
+const imgCount = first.find("img").length;
+const firstImg = first.find("img").first();
+
+drop.counts.__debug_firstTile = {
+  imgCount,
+  imgSrc: firstImg.attr("src") || null,
+  imgDataSrc: firstImg.attr("data-src") || null,
+  imgSrcset: firstImg.attr("srcset") || null,
+  htmlSnippet: cleanText(first.html() || "").slice(0, 300),
+};
+  
   drop.counts.totalTiles = tiles.length;
 
   // dealsFound = unique PDP URLs
