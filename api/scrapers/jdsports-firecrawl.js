@@ -1,17 +1,10 @@
 // /api/scrapers/jdsports-firecrawl.js
 //
-// ✅ Scrapes 1 JD Sports sale running page via Firecrawl (RAW HTML)
+// ✅ Scrapes 1 JD Sports sale running page via Firecrawl (HTML or RAW HTML)
 // ✅ Applies your rules
 // ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: jdsports.json
 // ✅ Returns LIGHTWEIGHT response (no deals array) + blobUrl
 // ✅ Includes dropCounts + dropReasons[] in the BLOB (and in the lightweight response)
-//
-// ENV required:
-// - FIRECRAWL_API_KEY
-// - BLOB_READ_WRITE_TOKEN
-// Optional:
-// - JDSPORTS_DEALS_BLOB_URL (for your merge system / debugging)
-// - CRON_SECRET (if you enable cron auth)
 
 import { put } from "@vercel/blob";
 import * as cheerio from "cheerio";
@@ -57,7 +50,7 @@ function deriveBrandModel(listingName) {
   // Remove gender prefix
   s = s.replace(/^(Women's|Men's|Unisex)\s+/i, "");
 
-  // Remove trailing running shoes phrases (order matters)
+  // Remove trailing running shoes phrases
   s = s.replace(/\s+(Trail|Road)\s+Running\s+Shoes\s*$/i, "");
   s = s.replace(/\s+Running\s+Shoes\s*$/i, "");
   s = cleanText(s);
@@ -101,7 +94,7 @@ function normalizeImgUrl(u) {
   if (url.startsWith("//")) url = "https:" + url;
   return url;
 }
-function extractImageURL(node, $) {
+function extractImageURLFromDom(node, $) {
   const c = [];
 
   node.find("img").each((_, img) => {
@@ -129,10 +122,40 @@ function extractImageURL(node, $) {
   );
 }
 
+// If DOM has no <img>, JD still provides a SKU we can use.
+function buildImageUrlFromSku(sku) {
+  const s = String(sku || "").trim();
+  if (!s) return "";
+  // Known JD pattern from your browser outerHTML
+  return `https://media.jdsports.com/s/jdsports/${encodeURIComponent(s)}?$Main$?&w=660&h=660&fmt=auto`;
+}
+
+function getSkuFromTile(node, $) {
+  // Often on the product-item itself: data-sku="3MF11003_002"
+  return (
+    node.attr("data-sku") ||
+    node.find("[data-sku]").first().attr("data-sku") ||
+    ""
+  );
+}
+
+function extractImageURL(node, $) {
+  // 1) Try DOM <img> extraction
+  const fromDom = extractImageURLFromDom(node, $);
+  if (fromDom) return fromDom;
+
+  // 2) Fallback to SKU-derived image URL
+  const sku = getSkuFromTile(node, $);
+  const fromSku = buildImageUrlFromSku(sku);
+  if (fromSku) return fromSku;
+
+  return "";
+}
+
 // -----------------------------
-// FIRECRAWL (RAW HTML)
+// FIRECRAWL
 // -----------------------------
-async function firecrawlScrapeRawHtml(url) {
+async function firecrawlScrapeHtml(url) {
   const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
 
@@ -145,17 +168,13 @@ async function firecrawlScrapeRawHtml(url) {
     body: JSON.stringify({
       url,
 
-      // ✅ Key change: rawHtml = "no modifications" output (best for ecommerce tiles)
-      formats: ["rawHtml"],
+      // We ask for rawHtml first, but we’ll accept html fallback below.
+      formats: ["rawHtml", "html"],
 
-      // ✅ Disable caching (force fresh)
       maxAge: 0,
       storeInCache: false,
 
-      // ✅ Let SPA hydrate
       waitFor: 6000,
-
-      // ✅ Avoid huge base64 blobs if any
       removeBase64Images: true,
 
       timeout: 60000,
@@ -169,10 +188,9 @@ async function firecrawlScrapeRawHtml(url) {
     throw new Error(`Firecrawl failed: ${msg}`);
   }
 
-  // Prefer rawHtml, but fallback to html if Firecrawl returns it
-  const rawHtml = json?.data?.rawHtml || json?.data?.html || "";
-  if (!rawHtml) throw new Error("Firecrawl returned empty rawHtml/html");
-  return rawHtml;
+  const html = json?.data?.rawHtml || json?.data?.html || "";
+  if (!html) throw new Error("Firecrawl returned empty rawHtml/html");
+  return html;
 }
 
 function makeDropTracker() {
@@ -222,15 +240,19 @@ function parseDealsFromHtml(html, drop) {
 
   drop.counts.totalTiles = tiles.length;
 
-  // Debug: does rawHtml include images now?
+  // Debug: confirm we can compute image URL even without <img>
   const first = tiles.first();
   const firstImg = first.find("img").first();
+  const firstSku = getSkuFromTile(first, $);
+
   drop.counts.__debug_firstTile = {
     tileExists: tiles.length > 0,
     imgCount: first.find("img").length,
     imgSrc: firstImg.attr("src") || null,
     imgDataSrc: firstImg.attr("data-src") || null,
     imgSrcset: firstImg.attr("srcset") || null,
+    sku: firstSku || null,
+    fallbackImageURL: firstSku ? buildImageUrlFromSku(firstSku) : null,
     extractedImageURL: extractImageURL(first, $) || null,
     snippet: cleanText(first.html() || "").slice(0, 260),
   };
@@ -240,7 +262,8 @@ function parseDealsFromHtml(html, drop) {
   tiles.each((_, el) => {
     const href = $(el).find('a[href*="/pdp/"]').first().attr("href") || "";
     if (!href) return;
-    hrefSet.add(href.startsWith("http") ? href : `https://www.jdsports.com${href}`);
+    const abs = href.startsWith("http") ? href : `https://www.jdsports.com${href}`;
+    hrefSet.add(abs);
   });
   const dealsFound = hrefSet.size;
 
@@ -339,7 +362,7 @@ async function writeBlobJson(key, obj) {
     access: "public",
     token,
     contentType: "application/json",
-    addRandomSuffix: false, // keep exactly jdsports.json
+    addRandomSuffix: false,
   });
 
   return result?.url || null;
@@ -375,46 +398,49 @@ export default async function handler(req, res) {
   const t0 = Date.now();
 
   try {
-    const html = await firecrawlScrapeRawHtml(startUrl);
+    const html = await firecrawlScrapeHtml(startUrl);
 
     const drop = makeDropTracker();
     const parsed = parseDealsFromHtml(html, drop);
 
     const scrapeDurationMs = Date.now() - t0;
 
-    const output = parsed.blocked
-      ? {
-          store: "JD Sports",
-          schemaVersion: 1,
-          lastUpdated: nowIso(),
-          via: "firecrawl",
-          sourceUrls: [startUrl],
-          pagesFetched: 1,
-          dealsFound: 0,
-          dealsExtracted: 0,
-          scrapeDurationMs,
-          ok: false,
-          error: "Blocked: Your Access Has Been Denied",
-          deals: [],
-          dropCounts: { totalTiles: 0, kept: 0, __debug_firstTile: null },
-          dropReasons: [{ reason: "blocked", count: 1, note: "JD Sports returned an access denied page" }],
-        }
-      : {
-          store: "JD Sports",
-          schemaVersion: 1,
-          lastUpdated: nowIso(),
-          via: "firecrawl",
-          sourceUrls: [startUrl],
-          pagesFetched: 1,
-          dealsFound: parsed.dealsFound,
-          dealsExtracted: parsed.deals.length,
-          scrapeDurationMs,
-          ok: true,
-          error: null,
-          deals: parsed.deals,
-          dropCounts: drop.counts,
-          dropReasons: drop.toSummaryArray(),
-        };
+    let output;
+    if (parsed.blocked) {
+      output = {
+        store: "JD Sports",
+        schemaVersion: 1,
+        lastUpdated: nowIso(),
+        via: "firecrawl",
+        sourceUrls: [startUrl],
+        pagesFetched: 1,
+        dealsFound: 0,
+        dealsExtracted: 0,
+        scrapeDurationMs,
+        ok: false,
+        error: "Blocked: Your Access Has Been Denied",
+        deals: [],
+        dropCounts: { totalTiles: 0, kept: 0, __debug_firstTile: null },
+        dropReasons: [{ reason: "blocked", count: 1, note: "JD Sports returned an access denied page" }],
+      };
+    } else {
+      output = {
+        store: "JD Sports",
+        schemaVersion: 1,
+        lastUpdated: nowIso(),
+        via: "firecrawl",
+        sourceUrls: [startUrl],
+        pagesFetched: 1,
+        dealsFound: parsed.dealsFound,
+        dealsExtracted: parsed.deals.length,
+        scrapeDurationMs,
+        ok: true,
+        error: null,
+        deals: parsed.deals,
+        dropCounts: drop.counts,
+        dropReasons: drop.toSummaryArray(),
+      };
+    }
 
     output.blobUrl = await writeBlobJson("jdsports.json", output);
     output.configuredBlobUrl = configuredBlobUrl;
