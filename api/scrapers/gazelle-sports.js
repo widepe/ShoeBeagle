@@ -297,8 +297,6 @@ module.exports = async function handler(req, res) {
 
   // ⬇️ Everything else in your file continues below here
   const t0 = Date.now();
-  
-  const t0 = Date.now();
 
   const BASE = "https://gazellesports.com";
   const MENS = "https://gazellesports.com/collections/mens-sale-shoes";
