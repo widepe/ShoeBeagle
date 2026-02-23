@@ -1,15 +1,13 @@
 // /api/scrape-gazelle-sports.js  (CommonJS)
 //
 // ✅ Vercel-only scraper for Gazelle Sports men's + women's sale shoes.
-// ✅ DOES NOT rely on client-rendered tiles.
-// ✅ Instead: pulls product handles from each collection page HTML (regex),
-//    then fetches Shopify product JSON per handle:
-//    https://gazellesports.com/products/<handle>.json
+// ✅ Avoids client-rendered tiles by using Shopify collection JSON endpoints:
+//    https://gazellesports.com/collections/<collection-handle>/products.json?limit=250&page=1
 //
 // Rules (per your requirements):
 // - Gender comes from the collection URL (mens/womens),
 //   BUT if product title contains "unisex" OR "all gender" => gender = "unisex".
-// - If deal states "soccer" anywhere (title/vendor/type/tags) => DROP.
+// - If "soccer" appears anywhere (title/vendor/type/tags) => DROP.
 // - shoeType is always "unknown".
 // - Must have both sale + original price (compare_at_price) to be included.
 // - Uses min(variant.price) as salePrice, max(variant.compare_at_price) as originalPrice.
@@ -17,9 +15,6 @@
 //
 // Output blob URL env:
 //   GAZELLESPORTS_DEALS_BLOB_URL = https://.../gazelle-sports.json
-//
-// Notes:
-// - This will make many requests (1 per product handle). Concurrency is limited.
 
 const { put } = require("@vercel/blob");
 
@@ -56,7 +51,7 @@ function containsSoccerText(haystack) {
 }
 
 function toNum(s) {
-  // Shopify product JSON has "45.95" strings
+  // Shopify product JSON commonly has "45.95" strings
   const n = Number(String(s || "").trim());
   return Number.isFinite(n) ? n : null;
 }
@@ -71,25 +66,6 @@ function computeDiscountPercent(originalPrice, salePrice) {
 // -----------------------------
 // network
 // -----------------------------
-async function fetchText(url, timeoutMs = 45000) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        "user-agent": "Mozilla/5.0 (compatible; ShoeBeagleBot/1.0; +https://shoebeagle.com)",
-        accept: "text/html,application/xhtml+xml,application/json",
-      },
-      signal: ctrl.signal,
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-    return await res.text();
-  } finally {
-    clearTimeout(t);
-  }
-}
-
 async function fetchJson(url, timeoutMs = 45000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -110,46 +86,14 @@ async function fetchJson(url, timeoutMs = 45000) {
 }
 
 // -----------------------------
-// extraction
-// -----------------------------
-function extractProductHandlesFromHtml(html) {
-  // Looks for /products/<handle> anywhere in the HTML payload
-  const handles = new Set();
-  const re = /\/products\/([a-z0-9][a-z0-9-]*)/gi;
-  let m;
-  while ((m = re.exec(html))) {
-    handles.add(String(m[1]).toLowerCase());
-  }
-  return Array.from(handles);
-}
-
-async function mapLimit(items, limit, fn) {
-  const out = new Array(items.length);
-  let i = 0;
-  const workers = Array.from({ length: Math.max(1, limit) }, async () => {
-    while (true) {
-      const idx = i++;
-      if (idx >= items.length) break;
-      out[idx] = await fn(items[idx], idx);
-    }
-  });
-  await Promise.all(workers);
-  return out;
-}
-
-// -----------------------------
 // product -> deal
 // -----------------------------
 function buildDealFromProduct(product, baseSiteUrl, defaultGender) {
-  // product is Shopify product object
   const handle = normalizeWs(product?.handle);
   const brand = normalizeWs(product?.vendor);
   const title = normalizeWs(product?.title);
 
-  const tags = Array.isArray(product?.tags)
-    ? product.tags.join(", ")
-    : normalizeWs(product?.tags);
-
+  const tags = Array.isArray(product?.tags) ? product.tags.join(", ") : normalizeWs(product?.tags);
   const productType = normalizeWs(product?.product_type);
 
   const haystack = `${brand} ${title} ${productType} ${tags}`.trim();
@@ -157,9 +101,11 @@ function buildDealFromProduct(product, baseSiteUrl, defaultGender) {
 
   const gender = overrideGenderIfUnisex(title, defaultGender);
 
+  // Collection products.json typically includes images: [{ src, ... }]
   const imageURL =
     normalizeWs(product?.image?.src) ||
     normalizeWs(product?.images?.[0]?.src) ||
+    normalizeWs(product?.images?.[0]) || // some themes expose array of strings
     null;
 
   let salePrice = null;
@@ -192,6 +138,7 @@ function buildDealFromProduct(product, baseSiteUrl, defaultGender) {
     originalPrice,
     discountPercent,
 
+    // ranges not used in this scraper (single-price output)
     salePriceLow: null,
     salePriceHigh: null,
     originalPriceLow: null,
@@ -209,96 +156,81 @@ function buildDealFromProduct(product, baseSiteUrl, defaultGender) {
 }
 
 // -----------------------------
-// collection scrape (handles + products)
+// scrape a Shopify collection via products.json
 // -----------------------------
-async function scrapeCollection(baseSiteUrl, collectionUrl, opts = {}) {
+async function scrapeCollectionProductsJson(baseSiteUrl, collectionUrl, opts = {}) {
   const MAX_PAGES = Number.isFinite(opts.maxPages) ? opts.maxPages : 25;
-
-  // keep concurrency conservative so you don't hammer the site
-  const PRODUCT_CONCURRENCY = Number.isFinite(opts.productConcurrency) ? opts.productConcurrency : 8;
+  const LIMIT = Number.isFinite(opts.limit) ? opts.limit : 250;
 
   const sourceUrls = [];
-  const allHandles = new Set();
-
-  let pagesFetched = 0;
-
-  for (let p = 1; p <= MAX_PAGES; p++) {
-    const pageUrl = p === 1 ? collectionUrl : `${collectionUrl}?p=${p}`;
-    sourceUrls.push(pageUrl);
-
-    const html = await fetchText(pageUrl);
-    pagesFetched += 1;
-
-    const handles = extractProductHandlesFromHtml(html);
-
-    // Stop when nothing found OR when this page adds no new handles
-    const before = allHandles.size;
-    for (const h of handles) allHandles.add(h);
-    const after = allHandles.size;
-
-    if (handles.length === 0) break;
-    if (after === before) break;
-  }
-
-  const handles = Array.from(allHandles);
   const defaultGender = deriveGenderFromCollectionUrl(collectionUrl);
 
   const dropCounts = {
-    handlesFound: handles.length,
+    tilesFound: 0, // "products seen" across pages
     dropped_soccer: 0,
     dropped_missingCore: 0,
     dropped_missingPrices: 0,
     dropped_badPrices: 0,
     dropped_notADeal: 0,
-    dropped_fetchError: 0,
     kept: 0,
   };
 
   const deals = [];
+  const seenHandles = new Set();
+  let pagesFetched = 0;
 
-  // Fetch each product JSON and build deal
-  const productsOrErrors = await mapLimit(handles, PRODUCT_CONCURRENCY, async (handle) => {
-    const url = `${baseSiteUrl}/products/${handle}.json`;
-    try {
-      const data = await fetchJson(url);
-      return { ok: true, handle, product: data?.product || null };
-    } catch (e) {
-      return { ok: false, handle, error: e?.message || String(e) };
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const pageUrl = `${collectionUrl}/products.json?limit=${LIMIT}&page=${page}`;
+    sourceUrls.push(pageUrl);
+
+    const data = await fetchJson(pageUrl);
+    const products = Array.isArray(data?.products) ? data.products : [];
+
+    pagesFetched += 1;
+
+    if (products.length === 0) break;
+
+    for (const product of products) {
+      const h = safeLower(product?.handle || "");
+      if (h && seenHandles.has(h)) continue;
+      if (h) seenHandles.add(h);
+
+      dropCounts.tilesFound += 1;
+
+      const dealOrDrop = buildDealFromProduct(product, baseSiteUrl, defaultGender);
+
+      if (dealOrDrop && dealOrDrop.__dropped) {
+        const k = dealOrDrop.__dropped;
+        if (k === "soccer") dropCounts.dropped_soccer += 1;
+        else if (k === "missingCore") dropCounts.dropped_missingCore += 1;
+        else if (k === "missingPrices") dropCounts.dropped_missingPrices += 1;
+        else if (k === "badPrices") dropCounts.dropped_badPrices += 1;
+        else if (k === "notADeal") dropCounts.dropped_notADeal += 1;
+        else dropCounts.dropped_missingCore += 1;
+        continue;
+      }
+
+      deals.push(dealOrDrop);
+      dropCounts.kept += 1;
     }
-  });
 
-  for (const item of productsOrErrors) {
-    if (!item?.ok) {
-      dropCounts.dropped_fetchError += 1;
-      continue;
-    }
-    const product = item.product;
-    if (!product) {
-      dropCounts.dropped_fetchError += 1;
-      continue;
+    // If this page didn't add anything new, stop early
+    // (helps if the site repeats products)
+    if (products.length > 0) {
+      const uniqueThisPage = products.filter((p) => p?.handle && seenHandles.has(safeLower(p.handle))).length;
+      // not perfect, but safe early-exit signal: if products came back but we kept seeing the same set
+      // (If you’d rather avoid this, you can remove this early-break.)
+      if (uniqueThisPage === 0) break;
     }
 
-    const dealOrDrop = buildDealFromProduct(product, baseSiteUrl, defaultGender);
-
-    if (dealOrDrop && dealOrDrop.__dropped) {
-      const k = dealOrDrop.__dropped;
-      if (k === "soccer") dropCounts.dropped_soccer += 1;
-      else if (k === "missingCore") dropCounts.dropped_missingCore += 1;
-      else if (k === "missingPrices") dropCounts.dropped_missingPrices += 1;
-      else if (k === "badPrices") dropCounts.dropped_badPrices += 1;
-      else if (k === "notADeal") dropCounts.dropped_notADeal += 1;
-      else dropCounts.dropped_missingCore += 1;
-      continue;
-    }
-
-    deals.push(dealOrDrop);
-    dropCounts.kept += 1;
+    // If fewer than LIMIT returned, usually last page
+    if (products.length < LIMIT) break;
   }
 
   return {
     sourceUrls,
     pagesFetched,
-    dealsFound: handles.length, // "found" here = handles discovered
+    dealsFound: dropCounts.tilesFound,
     dealsExtracted: deals.length,
     dropCounts,
     deals,
@@ -332,7 +264,7 @@ module.exports = async function handler(req, res) {
     store: "Gazelle Sports",
     schemaVersion: 1,
     lastUpdated: nowIso(),
-    via: "cheerio", // keeping your field value; although we're not using cheerio now
+    via: "shopify-products-json",
     sourceUrls: [],
     pagesFetched: 0,
     dealsFound: 0,
@@ -346,8 +278,8 @@ module.exports = async function handler(req, res) {
   };
 
   try {
-    const mens = await scrapeCollection(BASE, MENS, { maxPages: 25, productConcurrency: 8 });
-    const womens = await scrapeCollection(BASE, WOMENS, { maxPages: 25, productConcurrency: 8 });
+    const mens = await scrapeCollectionProductsJson(BASE, MENS, { maxPages: 25, limit: 250 });
+    const womens = await scrapeCollectionProductsJson(BASE, WOMENS, { maxPages: 25, limit: 250 });
 
     out.sourceUrls = [...mens.sourceUrls, ...womens.sourceUrls];
     out.pagesFetched = mens.pagesFetched + womens.pagesFetched;
@@ -358,13 +290,12 @@ module.exports = async function handler(req, res) {
       mens: mens.dropCounts,
       womens: womens.dropCounts,
       total: {
-        handlesFound: (mens.dropCounts.handlesFound || 0) + (womens.dropCounts.handlesFound || 0),
+        tilesFound: (mens.dropCounts.tilesFound || 0) + (womens.dropCounts.tilesFound || 0),
         dropped_soccer: mens.dropCounts.dropped_soccer + womens.dropCounts.dropped_soccer,
         dropped_missingCore: mens.dropCounts.dropped_missingCore + womens.dropCounts.dropped_missingCore,
         dropped_missingPrices: mens.dropCounts.dropped_missingPrices + womens.dropCounts.dropped_missingPrices,
         dropped_badPrices: mens.dropCounts.dropped_badPrices + womens.dropCounts.dropped_badPrices,
         dropped_notADeal: mens.dropCounts.dropped_notADeal + womens.dropCounts.dropped_notADeal,
-        dropped_fetchError: mens.dropCounts.dropped_fetchError + womens.dropCounts.dropped_fetchError,
         kept: mens.dropCounts.kept + womens.dropCounts.kept,
       },
     };
