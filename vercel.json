@@ -2,16 +2,13 @@
   "crons": [
     { "path": "/api/scrapers/cheerio_scrapers", "schedule": "0 9 * * *" },
     { "path": "/api/scrapers/apify_scrapers", "schedule": "5 9 * * *" },
-
     { "path": "/api/scrapers/firecrawl_scrapers", "schedule": "10 9 * * *" },
 
-    { "path": "/api/scrapers/als-sale", "schedule": "20 9 * * *" },
-    { "path": "/api/scrapers/shoebacca-clearance", "schedule": "25 9 * * *" },
+    { "path": "/api/scrapers/cheerio_scrapers_2", "schedule": "20 9 * * *" },
+
     { "path": "/api/scrapers/holabird-mens-road", "schedule": "30 9 * * *" },
     { "path": "/api/scrapers/holabird-womens-road", "schedule": "35 9 * * *" },
     { "path": "/api/scrapers/holabird-trail-unisex", "schedule": "40 9 * * *" },
-
-    { "path": "/api/scrapers/trackshack-clearance", "schedule": "45 9 * * *" },
 
     { "path": "/api/merge-deals", "schedule": "55 9 * * *" },
     { "path": "/api/cron/check-alerts", "schedule": "5 10 * * *" }
