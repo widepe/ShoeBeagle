@@ -101,10 +101,25 @@ async function firecrawlScrapeHtml(url) {
 body: JSON.stringify({
   url,
   formats: ["html"],
+
+  // ✅ IMPORTANT: avoid cached HTML (default maxAge is 2 days)
+  maxAge: 0,
+  storeInCache: false,
+
+  // ✅ Give hydration time (this is a fixed delay before content is captured)
+  waitFor: 4000,
+
+  // ✅ Extra actions (optional but helpful)
   actions: [
-    { type: "wait", selector: 'div[data-testid="product-item"] img[src^="http"]' },
-    { type: "wait", milliseconds: 2000 },
+    // wait for product tiles to exist
+    { type: "wait", selector: 'div[data-testid="product-item"]' },
+
+    // small additional delay
+    { type: "wait", milliseconds: 1500 },
   ],
+
+  // Optional if JD is flaky:
+  timeout: 60000,
 }),
 
   const json = await resp.json().catch(() => null);
