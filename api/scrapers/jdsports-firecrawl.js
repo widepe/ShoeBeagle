@@ -5,6 +5,18 @@
 // ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: jdsports.json
 // ✅ Returns LIGHTWEIGHT response (no deals array) + blobUrl
 // ✅ Includes dropCounts + dropReasons[] in the BLOB (and in the lightweight response)
+//
+// ENV required:
+// - FIRECRAWL_API_KEY
+// - BLOB_READ_WRITE_TOKEN
+// Optional:
+// - JDSPORTS_DEALS_BLOB_URL (for your merge system / debugging)
+//
+// Optional (recommended for cron security):
+// - CRON_SECRET
+//
+// To test in browser: visit /api/scrapers/jdsports-firecrawl
+// For cron: call /api/scrapers/jdsports-firecrawl?cron=1  (and enable the CRON_SECRET block)
 
 import { put } from "@vercel/blob";
 import * as cheerio from "cheerio";
@@ -129,33 +141,42 @@ function extractImageURL(node, $) {
 // -----------------------------
 // FIRECRAWL
 // -----------------------------
-body: JSON.stringify({
-  url,
+async function firecrawlScrapeHtml(url) {
+  const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
+  if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
 
-  // keep html
-  formats: ["html"],
+  const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      url,
+      formats: ["html"],
 
-  // ✅ KEY: stop "main content" reduction from stripping stuff
-  onlyMainContent: false,
+      // ✅ stop "main content" reduction from stripping tags/attrs
+      onlyMainContent: false,
 
-  // ✅ KEY: ensure img tags survive the pipeline
-  includeTags: ["img", "picture", "source", "a", "div", "h4", "p"],
+      // ✅ keep image-related tags in output
+      includeTags: ["img", "picture", "source", "a", "div", "h4", "p"],
 
-  // avoid cached snapshots
-  maxAge: 0,
-  storeInCache: false,
+      // ✅ avoid cached snapshots
+      maxAge: 0,
+      storeInCache: false,
 
-  // let the SPA hydrate
-  waitFor: 6000,
+      // ✅ let the SPA hydrate
+      waitFor: 6000,
 
-  actions: [
-    { type: "wait", selector: 'div[data-testid="product-item"]' },
-    { type: "wait", milliseconds: 1500 },
-  ],
+      // ✅ additional waits (best-effort)
+      actions: [
+        { type: "wait", selector: 'div[data-testid="product-item"]' },
+        { type: "wait", milliseconds: 1500 },
+      ],
 
-  timeout: 60000,
-}),
-
+      timeout: 60000,
+    }),
+  });
 
   const json = await resp.json().catch(() => null);
 
@@ -182,6 +203,9 @@ function makeDropTracker() {
     dropped_notADeal: 0,
 
     kept: 0,
+
+    // debug slot (will be filled)
+    __debug_firstTile: null,
   };
 
   const bump = (key) => {
@@ -212,19 +236,21 @@ function parseDealsFromHtml(html, drop) {
 
   const $ = cheerio.load(html);
   const tiles = $('div[data-testid="product-item"]');
-const first = tiles.first();
-const imgCount = first.find("img").length;
-const firstImg = first.find("img").first();
 
-drop.counts.__debug_firstTile = {
-  imgCount,
-  imgSrc: firstImg.attr("src") || null,
-  imgDataSrc: firstImg.attr("data-src") || null,
-  imgSrcset: firstImg.attr("srcset") || null,
-  htmlSnippet: cleanText(first.html() || "").slice(0, 300),
-};
-  
   drop.counts.totalTiles = tiles.length;
+
+  // Debug: what does the first tile look like?
+  const first = tiles.first();
+  const firstImg = first.find("img").first();
+  drop.counts.__debug_firstTile = {
+    tileExists: tiles.length > 0,
+    imgCount: first.find("img").length,
+    imgSrc: firstImg.attr("src") || null,
+    imgDataSrc: firstImg.attr("data-src") || null,
+    imgSrcset: firstImg.attr("srcset") || null,
+    extractedImageURL: extractImageURL(first, $) || null,
+    htmlSnippet: cleanText(first.html() || "").slice(0, 300),
+  };
 
   // dealsFound = unique PDP URLs
   const hrefSet = new Set();
@@ -331,12 +357,13 @@ async function writeBlobJson(key, obj) {
     access: "public",
     token,
     contentType: "application/json",
-    addRandomSuffix: false,
+    addRandomSuffix: false, // keep exactly jdsports.json
   });
 
   return result?.url || null;
 }
 
+// ✅ Lightweight response: no deals[]
 function toLightweightResponse(output) {
   return {
     store: output.store,
@@ -360,6 +387,20 @@ function toLightweightResponse(output) {
 }
 
 export default async function handler(req, res) {
+  // -----------------------------
+  // CRON SECRET (commented for testing)
+  // -----------------------------
+  // If you use Vercel Cron, set CRON_SECRET in env vars and call:
+  // /api/scrapers/jdsports-firecrawl?cron=1&secret=YOUR_SECRET
+  //
+  // const isCron = String(req.query?.cron || "") === "1";
+  // if (isCron) {
+  //   const expected = String(process.env.CRON_SECRET || "").trim();
+  //   const got = String(req.query?.secret || req.headers["x-cron-secret"] || "").trim();
+  //   if (!expected) return res.status(500).json({ ok: false, error: "Missing CRON_SECRET env var" });
+  //   if (!got || got !== expected) return res.status(401).json({ ok: false, error: "Unauthorized" });
+  // }
+
   const startUrl =
     String(req.query?.url || "").trim() ||
     "https://www.jdsports.com/plp/all-sale/category=shoes+activity=running";
@@ -392,7 +433,7 @@ export default async function handler(req, res) {
         error: "Blocked: Your Access Has Been Denied",
         deals: [],
 
-        dropCounts: { totalTiles: 0, kept: 0 },
+        dropCounts: { totalTiles: 0, kept: 0, __debug_firstTile: null },
         dropReasons: [{ reason: "blocked", count: 1, note: "JD Sports returned an access denied page" }],
       };
     } else {
@@ -415,9 +456,11 @@ export default async function handler(req, res) {
       };
     }
 
+    // ✅ Write FULL JSON (including deals[]) to blob
     output.blobUrl = await writeBlobJson("jdsports.json", output);
     output.configuredBlobUrl = configuredBlobUrl;
 
+    // ✅ Return lightweight response (no deals[])
     return res.status(200).json(toLightweightResponse(output));
   } catch (err) {
     const scrapeDurationMs = Date.now() - t0;
@@ -443,6 +486,7 @@ export default async function handler(req, res) {
       configuredBlobUrl,
     };
 
+    // Best-effort: still write failure blob
     try {
       output.blobUrl = await writeBlobJson("jdsports.json", output);
     } catch {}
