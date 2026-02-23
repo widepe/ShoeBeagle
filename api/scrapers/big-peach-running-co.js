@@ -203,12 +203,11 @@ function parseDealsFromHtml(html, gender) {
     // Prefer .struck for original, and the remaining text for sale.
     // Fallback: parse all $-amounts in .price and take max/min.
  // With this:
-const originalText = cleanText($el.find(".price .struck").first().text());
-let originalPrice = parseMoney(originalText);
+const $price = $el.find(".price").first();
+const originalPrice = parseMoney($price.find(".struck").first().text());
 
-// Get sale price from direct text nodes only (not inside child elements)
 let salePrice = null;
-$el.find(".price").first().contents().each((_, node) => {
+$price.contents().each((_, node) => {
   if (node.type === "text") {
     const val = parseMoney(node.data);
     if (Number.isFinite(val) && val > 0) {
