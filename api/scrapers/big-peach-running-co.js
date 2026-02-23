@@ -1,47 +1,27 @@
 // /api/scrapers/big-peach-running-co.js  (CommonJS)
 //
-// Big Peach Running Co (RunFree storefront) — Women + Men category pages
+// Big Peach Running Co (RunFree storefront) — Deals! Footwear page
 // Writes ONE blob: .../big-peach-running-co.json
 //
-// Pages:
-//  - https://shop.bigpeachrunningco.com/category/17193/WomensFootwear
-//  - https://shop.bigpeachrunningco.com/category/17194/MensFootwear
-//
-// RULES:
-// - Drop deals unless BOTH salePrice and originalPrice exist AND sale < original
-// - shoeType = "unknown"
-// - listingName: build once; never mutate later (per your rule)
-//
-// ✅ Fixes included
-// - Firecrawl actions use ONLY supported types: wait, click, scroll
-// - Pagination click targets your real pager element: .pages .page[data-page="2"]
-// - Robust imageURL extraction:
-//    1) .image style background-image
-//    2) .colorswatches [data-preview-url]
-//    3) colorswatch style background-image (thumb)
-// - Robust price extraction with fallback to “all $ numbers in .price”
-// - Debug dropCounts + dropSamples to tell you exactly why items were dropped
-// - Dedupe by listingURL (unisex items appearing in both pages)
+// Page:
+//  - https://shop.bigpeachrunningco.com/category/17804/deals-footwear
 //
 // Required env vars:
 // - BLOB_READ_WRITE_TOKEN
 // - FIRECRAWL_API_KEY
 //
 // Optional env vars:
-// - BIGPEACH_WAIT_MS       default 1400
-// - BIGPEACH_SCROLLS       default 18   (more scrolls = more appended items)
-// - BIGPEACH_PROXY         default "auto" ("auto"|"enhanced"|"basic")
-// - BIGPEACH_CLICK_PAGE2   default "true" ("true"|"false")
-// - BIGPEACH_TIMEOUT_MS    default 140000
+// - BIGPEACH_WAIT_MS       default 1500
+// - BIGPEACH_SCROLLS       default 3
+// - BIGPEACH_PROXY         default "auto"
+// - BIGPEACH_TIMEOUT_MS    default 60000
 
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
 
 const STORE = "Big Peach Running Co";
 const SCHEMA_VERSION = 1;
-
-const WOMENS_URL = "https://shop.bigpeachrunningco.com/category/17193/WomensFootwear";
-const MENS_URL = "https://shop.bigpeachrunningco.com/category/17194/MensFootwear";
+const DEALS_URL = "https://shop.bigpeachrunningco.com/category/17804/deals-footwear";
 const BASE = "https://shop.bigpeachrunningco.com";
 
 function nowIso() {
@@ -63,12 +43,6 @@ function optInt(name, def) {
 function optStr(name, def) {
   const v = String(process.env[name] || "").trim();
   return v || def;
-}
-
-function optBool(name, def) {
-  const raw = String(process.env[name] || "").trim().toLowerCase();
-  if (!raw) return def;
-  return raw === "true" || raw === "1" || raw === "yes";
 }
 
 function cleanText(s) {
@@ -99,7 +73,6 @@ function parseBgImageUrl(styleAttr) {
   const s = decodeHtmlEntities(styleAttr);
   const m = s.match(/url\(\s*([^)]+?)\s*\)/i);
   if (!m) return null;
-
   let inner = m[1].trim();
   if (
     (inner.startsWith('"') && inner.endsWith('"')) ||
@@ -128,16 +101,13 @@ function computeDiscountPercent(originalPrice, salePrice) {
 }
 
 function pickImageUrl($el) {
-  // 1) main tile image background-image
   const style = $el.find(".image").attr("style");
   const fromStyle = parseBgImageUrl(style);
   if (fromStyle) return fromStyle;
 
-  // 2) colorswatch data-preview-url (very common in this storefront)
   const fromPreview = $el.find(".colorswatches [data-preview-url]").first().attr("data-preview-url");
   if (fromPreview) return cleanText(fromPreview);
 
-  // 3) colorswatch thumb background-image fallback
   const swStyle = $el.find(".colorswatches .colorswatch").first().attr("style");
   const fromSwStyle = parseBgImageUrl(swStyle);
   if (fromSwStyle) return fromSwStyle;
@@ -145,9 +115,9 @@ function pickImageUrl($el) {
   return null;
 }
 
-function parseDealsFromHtml(html, gender) {
+function parseDealsFromHtml(html) {
   const $ = cheerio.load(html);
-console.log("RAW_HTML_SAMPLE", html.slice(0, 3000));
+
   const dropCounts = {
     missingListingURL: 0,
     missingImageURL: 0,
@@ -168,11 +138,11 @@ console.log("RAW_HTML_SAMPLE", html.slice(0, 3000));
   tiles.each((_, el) => {
     const $el = $(el);
 
+    // listing URL
     const rel =
       $el.attr("data-url") ||
       $el.find("a[href^='/product/']").attr("href") ||
       null;
-
     const listingURL = absUrl(rel);
     if (!listingURL) {
       dropCounts.missingListingURL++;
@@ -180,6 +150,7 @@ console.log("RAW_HTML_SAMPLE", html.slice(0, 3000));
       return;
     }
 
+    // name + brand
     const name = cleanText($el.find(".name").first().text());
     const brand = cleanText($el.find(".brand").first().text());
     if (!name || !brand) {
@@ -188,18 +159,15 @@ console.log("RAW_HTML_SAMPLE", html.slice(0, 3000));
       return;
     }
 
+    // image
     const imageURL = pickImageUrl($el);
     if (!imageURL) {
       dropCounts.missingImageURL++;
-      sample("missingImageURL", {
-        listingURL,
-        imageStyle: $el.find(".image").attr("style") || null,
-        hasPreviewUrl: Boolean($el.find(".colorswatches [data-preview-url]").length),
-      });
+      sample("missingImageURL", { listingURL });
       return;
     }
 
-// PRICE: read struck span for original, text nodes for sale
+    // prices — struck span = original, text node = sale
     const $price = $el.find(".price").first();
     let originalPrice = parseMoney($price.find(".struck").first().text());
     let salePrice = null;
@@ -211,11 +179,12 @@ console.log("RAW_HTML_SAMPLE", html.slice(0, 3000));
         }
       }
     });
+
     if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) {
       dropCounts.missingBothPrices++;
       sample("missingBothPrices", {
         listingURL,
-        priceText: cleanText($el.find(".price").first().text()),
+        priceText: cleanText($price.text()),
       });
       return;
     }
@@ -225,55 +194,47 @@ console.log("RAW_HTML_SAMPLE", html.slice(0, 3000));
       return;
     }
 
+    // infer gender from name/brand text
+    const nameLower = name.toLowerCase();
+    let gender = "unisex";
+    if (nameLower.includes("women") || nameLower.includes("womens") || nameLower.includes("woman")) {
+      gender = "womens";
+    } else if (nameLower.includes("men") || nameLower.includes("mens") || nameLower.includes("man")) {
+      gender = "mens";
+    }
+
     const listingName = cleanText(`${brand} ${name}`);
 
     deals.push({
-      // per-deal schema (your fields)
       schemaVersion: SCHEMA_VERSION,
-
       listingName,
-
       brand,
       model: deriveModel(listingName, brand),
-
       salePrice,
       originalPrice,
       discountPercent: computeDiscountPercent(originalPrice, salePrice),
-
-      // optional range fields (not used here)
       salePriceLow: null,
       salePriceHigh: null,
       originalPriceLow: null,
       originalPriceHigh: null,
       discountPercentUpTo: null,
-
       store: STORE,
-
       listingURL,
       imageURL,
-
       gender,
       shoeType: "unknown",
     });
   });
 
-  return {
-    dealsFound,
-    dealsExtracted: deals.length,
-    deals,
-    dropCounts,
-    dropSamples,
-  };
+  return { dealsFound, dealsExtracted: deals.length, deals, dropCounts, dropSamples };
 }
 
 function dedupeByListingUrl(deals) {
   const seen = new Set();
   const out = [];
   for (const d of deals) {
-    const key = d.listingURL;
-    if (!key) continue;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (!d.listingURL || seen.has(d.listingURL)) continue;
+    seen.add(d.listingURL);
     out.push(d);
   }
   return out;
@@ -281,27 +242,15 @@ function dedupeByListingUrl(deals) {
 
 async function fetchHtmlViaFirecrawl(url) {
   const apiKey = requireEnv("FIRECRAWL_API_KEY");
-
-  const waitMs = optInt("BIGPEACH_WAIT_MS", 1400);
+  const waitMs = optInt("BIGPEACH_WAIT_MS", 1500);
   const scrolls = optInt("BIGPEACH_SCROLLS", 3);
   const proxy = optStr("BIGPEACH_PROXY", "auto");
-  const clickPage2 = optBool("BIGPEACH_CLICK_PAGE2", true);
-  const timeout = optInt("BIGPEACH_TIMEOUT_MS", 140000);
+  const timeout = optInt("BIGPEACH_TIMEOUT_MS", 60000);
 
-  // Firecrawl actions must be one of: wait, click, screenshot, write, press, scroll, scrape
-  // Your pager is a DIV: .pages .page[data-page="2"]
   const actions = [
-    { type: "wait", milliseconds: 1600 },
-    // wait until products are rendered
+    { type: "wait", milliseconds: 2000 },
     { type: "wait", selector: ".product.clickable" },
   ];
-
-  if (clickPage2) {
-    actions.push(
-      { type: "click", selector: ".pages .page[data-page='2']" },
-      { type: "wait", milliseconds: waitMs }
-    );
-  }
 
   for (let i = 0; i < scrolls; i++) {
     actions.push(
@@ -347,37 +296,22 @@ module.exports = async function handler(req, res) {
     requireEnv("BLOB_READ_WRITE_TOKEN");
     requireEnv("FIRECRAWL_API_KEY");
 
-    const sourceUrls = [WOMENS_URL, MENS_URL];
-
-    // Women
-    const womensHtml = await fetchHtmlViaFirecrawl(WOMENS_URL);
-    const womensParsed = parseDealsFromHtml(womensHtml, "womens");
-
-    // Men
-    const mensHtml = await fetchHtmlViaFirecrawl(MENS_URL);
-    const mensParsed = parseDealsFromHtml(mensHtml, "mens");
-
-    const combined = [...womensParsed.deals, ...mensParsed.deals];
-    const deals = dedupeByListingUrl(combined);
+    const html = await fetchHtmlViaFirecrawl(DEALS_URL);
+    const parsed = parseDealsFromHtml(html);
+    const deals = dedupeByListingUrl(parsed.deals);
 
     const payload = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
-
       lastUpdated: nowIso(),
       via: "firecrawl",
-
-      sourceUrls,
-      pagesFetched: 2,
-
-      dealsFound: womensParsed.dealsFound + mensParsed.dealsFound,
+      sourceUrls: [DEALS_URL],
+      pagesFetched: 1,
+      dealsFound: parsed.dealsFound,
       dealsExtracted: deals.length,
-
       scrapeDurationMs: Date.now() - t0,
-
       ok: true,
       error: null,
-
       deals,
     };
 
@@ -391,19 +325,12 @@ module.exports = async function handler(req, res) {
       ...payload,
       blobUrl: blob.url,
       debug: {
-        womensTilesSeen: womensParsed.dealsFound,
-        womensDealsKept: womensParsed.dealsExtracted,
-        womensDropCounts: womensParsed.dropCounts,
-        womensDropSamples: womensParsed.dropSamples,
-
-        mensTilesSeen: mensParsed.dealsFound,
-        mensDealsKept: mensParsed.dealsExtracted,
-        mensDropCounts: mensParsed.dropCounts,
-        mensDropSamples: mensParsed.dropSamples,
-
-        clickPage2: optBool("BIGPEACH_CLICK_PAGE2", true),
+        tilesSeen: parsed.dealsFound,
+        dealsKept: parsed.dealsExtracted,
+        dropCounts: parsed.dropCounts,
+        dropSamples: parsed.dropSamples,
         scrolls: optInt("BIGPEACH_SCROLLS", 3),
-        waitMs: optInt("BIGPEACH_WAIT_MS", 1400),
+        waitMs: optInt("BIGPEACH_WAIT_MS", 1500),
         proxy: optStr("BIGPEACH_PROXY", "auto"),
       },
     });
