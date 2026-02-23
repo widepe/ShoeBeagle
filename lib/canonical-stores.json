@@ -152,7 +152,7 @@
   "enabled": true,
   "scraperType": "vercel",
   "notes": "Shopify products.json collection scraper (mens + womens sale)"
-}  
+},
 
 {
   "id": "hoka",
