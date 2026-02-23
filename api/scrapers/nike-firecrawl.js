@@ -254,12 +254,12 @@ function parseNikeCardsFromHtml(html, baseUrl = "https://www.nike.com") {
 module.exports = async function handler(req, res) {
   const t0 = Date.now();
 
-  // ✅ CRON protection (COMMENTED OUT FOR TESTING)
-  // const cronSecret = String(process.env.CRON_SECRET || "").trim();
-  // if (cronSecret) {
-  //   const got = String(req.headers["x-cron-secret"] || "").trim();
-  //   if (got !== cronSecret) return res.status(401).json({ ok: false, error: "Unauthorized" });
-  // }
+  // ✅ CRON protection 
+   const cronSecret = String(process.env.CRON_SECRET || "").trim();
+   if (cronSecret) {
+     const got = String(req.headers["x-cron-secret"] || "").trim();
+     if (got !== cronSecret) return res.status(401).json({ ok: false, error: "Unauthorized" });
+   }
 
   try {
     const html = await fetchHtmlViaFirecrawl(SOURCE_URL);
