@@ -1,39 +1,63 @@
-// /api/scrape-gazelle-sports.js   (CommonJS)
-// Scrapes Gazelle Sports men's + women's sale shoes pages on Vercel (Cheerio),
-// follows "Load More" pagination via ?p=2, ?p=3, ...
+// /api/scrape-gazelle-sports.js  (CommonJS)
+//
+// ✅ Vercel-only scraper for Gazelle Sports men's + women's sale shoes.
+// ✅ DOES NOT rely on client-rendered tiles.
+// ✅ Instead: pulls product handles from each collection page HTML (regex),
+//    then fetches Shopify product JSON per handle:
+//    https://gazellesports.com/products/<handle>.json
 //
 // Rules (per your requirements):
-// - Gender comes from the URL (mens/womens), BUT if the tile/title contains
-//   "unisex" OR "all gender" => gender = "unisex".
-// - If a deal states "soccer" anywhere in brand/title/color/aria-label => DROP.
+// - Gender comes from the collection URL (mens/womens),
+//   BUT if product title contains "unisex" OR "all gender" => gender = "unisex".
+// - If deal states "soccer" anywhere (title/vendor/type/tags) => DROP.
 // - shoeType is always "unknown".
-// - Uses strike price as originalPrice and non-strike as salePrice.
-// - Range fields are null (this site shows single prices in tiles).
+// - Must have both sale + original price (compare_at_price) to be included.
+// - Uses min(variant.price) as salePrice, max(variant.compare_at_price) as originalPrice.
+// - Range fields are null (single price output).
 //
-// Output blob path: .../gazelle-sports.json
+// Output blob URL env:
+//   GAZELLESPORTS_DEALS_BLOB_URL = https://.../gazelle-sports.json
+//
+// Notes:
+// - This will make many requests (1 per product handle). Concurrency is limited.
 
-const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
 
+// -----------------------------
+// tiny helpers
+// -----------------------------
 function nowIso() {
   return new Date().toISOString();
 }
 
-function absUrl(base, href) {
-  if (!href) return null;
-  const s = String(href).trim();
-  if (!s) return null;
-  if (s.startsWith("http://") || s.startsWith("https://")) return s;
-  if (!s.startsWith("/")) return `${base}/${s}`;
-  return `${base}${s}`;
+function normalizeWs(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
 }
 
-function parseMoneyToNumber(s) {
-  // "$149.95" -> 149.95
-  const raw = String(s || "").replace(/[\s,]/g, "").trim();
-  const m = raw.match(/\$?(\d+(?:\.\d+)?)/);
-  if (!m) return null;
-  const n = Number(m[1]);
+function safeLower(s) {
+  return String(s || "").toLowerCase();
+}
+
+function deriveGenderFromCollectionUrl(url) {
+  const u = safeLower(url);
+  if (u.includes("/mens-") || u.includes("/mens")) return "mens";
+  if (u.includes("/womens-") || u.includes("/womens")) return "womens";
+  return "unknown";
+}
+
+function overrideGenderIfUnisex(title, defaultGender) {
+  const t = safeLower(title);
+  if (t.includes("unisex") || t.includes("all gender") || t.includes("all-gender")) return "unisex";
+  return defaultGender;
+}
+
+function containsSoccerText(haystack) {
+  return /\bsoccer\b/i.test(String(haystack || ""));
+}
+
+function toNum(s) {
+  // Shopify product JSON has "45.95" strings
+  const n = Number(String(s || "").trim());
   return Number.isFinite(n) ? n : null;
 }
 
@@ -41,152 +65,13 @@ function computeDiscountPercent(originalPrice, salePrice) {
   if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return null;
   if (originalPrice <= 0) return null;
   const pct = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
-  if (!Number.isFinite(pct)) return null;
-  return pct;
+  return Number.isFinite(pct) ? pct : null;
 }
 
-function normalizeWs(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
-}
-
-function containsSoccer(text) {
-  return /\bsoccer\b/i.test(String(text || ""));
-}
-
-function deriveGenderFromUrl(url) {
-  const u = String(url || "").toLowerCase();
-  if (u.includes("/mens-")) return "mens";
-  if (u.includes("/womens-")) return "womens";
-  // fallback
-  if (u.includes("/mens")) return "mens";
-  if (u.includes("/womens")) return "womens";
-  return "unknown";
-}
-
-function overrideGenderIfUnisex(text, defaultGender) {
-  const t = String(text || "").toLowerCase();
-  if (t.includes("unisex") || t.includes("all gender") || t.includes("all-gender")) {
-    return "unisex";
-  }
-  return defaultGender;
-}
-
-function parseTilesFromHtml(html, pageUrl, baseSiteUrl) {
-  const $ = cheerio.load(html);
-
-  const tiles = $("article.ss__result");
-  const deals = [];
-
-  // we count every tile as "found" (before filtering), per your usual pattern
-  const found = tiles.length;
-
-  tiles.each((_, el) => {
-    const tile = $(el);
-
-    const a = tile.find("a.ss__result-link").first();
-    const href = a.attr("href");
-    const listingURL = absUrl(baseSiteUrl, href);
-
-    const aria = normalizeWs(a.attr("aria-label") || "");
-
-    const brand = normalizeWs(tile.find(".ss__result__details__brand").first().text());
-    const title = normalizeWs(tile.find(".ss__result__details__title").first().text());
-    const color = normalizeWs(tile.find(".ss__result__details__color").first().text());
-
-    // Pricing: strike == original, non-strike == sale (based on your tile HTML)
-    const originalText = normalizeWs(
-      tile
-        .find(".ss__result__details__pricing .ss__price--strike")
-        .first()
-        .text()
-    );
-    // sale is the first non-strike price in pricing area
-    // (some themes include multiple spans; we intentionally exclude strike)
-    let saleText = null;
-    tile
-      .find(".ss__result__details__pricing .ss__price")
-      .each((__, sp) => {
-        const klass = String($(sp).attr("class") || "");
-        if (klass.includes("ss__price--strike")) return;
-        const t = normalizeWs($(sp).text());
-        if (t && !saleText) saleText = t;
-      });
-
-    const originalPrice = parseMoneyToNumber(originalText);
-    const salePrice = parseMoneyToNumber(saleText);
-
-    // image: prefer main image
-    const imgSrc =
-      tile.find("img.product__img--main").first().attr("src") ||
-      tile.find("img.product__img").first().attr("src") ||
-      null;
-    const imageURL = imgSrc ? String(imgSrc).trim() : null;
-
-    const defaultGender = deriveGenderFromUrl(pageUrl);
-    const unisexTextHaystack = `${aria} ${brand} ${title} ${color}`.trim();
-    const gender = overrideGenderIfUnisex(unisexTextHaystack, defaultGender);
-
-    const soccerHaystack = `${aria} ${brand} ${title} ${color}`.trim();
-    if (containsSoccer(soccerHaystack)) {
-      deals.push({ __dropped: "soccer" });
-      return;
-    }
-
-    // Enforce deal honesty: need both original + sale
-    if (!listingURL || !imageURL || !brand || !title) {
-      deals.push({ __dropped: "missingCore" });
-      return;
-    }
-    if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) {
-      deals.push({ __dropped: "missingPrices" });
-      return;
-    }
-    if (salePrice <= 0 || originalPrice <= 0) {
-      deals.push({ __dropped: "badPrices" });
-      return;
-    }
-    if (salePrice >= originalPrice) {
-      deals.push({ __dropped: "notADeal" });
-      return;
-    }
-
-    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-
-    // listingName: keep stable + descriptive; DO NOT edit later in merge.
-    const listingName = normalizeWs(
-      `${brand} ${title}${color ? ` - ${color}` : ""}`
-    );
-
-    deals.push({
-      listingName,
-
-      brand,
-      model: title,
-
-      salePrice,
-      originalPrice,
-      discountPercent,
-
-      salePriceLow: null,
-      salePriceHigh: null,
-      originalPriceLow: null,
-      originalPriceHigh: null,
-      discountPercentUpTo: null,
-
-      store: "Gazelle Sports",
-
-      listingURL,
-      imageURL,
-
-      gender,
-      shoeType: "unknown",
-    });
-  });
-
-  return { found, parsed: deals };
-}
-
-async function fetchHtml(url, timeoutMs = 45000) {
+// -----------------------------
+// network
+// -----------------------------
+async function fetchText(url, timeoutMs = 45000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -194,7 +79,7 @@ async function fetchHtml(url, timeoutMs = 45000) {
       method: "GET",
       headers: {
         "user-agent": "Mozilla/5.0 (compatible; ShoeBeagleBot/1.0; +https://shoebeagle.com)",
-        accept: "text/html,application/xhtml+xml",
+        accept: "text/html,application/xhtml+xml,application/json",
       },
       signal: ctrl.signal,
     });
@@ -205,97 +90,238 @@ async function fetchHtml(url, timeoutMs = 45000) {
   }
 }
 
-async function scrapeCollection(baseSiteUrl, collectionUrl) {
+async function fetchJson(url, timeoutMs = 45000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "user-agent": "Mozilla/5.0 (compatible; ShoeBeagleBot/1.0; +https://shoebeagle.com)",
+        accept: "application/json,text/plain,*/*",
+      },
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+    return await res.json();
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// -----------------------------
+// extraction
+// -----------------------------
+function extractProductHandlesFromHtml(html) {
+  // Looks for /products/<handle> anywhere in the HTML payload
+  const handles = new Set();
+  const re = /\/products\/([a-z0-9][a-z0-9-]*)/gi;
+  let m;
+  while ((m = re.exec(html))) {
+    handles.add(String(m[1]).toLowerCase());
+  }
+  return Array.from(handles);
+}
+
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.max(1, limit) }, async () => {
+    while (true) {
+      const idx = i++;
+      if (idx >= items.length) break;
+      out[idx] = await fn(items[idx], idx);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
+// -----------------------------
+// product -> deal
+// -----------------------------
+function buildDealFromProduct(product, baseSiteUrl, defaultGender) {
+  // product is Shopify product object
+  const handle = normalizeWs(product?.handle);
+  const brand = normalizeWs(product?.vendor);
+  const title = normalizeWs(product?.title);
+
+  const tags = Array.isArray(product?.tags)
+    ? product.tags.join(", ")
+    : normalizeWs(product?.tags);
+
+  const productType = normalizeWs(product?.product_type);
+
+  const haystack = `${brand} ${title} ${productType} ${tags}`.trim();
+  if (containsSoccerText(haystack)) return { __dropped: "soccer" };
+
+  const gender = overrideGenderIfUnisex(title, defaultGender);
+
+  const imageURL =
+    normalizeWs(product?.image?.src) ||
+    normalizeWs(product?.images?.[0]?.src) ||
+    null;
+
+  let salePrice = null;
+  let originalPrice = null;
+
+  for (const v of product?.variants || []) {
+    const p = toNum(v?.price);
+    const c = toNum(v?.compare_at_price);
+
+    if (Number.isFinite(p)) salePrice = salePrice == null ? p : Math.min(salePrice, p);
+    if (Number.isFinite(c)) originalPrice = originalPrice == null ? c : Math.max(originalPrice, c);
+  }
+
+  const listingURL = handle ? `${baseSiteUrl}/products/${handle}` : null;
+
+  if (!listingURL || !imageURL || !brand || !title) return { __dropped: "missingCore" };
+  if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return { __dropped: "missingPrices" };
+  if (salePrice <= 0 || originalPrice <= 0) return { __dropped: "badPrices" };
+  if (salePrice >= originalPrice) return { __dropped: "notADeal" };
+
+  const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+
+  return {
+    listingName: normalizeWs(`${brand} ${title}`),
+
+    brand,
+    model: title,
+
+    salePrice,
+    originalPrice,
+    discountPercent,
+
+    salePriceLow: null,
+    salePriceHigh: null,
+    originalPriceLow: null,
+    originalPriceHigh: null,
+    discountPercentUpTo: null,
+
+    store: "Gazelle Sports",
+
+    listingURL,
+    imageURL,
+
+    gender,
+    shoeType: "unknown",
+  };
+}
+
+// -----------------------------
+// collection scrape (handles + products)
+// -----------------------------
+async function scrapeCollection(baseSiteUrl, collectionUrl, opts = {}) {
+  const MAX_PAGES = Number.isFinite(opts.maxPages) ? opts.maxPages : 25;
+
+  // keep concurrency conservative so you don't hammer the site
+  const PRODUCT_CONCURRENCY = Number.isFinite(opts.productConcurrency) ? opts.productConcurrency : 8;
+
   const sourceUrls = [];
-  const allDeals = [];
+  const allHandles = new Set();
+
+  let pagesFetched = 0;
+
+  for (let p = 1; p <= MAX_PAGES; p++) {
+    const pageUrl = p === 1 ? collectionUrl : `${collectionUrl}?p=${p}`;
+    sourceUrls.push(pageUrl);
+
+    const html = await fetchText(pageUrl);
+    pagesFetched += 1;
+
+    const handles = extractProductHandlesFromHtml(html);
+
+    // Stop when nothing found OR when this page adds no new handles
+    const before = allHandles.size;
+    for (const h of handles) allHandles.add(h);
+    const after = allHandles.size;
+
+    if (handles.length === 0) break;
+    if (after === before) break;
+  }
+
+  const handles = Array.from(allHandles);
+  const defaultGender = deriveGenderFromCollectionUrl(collectionUrl);
+
   const dropCounts = {
-    totalTiles: 0,
+    handlesFound: handles.length,
     dropped_soccer: 0,
     dropped_missingCore: 0,
     dropped_missingPrices: 0,
     dropped_badPrices: 0,
     dropped_notADeal: 0,
+    dropped_fetchError: 0,
     kept: 0,
   };
 
-  let pagesFetched = 0;
-  let p = 1;
+  const deals = [];
 
-  // Safety cap
-  const MAX_PAGES = 25;
+  // Fetch each product JSON and build deal
+  const productsOrErrors = await mapLimit(handles, PRODUCT_CONCURRENCY, async (handle) => {
+    const url = `${baseSiteUrl}/products/${handle}.json`;
+    try {
+      const data = await fetchJson(url);
+      return { ok: true, handle, product: data?.product || null };
+    } catch (e) {
+      return { ok: false, handle, error: e?.message || String(e) };
+    }
+  });
 
-  while (p <= MAX_PAGES) {
-    const pageUrl = p === 1 ? collectionUrl : `${collectionUrl}?p=${p}`;
-    sourceUrls.push(pageUrl);
-
-    const html = await fetchHtml(pageUrl);
-    pagesFetched += 1;
-
-    const { found, parsed } = parseTilesFromHtml(html, pageUrl, baseSiteUrl);
-
-    // If no tiles on this page, stop.
-    if (!found) break;
-
-    dropCounts.totalTiles += found;
-
-    // Split kept vs dropped markers
-    let keptThisPage = 0;
-    for (const item of parsed) {
-      if (item && item.__dropped) {
-        const k = item.__dropped;
-        if (k === "soccer") dropCounts.dropped_soccer += 1;
-        else if (k === "missingCore") dropCounts.dropped_missingCore += 1;
-        else if (k === "missingPrices") dropCounts.dropped_missingPrices += 1;
-        else if (k === "badPrices") dropCounts.dropped_badPrices += 1;
-        else if (k === "notADeal") dropCounts.dropped_notADeal += 1;
-        else dropCounts.dropped_missingCore += 1;
-        continue;
-      }
-      allDeals.push(item);
-      keptThisPage += 1;
+  for (const item of productsOrErrors) {
+    if (!item?.ok) {
+      dropCounts.dropped_fetchError += 1;
+      continue;
+    }
+    const product = item.product;
+    if (!product) {
+      dropCounts.dropped_fetchError += 1;
+      continue;
     }
 
-    dropCounts.kept += keptThisPage;
+    const dealOrDrop = buildDealFromProduct(product, baseSiteUrl, defaultGender);
 
-    // Heuristic: if Shopify/theme stops returning new pages, next page often repeats
-    // or becomes empty; we already stop on empty. Also stop if page seems "short".
-    // (You said Load More adds 24; so < 5 is a good "end" signal)
-    if (found < 5) break;
+    if (dealOrDrop && dealOrDrop.__dropped) {
+      const k = dealOrDrop.__dropped;
+      if (k === "soccer") dropCounts.dropped_soccer += 1;
+      else if (k === "missingCore") dropCounts.dropped_missingCore += 1;
+      else if (k === "missingPrices") dropCounts.dropped_missingPrices += 1;
+      else if (k === "badPrices") dropCounts.dropped_badPrices += 1;
+      else if (k === "notADeal") dropCounts.dropped_notADeal += 1;
+      else dropCounts.dropped_missingCore += 1;
+      continue;
+    }
 
-    p += 1;
+    deals.push(dealOrDrop);
+    dropCounts.kept += 1;
   }
 
   return {
     sourceUrls,
     pagesFetched,
-    dealsFound: dropCounts.totalTiles,
-    dealsExtracted: allDeals.length,
+    dealsFound: handles.length, // "found" here = handles discovered
+    dealsExtracted: deals.length,
     dropCounts,
-    deals: allDeals,
+    deals,
   };
 }
 
+// -----------------------------
+// handler
+// -----------------------------
 module.exports = async function handler(req, res) {
-
   // ---------------------------------
-  // CRON SECRET PROTECTION
+  // CRON SECRET PROTECTION (commented out)
   // ---------------------------------
-//  const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
+  // const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
+  // if (CRON_SECRET) {
+  //   const provided =
+  //     String(req.headers["x-cron-secret"] || "").trim() ||
+  //     String(req.query?.cron_secret || "").trim();
+  //   if (provided !== CRON_SECRET) {
+  //     return res.status(401).json({ ok: false, error: "Unauthorized: Invalid CRON_SECRET" });
+  //   }
+  // }
 
-//  if (CRON_SECRET) {
-//    const provided =
-//      String(req.headers["x-cron-secret"] || "").trim() ||
-//      String(req.query?.cron_secret || "").trim();
-
-//    if (provided !== CRON_SECRET) {
-//      return res.status(401).json({
- //       ok: false,
- //       error: "Unauthorized: Invalid CRON_SECRET",
-//      });
-//    }
- // }
-
-  // ⬇️ Everything else in your file continues below here
   const t0 = Date.now();
 
   const BASE = "https://gazellesports.com";
@@ -306,7 +332,7 @@ module.exports = async function handler(req, res) {
     store: "Gazelle Sports",
     schemaVersion: 1,
     lastUpdated: nowIso(),
-    via: "cheerio",
+    via: "cheerio", // keeping your field value; although we're not using cheerio now
     sourceUrls: [],
     pagesFetched: 0,
     dealsFound: 0,
@@ -315,14 +341,13 @@ module.exports = async function handler(req, res) {
     ok: false,
     error: null,
     deals: [],
-    // helpful debug summary
     dropCounts: {},
     blobUrl: null,
   };
 
   try {
-    const mens = await scrapeCollection(BASE, MENS);
-    const womens = await scrapeCollection(BASE, WOMENS);
+    const mens = await scrapeCollection(BASE, MENS, { maxPages: 25, productConcurrency: 8 });
+    const womens = await scrapeCollection(BASE, WOMENS, { maxPages: 25, productConcurrency: 8 });
 
     out.sourceUrls = [...mens.sourceUrls, ...womens.sourceUrls];
     out.pagesFetched = mens.pagesFetched + womens.pagesFetched;
@@ -333,47 +358,46 @@ module.exports = async function handler(req, res) {
       mens: mens.dropCounts,
       womens: womens.dropCounts,
       total: {
-        totalTiles: mens.dropCounts.totalTiles + womens.dropCounts.totalTiles,
+        handlesFound: (mens.dropCounts.handlesFound || 0) + (womens.dropCounts.handlesFound || 0),
         dropped_soccer: mens.dropCounts.dropped_soccer + womens.dropCounts.dropped_soccer,
         dropped_missingCore: mens.dropCounts.dropped_missingCore + womens.dropCounts.dropped_missingCore,
         dropped_missingPrices: mens.dropCounts.dropped_missingPrices + womens.dropCounts.dropped_missingPrices,
         dropped_badPrices: mens.dropCounts.dropped_badPrices + womens.dropCounts.dropped_badPrices,
         dropped_notADeal: mens.dropCounts.dropped_notADeal + womens.dropCounts.dropped_notADeal,
+        dropped_fetchError: mens.dropCounts.dropped_fetchError + womens.dropCounts.dropped_fetchError,
         kept: mens.dropCounts.kept + womens.dropCounts.kept,
       },
     };
 
     out.deals = [...mens.deals, ...womens.deals];
 
-// -----------------------------
-// BLOB WRITE (env-driven path)
-// -----------------------------
-const blobUrl = String(process.env.GAZELLESPORTS_DEALS_BLOB_URL || "").trim();
-if (!blobUrl) {
-  throw new Error("Missing GAZELLESPORTS_DEALS_BLOB_URL env var");
-}
+    // -----------------------------
+    // BLOB WRITE (env-driven path)
+    // -----------------------------
+    const blobUrl = String(process.env.GAZELLESPORTS_DEALS_BLOB_URL || "").trim();
+    if (!blobUrl) throw new Error("Missing GAZELLESPORTS_DEALS_BLOB_URL env var");
 
-// Extract just the pathname from the full public URL
-// e.g. https://...public.blob.vercel-storage.com/gazelle-sports.json
-// -> "gazelle-sports.json"
-const blobPath = blobUrl.split(".com/")[1];
-if (!blobPath) {
-  throw new Error("Invalid GAZELLESPORTS_DEALS_BLOB_URL format");
-}
+    let blobPath;
+    try {
+      blobPath = new URL(blobUrl).pathname.replace(/^\//, "");
+    } catch {
+      throw new Error("Invalid GAZELLESPORTS_DEALS_BLOB_URL (not a URL)");
+    }
+    if (!blobPath) throw new Error("Invalid GAZELLESPORTS_DEALS_BLOB_URL (missing pathname)");
 
-const putRes = await put(blobPath, JSON.stringify(out, null, 2), {
-  access: "public",
-  contentType: "application/json",
-  addRandomSuffix: false,
-});
+    const putRes = await put(blobPath, JSON.stringify(out, null, 2), {
+      access: "public",
+      contentType: "application/json",
+      addRandomSuffix: false,
+    });
 
-out.blobUrl = blobUrl;
+    out.blobUrl = putRes?.url || blobUrl;
 
     out.ok = true;
     out.error = null;
   } catch (e) {
     out.ok = false;
-    out.error = e?.message || String(e);
+    out.error = e?.stack || e?.message || String(e);
   } finally {
     out.scrapeDurationMs = Date.now() - t0;
   }
