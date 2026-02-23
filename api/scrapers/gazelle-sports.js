@@ -46,8 +46,8 @@ function overrideGenderIfUnisex(title, defaultGender) {
   return defaultGender;
 }
 
-function containsSoccerText(haystack) {
-  return /\bsoccer\b/i.test(String(haystack || ""));
+function containsBannedWord(haystack) {
+  return /\b(soccer|sandal|sandals)\b/i.test(String(haystack || ""));
 }
 
 function toNum(s) {
@@ -81,14 +81,6 @@ function extractModelFromTitle(title) {
   const cutPhrases = [
     " Running Shoe",
     " Running Shoes",
-    " Trail Running Shoe",
-    " Trail Running Shoes",
-    " Track Spike",
-    " Track Spikes",
-    " Cross Country Spike",
-    " Cross Country Spikes",
-    " Spike",
-    " Spikes",
   ];
 
   const lower = t.toLowerCase();
@@ -137,7 +129,7 @@ function buildDealFromProduct(product, baseSiteUrl, defaultGender) {
   const productType = normalizeWs(product?.product_type);
 
   const haystack = `${brand} ${title} ${productType} ${tags}`.trim();
-  if (containsSoccerText(haystack)) return { __dropped: "soccer" };
+  if (containsBannedWord(haystack)) return { __dropped: "bannedWord" };
 
   const gender = overrideGenderIfUnisex(title, defaultGender);
 
@@ -210,7 +202,7 @@ async function scrapeCollectionProductsJson(baseSiteUrl, collectionUrl, opts = {
 
   const dropCounts = {
     tilesFound: 0, // products seen across pages
-    dropped_soccer: 0,
+    dropped_bannedWord: 0,
     dropped_missingCore: 0,
     dropped_missingPrices: 0,
     dropped_badPrices: 0,
@@ -250,7 +242,7 @@ async function scrapeCollectionProductsJson(baseSiteUrl, collectionUrl, opts = {
 
       if (dealOrDrop && dealOrDrop.__dropped) {
         const k = dealOrDrop.__dropped;
-        if (k === "soccer") dropCounts.dropped_soccer += 1;
+        if (k === "bannedWord") dropCounts.dropped_bannedWord += 1;
         else if (k === "missingCore") dropCounts.dropped_missingCore += 1;
         else if (k === "missingPrices") dropCounts.dropped_missingPrices += 1;
         else if (k === "badPrices") dropCounts.dropped_badPrices += 1;
