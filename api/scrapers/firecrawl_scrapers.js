@@ -40,6 +40,13 @@ const TARGETS = [
     name: "Backcountry Firecrawl",
     path: "/api/scrapers/backcountry-firecrawl",
   },
+
+  {
+    key: "bigpeach",
+    name: "Big Peach Running Co Firecrawl",
+    path: "/api/scrapers/big-peach-running-co-firecrawl",
+  },
+  
   {
     key: "finishline",
     name: "Finish Line Firecrawl",
