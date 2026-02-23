@@ -11,8 +11,6 @@
 // - FIRECRAWL_API_KEY
 //
 // Optional env vars:
-// - BIGPEACH_WAIT_MS       default 1500
-// - BIGPEACH_SCROLLS       default 3
 // - BIGPEACH_PROXY         default "auto"
 // - BIGPEACH_TIMEOUT_MS    default 60000
 
@@ -34,15 +32,15 @@ function requireEnv(name) {
   return v;
 }
 
+function optStr(name, def) {
+  const v = String(process.env[name] || "").trim();
+  return v || def;
+}
+
 function optInt(name, def) {
   const raw = String(process.env[name] || "").trim();
   const n = raw ? Number(raw) : def;
   return Number.isFinite(n) ? Math.floor(n) : def;
-}
-
-function optStr(name, def) {
-  const v = String(process.env[name] || "").trim();
-  return v || def;
 }
 
 function cleanText(s) {
@@ -115,6 +113,16 @@ function pickImageUrl($el) {
   return null;
 }
 
+// Read total page count from the pagination buttons in the HTML
+function getTotalPages(html) {
+  const $ = cheerio.load(html);
+  const pages = $(".page[data-page]")
+    .map((_, el) => parseInt($(el).attr("data-page"), 10))
+    .get()
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return pages.length > 0 ? Math.max(...pages) : 1;
+}
+
 function parseDealsFromHtml(html) {
   const $ = cheerio.load(html);
 
@@ -138,7 +146,6 @@ function parseDealsFromHtml(html) {
   tiles.each((_, el) => {
     const $el = $(el);
 
-    // listing URL
     const rel =
       $el.attr("data-url") ||
       $el.find("a[href^='/product/']").attr("href") ||
@@ -150,7 +157,6 @@ function parseDealsFromHtml(html) {
       return;
     }
 
-    // name + brand
     const name = cleanText($el.find(".name").first().text());
     const brand = cleanText($el.find(".brand").first().text());
     if (!name || !brand) {
@@ -159,7 +165,6 @@ function parseDealsFromHtml(html) {
       return;
     }
 
-    // image
     const imageURL = pickImageUrl($el);
     if (!imageURL) {
       dropCounts.missingImageURL++;
@@ -167,7 +172,6 @@ function parseDealsFromHtml(html) {
       return;
     }
 
-    // prices — struck span = original, text node = sale
     const $price = $el.find(".price").first();
     let originalPrice = parseMoney($price.find(".struck").first().text());
     let salePrice = null;
@@ -194,7 +198,6 @@ function parseDealsFromHtml(html) {
       return;
     }
 
-    // infer gender from name/brand text
     const nameLower = name.toLowerCase();
     let gender = "unisex";
     if (nameLower.includes("women") || nameLower.includes("womens") || nameLower.includes("woman")) {
@@ -240,43 +243,39 @@ function dedupeByListingUrl(deals) {
   return out;
 }
 
-async function fetchHtmlViaFirecrawl(url) {
-  const apiKey = requireEnv("FIRECRAWL_API_KEY");
-  const waitMs = optInt("BIGPEACH_WAIT_MS", 800);
-  const scrolls = optInt("BIGPEACH_SCROLLS", 2);
-  const proxy = optStr("BIGPEACH_PROXY", "auto");
-  const timeout = optInt("BIGPEACH_TIMEOUT_MS", 60000);
+function mergeDropCounts(a, b) {
+  return {
+    missingListingURL: a.missingListingURL + b.missingListingURL,
+    missingImageURL: a.missingImageURL + b.missingImageURL,
+    missingNameBrand: a.missingNameBrand + b.missingNameBrand,
+    missingBothPrices: a.missingBothPrices + b.missingBothPrices,
+    notMarkdown: a.notMarkdown + b.notMarkdown,
+  };
+}
 
-const actions = [
+// Scrapes one page via Firecrawl.
+// pageNum=1 loads normally.
+// pageNum>1 clicks that page number button before capturing HTML.
+async function fetchPageHtml(url, pageNum, apiKey, proxy, timeout) {
+  const actions = [
     { type: "wait", milliseconds: 2000 },
     { type: "wait", selector: ".product.clickable" },
   ];
 
-  for (let i = 0; i < scrolls; i++) {
+  if (pageNum > 1) {
     actions.push(
-      { type: "scroll", direction: "down" },
-      { type: "wait", milliseconds: waitMs }
+      { type: "click", selector: `.page[data-page='${pageNum}']` },
+      { type: "wait", milliseconds: 2500 },
+      { type: "wait", selector: ".product.clickable" }
     );
   }
 
-  // click page 2 and wait for new tiles to load
-
   actions.push(
-{ type: "click", selector: ".page[data-page='2']" },
-    { type: "wait", milliseconds: 1500 },
+    { type: "scroll", direction: "down" },
+    { type: "wait", milliseconds: 800 },
     { type: "scroll", direction: "down" },
     { type: "wait", milliseconds: 800 }
   );
-
-  const body = {
-    url,
-    formats: ["html"],
-    onlyMainContent: false,
-    maxAge: 0,
-    proxy,
-    timeout,
-    actions,
-  };
 
   const res = await fetch("https://api.firecrawl.dev/v2/scrape", {
     method: "POST",
@@ -284,17 +283,25 @@ const actions = [
       Authorization: `Bearer ${apiKey}`,
       "content-type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      url,
+      formats: ["html"],
+      onlyMainContent: false,
+      maxAge: 0,
+      proxy,
+      timeout,
+      actions,
+    }),
   });
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`Firecrawl failed: ${res.status} ${res.statusText} ${txt}`.trim());
+    throw new Error(`Firecrawl failed (page ${pageNum}): ${res.status} ${res.statusText} ${txt}`.trim());
   }
 
   const json = await res.json();
   const html = json?.data?.html;
-  if (!html) throw new Error("Firecrawl response did not include data.html");
+  if (!html) throw new Error(`Firecrawl response missing data.html (page ${pageNum})`);
   return html;
 }
 
@@ -309,11 +316,31 @@ module.exports = async function handler(req, res) {
 
   try {
     requireEnv("BLOB_READ_WRITE_TOKEN");
-    requireEnv("FIRECRAWL_API_KEY");
+    const apiKey = requireEnv("FIRECRAWL_API_KEY");
+    const proxy = optStr("BIGPEACH_PROXY", "auto");
+    const timeout = optInt("BIGPEACH_TIMEOUT_MS", 60000);
 
-    const html = await fetchHtmlViaFirecrawl(DEALS_URL);
-    const parsed = parseDealsFromHtml(html);
-    const deals = dedupeByListingUrl(parsed.deals);
+    // Scrape page 1 and detect how many pages exist
+    const page1Html = await fetchPageHtml(DEALS_URL, 1, apiKey, proxy, timeout);
+    const totalPages = getTotalPages(page1Html);
+    const page1Parsed = parseDealsFromHtml(page1Html);
+
+    let allDeals = [...page1Parsed.deals];
+    let totalDealsFound = page1Parsed.dealsFound;
+    let combinedDropCounts = page1Parsed.dropCounts;
+    let combinedDropSamples = [...page1Parsed.dropSamples];
+
+    // Scrape any additional pages
+    for (let p = 2; p <= totalPages; p++) {
+      const pageHtml = await fetchPageHtml(DEALS_URL, p, apiKey, proxy, timeout);
+      const pageParsed = parseDealsFromHtml(pageHtml);
+      allDeals = [...allDeals, ...pageParsed.deals];
+      totalDealsFound += pageParsed.dealsFound;
+      combinedDropCounts = mergeDropCounts(combinedDropCounts, pageParsed.dropCounts);
+      combinedDropSamples = [...combinedDropSamples, ...pageParsed.dropSamples].slice(0, 6);
+    }
+
+    const deals = dedupeByListingUrl(allDeals);
 
     const payload = {
       store: STORE,
@@ -321,8 +348,8 @@ module.exports = async function handler(req, res) {
       lastUpdated: nowIso(),
       via: "firecrawl",
       sourceUrls: [DEALS_URL],
-      pagesFetched: 1,
-      dealsFound: parsed.dealsFound,
+      pagesFetched: totalPages,
+      dealsFound: totalDealsFound,
       dealsExtracted: deals.length,
       scrapeDurationMs: Date.now() - t0,
       ok: true,
@@ -336,18 +363,17 @@ module.exports = async function handler(req, res) {
       contentType: "application/json",
     });
 
-const { deals: _omitted, ...payloadWithoutDeals } = payload;
+    const { deals: _omitted, ...payloadWithoutDeals } = payload;
     return res.status(200).json({
       ...payloadWithoutDeals,
       blobUrl: blob.url,
       debug: {
-        tilesSeen: parsed.dealsFound,
-        dealsKept: parsed.dealsExtracted,
-        dropCounts: parsed.dropCounts,
-        dropSamples: parsed.dropSamples,
-        scrolls: optInt("BIGPEACH_SCROLLS", 3),
-        waitMs: optInt("BIGPEACH_WAIT_MS", 1500),
-        proxy: optStr("BIGPEACH_PROXY", "auto"),
+        totalPages,
+        tilesSeen: totalDealsFound,
+        dealsKept: deals.length,
+        dropCounts: combinedDropCounts,
+        dropSamples: combinedDropSamples,
+        proxy,
       },
     });
   } catch (e) {
