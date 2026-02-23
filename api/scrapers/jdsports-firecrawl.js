@@ -98,29 +98,39 @@ async function firecrawlScrapeHtml(url) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-body: JSON.stringify({
-  url,
-  formats: ["html"],
+    body: JSON.stringify({
+      url,
+      formats: ["html"],
 
-  // ✅ IMPORTANT: avoid cached HTML (default maxAge is 2 days)
-  maxAge: 0,
-  storeInCache: false,
+      // ✅ IMPORTANT: avoid cached HTML (default maxAge is 2 days)
+      maxAge: 0,
+      storeInCache: false,
 
-  // ✅ Give hydration time (this is a fixed delay before content is captured)
-  waitFor: 4000,
+      // ✅ Give hydration time (fixed delay before capture)
+      waitFor: 4000,
 
-  // ✅ Extra actions (optional but helpful)
-  actions: [
-    // wait for product tiles to exist
-    { type: "wait", selector: 'div[data-testid="product-item"]' },
+      // ✅ Extra actions (optional)
+      actions: [
+        { type: "wait", selector: 'div[data-testid="product-item"]' },
+        { type: "wait", milliseconds: 1500 },
+      ],
 
-    // small additional delay
-    { type: "wait", milliseconds: 1500 },
-  ],
+      // Optional if JD is flaky:
+      timeout: 60000,
+    }),
+  });
 
-  // Optional if JD is flaky:
-  timeout: 60000,
-}),
+  const json = await resp.json().catch(() => null);
+
+  if (!resp.ok) {
+    const msg = json?.error || json?.message || `Firecrawl HTTP ${resp.status}`;
+    throw new Error(`Firecrawl failed: ${msg}`);
+  }
+
+  const html = json?.data?.html || "";
+  if (!html) throw new Error("Firecrawl returned empty html");
+  return html;
+}
 
   const json = await resp.json().catch(() => null);
 
