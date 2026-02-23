@@ -262,7 +262,7 @@ const actions = [
   // click page 2 and wait for new tiles to load
 
   actions.push(
-    { type: "click", selector: ".pages .page[data-page='2']" },
+{ type: "click", selector: ".page[data-page='2']" },
     { type: "wait", milliseconds: 1500 },
     { type: "scroll", direction: "down" },
     { type: "wait", milliseconds: 800 }
