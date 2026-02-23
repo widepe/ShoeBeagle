@@ -725,13 +725,32 @@
     // 3) Debug info: "Unknown brands" must appear AFTER "Shoe brands found".
     // ============================================================
 
-    // One base blob URL everywhere for merged artifacts (not store-specific)
     const BLOB_BASE = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
-
-    // Canonical stores file (single source of truth for store details)
     const CANONICAL_STORES_URL = "/lib/canonical-stores.json";
 
-    // Show JS parse/runtime errors on the page (prevents silent "Loading..." forever)
+    // ------------------------------------------------------------
+    // FRESH FETCH HELPER
+    // Bypasses both the browser cache AND Vercel's CDN edge cache.
+    // - Appends a unique timestamp+random query param so the CDN
+    //   treats every request as a distinct URL (forces edge revalidation).
+    // - Sets Cache-Control: no-cache and Pragma: no-cache request headers
+    //   so any intermediate proxy also skips its cache.
+    // - Uses fetch's own cache: "no-store" to prevent the browser
+    //   from storing or reusing a cached response.
+    // ------------------------------------------------------------
+    async function freshFetch(url) {
+      const sep = url.includes("?") ? "&" : "?";
+      const bust = `${sep}_cb=${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      return fetch(`${url}${bust}`, {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache",
+          "Pragma": "no-cache",
+        },
+      });
+    }
+
+    // Show JS parse/runtime errors on the page
     window.addEventListener("error", (e) => {
       const errorEl = document.getElementById("error");
       const loading = document.getElementById("loading");
@@ -761,15 +780,14 @@
     let CURRENT_DATA_QUALITY_SORT = { column: "totalDeals", direction: "desc" };
 
     // ------------------------------------------------------------
-    // Canonical loader + normalization (THE KEY CHANGE)
+    // Canonical loader + normalization
     // ------------------------------------------------------------
     function normalizeKey(s) {
       return String(s || "").trim().toLowerCase();
     }
 
     async function loadCanonicalStores() {
-      const cacheBuster = Date.now();
-      const res = await fetch(`${CANONICAL_STORES_URL}?t=${cacheBuster}`, { cache: "no-store" });
+      const res = await freshFetch(CANONICAL_STORES_URL);
       if (!res.ok) throw new Error(`Failed to load canonical stores: ${res.status}`);
       const arr = await res.json();
       if (!Array.isArray(arr)) throw new Error("canonical-stores.json must be an array");
@@ -926,12 +944,11 @@
     }
 
     // ------------------------------------------------------------
-    // Scraper History (unchanged behavior; only reads merged artifact)
+    // Scraper History
     // ------------------------------------------------------------
     async function loadScraperHistory() {
       try {
-        const cacheBuster = Date.now();
-        const response = await fetch(`${BLOB_BASE}/scraper-data.json?t=${cacheBuster}`, { cache: "no-store" });
+        const response = await freshFetch(`${BLOB_BASE}/scraper-data.json`);
         if (!response.ok) return null;
         return await response.json();
       } catch (err) {
@@ -1142,10 +1159,8 @@
         // 1) Load canonical stores FIRST (single source of truth)
         await loadCanonicalStores();
 
-        const cacheBuster = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-        // 2) Load merged deals
-        const dealsResponse = await fetch(`${BLOB_BASE}/deals.json?t=${cacheBuster}`, { cache: "no-store" });
+        // 2) Load merged deals — freshFetch bypasses all caching layers
+        const dealsResponse = await freshFetch(`${BLOB_BASE}/deals.json`);
         if (!dealsResponse.ok) throw new Error(`Failed to fetch deals: ${dealsResponse.status}`);
 
         const dealsJson = await dealsResponse.json();
@@ -1155,9 +1170,7 @@
 
         if (!deals) throw new Error("Invalid deals.json format (expected array or {deals:[...]})");
 
-        // 2b) Build mergeData WITHOUT merge-data.json
-        // - timestamp/lastUpdated + scraperResults come from deals.json
-        // - storeMetadata comes from stats.json (stats.scraperMetadata)
+        // 2b) Build mergeData
         let mergeData = {
           timestamp: dealsJson?.lastUpdated || dealsJson?.timestamp || null,
           lastUpdated: dealsJson?.lastUpdated || dealsJson?.timestamp || null,
@@ -1165,9 +1178,9 @@
           storeMetadata: {}
         };
 
-        // 2c) Load stats.json so health cards can show per-store blobUrl/timestamp/duration
+        // 2c) Load stats.json for per-store health card metadata
         try {
-          const statsResponse = await fetch(`${BLOB_BASE}/stats.json?t=${cacheBuster}`, { cache: "no-store" });
+          const statsResponse = await freshFetch(`${BLOB_BASE}/stats.json`);
           if (statsResponse.ok) {
             const statsJson = await statsResponse.json();
             mergeData.storeMetadata = statsJson?.scraperMetadata || {};
@@ -1178,10 +1191,10 @@
           console.log("Could not load stats.json (continuing without store metadata):", e?.message || e);
         }
 
-        // unaltered-deals.json supports ARRAY or {deals:[...]} (optional)
+        // 2d) Load unaltered deals (optional)
         let unalteredDeals = [];
         try {
-          const unalteredResponse = await fetch(`${BLOB_BASE}/unaltered-deals.json?t=${cacheBuster}`, { cache: "no-store" });
+          const unalteredResponse = await freshFetch(`${BLOB_BASE}/unaltered-deals.json`);
           if (unalteredResponse.ok) {
             const unalteredJson = await unalteredResponse.json();
             unalteredDeals = Array.isArray(unalteredJson)
@@ -1195,7 +1208,6 @@
         ALL_DEALS = deals;
         UNALTERED_DEALS = unalteredDeals;
 
-        // Build dropdowns (canonical list always used, even if 0 deals)
         buildStoreDropdown("storeSelect");
         buildStoreDropdown("unalteredStoreSelect");
 
@@ -1213,7 +1225,7 @@
           deals: UNALTERED_DEALS,
         });
 
-        // Debug panel (re-ordered per your request)
+        // Debug panel
         const uniqueStoresFound = [...new Set(deals.map(d => normalizeStoreNameFromDeal(d.store)))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
         const uniqueBrands = [...new Set(deals.map(d => normalizeStr(d.brand) || "Unknown"))]
           .filter(b => b && b !== "Unknown")
@@ -1223,7 +1235,6 @@
 
         const mergedDealsUrl = `${BLOB_BASE}/deals.json`;
         const lastUpdatedInfo = getLastUpdatedInfo(dealsJson, mergeData);
-
         const canonicalCount = CANONICAL.list.length;
 
         let debugHTML = `
@@ -1301,7 +1312,7 @@
     }
 
     // ------------------------------------------------------------
-    // Canonical helpers for blobs/urls (from canonical-stores.json)
+    // Canonical helpers for blobs/urls
     // ------------------------------------------------------------
     function canonicalExpectedBlobs(storeObj) {
       const x = storeObj?.expectedBlob;
@@ -1355,7 +1366,7 @@
         if (salePrice > 0) stats.prices.push(salePrice);
       });
 
-      // REQUIRED: ensure every canonical store exists even if zero
+      // Ensure every canonical store exists even if zero deals
       for (const s of CANONICAL.list) {
         const name = s.displayName;
         if (!stats.stores[name]) stats.stores[name] = { count: 0, totalDiscount: 0, totalSavings: 0, deals: [] };
@@ -1576,7 +1587,7 @@
     }
 
     // ------------------------------------------------------------
-    // Health Status (now driven by canonical-stores.json)
+    // Health Status
     // ------------------------------------------------------------
     function displayHealthStatus(deals, stats, mergeData) {
       const healthPanel = document.getElementById("healthPanel");
@@ -1638,21 +1649,15 @@
           health.metadata = { timestamp: null, duration: null, blobUrl: null, ageDays: null, staleExcluded: false, staleThresholdDays: null, count: null };
         }
 
-        // Source blob logic
         const actualBlob = health.metadata?.blobUrl || null;
         if (!actualBlob && health.expectedBlobs.length === 0) {
           health.issues.push({ type: "warning", message: "⚠️ No blob URL available (expectedBlob is unknown + no merge metadata)" });
           escalateStatus(health, "warning");
         }
 
-        // Deals present? + gender stats
         const storeDeals = deals.filter(d => normalizeStoreNameFromDeal(d.store) === storeName);
         health.genderStats = calculateGenderStats(storeDeals);
 
-        // -------------------------
-        // STALENESS CHECKS (26h warn, 7d critical, missing ts = critical)
-        // Respect staleExcluded: true (skip ONLY staleness checks)
-        // -------------------------
         const meta = health.metadata || {};
         const ts = meta.timestamp ? new Date(meta.timestamp).getTime() : NaN;
         const STALE_WARN_MS = 26 * 60 * 60 * 1000;
@@ -1673,23 +1678,15 @@
             }
           }
         } else {
-          // Optional visibility so you remember why it didn't stale-flag
           health.issues.push({ type: "warning", message: "⚠️ Staleness checks skipped (staleExcluded: true)" });
           escalateStatus(health, "warning");
         }
 
-        // -------------------------
-        // ZERO DEALS (critical)
-        // -------------------------
         if (health.dealCount === 0) {
           health.issues.push({ type: "critical", message: "🚨 ZERO RESULTS (no deals in merged deals.json)" });
           escalateStatus(health, "critical");
         }
 
-        // -------------------------
-        // GENDER ANOMALY (critical)
-        // If dealCount >= 10 and EITHER mens==0 OR womens==0
-        // -------------------------
         if (health.dealCount >= 10 && (health.genderStats.mens === 0 || health.genderStats.womens === 0)) {
           const parts = [];
           if (health.genderStats.mens === 0) parts.push("0 Men's");
@@ -1698,10 +1695,6 @@
           escalateStatus(health, "critical");
         }
 
-        // -------------------------
-        // UNKNOWN BRANDS (critical only)
-        // Critical if > 5% unknown
-        // -------------------------
         const unknownBrands = storeDeals.filter(d => {
           const b = normalizeStr(d.brand);
           return (!b || b === "Unknown");
@@ -1714,7 +1707,6 @@
           escalateStatus(health, "critical");
         }
 
-        // Missing images
         const missingImages = storeDeals.filter(d => {
           const img = normalizeStr(d.imageURL);
           return !img || img.includes("placehold.co");
@@ -1726,7 +1718,6 @@
           escalateStatus(health, "warning");
         }
 
-        // Missing URLs
         const missingUrls = storeDeals.filter(d => {
           const url = normalizeStr(d.listingURL);
           return !url || url === "#";
@@ -1796,7 +1787,6 @@
               </div>
             </div>
 
-            <!-- REQUIRED: Last Updated FIRST under the header -->
             <div class="health-metrics" style="margin-top: 6px;">
               <div class="health-metric full">
                 <div class="health-metric-label">Last Updated</div>
