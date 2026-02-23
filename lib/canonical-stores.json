@@ -68,8 +68,7 @@
     "scraperType": "firecrawl",
     "notes": "Big Peach Running Co deals footwear page via Firecrawl. Handles multiple pages automatically by detecting pagination. Gender inferred from product name. Writes to big-peach-running-co.json."
   },
-  {
-    "id": "brooks-running",  
+
   {
     "id": "brooks-running",
     "displayName": "Brooks Running",
