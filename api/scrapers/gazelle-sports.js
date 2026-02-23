@@ -1,377 +1,1908 @@
-// /api/scrape-gazelle-sports.js  (CommonJS)
-//
-// ✅ Vercel-only scraper for Gazelle Sports men's + women's sale shoes.
-// ✅ Avoids client-rendered tiles by using Shopify collection JSON endpoints:
-//    https://gazellesports.com/collections/<collection-handle>/products.json?limit=250&page=1
-//
-// Rules (per your requirements):
-// - Gender comes from the collection URL (mens/womens),
-//   BUT if product title contains "unisex" OR "all gender" => gender = "unisex".
-// - If "soccer" appears anywhere (title/vendor/type/tags) => DROP.
-// - shoeType is always "unknown".
-// - Must have both sale + original price (compare_at_price) to be included.
-// - Uses min(variant.price) as salePrice, max(variant.compare_at_price) as originalPrice.
-// - Range fields are null (single price output).
-//
-// Output blob URL env:
-//   GAZELLESPORTS_DEALS_BLOB_URL = https://.../gazelle-sports.json
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
+  <link rel="icon" type="image/png" href="/images/favicon.png">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-const { put } = require("@vercel/blob");
+  <title>ShoeBeagle - Deal Statistics Dashboard</title>
 
-// -----------------------------
-// tiny helpers
-// -----------------------------
-function nowIso() {
-  return new Date().toISOString();
-}
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-function normalizeWs(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
-}
-
-function safeLower(s) {
-  return String(s || "").toLowerCase();
-}
-
-function deriveGenderFromCollectionUrl(url) {
-  const u = safeLower(url);
-  if (u.includes("/mens-") || u.includes("/mens")) return "mens";
-  if (u.includes("/womens-") || u.includes("/womens")) return "womens";
-  return "unknown";
-}
-
-function overrideGenderIfUnisex(title, defaultGender) {
-  const t = safeLower(title);
-  if (t.includes("unisex") || t.includes("all gender") || t.includes("all-gender")) return "unisex";
-  return defaultGender;
-}
-
-function containsBannedWord(haystack) {
-  return /\b(soccer|sandal|sandals)\b/i.test(String(haystack || ""));
-}
-
-function toNum(s) {
-  // Shopify product JSON commonly has "45.95" strings
-  const n = Number(String(s || "").trim());
-  return Number.isFinite(n) ? n : null;
-}
-
-function computeDiscountPercent(originalPrice, salePrice) {
-  if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return null;
-  if (originalPrice <= 0) return null;
-  const pct = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
-  return Number.isFinite(pct) ? pct : null;
-}
-
-// Optional: extract a cleaner model from title (keeps listingName unchanged)
-function extractModelFromTitle(title) {
-  let t = normalizeWs(title);
-
-  // Strip leading gender phrase
-  t = t
-    .replace(/^Men's\s+/i, "")
-    .replace(/^Women's\s+/i, "")
-    .replace(/^All\s*Gender\s+/i, "");
-
-  // Cut at " - " (colors/width usually follow)
-  const dashIdx = t.indexOf(" - ");
-  if (dashIdx !== -1) t = t.slice(0, dashIdx);
-
-  // Cut at common descriptors
-  const cutPhrases = [
-    " Running Shoe",
-    " Running Shoes",
-  ];
-
-  const lower = t.toLowerCase();
-  for (const phrase of cutPhrases) {
-    const idx = lower.indexOf(phrase.toLowerCase());
-    if (idx !== -1) {
-      t = t.slice(0, idx);
-      break;
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f4ede3;
+      padding: 20px;
+      color: #2d2d2d;
     }
-  }
 
-  return normalizeWs(t) || normalizeWs(title);
-}
+    .container { max-width: 1400px; margin: 0 auto; }
 
-// -----------------------------
-// network
-// -----------------------------
-async function fetchJson(url, timeoutMs = 45000) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        "user-agent": "Mozilla/5.0 (compatible; ShoeBeagleBot/1.0; +https://shoebeagle.com)",
-        accept: "application/json,text/plain,*/*",
-      },
-      signal: ctrl.signal,
+    /* Store filter + results */
+    .filter-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
+      margin: 10px 0 18px;
+      flex-wrap: wrap;
+    }
+
+    .filter-row label {
+      font-weight: 600;
+      color: #214478ff;
+    }
+
+    .filter-row select {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 2px solid #214478ff;
+      background: #ffffff;
+      font-size: 1rem;
+      min-width: 260px;
+    }
+
+    .deals-panel {
+      background: white;
+      border: 2px solid #214478ff;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+
+    .deals-panel h2 {
+      color: #214478ff;
+      margin-bottom: 10px;
+      font-size: 1.5rem;
+    }
+
+    /* Logo at top with 6px buffer */
+    .brand-header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 6px;
+      margin-bottom: 8px;
+    }
+    .brand-logo {
+      width: 520px;
+      max-width: 100%;
+      height: auto;
+      object-fit: contain;
+    }
+
+    h1 {
+      color: #214478ff;
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 2.5rem;
+    }
+
+    .meta-line {
+      text-align: center;
+      color: #777;
+      margin-bottom: 22px;
+      font-size: 0.95rem;
+    }
+
+    .stale-banner {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin: 0 auto 18px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 2px solid #ffc107;
+      background: #fffbf0;
+      color: #7a5b00;
+      font-weight: 700;
+      max-width: 760px;
+      text-align: center;
+    }
+
+    .stale-banner strong { color: #7a4b00; }
+
+    .stores-table, .chart-container {
+      background: white;
+      border: 2px solid #214478ff;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 30px;
+      overflow-x: auto;
+    }
+
+    .stores-table h2, .chart-container h2 {
+      color: #214478ff;
+      margin-bottom: 15px;
+      font-size: 1.5rem;
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+      vertical-align: top;
+    }
+
+    th {
+      background: #214478ff;
+      color: white;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s;
+    }
+
+    th:hover { background: #1a3661; }
+
+    th.sortable::after {
+      content: " ⇅";
+      opacity: 0.5;
+      font-size: 0.9em;
+    }
+
+    th.sorted-asc::after { content: " ▲"; opacity: 1; }
+    th.sorted-desc::after { content: " ▼"; opacity: 1; }
+
+    tr:hover { background: rgba(33, 68, 120, 0.05); }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      font-size: 1.2rem;
+      color: #666;
+    }
+
+    .error {
+      background: #dc3545;
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      margin: 20px 0;
+      white-space: pre-wrap;
+    }
+
+    .refresh-btn {
+      display: inline-flex;
+      margin: 0;
+      padding: 12px 30px;
+      background: #214478ff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+      text-align: center;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Primary action: Refresh */
+    .button-row .refresh-btn:first-child {
+      background: #2e7d32;
+    }
+    .button-row .refresh-btn:first-child:hover {
+      background: #256428;
+    }
+
+    .button-row .refresh-btn{
+      min-width: 0;
+      padding: 8px 14px;
+      font-size: 0.92rem;
+      margin: 0;
+      border-radius: 8px;
+      line-height: 1.1;
+    }
+
+    .button-row .refresh-btn { min-width: 140px; text-align: center; }
+    .refresh-btn:hover { background: #1a3661; }
+
+    .button-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 22px;
+      flex-wrap: wrap;
+    }
+
+    .debug-info {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 30px;
+      font-family: monospace;
+      font-size: 0.85rem;
+    }
+
+    .debug-info h3 {
+      color: #214478ff;
+      margin-bottom: 10px;
+      font-family: system-ui;
+    }
+
+    .note {
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 6px;
+    }
+
+    /* Health Status Styles */
+    .health-panel {
+      background: white;
+      border: 2px solid #214478ff;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+
+    .health-panel h2 {
+      color: #214478ff;
+      margin-bottom: 15px;
+      font-size: 1.5rem;
+    }
+
+    .health-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 15px;
+    }
+
+    .health-card {
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      padding: 15px;
+      background: #f9f9f9;
+    }
+
+    .health-card.healthy { border-color: #28a745; background: #f0f9f4; }
+    .health-card.warning { border-color: #ffc107; background: #fffbf0; }
+    .health-card.critical { border-color: #dc3545; background: #fff5f5; }
+
+    .health-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .health-store-name {
+      font-weight: bold;
+      font-size: 1.1rem;
+      color: #214478ff;
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .health-status-badge {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .health-status-badge.healthy { background: #28a745; color: white; }
+    .health-status-badge.warning { background: #ffc107; color: #333; }
+    .health-status-badge.critical { background: #dc3545; color: white; }
+
+    .health-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .health-metric { font-size: 0.9rem; }
+    .health-metric-label { color: #666; font-size: 0.85rem; margin-bottom: 3px; }
+    .health-metric-value { font-weight: bold; color: #214478ff; word-break: break-word; }
+    .health-metric-value.na { color: #999; font-style: italic; }
+
+    .health-metric.full { grid-column: 1 / -1; }
+
+    .inline-pill {
+      background: rgba(33, 68, 120, 0.06);
+      border: 1px solid rgba(33, 68, 120, 0.18);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.82rem;
+      color: #214478ff;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 3px 4px;
+    }
+
+    .health-issues {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #ddd;
+    }
+
+    .health-issue {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+      font-size: 0.9rem;
+    }
+
+    .health-issue.critical { color: #dc3545; }
+    .health-issue.warning { color: #856404; }
+
+    .health-summary {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .health-summary-item {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: bold;
+    }
+
+    .health-summary-item.healthy { background: #28a745; color: white; }
+    .health-summary-item.warning { background: #ffc107; color: #333; }
+    .health-summary-item.critical { background: #dc3545; color: white; }
+
+    .health-issues-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 18px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(220, 53, 69, 0.4);
+      background: rgba(220, 53, 69, 0.08);
+      color: #8a1f2c;
+      font-weight: 600;
+    }
+
+    .health-issues-list.hidden { display: none; }
+
+    .health-issues-list-title {
+      font-weight: 800;
+      color: #8a1f2c;
+    }
+
+    .health-issues-list ul { margin: 0; padding-left: 18px; }
+    .health-issues-list li { margin: 2px 0; }
+
+    .scraped-url {
+      font-size: 0.75rem;
+      color: #666;
+      word-break: break-all;
+      margin-top: 6px;
+      font-family: monospace;
+      line-height: 1.3;
+    }
+
+    .scraped-url a {
+      color: #214478ff;
+      text-decoration: none;
+    }
+    .scraped-url a:hover { text-decoration: underline; }
+
+    /* Total Deals + Gender breakdown styles */
+    .gender-breakdown {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(33, 68, 120, 0.2);
+    }
+
+    .gender-breakdown-title {
+      font-size: 0.9rem;
+      color: #214478ff;
+      margin-bottom: 8px;
+      font-weight: 800;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .gender-breakdown-subtitle {
+      font-size: 0.8rem;
+      color: #666;
+      font-weight: 600;
+    }
+
+    .gender-stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      font-size: 0.85rem;
+    }
+
+    .gender-stat {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 8px;
+      background: rgba(33, 68, 120, 0.05);
+      border-radius: 4px;
+    }
+
+    .gender-stat-label { color: #666; }
+    .gender-stat-value { font-weight: bold; color: #214478ff; }
+
+    /* 30-day history table styles */
+    .history-table { font-size: 0.85rem; margin-top: 15px; }
+
+    .history-table th {
+      min-width: 50px;
+      font-size: 0.75rem;
+      padding: 8px 6px;
+    }
+
+    .history-table td {
+      text-align: center;
+      padding: 8px 6px;
+      font-weight: bold;
+    }
+
+    .history-table .scraper-name {
+      text-align: left;
+      font-weight: bold;
+      min-width: 220px;
+      padding-left: 12px;
+      white-space: nowrap;
+    }
+
+    .history-cell-success { background: #f0f9f4; color: #28a745; }
+    .history-cell-warning { background: #fffbf0; color: #856404; }
+    .history-cell-failed  { background: #fff5f5; color: #dc3545; }
+
+    .history-legend {
+      margin-top: 12px;
+      font-size: 0.85rem;
+      color: #666;
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .history-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .history-notes {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: #444;
+      line-height: 1.35;
+    }
+
+    .deals-table-wrap {
+      margin-top: 12px;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      overflow: auto;
+      background: #fff;
+    }
+
+    .deals-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1100px;
+    }
+
+    .deals-table th,
+    .deals-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #ececec;
+      vertical-align: top;
+      font-size: 0.92rem;
+    }
+
+    .deals-table thead th {
+      position: sticky;
+      top: 0;
+      background: #fafafa;
+      z-index: 1;
+      color: #111;
+      cursor: default;
+    }
+
+    .deals-table th .column-subtitle {
+      display: block;
+      color: #6b7280;
+      font-weight: 500;
+      font-size: 0.78rem;
+      margin-top: 2px;
+    }
+
+    .column-percent {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #f3f4f6;
+      color: #111827;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .deals-table td a {
+      color: #1d4ed8;
+      word-break: break-all;
+    }
+
+    .deal-thumb {
+      width: 48px;
+      height: 32px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+    }
+
+    .row-has-issues { background: #fff6f5; }
+
+    .missing-cell {
+      color: #9ca3af;
+      font-style: italic;
+    }
+
+    .badge-disabled {
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,0.18);
+      background: rgba(0,0,0,0.06);
+      color: #333;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+
+    <div class="brand-header">
+      <img class="brand-logo" src="/images/logo.svg" alt="Shoe Beagle">
+    </div>
+
+    <h1>Dashboard</h1>
+    <div id="overallMeta" class="meta-line" style="display:none;"></div>
+    <div id="staleBanner" class="stale-banner" style="display:none;"></div>
+
+    <div class="button-row">
+      <button class="refresh-btn" onclick="loadStats()">Refresh Data</button>
+      <button class="refresh-btn" onclick="openExternal('https://shoebeagle.com')">ShoeBeagle</button>
+      <button class="refresh-btn" onclick="openExternal('https://github.com')">GitHub</button>
+      <button class="refresh-btn" onclick="openExternal('https://vercel.com')">Vercel</button>
+      <button class="refresh-btn" onclick="openExternal('https://apify.com')">Apify</button>
+      <button class="refresh-btn" onclick="openExternal('https://www.firecrawl.dev')">Firecrawl</button>
+      <button class="refresh-btn" onclick="openExternal('https://sendgrid.com')">SendGrid</button>
+      <button class="refresh-btn" onclick="openExternal('https://namecheap.com')">Namecheap</button>
+    </div>
+
+    <div id="loading" class="loading">Loading deal statistics...</div>
+    <div id="error" class="error" style="display: none;"></div>
+
+    <!-- Debug Info -->
+    <div id="debugInfo" class="debug-info" style="display: none;">
+      <h3>Debug Information:</h3>
+      <div id="debugContent"></div>
+    </div>
+
+    <!-- Health Status Panel -->
+    <div id="healthPanel" class="health-panel" style="display: none;">
+      <h2>🏥 Scraper Health Status</h2>
+      <div class="health-summary" id="healthSummary"></div>
+      <div id="healthIssuesList" class="health-issues-list hidden"></div>
+      <div class="health-grid" id="healthGrid"></div>
+    </div>
+
+    <!-- 30-Day Scraper Performance -->
+    <div id="scraperHistoryPanel" class="health-panel" style="display: none;">
+      <h2>📈 30-Day Scraper Performance History</h2>
+      <div id="scraperHistoryChart"></div>
+    </div>
+
+    <div id="content" style="display: none;">
+
+      <!-- Deals Browser by Store -->
+      <div class="deals-panel">
+        <h2>🔎 Browse Deals by Store</h2>
+
+        <div class="filter-row">
+          <label for="storeSelect">Store:</label>
+          <select id="storeSelect">
+            <option value="__none__">Select store or Close</option>
+          </select>
+          <div id="storeCount" style="color:#666;font-size:0.95rem;"></div>
+        </div>
+
+        <div class="deals-table-wrap" id="storeDealsTableWrap"></div>
+      </div>
+
+      <!-- Unaltered Deals Browser by Store -->
+      <div class="deals-panel">
+        <h2>🧾 Browse Unaltered Deals by Store</h2>
+
+        <div class="filter-row">
+          <label for="unalteredStoreSelect">Store:</label>
+          <select id="unalteredStoreSelect">
+            <option value="__none__">Select store or Close</option>
+          </select>
+          <div id="unalteredStoreCount" style="color:#666;font-size:0.95rem;"></div>
+        </div>
+
+        <div class="deals-table-wrap" id="unalteredDealsTableWrap"></div>
+      </div>
+
+      <!-- Store Table -->
+      <div class="stores-table">
+        <h2>Store Breakdown</h2>
+        <table>
+          <thead>
+            <tr>
+              <th class="sortable" onclick="sortStoreTable('name')">Store Name</th>
+              <th class="sortable" onclick="sortStoreTable('count')">Total Deals</th>
+              <th class="sortable" onclick="sortStoreTable('avgDiscount')">Avg Discount %</th>
+              <th class="sortable" onclick="sortStoreTable('avgSavings')">Avg $ Savings</th>
+              <th>Best Deal</th>
+            </tr>
+          </thead>
+          <tbody id="storesTableBody"></tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    // ShoeBeagle Dashboard (NO HARDCODED STORE DETAILS)
+    //
+    // All store identity / urls / blobs / aliases come from:
+    //   /lib/canonical-stores.json
+    //
+    // REQUIRED BEHAVIOR:
+    // 1) If a store is in canonical-stores.json, it MUST appear everywhere:
+    //    - Health cards
+    //    - Browse-by-store dropdowns (even if 0 deals)
+    //    - Store breakdown (even if 0 deals)
+    //
+    // 2) Health card: "Last Updated" must be the FIRST thing listed
+    //    under the store header, followed by how long ago in HOURS.
+    //
+    // 3) Debug info: "Unknown brands" must appear AFTER "Shoe brands found".
+    //
+    // UPDATE REQUESTED:
+    // - Removed "Data Quality by Store" section entirely.
+    // - 30-day performance history only shows rows for stores
+    //   that are in the canonical store list.
+    // ============================================================
+
+    const BLOB_BASE = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
+    const CANONICAL_STORES_URL = "/lib/canonical-stores.json";
+
+    // ------------------------------------------------------------
+    // FRESH FETCH HELPER
+    // ------------------------------------------------------------
+    async function freshFetch(url) {
+      const sep = url.includes("?") ? "&" : "?";
+      const bust = `${sep}_cb=${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const bustUrl = `${url}${bust}`;
+
+      const isSameOrigin = url.startsWith("/") || url.startsWith(window.location.origin);
+
+      if (isSameOrigin) {
+        return fetch(bustUrl, {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+          },
+        });
+      } else {
+        return fetch(bustUrl, { cache: "no-store" });
+      }
+    }
+
+    // Show JS parse/runtime errors on the page
+    window.addEventListener("error", (e) => {
+      const errorEl = document.getElementById("error");
+      const loading = document.getElementById("loading");
+      if (loading) loading.style.display = "none";
+      if (errorEl) {
+        errorEl.style.display = "block";
+        errorEl.textContent = `JavaScript Error:\n${e.message}\n${e.filename || ""}:${e.lineno || ""}`;
+      }
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-    return await res.json();
-  } finally {
-    clearTimeout(t);
-  }
-}
 
-// -----------------------------
-// product -> deal
-// -----------------------------
-function buildDealFromProduct(product, baseSiteUrl, defaultGender) {
-  const handle = normalizeWs(product?.handle);
-  const brand = normalizeWs(product?.vendor);
-  const title = normalizeWs(product?.title);
-
-  const tags = Array.isArray(product?.tags) ? product.tags.join(", ") : normalizeWs(product?.tags);
-  const productType = normalizeWs(product?.product_type);
-
-  const haystack = `${brand} ${title} ${productType} ${tags}`.trim();
-  if (containsBannedWord(haystack)) return { __dropped: "bannedWord" };
-
-  const gender = overrideGenderIfUnisex(title, defaultGender);
-
-  // Collection products.json typically includes images: [{ src, ... }]
-  const imageURL =
-    normalizeWs(product?.image?.src) ||
-    normalizeWs(product?.images?.[0]?.src) ||
-    normalizeWs(product?.images?.[0]) || // some themes expose array of strings
-    null;
-
-  let salePrice = null;
-  let originalPrice = null;
-
-  for (const v of product?.variants || []) {
-    const p = toNum(v?.price);
-    const c = toNum(v?.compare_at_price);
-
-    if (Number.isFinite(p)) salePrice = salePrice == null ? p : Math.min(salePrice, p);
-    if (Number.isFinite(c)) originalPrice = originalPrice == null ? c : Math.max(originalPrice, c);
-  }
-
-  const listingURL = handle ? `${baseSiteUrl}/products/${handle}` : null;
-
-  if (!listingURL || !imageURL || !brand || !title) return { __dropped: "missingCore" };
-  if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return { __dropped: "missingPrices" };
-  if (salePrice <= 0 || originalPrice <= 0) return { __dropped: "badPrices" };
-  if (salePrice >= originalPrice) return { __dropped: "notADeal" };
-
-  const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-
-  // Clean model (optional but recommended)
-  const model = extractModelFromTitle(title);
-
-  return {
-    listingName: normalizeWs(`${brand} ${title}`),
-
-    brand,
-    model,
-
-    salePrice,
-    originalPrice,
-    discountPercent,
-
-    // ranges not used in this scraper (single-price output)
-    salePriceLow: null,
-    salePriceHigh: null,
-    originalPriceLow: null,
-    originalPriceHigh: null,
-    discountPercentUpTo: null,
-
-    store: "Gazelle Sports",
-
-    listingURL,
-    imageURL,
-
-    gender,
-    shoeType: "unknown",
-  };
-}
-
-// -----------------------------
-// scrape a Shopify collection via products.json
-// -----------------------------
-async function scrapeCollectionProductsJson(baseSiteUrl, collectionUrl, opts = {}) {
-  const MAX_PAGES = Number.isFinite(opts.maxPages) ? opts.maxPages : 25;
-  const LIMIT = Number.isFinite(opts.limit) ? opts.limit : 250;
-
-  const sourceUrls = [];
-  const defaultGender = deriveGenderFromCollectionUrl(collectionUrl);
-
-  const dropCounts = {
-    tilesFound: 0, // products seen across pages
-    dropped_bannedWord: 0,
-    dropped_missingCore: 0,
-    dropped_missingPrices: 0,
-    dropped_badPrices: 0,
-    dropped_notADeal: 0,
-    kept: 0,
-  };
-
-  const deals = [];
-  const seenHandles = new Set();
-  let pagesFetched = 0;
-
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    const pageUrl = `${collectionUrl}/products.json?limit=${LIMIT}&page=${page}`;
-    sourceUrls.push(pageUrl);
-
-    const data = await fetchJson(pageUrl);
-    const products = Array.isArray(data?.products) ? data.products : [];
-
-    pagesFetched += 1;
-
-    if (products.length === 0) break;
-
-    // Track whether this page introduced any new products
-    let addedThisPage = 0;
-
-    for (const product of products) {
-      const h = safeLower(product?.handle || "");
-      if (h && seenHandles.has(h)) continue;
-      if (h) {
-        seenHandles.add(h);
-        addedThisPage += 1;
-      }
-
-      dropCounts.tilesFound += 1;
-
-      const dealOrDrop = buildDealFromProduct(product, baseSiteUrl, defaultGender);
-
-      if (dealOrDrop && dealOrDrop.__dropped) {
-        const k = dealOrDrop.__dropped;
-        if (k === "bannedWord") dropCounts.dropped_bannedWord += 1;
-        else if (k === "missingCore") dropCounts.dropped_missingCore += 1;
-        else if (k === "missingPrices") dropCounts.dropped_missingPrices += 1;
-        else if (k === "badPrices") dropCounts.dropped_badPrices += 1;
-        else if (k === "notADeal") dropCounts.dropped_notADeal += 1;
-        else dropCounts.dropped_missingCore += 1;
-        continue;
-      }
-
-      deals.push(dealOrDrop);
-      dropCounts.kept += 1;
-    }
-
-    // Early exit if the site repeats the same page over and over
-    if (addedThisPage === 0) break;
-
-    // If fewer than LIMIT returned, usually last page
-    if (products.length < LIMIT) break;
-  }
-
-  return {
-    sourceUrls,
-    pagesFetched,
-    dealsFound: dropCounts.tilesFound,
-    dealsExtracted: deals.length,
-    dropCounts,
-    deals,
-  };
-}
-
-// -----------------------------
-// handler
-// -----------------------------
-module.exports = async function handler(req, res) {
-  // ---------------------------------
-  // CRON SECRET PROTECTION (commented out)
-  // ---------------------------------
-  // const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
-  // if (CRON_SECRET) {
-  //   const provided =
-  //     String(req.headers["x-cron-secret"] || "").trim() ||
-  //     String(req.query?.cron_secret || "").trim();
-  //   if (provided !== CRON_SECRET) {
-  //     return res.status(401).json({ ok: false, error: "Unauthorized: Invalid CRON_SECRET" });
-  //   }
-  // }
-
-  const t0 = Date.now();
-
-  const BASE = "https://gazellesports.com";
-  const MENS = "https://gazellesports.com/collections/mens-sale-shoes";
-  const WOMENS = "https://gazellesports.com/collections/womens-sale-shoes";
-
-  const out = {
-    store: "Gazelle Sports",
-    schemaVersion: 1,
-    lastUpdated: nowIso(),
-    via: "shopify-products-json",
-    sourceUrls: [],
-    pagesFetched: 0,
-    dealsFound: 0,
-    dealsExtracted: 0,
-    scrapeDurationMs: 0,
-    ok: false,
-    error: null,
-    deals: [],
-    dropCounts: {},
-    blobUrl: null,
-  };
-
-  try {
-    const mens = await scrapeCollectionProductsJson(BASE, MENS, { maxPages: 25, limit: 250 });
-    const womens = await scrapeCollectionProductsJson(BASE, WOMENS, { maxPages: 25, limit: 250 });
-
-    out.sourceUrls = [...mens.sourceUrls, ...womens.sourceUrls];
-    out.pagesFetched = mens.pagesFetched + womens.pagesFetched;
-    out.dealsFound = mens.dealsFound + womens.dealsFound;
-    out.dealsExtracted = mens.dealsExtracted + womens.dealsExtracted;
-
-    out.dropCounts = {
-      mens: mens.dropCounts,
-      womens: womens.dropCounts,
-      total: {
-        tilesFound: (mens.dropCounts.tilesFound || 0) + (womens.dropCounts.tilesFound || 0),
-        dropped_soccer: mens.dropCounts.dropped_soccer + womens.dropCounts.dropped_soccer,
-        dropped_missingCore: mens.dropCounts.dropped_missingCore + womens.dropCounts.dropped_missingCore,
-        dropped_missingPrices: mens.dropCounts.dropped_missingPrices + womens.dropCounts.dropped_missingPrices,
-        dropped_badPrices: mens.dropCounts.dropped_badPrices + womens.dropCounts.dropped_badPrices,
-        dropped_notADeal: mens.dropCounts.dropped_notADeal + womens.dropCounts.dropped_notADeal,
-        kept: mens.dropCounts.kept + womens.dropCounts.kept,
-      },
+    // ----------------------------
+    // Canonical store state
+    // ----------------------------
+    let CANONICAL = {
+      raw: [],
+      byId: {},
+      byDisplayName: {},
+      aliasToId: {},
+      list: []
     };
 
-    out.deals = [...mens.deals, ...womens.deals];
+    // Data state
+    let ALL_DEALS = [];
+    let UNALTERED_DEALS = [];
+    let STORE_DATA = null;
+    let CURRENT_STORE_SORT = { column: "count", direction: "desc" };
 
-    // -----------------------------
-    // BLOB WRITE (env-driven path)
-    // -----------------------------
-    const blobUrl = String(process.env.GAZELLESPORTS_DEALS_BLOB_URL || "").trim();
-    if (!blobUrl) throw new Error("Missing GAZELLESPORTS_DEALS_BLOB_URL env var");
-
-    let blobPath;
-    try {
-      blobPath = new URL(blobUrl).pathname.replace(/^\//, "");
-    } catch {
-      throw new Error("Invalid GAZELLESPORTS_DEALS_BLOB_URL (not a URL)");
+    // ------------------------------------------------------------
+    // Canonical loader + normalization
+    // ------------------------------------------------------------
+    function normalizeKey(s) {
+      return String(s || "").trim().toLowerCase();
     }
-    if (!blobPath) throw new Error("Invalid GAZELLESPORTS_DEALS_BLOB_URL (missing pathname)");
 
-    const putRes = await put(blobPath, JSON.stringify(out, null, 2), {
-      access: "public",
-      contentType: "application/json",
-      addRandomSuffix: false,
-    });
+    async function loadCanonicalStores() {
+      const res = await fetch(`${CANONICAL_STORES_URL}?t=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Failed to load canonical stores: ${res.status}`);
+      const arr = await res.json();
+      if (!Array.isArray(arr)) throw new Error("canonical-stores.json must be an array");
 
-    out.blobUrl = putRes?.url || blobUrl;
+      const byId = {};
+      const byDisplayName = {};
+      const aliasToId = {};
 
-    out.ok = true;
-    out.error = null;
-  } catch (e) {
-    out.ok = false;
-    out.error = e?.stack || e?.message || String(e) || "Unknown error";
-  } finally {
-    out.scrapeDurationMs = Date.now() - t0;
-  }
+      for (const s of arr) {
+        if (!s || typeof s !== "object") continue;
+        const id = String(s.id || "").trim();
+        const displayName = String(s.displayName || "").trim();
+        if (!id || !displayName) continue;
 
-  // Return a summary response (no deals array), but deals ARE still in the blob.
-  const responseOut = { ...out };
-  delete responseOut.deals;
+        const storeObj = {
+          id,
+          displayName,
+          addedAt: s.addedAt || null,
+          lastUpdated: s.lastUpdated || null,
+          scrapedUrls: Array.isArray(s.scrapedUrls) ? s.scrapedUrls.filter(Boolean) : [],
+          expectedBlob: s.expectedBlob ?? null,
+          aliases: Array.isArray(s.aliases) ? s.aliases.filter(Boolean) : [],
+          enabled: Boolean(s.enabled),
+          scraperType: String(s.scraperType || "unknown"),
+          notes: String(s.notes || "")
+        };
 
-  res.setHeader("Cache-Control", "no-store, max-age=0");
-  return res.status(out.ok ? 200 : 500).json(responseOut);
-};
+        byId[id] = storeObj;
+        byDisplayName[displayName] = storeObj;
+
+        const aliasSet = new Set();
+        aliasSet.add(id);
+        aliasSet.add(displayName);
+        for (const a of storeObj.aliases) aliasSet.add(a);
+
+        for (const a of aliasSet) {
+          const k = normalizeKey(a);
+          if (!k) continue;
+          if (!aliasToId[k]) aliasToId[k] = id;
+        }
+      }
+
+      const list = Object.values(byId).sort((a, b) => a.displayName.localeCompare(b.displayName));
+      CANONICAL = { raw: arr, byId, byDisplayName, aliasToId, list };
+      return CANONICAL;
+    }
+
+    function normalizeStoreNameFromDeal(dealStoreValue) {
+      const cleaned = String(dealStoreValue || "").trim();
+      if (!cleaned) return "Unknown";
+
+      const key = normalizeKey(cleaned);
+      const id = CANONICAL.aliasToId[key];
+      if (id && CANONICAL.byId[id]) return CANONICAL.byId[id].displayName;
+
+      for (const s of CANONICAL.list) {
+        if (normalizeKey(s.displayName) === key) return s.displayName;
+      }
+
+      return cleaned;
+    }
+
+    function getCanonicalDisplayNames() {
+      return CANONICAL.list.map(s => s.displayName);
+    }
+
+    // ------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------
+    function normalizeStr(s) {
+      return String(s || "").trim();
+    }
+
+    function safeNumber(n) {
+      const x = Number(n);
+      return Number.isFinite(x) ? x : 0;
+    }
+
+    function formatMoney(n) {
+      const x = Number(n);
+      return Number.isFinite(x) ? `$${x.toFixed(2)}` : "—";
+    }
+
+    function formatAge(ms) {
+      if (!Number.isFinite(ms) || ms < 0) return "—";
+      const totalMinutes = Math.floor(ms / 60000);
+      const days = Math.floor(totalMinutes / 1440);
+      const hours = Math.floor((totalMinutes % 1440) / 60);
+      const minutes = totalMinutes % 60;
+      if (days > 0) return `${days}d ${hours}h`;
+      if (hours > 0) return `${hours}h ${minutes}m`;
+      return `${minutes}m`;
+    }
+
+    function formatHoursAgo(ms) {
+      if (!Number.isFinite(ms) || ms < 0) return "Not Available";
+      const hours = ms / 3600000;
+      return `${hours.toFixed(1)}h ago`;
+    }
+
+    function computeDiscountPercent(originalPrice, salePrice) {
+      const o = safeNumber(originalPrice);
+      const s = safeNumber(salePrice);
+      if (o > 0 && s > 0 && o > s) return ((o - s) / o) * 100;
+      return 0;
+    }
+
+    function openExternal(url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+
+    function hasValidImage(d) {
+      const img = normalizeStr(d.imageURL);
+      if (!img) return false;
+      if (img.includes("placehold.co") || img.includes("placeholder") || img.includes("no-image")) return false;
+      return true;
+    }
+
+    function getDealTitle(d) {
+      const brand = normalizeStr(d.brand);
+      const model = normalizeStr(d.model);
+      const listingName = normalizeStr(d.listingName);
+      if (brand || model) return [brand, model].filter(Boolean).join(" ");
+      return listingName || "Deal";
+    }
+
+    function getDealImage(d) {
+      const img = normalizeStr(d.imageURL);
+      if (!img) return "https://placehold.co/600x400?text=Running+Shoe";
+      return img;
+    }
+
+    function isPresentText(value) {
+      return Boolean(normalizeStr(value));
+    }
+
+    function getLastUpdatedInfo(dealsJsonRaw, mergeData) {
+      const dealsObj =
+        (!Array.isArray(dealsJsonRaw) && dealsJsonRaw && typeof dealsJsonRaw === "object")
+          ? dealsJsonRaw
+          : null;
+
+      const lastUpdated = dealsObj?.lastUpdated || mergeData?.timestamp || mergeData?.lastUpdated || null;
+
+      if (!lastUpdated) return { raw: null, display: "Not Available", ageMs: null, ageHours: "Not Available" };
+
+      const d = new Date(lastUpdated);
+      const ts = d.getTime();
+      const display = Number.isFinite(ts) ? d.toLocaleString() : String(lastUpdated);
+      const ageMs = Number.isFinite(ts) ? (Date.now() - ts) : null;
+      const ageHours = ageMs != null ? formatHoursAgo(ageMs) : "Not Available";
+
+      return { raw: lastUpdated, display, ageMs, ageHours };
+    }
+
+    // ------------------------------------------------------------
+    // Scraper History
+    // ------------------------------------------------------------
+    async function loadScraperHistory() {
+      try {
+        const response = await freshFetch(`${BLOB_BASE}/scraper-data.json`);
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (err) {
+        console.error("Error loading scraper history:", err);
+        return null;
+      }
+    }
+
+    function getScraperViaMapFromHistory(scraperData) {
+      const viaMap = {};
+      if (!scraperData || !Array.isArray(scraperData.days)) return viaMap;
+
+      const days = scraperData.days.slice();
+      days.sort((a,b) => String(b.dayUTC || "").localeCompare(String(a.dayUTC || "")));
+
+      for (const day of days) {
+        for (const s of (day.scrapers || [])) {
+          const name = s?.scraper;
+          if (!name || viaMap[name]) continue;
+          const via = String(s?.via || "").toLowerCase().trim();
+          if (via) viaMap[name] = via;
+        }
+      }
+      return viaMap;
+    }
+
+    function getScraperViaFromMerge(mergeData) {
+      const viaMap = {};
+      const sr = mergeData?.scraperResults || null;
+      if (!sr) return viaMap;
+      for (const [name, obj] of Object.entries(sr)) {
+        const via = String(obj?.via || "").toLowerCase().trim();
+        if (via) viaMap[name] = via;
+      }
+      return viaMap;
+    }
+
+    function decorateScraperName(name, via) {
+      const v = String(via || "").toLowerCase();
+      if (v === "apify") return `${name}*`;
+      if (v === "cheerio") return `${name}†`;
+      return name;
+    }
+
+    function canonicalDisplayNameFromHistoryScraperName(scraperName) {
+      const raw = String(scraperName || "").trim();
+      if (!raw) return null;
+
+      // Exact displayName match (common case)
+      if (CANONICAL.byDisplayName[raw]) return CANONICAL.byDisplayName[raw].displayName;
+
+      // Alias/id match
+      const key = normalizeKey(raw);
+      const id = CANONICAL.aliasToId[key];
+      if (id && CANONICAL.byId[id]) return CANONICAL.byId[id].displayName;
+
+      return null;
+    }
+
+    function displayScraperHistory(scraperData, mergeData) {
+      const panel = document.getElementById("scraperHistoryPanel");
+      const chart = document.getElementById("scraperHistoryChart");
+
+      if (!panel || !chart || !scraperData || !Array.isArray(scraperData.days) || scraperData.days.length === 0) {
+        return;
+      }
+
+      // These are not stores; keep hidden.
+      const HIDE_FROM_HISTORY = new Set([
+        "Cheerio (non-Holabird)",
+        "Apify (non-Holabird)",
+        "Brooks Running",
+        "Brooks Sale",
+      ]);
+
+      // Only show rows that map to canonical stores.
+      const allowedScrapers = new Map(); // key: original history scraperName -> canonical displayName
+
+      scraperData.days.forEach(day => {
+        (day.scrapers || []).forEach(s => {
+          const historyName = s?.scraper;
+          if (!historyName) return;
+          if (HIDE_FROM_HISTORY.has(historyName)) return;
+
+          const canonicalName = canonicalDisplayNameFromHistoryScraperName(historyName);
+          if (!canonicalName) return; // <-- this is your requested filter
+
+          if (!allowedScrapers.has(historyName)) {
+            allowedScrapers.set(historyName, canonicalName);
+          }
+        });
+      });
+
+      // Sort by canonical displayName (what user sees)
+      const rows = Array.from(allowedScrapers.entries())
+        .map(([historyName, canonicalName]) => ({ historyName, canonicalName }))
+        .sort((a, b) => a.canonicalName.localeCompare(b.canonicalName));
+
+      if (rows.length === 0) return;
+
+      const viaFromHistory = getScraperViaMapFromHistory(scraperData);
+      const viaFromMerge = getScraperViaFromMerge(mergeData);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const allDates = [];
+      for (let i = 0; i < 30; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        allDates.push(d.toISOString().split("T")[0]);
+      }
+
+      const dataMap = {};
+      scraperData.days.forEach(day => {
+        const dateKey = (day.dayUTC || "").split("T")[0];
+        if (dateKey) dataMap[dateKey] = day;
+      });
+
+      const apifyInTable = new Set();
+      const cheerioInTable = new Set();
+
+      let html = `
+        <div style="overflow-x:auto;">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th class="scraper-name">Store</th>
+      `;
+
+      allDates.forEach(dateStr => {
+        const date = new Date(dateStr + "T00:00:00");
+        const monthDay = `${date.getMonth() + 1}/${date.getDate()}`;
+        html += `<th>${monthDay}</th>`;
+      });
+
+      html += `
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      rows.forEach(({ historyName, canonicalName }) => {
+        const via = viaFromHistory[historyName] || viaFromMerge[historyName] || "";
+        const decoratedDisplay = decorateScraperName(canonicalName, via);
+
+        if (String(via).toLowerCase() === "apify") apifyInTable.add(historyName);
+        if (String(via).toLowerCase() === "cheerio") cheerioInTable.add(historyName);
+
+        html += `<tr><td class="scraper-name">${decoratedDisplay}</td>`;
+
+        allDates.forEach(dateStr => {
+          const dayData = dataMap[dateStr];
+
+          if (!dayData) {
+            html += `<td class="history-cell-failed">✗</td>`;
+          } else {
+            const scraperEntry = (dayData.scrapers || []).find(s => s.scraper === historyName);
+
+            if (!scraperEntry) {
+              html += `<td class="history-cell-failed">✗</td>`;
+            } else if (!scraperEntry.ok) {
+              html += `<td class="history-cell-failed">✗</td>`;
+            } else {
+              const count = scraperEntry.count || 0;
+              if (count === 0) html += `<td class="history-cell-failed">0</td>`;
+              else if (count < 10) html += `<td class="history-cell-warning">${count}</td>`;
+              else html += `<td class="history-cell-success">${count}</td>`;
+            }
+          }
+        });
+
+        html += `</tr>`;
+      });
+
+      html += `
+            </tbody>
+          </table>
+        </div>
+
+        <div class="history-legend">
+          <div class="history-legend-item">
+            <span style="color:#28a745;font-weight:bold;">■</span> Good (10+ deals)
+          </div>
+          <div class="history-legend-item">
+            <span style="color:#856404;font-weight:bold;">■</span> Warning (&lt;10 deals)
+          </div>
+          <div class="history-legend-item">
+            <span style="color:#dc3545;font-weight:bold;">✗</span> Failed/Zero/Not Run
+          </div>
+        </div>
+      `;
+
+      const notes = [];
+      if (apifyInTable.size > 0) notes.push(`<div><strong>*</strong> Apify scraper.</div>`);
+      if (cheerioInTable.size > 0) notes.push(`<div><strong>†</strong> Cheerio scraper.</div>`);
+
+      if (notes.length) {
+        html += `<div class="history-notes">${notes.join("")}</div>`;
+      }
+
+      chart.innerHTML = html;
+      panel.style.display = "block";
+    }
+
+    // ------------------------------------------------------------
+    // Gender breakdown
+    // ------------------------------------------------------------
+    function calculateGenderStats(deals) {
+      const stats = { mens: 0, womens: 0, unisex: 0, unknown: 0 };
+
+      deals.forEach(deal => {
+        const gender = (deal.gender || "").toLowerCase().trim();
+
+        if (gender === "mens" || gender === "men" || gender === "male" || gender === "men's") stats.mens++;
+        else if (gender === "womens" || gender === "women" || gender === "female" || gender === "women's") stats.womens++;
+        else if (gender === "unisex") stats.unisex++;
+        else stats.unknown++;
+      });
+
+      return stats;
+    }
+
+    // ------------------------------------------------------------
+    // Main loader
+    // ------------------------------------------------------------
+    async function loadStats() {
+      const loading = document.getElementById("loading");
+      const error = document.getElementById("error");
+      const content = document.getElementById("content");
+      const debugInfo = document.getElementById("debugInfo");
+      const debugContent = document.getElementById("debugContent");
+
+      loading.style.display = "block";
+      error.style.display = "none";
+      content.style.display = "none";
+      debugInfo.style.display = "none";
+
+      try {
+        // 1) Load canonical stores FIRST (single source of truth)
+        await loadCanonicalStores();
+
+        // 2) Load merged deals — freshFetch bypasses all caching layers
+        const dealsResponse = await freshFetch(`${BLOB_BASE}/deals.json`);
+        if (!dealsResponse.ok) throw new Error(`Failed to fetch deals: ${dealsResponse.status}`);
+
+        const dealsJson = await dealsResponse.json();
+        const deals = Array.isArray(dealsJson)
+          ? dealsJson
+          : (Array.isArray(dealsJson.deals) ? dealsJson.deals : null);
+
+        if (!deals) throw new Error("Invalid deals.json format (expected array or {deals:[...]})");
+
+        // 2b) Build mergeData
+        let mergeData = {
+          timestamp: dealsJson?.lastUpdated || dealsJson?.timestamp || null,
+          lastUpdated: dealsJson?.lastUpdated || dealsJson?.timestamp || null,
+          scraperResults: dealsJson?.scraperResults || {},
+          storeMetadata: {}
+        };
+
+        // 2c) Load stats.json for per-store health card metadata
+        try {
+          const statsResponse = await freshFetch(`${BLOB_BASE}/stats.json`);
+          if (statsResponse.ok) {
+            const statsJson = await statsResponse.json();
+            mergeData.storeMetadata = statsJson?.scraperMetadata || {};
+            mergeData.timestamp = mergeData.timestamp || statsJson?.lastUpdated || statsJson?.generatedAt || null;
+            mergeData.lastUpdated = mergeData.lastUpdated || statsJson?.lastUpdated || statsJson?.generatedAt || null;
+          }
+        } catch (e) {
+          console.log("Could not load stats.json (continuing without store metadata):", e?.message || e);
+        }
+
+        // 2d) Load unaltered deals (optional)
+        let unalteredDeals = [];
+        try {
+          const unalteredResponse = await freshFetch(`${BLOB_BASE}/unaltered-deals.json`);
+          if (unalteredResponse.ok) {
+            const unalteredJson = await unalteredResponse.json();
+            unalteredDeals = Array.isArray(unalteredJson)
+              ? unalteredJson
+              : (Array.isArray(unalteredJson.deals) ? unalteredJson.deals : []);
+          }
+        } catch (unalteredError) {
+          console.log("Could not load unaltered deals (continuing without it):", unalteredError.message);
+        }
+
+        ALL_DEALS = deals;
+        UNALTERED_DEALS = unalteredDeals;
+
+        buildStoreDropdown("storeSelect");
+        buildStoreDropdown("unalteredStoreSelect");
+
+        renderDealsForSelectedStore({
+          selectId: "storeSelect",
+          tableWrapId: "storeDealsTableWrap",
+          countId: "storeCount",
+          deals: ALL_DEALS,
+        });
+
+        renderDealsForSelectedStore({
+          selectId: "unalteredStoreSelect",
+          tableWrapId: "unalteredDealsTableWrap",
+          countId: "unalteredStoreCount",
+          deals: UNALTERED_DEALS,
+        });
+
+        // Debug panel
+        const uniqueStoresFound = [...new Set(deals.map(d => normalizeStoreNameFromDeal(d.store)))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+        const uniqueBrands = [...new Set(deals.map(d => normalizeStr(d.brand) || "Unknown"))]
+          .filter(b => b && b !== "Unknown")
+          .sort((a,b)=>a.localeCompare(b));
+
+        const unknownBrandsCount = deals.filter(d => (normalizeStr(d.brand) === "Unknown" || !normalizeStr(d.brand))).length;
+
+        const mergedDealsUrl = `${BLOB_BASE}/deals.json`;
+        const lastUpdatedInfo = getLastUpdatedInfo(dealsJson, mergeData);
+        const canonicalCount = CANONICAL.list.length;
+
+        let debugHTML = `
+          <strong>CANONICAL_STORES_URL:</strong> ${CANONICAL_STORES_URL}<br>
+          <strong>Canonical stores loaded:</strong> ${canonicalCount}<br><br>
+
+          <strong>BLOB_BASE:</strong> ${BLOB_BASE}<br>
+          <strong>Merged Deals:</strong> <a href="${mergedDealsUrl}" target="_blank" style="color:#214478ff; word-break: break-all;">${mergedDealsUrl}</a><br>
+          <strong>Last Updated:</strong> ${lastUpdatedInfo.display} (${lastUpdatedInfo.ageHours})<br><br>
+
+          <strong>Total deals in array:</strong> ${deals.length}<br>
+          <strong>Unaltered deals loaded:</strong> ${unalteredDeals.length}<br>
+
+          <strong>Unique stores found in deals.json (${uniqueStoresFound.length}):</strong> ${uniqueStoresFound.join(", ") || "None"}<br>
+          <strong>Canonical store list (${getCanonicalDisplayNames().length}):</strong> ${getCanonicalDisplayNames().join(", ")}<br>
+
+          <strong>Shoe brands found (${uniqueBrands.length}):</strong> ${uniqueBrands.join(", ") || "None"}<br>
+          <strong>Unknown brands:</strong> ${unknownBrandsCount} (${deals.length ? ((unknownBrandsCount / deals.length) * 100).toFixed(1) : "0.0"}%)<br><br>
+        `;
+
+        debugContent.innerHTML = debugHTML;
+        debugInfo.style.display = "block";
+
+        const stats = calculateStats(deals);
+
+        // Drop any non-canonical stores from stats.stores
+        const canonicalSet = new Set(CANONICAL.list.map(s => s.displayName));
+        for (const k of Object.keys(stats.stores)) {
+          if (!canonicalSet.has(k)) delete stats.stores[k];
+        }
+
+        STORE_DATA = stats.stores;
+
+        displayOverallMeta(stats, dealsJson, mergeData);
+        displayHealthStatus(deals, stats, mergeData);
+
+        const scraperHistory = await loadScraperHistory();
+        if (scraperHistory) displayScraperHistory(scraperHistory, mergeData);
+
+        loading.style.display = "none";
+        content.style.display = "block";
+
+      } catch (err) {
+        loading.style.display = "none";
+        error.style.display = "block";
+        error.textContent = `Error loading data: ${err.message}`;
+        console.error("Error:", err);
+      }
+    }
+
+    function displayOverallMeta(stats, dealsJsonRaw, mergeData) {
+      const el = document.getElementById("overallMeta");
+      const staleBanner = document.getElementById("staleBanner");
+      if (!el) return;
+
+      const lastUpdatedInfo = getLastUpdatedInfo(dealsJsonRaw, mergeData);
+
+      el.innerHTML = `
+        <span class="inline-pill">Total Deals: ${stats.totalDeals.toLocaleString()}</span>
+        <span class="inline-pill">Last Updated: ${lastUpdatedInfo.display}</span>
+        <span class="inline-pill">${lastUpdatedInfo.ageHours}</span>
+      `;
+      el.style.display = "block";
+
+      if (staleBanner) {
+        const staleThresholdMs = 6 * 60 * 60 * 1000;
+        if (lastUpdatedInfo.ageMs && lastUpdatedInfo.ageMs > staleThresholdMs) {
+          staleBanner.innerHTML = `⚠️ Data is stale. Last updated <strong>${formatAge(lastUpdatedInfo.ageMs)}</strong> ago.`;
+          staleBanner.style.display = "flex";
+        } else {
+          staleBanner.style.display = "none";
+        }
+      }
+    }
+
+    // ------------------------------------------------------------
+    // Canonical helpers for blobs/urls
+    // ------------------------------------------------------------
+    function canonicalExpectedBlobs(storeObj) {
+      const x = storeObj?.expectedBlob;
+      if (!x) return [];
+      if (Array.isArray(x)) return x.filter(u => typeof u === "string" && u.trim() && u !== "unknown");
+      if (typeof x === "string") {
+        const s = x.trim();
+        if (!s || s === "unknown") return [];
+        return [s];
+      }
+      return [];
+    }
+
+    function canonicalScrapedUrls(storeObj) {
+      const arr = Array.isArray(storeObj?.scrapedUrls) ? storeObj.scrapedUrls : [];
+      return arr.filter(u => typeof u === "string" && u.trim());
+    }
+
+    // ------------------------------------------------------------
+    // Stats
+    // ------------------------------------------------------------
+    function calculateStats(deals) {
+      const stats = {
+        totalDeals: deals.length,
+        stores: {},
+        discounts: [],
+        prices: []
+      };
+
+      deals.forEach(deal => {
+        const salePrice = safeNumber(deal.salePrice);
+        const originalPrice = safeNumber(deal.originalPrice);
+
+        const store = normalizeStoreNameFromDeal(deal.store);
+
+        const dollarSavings = (originalPrice > salePrice && salePrice > 0) ? (originalPrice - salePrice) : 0;
+
+        const pctFromData = Number(deal.discountPercent);
+        const computedPct = computeDiscountPercent(originalPrice, salePrice);
+        const percentOff = (Number.isFinite(pctFromData) && pctFromData > 0) ? pctFromData : computedPct;
+
+        if (!stats.stores[store]) {
+          stats.stores[store] = { count: 0, totalDiscount: 0, totalSavings: 0, deals: [] };
+        }
+        stats.stores[store].count++;
+        stats.stores[store].totalDiscount += percentOff;
+        stats.stores[store].totalSavings += dollarSavings;
+        stats.stores[store].deals.push(deal);
+
+        if (percentOff > 0) stats.discounts.push({ deal, percentOff, dollarSavings, salePrice });
+        if (salePrice > 0) stats.prices.push(salePrice);
+      });
+
+      // Ensure every canonical store exists even if zero deals
+      for (const s of CANONICAL.list) {
+        const name = s.displayName;
+        if (!stats.stores[name]) stats.stores[name] = { count: 0, totalDiscount: 0, totalSavings: 0, deals: [] };
+      }
+
+      return stats;
+    }
+
+    // ------------------------------------------------------------
+    // Store Breakdown table
+    // ------------------------------------------------------------
+    function sortStoreTable(column) {
+      if (CURRENT_STORE_SORT.column === column) {
+        CURRENT_STORE_SORT.direction = CURRENT_STORE_SORT.direction === "asc" ? "desc" : "asc";
+      } else {
+        CURRENT_STORE_SORT.column = column;
+        CURRENT_STORE_SORT.direction = column === "name" ? "asc" : "desc";
+      }
+      displayStoreTable(STORE_DATA);
+    }
+
+    function displayStoreTable(stores) {
+      const tbody = document.getElementById("storesTableBody");
+      if (!tbody || !stores) return;
+
+      let sorted = Object.entries(stores).map(([name, data]) => {
+        const avgDiscount = data.count > 0 ? (data.totalDiscount / data.count) : 0;
+        const avgSavings = data.count > 0 ? (data.totalSavings / data.count) : 0;
+
+        const bestDeal = (data.deals || [])
+          .map(d => {
+            const originalPrice = safeNumber(d.originalPrice);
+            const salePrice = safeNumber(d.salePrice);
+
+            const pctFromData = Number(d.discountPercent);
+            const pct = (Number.isFinite(pctFromData) && pctFromData > 0)
+              ? pctFromData
+              : computeDiscountPercent(originalPrice, salePrice);
+
+            return { deal: d, pct };
+          })
+          .sort((a, b) => b.pct - a.pct)[0];
+
+        return { name, data, avgDiscount, avgSavings, bestDeal };
+      });
+
+      sorted.sort((a, b) => {
+        let comparison = 0;
+        switch(CURRENT_STORE_SORT.column) {
+          case "name":
+            comparison = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+            break;
+          case "count":
+            comparison = a.data.count - b.data.count;
+            break;
+          case "avgDiscount":
+            comparison = a.avgDiscount - b.avgDiscount;
+            break;
+          case "avgSavings":
+            comparison = a.avgSavings - b.avgSavings;
+            break;
+        }
+        return CURRENT_STORE_SORT.direction === "asc" ? comparison : -comparison;
+      });
+
+      const storeTable = document.querySelectorAll(".stores-table")[0];
+      if (storeTable) {
+        storeTable.querySelectorAll("th").forEach(th => th.classList.remove("sorted-asc", "sorted-desc"));
+        const headers = storeTable.querySelectorAll("th");
+        const columnMap = { name: 0, count: 1, avgDiscount: 2, avgSavings: 3 };
+        if (columnMap[CURRENT_STORE_SORT.column] !== undefined) {
+          headers[columnMap[CURRENT_STORE_SORT.column]].classList.add(
+            CURRENT_STORE_SORT.direction === "asc" ? "sorted-asc" : "sorted-desc"
+          );
+        }
+      }
+
+      tbody.innerHTML = sorted.map(({ name, data, avgDiscount, avgSavings, bestDeal }) => {
+        const bestLabel = bestDeal
+          ? `${normalizeStr(bestDeal.deal.brand) || "Unknown"} ${normalizeStr(bestDeal.deal.model) || ""} (${bestDeal.pct.toFixed(0)}% off)`
+          : "—";
+        return `
+          <tr>
+            <td><strong>${name}</strong></td>
+            <td>${(data.count || 0).toLocaleString()}</td>
+            <td>${avgDiscount.toFixed(1)}%</td>
+            <td>$${avgSavings.toFixed(2)}</td>
+            <td>${bestLabel}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    // ------------------------------------------------------------
+    // Health Status
+    // ------------------------------------------------------------
+    function displayHealthStatus(deals, stats, mergeData) {
+      const healthPanel = document.getElementById("healthPanel");
+      const healthGrid = document.getElementById("healthGrid");
+      const healthSummary = document.getElementById("healthSummary");
+      const healthIssuesList = document.getElementById("healthIssuesList");
+      if (!healthPanel || !healthGrid || !healthSummary) return;
+
+      function escalateStatus(health, next) {
+        const order = { healthy: 0, warning: 1, critical: 2 };
+        if (order[next] > order[health.status]) health.status = next;
+      }
+
+      const storeMetadata = mergeData?.storeMetadata || {};
+
+      const storeHealth = {};
+      let healthyCount = 0;
+      let warningCount = 0;
+      let criticalCount = 0;
+
+      for (const storeObj of CANONICAL.list) {
+        const storeName = storeObj.displayName;
+
+        const storeData = stats.stores[storeName] || { count: 0, deals: [], totalDiscount: 0, totalSavings: 0 };
+
+        const health = {
+          store: storeName,
+          storeId: storeObj.id,
+          enabled: storeObj.enabled,
+          dealCount: storeData.count || 0,
+          issues: [],
+          status: "healthy",
+          metadata: null,
+          scrapedUrls: canonicalScrapedUrls(storeObj),
+          expectedBlobs: canonicalExpectedBlobs(storeObj),
+          genderStats: { mens: 0, womens: 0, unisex: 0, unknown: 0 },
+          notes: storeObj.notes || ""
+        };
+
+        if (!health.enabled) {
+          health.issues.push({ type: "warning", message: "⚠️ Store is disabled in canonical-stores.json" });
+          escalateStatus(health, "warning");
+        }
+
+        const metaKey = storeObj.id;
+
+        if (storeMetadata[metaKey]) {
+          const m = storeMetadata[metaKey];
+          health.metadata = {
+            timestamp: m.timestamp || null,
+            duration: m.duration != null ? String(m.duration) : null,
+            blobUrl: m.blobUrl || null,
+            ageDays: (m.ageDays != null ? m.ageDays : null),
+            staleExcluded: !!m.staleExcluded,
+            staleThresholdDays: (m.staleThresholdDays != null ? m.staleThresholdDays : null),
+            count: (m.count != null ? m.count : null),
+          };
+        } else {
+          health.metadata = { timestamp: null, duration: null, blobUrl: null, ageDays: null, staleExcluded: false, staleThresholdDays: null, count: null };
+        }
+
+        const actualBlob = health.metadata?.blobUrl || null;
+        if (!actualBlob && health.expectedBlobs.length === 0) {
+          health.issues.push({ type: "warning", message: "⚠️ No blob URL available (expectedBlob is unknown + no merge metadata)" });
+          escalateStatus(health, "warning");
+        }
+
+        const storeDeals = deals.filter(d => normalizeStoreNameFromDeal(d.store) === storeName);
+        health.genderStats = calculateGenderStats(storeDeals);
+
+        const meta = health.metadata || {};
+        const ts = meta.timestamp ? new Date(meta.timestamp).getTime() : NaN;
+        const STALE_WARN_MS = 26 * 60 * 60 * 1000;
+        const STALE_CRIT_MS = 7 * 24 * 60 * 60 * 1000;
+
+        if (!meta.staleExcluded) {
+          if (!meta.timestamp || !Number.isFinite(ts)) {
+            health.issues.push({ type: "critical", message: "🚨 Missing timestamp (Last Updated)" });
+            escalateStatus(health, "critical");
+          } else {
+            const ageMs = Date.now() - ts;
+            if (ageMs >= STALE_CRIT_MS) {
+              health.issues.push({ type: "critical", message: `🚨 Stale data (≥ 7 days old): ${formatAge(ageMs)} ago` });
+              escalateStatus(health, "critical");
+            } else if (ageMs > STALE_WARN_MS) {
+              health.issues.push({ type: "warning", message: `⚠️ Stale data (> 26 hours old): ${formatAge(ageMs)} ago` });
+              escalateStatus(health, "warning");
+            }
+          }
+        } else {
+          health.issues.push({ type: "warning", message: "⚠️ Staleness checks skipped (staleExcluded: true)" });
+          escalateStatus(health, "warning");
+        }
+
+        if (health.dealCount === 0) {
+          health.issues.push({ type: "critical", message: "🚨 ZERO RESULTS (no deals in merged deals.json)" });
+          escalateStatus(health, "critical");
+        }
+
+        if (health.dealCount >= 10 && (health.genderStats.mens === 0 || health.genderStats.womens === 0)) {
+          const parts = [];
+          if (health.genderStats.mens === 0) parts.push("0 Men's");
+          if (health.genderStats.womens === 0) parts.push("0 Women's");
+          health.issues.push({ type: "critical", message: `🚨 Gender breakdown anomaly (${parts.join(", ")}) with ${health.dealCount} deals` });
+          escalateStatus(health, "critical");
+        }
+
+        const unknownBrands = storeDeals.filter(d => {
+          const b = normalizeStr(d.brand);
+          return (!b || b === "Unknown");
+        }).length;
+
+        const unknownPercent = health.dealCount > 0 ? (unknownBrands / health.dealCount) * 100 : 0;
+
+        if (health.dealCount > 0 && unknownPercent > 5) {
+          health.issues.push({ type: "critical", message: `🚨 Unknown Brands > 5% (${unknownPercent.toFixed(1)}%)` });
+          escalateStatus(health, "critical");
+        }
+
+        const missingImages = storeDeals.filter(d => {
+          const img = normalizeStr(d.imageURL);
+          return !img || img.includes("placehold.co");
+        }).length;
+        const missingImagesPercent = health.dealCount > 0 ? (missingImages / health.dealCount) * 100 : 0;
+
+        if (missingImagesPercent > 30) {
+          health.issues.push({ type: "warning", message: `⚠️ ${missingImagesPercent.toFixed(0)}% Missing Images` });
+          escalateStatus(health, "warning");
+        }
+
+        const missingUrls = storeDeals.filter(d => {
+          const url = normalizeStr(d.listingURL);
+          return !url || url === "#";
+        }).length;
+        const missingUrlsPercent = health.dealCount > 0 ? (missingUrls / health.dealCount) * 100 : 0;
+
+        if (missingUrlsPercent > 10) {
+          health.issues.push({ type: "warning", message: `⚠️ ${missingUrlsPercent.toFixed(0)}% Missing URLs` });
+          escalateStatus(health, "warning");
+        }
+
+        storeHealth[storeName] = health;
+
+        if (health.status === "healthy") healthyCount++;
+        else if (health.status === "warning") warningCount++;
+        else criticalCount++;
+      }
+
+      healthSummary.innerHTML = `
+        <div class="health-summary-item healthy">${healthyCount} Healthy</div>
+        <div class="health-summary-item warning">${warningCount} Warnings</div>
+        <div class="health-summary-item critical">${criticalCount} Critical</div>
+      `;
+
+      if (healthIssuesList) {
+        const criticalStores = Object.values(storeHealth)
+          .filter(h => h.status === "critical")
+          .map(h => h.store);
+
+        if (criticalStores.length > 0) {
+          healthIssuesList.innerHTML = `
+            <div class="health-issues-list-title">🚨 Critical Issues</div>
+            <div>Stores with zero results or severe problems:</div>
+            <ul>${criticalStores.map(store => `<li>${store}</li>`).join("")}</ul>
+          `;
+          healthIssuesList.classList.remove("hidden");
+        } else {
+          healthIssuesList.classList.add("hidden");
+          healthIssuesList.innerHTML = "";
+        }
+      }
+
+      const sortedStores = Object.values(storeHealth).sort((a, b) =>
+        a.store.toLowerCase().localeCompare(b.store.toLowerCase())
+      );
+
+      healthGrid.innerHTML = sortedStores.map(health => {
+        const meta = health.metadata || {};
+        const ts = meta.timestamp ? new Date(meta.timestamp).getTime() : NaN;
+
+        const lastUpdatedStr = Number.isFinite(ts) ? new Date(ts).toLocaleString() : "Not Available";
+        const hoursAgoStr = Number.isFinite(ts) ? formatHoursAgo(Date.now() - ts) : "Not Available";
+        const durationStr = meta.duration != null ? String(meta.duration) : "Not Available";
+
+        const sourceBlobsAll = meta.blobUrl ? [meta.blobUrl] : health.expectedBlobs;
+        const scrapedUrls = health.scrapedUrls;
+        const genderStats = health.genderStats;
+        const totalDealsStr = (health.dealCount || 0).toLocaleString();
+        const disabledBadge = health.enabled ? "" : `<span class="badge-disabled">DISABLED</span>`;
+
+        return `
+          <div class="health-card ${health.status}">
+            <div class="health-header">
+              <div class="health-store-name">${health.store} ${disabledBadge}</div>
+              <div class="health-status-badge ${health.status}">
+                ${health.status === "healthy" ? "✓ Healthy" : health.status === "warning" ? "⚠ Warning" : "✗ Critical"}
+              </div>
+            </div>
+
+            <div class="health-metrics" style="margin-top: 6px;">
+              <div class="health-metric full">
+                <div class="health-metric-label">Last Updated</div>
+                <div class="health-metric-value ${lastUpdatedStr === "Not Available" ? "na" : ""}">
+                  ${lastUpdatedStr}
+                  <span style="opacity:.65; font-weight:700;"> • </span>
+                  <span class="${hoursAgoStr === "Not Available" ? "na" : ""}">${hoursAgoStr}</span>
+                </div>
+              </div>
+
+              <div class="health-metric full">
+                <div class="health-metric-label">Duration</div>
+                <div class="health-metric-value ${durationStr === "Not Available" ? "na" : ""}">${durationStr}</div>
+              </div>
+            </div>
+
+            <div class="scraped-url">
+              <strong>Scraped URL(s):</strong>
+              ${
+                scrapedUrls.length
+                  ? scrapedUrls.map(u => `<div><a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a></div>`).join("")
+                  : " Not Available"
+              }
+            </div>
+
+            <div class="scraped-url">
+              <strong>Source Blob:</strong>
+              ${
+                sourceBlobsAll.length
+                  ? sourceBlobsAll.map(u => `<div><a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a></div>`).join("")
+                  : " Not Available"
+              }
+            </div>
+
+            <div class="gender-breakdown">
+              <div class="gender-breakdown-title">
+                <span>Total Deals: ${totalDealsStr}</span>
+                <span class="gender-breakdown-subtitle">Gender Breakdown</span>
+              </div>
+
+              <div class="gender-stats">
+                <div class="gender-stat">
+                  <span class="gender-stat-label">Men's:</span>
+                  <span class="gender-stat-value">${genderStats.mens}</span>
+                </div>
+                <div class="gender-stat">
+                  <span class="gender-stat-label">Women's:</span>
+                  <span class="gender-stat-value">${genderStats.womens}</span>
+                </div>
+                <div class="gender-stat">
+                  <span class="gender-stat-label">Unisex:</span>
+                  <span class="gender-stat-value">${genderStats.unisex}</span>
+                </div>
+                <div class="gender-stat">
+                  <span class="gender-stat-label">Unknown:</span>
+                  <span class="gender-stat-value">${genderStats.unknown}</span>
+                </div>
+              </div>
+            </div>
+
+            ${health.notes ? `<div class="note" style="margin-top:10px;"><strong>Notes:</strong> ${health.notes}</div>` : ""}
+
+            ${health.issues.length > 0 ? `
+              <div class="health-issues">
+                ${health.issues.map(issue => `
+                  <div class="health-issue ${issue.type}">
+                    <span>${issue.message}</span>
+                  </div>
+                `).join("")}
+              </div>
+            ` : '<div style="margin-top: 10px; color: #28a745; font-weight: bold;">✓ All checks passed</div>'}
+          </div>
+        `;
+      }).join("");
+
+      healthPanel.style.display = "block";
+      displayStoreTable(stats.stores);
+    }
+
+    // ------------------------------------------------------------
+    // Deals browser by store
+    // ------------------------------------------------------------
+    function buildStoreDropdown(selectId) {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+
+      select.innerHTML = `<option value="__none__" selected>Select store or Close</option>`;
+
+      for (const s of CANONICAL.list) {
+        const opt = document.createElement("option");
+        opt.value = s.id;
+        opt.textContent = s.displayName;
+        select.appendChild(opt);
+      }
+
+      select.onchange = () => renderDealsForSelectedStore({
+        selectId,
+        tableWrapId: selectId === "unalteredStoreSelect" ? "unalteredDealsTableWrap" : "storeDealsTableWrap",
+        countId: selectId === "unalteredStoreSelect" ? "unalteredStoreCount" : "storeCount",
+        deals: selectId === "unalteredStoreSelect" ? UNALTERED_DEALS : ALL_DEALS,
+      });
+    }
+
+    function renderDealsForSelectedStore(options = {}) {
+      const {
+        selectId = "storeSelect",
+        tableWrapId = "storeDealsTableWrap",
+        countId = "storeCount",
+        deals = ALL_DEALS,
+      } = options;
+
+      const select = document.getElementById(selectId);
+      const tableWrap = document.getElementById(tableWrapId);
+      const countEl = document.getElementById(countId);
+      if (!select || !tableWrap) return;
+
+      const chosen = select.value;
+      let filtered = [];
+
+      if (chosen === "__none__") filtered = [];
+      else {
+        const storeObj = CANONICAL.byId[chosen];
+        const storeDisplay = storeObj ? storeObj.displayName : null;
+        filtered = storeDisplay ? (deals || []).filter(d => normalizeStoreNameFromDeal(d.store) === storeDisplay) : [];
+      }
+
+      const SHOW_MAX = 500;
+
+      if (countEl) {
+        if (chosen === "__none__") {
+          countEl.textContent = "";
+        } else if (filtered.length > SHOW_MAX) {
+          countEl.textContent = `Showing ${SHOW_MAX.toLocaleString()} of ${filtered.length.toLocaleString()} deals`;
+        } else {
+          countEl.textContent = `${filtered.length.toLocaleString()} deal${filtered.length === 1 ? "" : "s"}`;
+        }
+      }
+
+      tableWrap.innerHTML = "";
+
+      if (chosen === "__none__") return;
+
+      const toShow = filtered.slice(0, SHOW_MAX);
+
+      if (!toShow.length) {
+        tableWrap.innerHTML = `<div style="text-align:center;color:#666;padding:18px;">No deals found for this store.</div>`;
+        return;
+      }
+
+      const columns = [
+        { key: "listingName", label: "Listing", subLabel: "listingName", getValue: (d) => normalizeStr(d.listingName), isMissing: (d) => !isPresentText(d.listingName) },
+        { key: "brand", label: "Brand", subLabel: "brand", getValue: (d) => normalizeStr(d.brand) || "Unknown", isMissing: (d) => !isPresentText(d.brand) },
+        { key: "model", label: "Model", subLabel: "model", getValue: (d) => normalizeStr(d.model), isMissing: (d) => !isPresentText(d.model) },
+        { key: "salePrice", label: "Sale price", subLabel: "salePrice", getValue: (d) => { const val = Number(d.salePrice); return Number.isFinite(val) && val > 0 ? formatMoney(val) : "—"; }, isMissing: (d) => !(Number.isFinite(Number(d.salePrice)) && Number(d.salePrice) > 0) },
+        { key: "originalPrice", label: "Original price", subLabel: "originalPrice", getValue: (d) => { const val = Number(d.originalPrice); return Number.isFinite(val) && val > 0 ? formatMoney(val) : "—"; }, isMissing: (d) => !(Number.isFinite(Number(d.originalPrice)) && Number(d.originalPrice) > 0) },
+        { key: "discountPercent", label: "Discount %", subLabel: "discountPercent", getValue: (d) => { const val = Number(d.discountPercent); return Number.isFinite(val) && val > 0 ? `${val.toFixed(0)}%` : "—"; }, isMissing: (d) => !Number.isFinite(Number(d.discountPercent)) },
+        { key: "store", label: "Store", subLabel: "store", getValue: (d) => normalizeStoreNameFromDeal(d.store), isMissing: (d) => !isPresentText(d.store) },
+        {
+          key: "listingURL",
+          label: "URL",
+          subLabel: "listingURL",
+          getValue: (d) => normalizeStr(d.listingURL),
+          isMissing: (d) => {
+            const url = normalizeStr(d.listingURL);
+            return !url || url === "#";
+          },
+        },
+        { key: "imageURL", label: "Image", subLabel: "imageURL", getValue: (d) => normalizeStr(d.imageURL), isMissing: (d) => !hasValidImage(d) },
+        { key: "gender", label: "Gender", subLabel: "gender", getValue: (d) => normalizeStr(d.gender), isMissing: (d) => !isPresentText(d.gender) },
+        { key: "shoeType", label: "Shoe type", subLabel: "shoeType", getValue: (d) => normalizeStr(d.shoeType), isMissing: (d) => !isPresentText(d.shoeType) },
+      ];
+
+      const completeness = columns.map((col) => {
+        const presentCount = toShow.filter((d) => !col.isMissing(d)).length;
+        const pct = toShow.length ? Math.round((presentCount / toShow.length) * 100) : 0;
+        return { key: col.key, pct };
+      });
+
+      const headerCells = columns.map((col) => {
+        const pct = completeness.find((c) => c.key === col.key)?.pct ?? 0;
+        return `
+          <th>
+            ${col.label}
+            <span class="column-percent">${pct}%</span>
+            <span class="column-subtitle">${col.subLabel}</span>
+          </th>
+        `;
+      }).join("");
+
+      const rows = toShow.map((deal, idx) => {
+        const rowHasIssues = columns.some((col) => col.isMissing(deal));
+
+        const cells = columns.map((col) => {
+          const missing = col.isMissing(deal);
+
+          if (col.key === "listingURL") {
+            const url = normalizeStr(deal.listingURL);
+            return `
+              <td class="${missing ? "missing-cell" : ""}">
+                ${url && url !== "#" ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>` : "—"}
+              </td>
+            `;
+          }
+
+          if (col.key === "imageURL") {
+            return `
+              <td class="${missing ? "missing-cell" : ""}">
+                ${hasValidImage(deal) ? `<img class="deal-thumb" src="${getDealImage(deal)}" alt="${getDealTitle(deal)}">` : "—"}
+              </td>
+            `;
+          }
+
+          const value = col.getValue(deal);
+          return `<td class="${missing ? "missing-cell" : ""}">${value || "—"}</td>`;
+        }).join("");
+
+        return `
+          <tr class="${rowHasIssues ? "row-has-issues" : ""}">
+            <td>${idx + 1}</td>
+            ${cells}
+          </tr>
+        `;
+      }).join("");
+
+      tableWrap.innerHTML = `
+        <table class="deals-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              ${headerCells}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // Kick off
+    loadStats();
+  </script>
+</body>
+</html>
