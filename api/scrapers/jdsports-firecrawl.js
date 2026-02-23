@@ -410,13 +410,13 @@ export default async function handler(req, res) {
   // -----------------------------
   // CRON SECRET (commented for testing)
   // -----------------------------
-  // const isCron = String(req.query?.cron || "") === "1";
-  // if (isCron) {
-  //   const expected = String(process.env.CRON_SECRET || "").trim();
-  //   const got = String(req.query?.secret || req.headers["x-cron-secret"] || "").trim();
-  //   if (!expected) return res.status(500).json({ ok: false, error: "Missing CRON_SECRET env var" });
-  //   if (!got || got !== expected) return res.status(401).json({ ok: false, error: "Unauthorized" });
-  // }
+   const isCron = String(req.query?.cron || "") === "1";
+   if (isCron) {
+     const expected = String(process.env.CRON_SECRET || "").trim();
+     const got = String(req.query?.secret || req.headers["x-cron-secret"] || "").trim();
+     if (!expected) return res.status(500).json({ ok: false, error: "Missing CRON_SECRET env var" });
+     if (!got || got !== expected) return res.status(401).json({ ok: false, error: "Unauthorized" });
+   }
 
   const startUrl =
     String(req.query?.url || "").trim() ||
