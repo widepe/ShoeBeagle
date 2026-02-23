@@ -1,25 +1,25 @@
 // /api/scrapers/big-peach-running-co.js  (CommonJS)
 //
-// Scrapes BOTH category pages (Women + Men) using Firecrawl-rendered DOM + pagination clicks,
-// then writes ONE blob: .../big-peach-running-co.json
+// Big Peach Running Co (RunFree storefront) — Women + Men category pages
+// Writes ONE blob: .../big-peach-running-co.json
 //
 // Pages:
 //  - https://shop.bigpeachrunningco.com/category/17193/WomensFootwear
 //  - https://shop.bigpeachrunningco.com/category/17194/MensFootwear
 //
-// Rules:
+// RULES:
 // - Drop deals unless BOTH salePrice and originalPrice exist AND sale < original
 // - shoeType = "unknown"
-// - Write canonical deal objects using your schema (including optional range fields set to null)
+// - listingName is constructed once; do not mutate later
 //
 // Required env vars:
 // - BLOB_READ_WRITE_TOKEN
 // - FIRECRAWL_API_KEY
 //
 // Optional env vars:
-// - BIGPEACH_MAX_PAGE        default 6   (click page numbers 2..MAX_PAGE)
-// - BIGPEACH_WAIT_MS         default 1200 (wait between actions)
-// - BIGPEACH_PROXY           default "auto" ("basic"|"enhanced"|"auto")
+// - BIGPEACH_MAX_PAGE   default 12  (attempt clicks 2..MAX_PAGE; safe if fewer pages exist)
+// - BIGPEACH_WAIT_MS    default 1400
+// - BIGPEACH_PROXY      default "auto"  ("auto"|"enhanced"|"basic")
 
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
@@ -69,14 +69,36 @@ function absUrl(relOrAbs) {
   }
 }
 
+function decodeHtmlEntities(s) {
+  // minimal decoding for style attributes we care about
+  return String(s || "")
+    .replace(/&quot;/g, '"')
+    .replace(/&#34;/g, '"')
+    .replace(/&amp;/g, "&");
+}
+
 function parseBgImageUrl(styleAttr) {
-  const s = String(styleAttr || "");
-  const m = s.match(/background-image\s*:\s*url\((["']?)(.*?)\1\)/i);
-  return m ? m[2] : null;
+  // Handles both:
+  //  background-image: url("https://...")
+  //  background-image: url(&quot;https://...&quot;)
+  const s = decodeHtmlEntities(styleAttr);
+
+  // capture inside url(...)
+  const m = s.match(/url\(\s*([^)]+?)\s*\)/i);
+  if (!m) return null;
+
+  // strip wrapping quotes
+  let inner = m[1].trim();
+  if (
+    (inner.startsWith('"') && inner.endsWith('"')) ||
+    (inner.startsWith("'") && inner.endsWith("'"))
+  ) {
+    inner = inner.slice(1, -1).trim();
+  }
+  return inner || null;
 }
 
 function deriveModel(listingName, brand) {
-  // You told me: never edit listingName; only parse it.
   const ln = cleanText(listingName);
   const b = cleanText(brand);
   if (!ln) return "";
@@ -103,7 +125,11 @@ function parseDealsFromHtml(html, gender) {
   tiles.each((_, el) => {
     const $el = $(el);
 
-    const rel = $el.attr("data-url") || $el.find("a[href^='/product/']").attr("href");
+    const rel =
+      $el.attr("data-url") ||
+      $el.find("a[href^='/product/']").attr("href") ||
+      null;
+
     const listingURL = absUrl(rel);
 
     const name = cleanText($el.find(".name").first().text());
@@ -111,15 +137,28 @@ function parseDealsFromHtml(html, gender) {
 
     const imageURL = parseBgImageUrl($el.find(".image").attr("style"));
 
+    // PRICE (robust): require two prices.
+    // Prefer .struck for original if present, but also handle general cases.
     const originalText = cleanText($el.find(".price .struck").first().text());
 
-    // sale text = .price minus .struck
     const $priceClone = $el.find(".price").first().clone();
     $priceClone.find(".struck").remove();
     const saleText = cleanText($priceClone.text());
 
-    const originalPrice = parseMoney(originalText);
-    const salePrice = parseMoney(saleText);
+    let originalPrice = parseMoney(originalText);
+    let salePrice = parseMoney(saleText);
+
+    // Fallback: if either missing, parse all numbers inside .price
+    if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) {
+      const priceTextAll = cleanText($el.find(".price").first().text());
+      const matches = priceTextAll.match(/\$?\s*\d{1,4}(?:,\d{3})*(?:\.\d{2})?/g) || [];
+      const nums = matches.map(parseMoney).filter(n => Number.isFinite(n));
+      const uniq = Array.from(new Set(nums.map(n => n.toFixed(2)))).map(s => Number(s));
+      if (uniq.length >= 2) {
+        originalPrice = Math.max(...uniq);
+        salePrice = Math.min(...uniq);
+      }
+    }
 
     // Must have BOTH prices and be a real markdown
     if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return;
@@ -162,63 +201,54 @@ function parseDealsFromHtml(html, gender) {
   return { dealsFound, dealsExtracted: deals.length, deals };
 }
 
+// Build Firecrawl actions that actually click your pagination:
+// <div class="pages"><div class="page" data-page="1">...</div><div class="page current" data-page="2">2</div></div>
 function buildPaginationActions(maxPage, waitMs) {
-  // We click page numbers 2..maxPage using executeJavascript, because:
-  // - URL does not change
-  // - clicking appends products to existing list
-  // Firecrawl supports executeJavascript actions. :contentReference[oaicite:2]{index=2}
   const actions = [
-    { type: "wait", milliseconds: 1500 },
-    // wait for the product grid to exist (after JS renders)
-    { type: "wait", selector: ".product.clickable" },
+    { type: "wait", milliseconds: 1600 },
+    { type: "waitForSelector", selector: ".product.clickable", timeout: 20000 },
   ];
 
+  // Click pages 2..maxPage if present
   for (let p = 2; p <= maxPage; p++) {
     actions.push(
       {
         type: "executeJavascript",
         script: `
           (function(){
-            const targetText = "${p}";
-            // Try common pagination patterns: links/buttons with exact text
-            const candidates = Array.from(document.querySelectorAll('a,button'));
-            const el = candidates.find(x => (x.textContent || "").trim() === targetText);
+            const sel = '.pages .page[data-page="${p}"]';
+            const el = document.querySelector(sel);
             if (el) el.click();
           })();
         `,
       },
+      { type: "wait", milliseconds: waitMs },
+      // encourage lazy-load append
+      { type: "scrollToBottom" },
       { type: "wait", milliseconds: waitMs }
     );
   }
-
-  // Add a few scrolls down to encourage any lazy loading within the final page
-  actions.push(
-    { type: "scroll", direction: "down" },
-    { type: "wait", milliseconds: waitMs },
-    { type: "scroll", direction: "down" },
-    { type: "wait", milliseconds: waitMs }
-  );
 
   return actions;
 }
 
 async function fetchHtmlViaFirecrawl(url) {
   const apiKey = requireEnv("FIRECRAWL_API_KEY");
-  const maxPage = optInt("BIGPEACH_MAX_PAGE", 6);
-  const waitMs = optInt("BIGPEACH_WAIT_MS", 1200);
+  const maxPage = optInt("BIGPEACH_MAX_PAGE", 12);
+  const waitMs = optInt("BIGPEACH_WAIT_MS", 1400);
   const proxy = optStr("BIGPEACH_PROXY", "auto");
 
   const body = {
     url,
     formats: ["html"],
-    onlyMainContent: false, // IMPORTANT: product grid is not "main content" reliably
-    maxAge: 0,              // IMPORTANT: avoid cached partial renders
-    proxy,                  // "auto" retries with enhanced if needed
+    onlyMainContent: false,
+    maxAge: 0,
+    proxy,
     actions: buildPaginationActions(maxPage, waitMs),
   };
 
-  // v2 scrape endpoint (per current docs)
-  const res = await fetch("https://api.firecrawl.dev/v2/scrape", {
+  // Using v1 scrape endpoint (widely supported). If your account uses v2, swap URL accordingly.
+  const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -238,6 +268,19 @@ async function fetchHtmlViaFirecrawl(url) {
   return html;
 }
 
+function dedupeByListingUrl(deals) {
+  const seen = new Set();
+  const out = [];
+  for (const d of deals) {
+    const key = d.listingURL;
+    if (!key) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(d);
+  }
+  return out;
+}
+
 module.exports = async function handler(req, res) {
   const t0 = Date.now();
 
@@ -255,7 +298,8 @@ module.exports = async function handler(req, res) {
     const mensHtml = await fetchHtmlViaFirecrawl(MENS_URL);
     const mensParsed = parseDealsFromHtml(mensHtml, "mens");
 
-    const deals = [...womensParsed.deals, ...mensParsed.deals];
+    const combined = [...womensParsed.deals, ...mensParsed.deals];
+    const deals = dedupeByListingUrl(combined);
 
     const payload = {
       store: STORE,
@@ -267,7 +311,6 @@ module.exports = async function handler(req, res) {
       sourceUrls,
       pagesFetched: 2,
 
-      // NOTE: dealsFound is how many tiles were present AFTER paging clicks
       dealsFound: womensParsed.dealsFound + mensParsed.dealsFound,
       dealsExtracted: deals.length,
 
@@ -293,7 +336,7 @@ module.exports = async function handler(req, res) {
         womensDealsKept: womensParsed.dealsExtracted,
         mensTilesSeen: mensParsed.dealsFound,
         mensDealsKept: mensParsed.dealsExtracted,
-        maxPageClicked: optInt("BIGPEACH_MAX_PAGE", 6),
+        maxPageClicked: optInt("BIGPEACH_MAX_PAGE", 12),
       },
     });
   } catch (e) {
