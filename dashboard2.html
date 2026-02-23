@@ -442,12 +442,6 @@
     .gender-stat-label { color: #666; }
     .gender-stat-value { font-weight: bold; color: #214478ff; }
 
-    /* Data quality issue highlighting */
-    .issue-count { font-weight: bold; }
-    .issue-count.critical { color: #dc3545; }
-    .issue-count.warning { color: #ff9800; }
-    .issue-count.good { color: #28a745; }
-
     /* 30-day history table styles */
     .history-table { font-size: 0.85rem; margin-top: 15px; }
 
@@ -474,7 +468,6 @@
     .history-cell-success { background: #f0f9f4; color: #28a745; }
     .history-cell-warning { background: #fffbf0; color: #856404; }
     .history-cell-failed  { background: #fff5f5; color: #dc3545; }
-    .history-cell-missing { color: #999; }
 
     .history-legend {
       margin-top: 12px;
@@ -569,12 +562,6 @@
       font-style: italic;
     }
 
-    .pill-muted {
-      background: rgba(0,0,0,0.06);
-      border: 1px solid rgba(0,0,0,0.10);
-      color: #333;
-    }
-
     .badge-disabled {
       font-size: 0.72rem;
       font-weight: 800;
@@ -664,27 +651,6 @@
         <div class="deals-table-wrap" id="unalteredDealsTableWrap"></div>
       </div>
 
-      <!-- Data Quality by Store -->
-      <div class="stores-table">
-        <h2>📊 Data Quality by Store</h2>
-        <div class="note">Comprehensive data quality metrics for each store's scraped deals.</div>
-        <table>
-          <thead>
-            <tr>
-              <th class="sortable" onclick="sortDataQuality('store')">Store Name</th>
-              <th class="sortable" onclick="sortDataQuality('totalDeals')">Total Deals</th>
-              <th class="sortable" onclick="sortDataQuality('unknownBrands')">Unknown Brands</th>
-              <th class="sortable" onclick="sortDataQuality('unknownModels')">Unknown Models</th>
-              <th class="sortable" onclick="sortDataQuality('noOriginalPrice')">No Original Price</th>
-              <th class="sortable" onclick="sortDataQuality('noSalePrice')">No Sale Price</th>
-              <th class="sortable" onclick="sortDataQuality('badImage')">Bad/Missing Image</th>
-              <th class="sortable" onclick="sortDataQuality('badUrl')">Bad/Missing URL</th>
-            </tr>
-          </thead>
-          <tbody id="dataQualityTableBody"></tbody>
-        </table>
-      </div>
-
       <!-- Store Table -->
       <div class="stores-table">
         <h2>Store Breakdown</h2>
@@ -716,13 +682,17 @@
     // 1) If a store is in canonical-stores.json, it MUST appear everywhere:
     //    - Health cards
     //    - Browse-by-store dropdowns (even if 0 deals)
-    //    - Data quality table (even if 0 deals)
     //    - Store breakdown (even if 0 deals)
     //
     // 2) Health card: "Last Updated" must be the FIRST thing listed
     //    under the store header, followed by how long ago in HOURS.
     //
     // 3) Debug info: "Unknown brands" must appear AFTER "Shoe brands found".
+    //
+    // UPDATE REQUESTED:
+    // - Removed "Data Quality by Store" section entirely.
+    // - 30-day performance history only shows rows for stores
+    //   that are in the canonical store list.
     // ============================================================
 
     const BLOB_BASE = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
@@ -730,15 +700,6 @@
 
     // ------------------------------------------------------------
     // FRESH FETCH HELPER
-    // Bypasses both the browser cache AND Vercel's CDN edge cache.
-    //
-    // For cross-origin requests (blob URLs): we can only use a unique
-    // query string cache-buster + cache: "no-store". Custom headers like
-    // Cache-Control trigger a CORS preflight which Vercel Blob does not
-    // support, causing a "Failed to fetch" error.
-    //
-    // For same-origin requests (canonical-stores.json on our own domain):
-    // we also send Cache-Control + Pragma headers for extra insurance.
     // ------------------------------------------------------------
     async function freshFetch(url) {
       const sep = url.includes("?") ? "&" : "?";
@@ -756,11 +717,7 @@
           },
         });
       } else {
-        // Cross-origin (Vercel Blob CDN): query-string bust + no-store only.
-        // Do NOT send custom headers — they trigger a CORS preflight that fails.
-        return fetch(bustUrl, {
-          cache: "no-store",
-        });
+        return fetch(bustUrl, { cache: "no-store" });
       }
     }
 
@@ -791,7 +748,6 @@
     let UNALTERED_DEALS = [];
     let STORE_DATA = null;
     let CURRENT_STORE_SORT = { column: "count", direction: "desc" };
-    let CURRENT_DATA_QUALITY_SORT = { column: "totalDeals", direction: "desc" };
 
     // ------------------------------------------------------------
     // Canonical loader + normalization
@@ -1007,6 +963,21 @@
       return name;
     }
 
+    function canonicalDisplayNameFromHistoryScraperName(scraperName) {
+      const raw = String(scraperName || "").trim();
+      if (!raw) return null;
+
+      // Exact displayName match (common case)
+      if (CANONICAL.byDisplayName[raw]) return CANONICAL.byDisplayName[raw].displayName;
+
+      // Alias/id match
+      const key = normalizeKey(raw);
+      const id = CANONICAL.aliasToId[key];
+      if (id && CANONICAL.byId[id]) return CANONICAL.byId[id].displayName;
+
+      return null;
+    }
+
     function displayScraperHistory(scraperData, mergeData) {
       const panel = document.getElementById("scraperHistoryPanel");
       const chart = document.getElementById("scraperHistoryChart");
@@ -1015,6 +986,7 @@
         return;
       }
 
+      // These are not stores; keep hidden.
       const HIDE_FROM_HISTORY = new Set([
         "Cheerio (non-Holabird)",
         "Apify (non-Holabird)",
@@ -1022,14 +994,30 @@
         "Brooks Sale",
       ]);
 
-      const allScrapers = new Set();
+      // Only show rows that map to canonical stores.
+      const allowedScrapers = new Map(); // key: original history scraperName -> canonical displayName
+
       scraperData.days.forEach(day => {
         (day.scrapers || []).forEach(s => {
-          if (s?.scraper && !HIDE_FROM_HISTORY.has(s.scraper)) allScrapers.add(s.scraper);
+          const historyName = s?.scraper;
+          if (!historyName) return;
+          if (HIDE_FROM_HISTORY.has(historyName)) return;
+
+          const canonicalName = canonicalDisplayNameFromHistoryScraperName(historyName);
+          if (!canonicalName) return; // <-- this is your requested filter
+
+          if (!allowedScrapers.has(historyName)) {
+            allowedScrapers.set(historyName, canonicalName);
+          }
         });
       });
 
-      const scraperNames = Array.from(allScrapers).sort((a,b)=>a.localeCompare(b));
+      // Sort by canonical displayName (what user sees)
+      const rows = Array.from(allowedScrapers.entries())
+        .map(([historyName, canonicalName]) => ({ historyName, canonicalName }))
+        .sort((a, b) => a.canonicalName.localeCompare(b.canonicalName));
+
+      if (rows.length === 0) return;
 
       const viaFromHistory = getScraperViaMapFromHistory(scraperData);
       const viaFromMerge = getScraperViaFromMerge(mergeData);
@@ -1058,7 +1046,7 @@
           <table class="history-table">
             <thead>
               <tr>
-                <th class="scraper-name">Scraper</th>
+                <th class="scraper-name">Store</th>
       `;
 
       allDates.forEach(dateStr => {
@@ -1073,14 +1061,14 @@
             <tbody>
       `;
 
-      scraperNames.forEach(scraperName => {
-        const via = viaFromHistory[scraperName] || viaFromMerge[scraperName] || "";
-        const decorated = decorateScraperName(scraperName, via);
+      rows.forEach(({ historyName, canonicalName }) => {
+        const via = viaFromHistory[historyName] || viaFromMerge[historyName] || "";
+        const decoratedDisplay = decorateScraperName(canonicalName, via);
 
-        if (String(via).toLowerCase() === "apify") apifyInTable.add(scraperName);
-        if (String(via).toLowerCase() === "cheerio") cheerioInTable.add(scraperName);
+        if (String(via).toLowerCase() === "apify") apifyInTable.add(historyName);
+        if (String(via).toLowerCase() === "cheerio") cheerioInTable.add(historyName);
 
-        html += `<tr><td class="scraper-name">${decorated}</td>`;
+        html += `<tr><td class="scraper-name">${decoratedDisplay}</td>`;
 
         allDates.forEach(dateStr => {
           const dayData = dataMap[dateStr];
@@ -1088,7 +1076,7 @@
           if (!dayData) {
             html += `<td class="history-cell-failed">✗</td>`;
           } else {
-            const scraperEntry = (dayData.scrapers || []).find(s => s.scraper === scraperName);
+            const scraperEntry = (dayData.scrapers || []).find(s => s.scraper === historyName);
 
             if (!scraperEntry) {
               html += `<td class="history-cell-failed">✗</td>`;
@@ -1274,7 +1262,7 @@
 
         const stats = calculateStats(deals);
 
-        // DROP any non-canonical stores from stats.stores
+        // Drop any non-canonical stores from stats.stores
         const canonicalSet = new Set(CANONICAL.list.map(s => s.displayName));
         for (const k of Object.keys(stats.stores)) {
           if (!canonicalSet.has(k)) delete stats.stores[k];
@@ -1283,7 +1271,6 @@
         STORE_DATA = stats.stores;
 
         displayOverallMeta(stats, dealsJson, mergeData);
-        displayDataQuality(deals, stats);
         displayHealthStatus(deals, stats, mergeData);
 
         const scraperHistory = await loadScraperHistory();
@@ -1390,132 +1377,6 @@
     }
 
     // ------------------------------------------------------------
-    // Data Quality
-    // ------------------------------------------------------------
-    function displayDataQuality(deals) {
-      const tbody = document.getElementById("dataQualityTableBody");
-      if (!tbody) return;
-
-      const storeQuality = {};
-      for (const s of CANONICAL.list) {
-        storeQuality[s.displayName] = {
-          totalDeals: 0,
-          unknownBrands: 0,
-          unknownModels: 0,
-          noOriginalPrice: 0,
-          noSalePrice: 0,
-          badImage: 0,
-          badUrl: 0
-        };
-      }
-
-      deals.forEach(deal => {
-        const store = normalizeStoreNameFromDeal(deal.store);
-        if (!storeQuality[store]) {
-          storeQuality[store] = {
-            totalDeals: 0,
-            unknownBrands: 0,
-            unknownModels: 0,
-            noOriginalPrice: 0,
-            noSalePrice: 0,
-            badImage: 0,
-            badUrl: 0
-          };
-        }
-
-        storeQuality[store].totalDeals++;
-
-        const brand = normalizeStr(deal.brand);
-        if (!brand || brand === "Unknown") storeQuality[store].unknownBrands++;
-
-        const model = normalizeStr(deal.model);
-        if (!model) storeQuality[store].unknownModels++;
-
-        const originalPrice = Number(deal.originalPrice);
-        if (!Number.isFinite(originalPrice) || originalPrice === 0) storeQuality[store].noOriginalPrice++;
-
-        const salePrice = Number(deal.salePrice);
-        if (!Number.isFinite(salePrice) || salePrice === 0) storeQuality[store].noSalePrice++;
-
-        const img = normalizeStr(deal.imageURL);
-        if (!img || img.includes("placehold.co")) storeQuality[store].badImage++;
-
-        const url = normalizeStr(deal.listingURL);
-        if (!url || url === "#") storeQuality[store].badUrl++;
-      });
-
-      const canonicalSet = new Set(CANONICAL.list.map(s => s.displayName));
-      for (const k of Object.keys(storeQuality)) {
-        if (!canonicalSet.has(k)) delete storeQuality[k];
-      }
-
-      renderDataQualityTable(storeQuality);
-    }
-
-    function renderDataQualityTable(storeQuality) {
-      const tbody = document.getElementById("dataQualityTableBody");
-      if (!tbody) return;
-
-      const entries = Object.entries(storeQuality).map(([store, data]) => ({ store, ...data }));
-      sortDataQualityArray(entries, CURRENT_DATA_QUALITY_SORT.column, CURRENT_DATA_QUALITY_SORT.direction);
-
-      tbody.innerHTML = entries.map(row => {
-        const getIssueClass = (count, total) => {
-          const percent = total > 0 ? (count / total) * 100 : 0;
-          if (count === 0) return "good";
-          if (percent > 20) return "critical";
-          if (percent > 5) return "warning";
-          return "";
-        };
-
-        const formatIssueCell = (count, total) => {
-          const percent = total > 0 ? (count / total) * 100 : 0;
-          return `${count} (${percent.toFixed(1)}%)`;
-        };
-
-        return `
-          <tr>
-            <td><strong>${row.store}</strong></td>
-            <td>${row.totalDeals.toLocaleString()}</td>
-            <td><span class="issue-count ${getIssueClass(row.unknownBrands, row.totalDeals)}">${formatIssueCell(row.unknownBrands, row.totalDeals)}</span></td>
-            <td><span class="issue-count ${getIssueClass(row.unknownModels, row.totalDeals)}">${formatIssueCell(row.unknownModels, row.totalDeals)}</span></td>
-            <td><span class="issue-count ${getIssueClass(row.noOriginalPrice, row.totalDeals)}">${formatIssueCell(row.noOriginalPrice, row.totalDeals)}</span></td>
-            <td><span class="issue-count ${getIssueClass(row.noSalePrice, row.totalDeals)}">${formatIssueCell(row.noSalePrice, row.totalDeals)}</span></td>
-            <td><span class="issue-count ${getIssueClass(row.badImage, row.totalDeals)}">${formatIssueCell(row.badImage, row.totalDeals)}</span></td>
-            <td><span class="issue-count ${getIssueClass(row.badUrl, row.totalDeals)}">${formatIssueCell(row.badUrl, row.totalDeals)}</span></td>
-          </tr>
-        `;
-      }).join("");
-    }
-
-    function sortDataQuality(column) {
-      if (CURRENT_DATA_QUALITY_SORT.column === column) {
-        CURRENT_DATA_QUALITY_SORT.direction = CURRENT_DATA_QUALITY_SORT.direction === "asc" ? "desc" : "asc";
-      } else {
-        CURRENT_DATA_QUALITY_SORT.column = column;
-        CURRENT_DATA_QUALITY_SORT.direction = column === "store" ? "asc" : "desc";
-      }
-      displayDataQuality(ALL_DEALS);
-    }
-
-    function sortDataQualityArray(arr, column, direction) {
-      arr.sort((a, b) => {
-        let aVal, bVal;
-
-        switch(column) {
-          case "store":
-            aVal = a.store.toLowerCase();
-            bVal = b.store.toLowerCase();
-            return direction === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-          default:
-            aVal = a[column] || 0;
-            bVal = b[column] || 0;
-            return direction === "asc" ? aVal - bVal : bVal - aVal;
-        }
-      });
-    }
-
-    // ------------------------------------------------------------
     // Store Breakdown table
     // ------------------------------------------------------------
     function sortStoreTable(column) {
@@ -1572,7 +1433,7 @@
         return CURRENT_STORE_SORT.direction === "asc" ? comparison : -comparison;
       });
 
-      const storeTable = document.querySelectorAll(".stores-table")[1];
+      const storeTable = document.querySelectorAll(".stores-table")[0];
       if (storeTable) {
         storeTable.querySelectorAll("th").forEach(th => th.classList.remove("sorted-asc", "sorted-desc"));
         const headers = storeTable.querySelectorAll("th");
@@ -1764,7 +1625,7 @@
         if (criticalStores.length > 0) {
           healthIssuesList.innerHTML = `
             <div class="health-issues-list-title">🚨 Critical Issues</div>
-            <div>Stores with zero results or severe data quality problems:</div>
+            <div>Stores with zero results or severe problems:</div>
             <ul>${criticalStores.map(store => `<li>${store}</li>`).join("")}</ul>
           `;
           healthIssuesList.classList.remove("hidden");
