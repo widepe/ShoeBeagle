@@ -234,21 +234,47 @@ function buildPaginationActions(maxPage, waitMs) {
 
 async function fetchHtmlViaFirecrawl(url) {
   const apiKey = requireEnv("FIRECRAWL_API_KEY");
-  const maxPage = optInt("BIGPEACH_MAX_PAGE", 12);
+
   const waitMs = optInt("BIGPEACH_WAIT_MS", 1400);
-  const proxy = optStr("BIGPEACH_PROXY", "auto");
+
+  // This site loads + appends products dynamically.
+  // Strategy:
+  // 1) wait for product tiles
+  // 2) click page 2 (if it exists)
+  // 3) scroll down a bunch of times to trigger any further lazy loads
+  const scrolls = optInt("BIGPEACH_SCROLLS", 12);
+
+  const actions = [
+    { type: "wait", milliseconds: 1600 },
+    { type: "wait", selector: ".product.clickable" },
+
+    // Click page 2 (exists in your pager HTML). If the selector isn't present,
+    // Firecrawl may error — so you can disable this click by setting BIGPEACH_CLICK_PAGE2=false if needed.
+    ...(String(process.env.BIGPEACH_CLICK_PAGE2 || "true").toLowerCase() === "true"
+      ? [
+          { type: "click", selector: ".pages .page[data-page='2']" },
+          { type: "wait", milliseconds: waitMs },
+        ]
+      : []),
+
+    // Scroll down repeatedly (Firecrawl scroll action supports direction + optional selector) :contentReference[oaicite:1]{index=1}
+    ...Array.from({ length: scrolls }).flatMap(() => [
+      { type: "scroll", direction: "down" },
+      { type: "wait", milliseconds: waitMs },
+    ]),
+  ];
 
   const body = {
     url,
     formats: ["html"],
     onlyMainContent: false,
     maxAge: 0,
-    proxy,
-    actions: buildPaginationActions(maxPage, waitMs),
+    proxy: optStr("BIGPEACH_PROXY", "auto"),
+    actions,
+    timeout: optInt("BIGPEACH_TIMEOUT_MS", 120000), // allow longer renders
   };
 
-  // Using v1 scrape endpoint (widely supported). If your account uses v2, swap URL accordingly.
-  const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
+  const res = await fetch("https://api.firecrawl.dev/v2/scrape", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -267,7 +293,6 @@ async function fetchHtmlViaFirecrawl(url) {
   if (!html) throw new Error("Firecrawl response did not include data.html");
   return html;
 }
-
 function dedupeByListingUrl(deals) {
   const seen = new Set();
   const out = [];
