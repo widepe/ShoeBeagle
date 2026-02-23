@@ -402,7 +402,7 @@ module.exports = async function handler(req, res) {
         mensDropSamples: mensParsed.dropSamples,
 
         clickPage2: optBool("BIGPEACH_CLICK_PAGE2", true),
-        scrolls: optInt("BIGPEACH_SCROLLS", 18),
+        scrolls: optInt("BIGPEACH_SCROLLS", 3),
         waitMs: optInt("BIGPEACH_WAIT_MS", 1400),
         proxy: optStr("BIGPEACH_PROXY", "auto"),
       },
