@@ -10,16 +10,29 @@
 // RULES:
 // - Drop deals unless BOTH salePrice and originalPrice exist AND sale < original
 // - shoeType = "unknown"
-// - listingName is constructed once; do not mutate later
+// - listingName: build once; never mutate later (per your rule)
+//
+// ✅ Fixes included
+// - Firecrawl actions use ONLY supported types: wait, click, scroll
+// - Pagination click targets your real pager element: .pages .page[data-page="2"]
+// - Robust imageURL extraction:
+//    1) .image style background-image
+//    2) .colorswatches [data-preview-url]
+//    3) colorswatch style background-image (thumb)
+// - Robust price extraction with fallback to “all $ numbers in .price”
+// - Debug dropCounts + dropSamples to tell you exactly why items were dropped
+// - Dedupe by listingURL (unisex items appearing in both pages)
 //
 // Required env vars:
 // - BLOB_READ_WRITE_TOKEN
 // - FIRECRAWL_API_KEY
 //
 // Optional env vars:
-// - BIGPEACH_MAX_PAGE   default 12  (attempt clicks 2..MAX_PAGE; safe if fewer pages exist)
-// - BIGPEACH_WAIT_MS    default 1400
-// - BIGPEACH_PROXY      default "auto"  ("auto"|"enhanced"|"basic")
+// - BIGPEACH_WAIT_MS       default 1400
+// - BIGPEACH_SCROLLS       default 18   (more scrolls = more appended items)
+// - BIGPEACH_PROXY         default "auto" ("auto"|"enhanced"|"basic")
+// - BIGPEACH_CLICK_PAGE2   default "true" ("true"|"false")
+// - BIGPEACH_TIMEOUT_MS    default 140000
 
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
@@ -52,6 +65,12 @@ function optStr(name, def) {
   return v || def;
 }
 
+function optBool(name, def) {
+  const raw = String(process.env[name] || "").trim().toLowerCase();
+  if (!raw) return def;
+  return raw === "true" || raw === "1" || raw === "yes";
+}
+
 function cleanText(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
 }
@@ -70,7 +89,6 @@ function absUrl(relOrAbs) {
 }
 
 function decodeHtmlEntities(s) {
-  // minimal decoding for style attributes we care about
   return String(s || "")
     .replace(/&quot;/g, '"')
     .replace(/&#34;/g, '"')
@@ -78,16 +96,10 @@ function decodeHtmlEntities(s) {
 }
 
 function parseBgImageUrl(styleAttr) {
-  // Handles both:
-  //  background-image: url("https://...")
-  //  background-image: url(&quot;https://...&quot;)
   const s = decodeHtmlEntities(styleAttr);
-
-  // capture inside url(...)
   const m = s.match(/url\(\s*([^)]+?)\s*\)/i);
   if (!m) return null;
 
-  // strip wrapping quotes
   let inner = m[1].trim();
   if (
     (inner.startsWith('"') && inner.endsWith('"')) ||
@@ -115,8 +127,39 @@ function computeDiscountPercent(originalPrice, salePrice) {
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
+function pickImageUrl($el) {
+  // 1) main tile image background-image
+  const style = $el.find(".image").attr("style");
+  const fromStyle = parseBgImageUrl(style);
+  if (fromStyle) return fromStyle;
+
+  // 2) colorswatch data-preview-url (very common in this storefront)
+  const fromPreview = $el.find(".colorswatches [data-preview-url]").first().attr("data-preview-url");
+  if (fromPreview) return cleanText(fromPreview);
+
+  // 3) colorswatch thumb background-image fallback
+  const swStyle = $el.find(".colorswatches .colorswatch").first().attr("style");
+  const fromSwStyle = parseBgImageUrl(swStyle);
+  if (fromSwStyle) return fromSwStyle;
+
+  return null;
+}
+
 function parseDealsFromHtml(html, gender) {
   const $ = cheerio.load(html);
+
+  const dropCounts = {
+    missingListingURL: 0,
+    missingImageURL: 0,
+    missingNameBrand: 0,
+    missingBothPrices: 0,
+    notMarkdown: 0,
+  };
+
+  const dropSamples = [];
+  function sample(reason, obj) {
+    if (dropSamples.length < 6) dropSamples.push({ reason, ...obj });
+  }
 
   const tiles = $(".product.clickable");
   const dealsFound = tiles.length;
@@ -131,14 +174,34 @@ function parseDealsFromHtml(html, gender) {
       null;
 
     const listingURL = absUrl(rel);
+    if (!listingURL) {
+      dropCounts.missingListingURL++;
+      sample("missingListingURL", { rel });
+      return;
+    }
 
     const name = cleanText($el.find(".name").first().text());
     const brand = cleanText($el.find(".brand").first().text());
+    if (!name || !brand) {
+      dropCounts.missingNameBrand++;
+      sample("missingNameBrand", { listingURL, name, brand });
+      return;
+    }
 
-    const imageURL = parseBgImageUrl($el.find(".image").attr("style"));
+    const imageURL = pickImageUrl($el);
+    if (!imageURL) {
+      dropCounts.missingImageURL++;
+      sample("missingImageURL", {
+        listingURL,
+        imageStyle: $el.find(".image").attr("style") || null,
+        hasPreviewUrl: Boolean($el.find(".colorswatches [data-preview-url]").length),
+      });
+      return;
+    }
 
-    // PRICE (robust): require two prices.
-    // Prefer .struck for original if present, but also handle general cases.
+    // PRICE:
+    // Prefer .struck for original, and the remaining text for sale.
+    // Fallback: parse all $-amounts in .price and take max/min.
     const originalText = cleanText($el.find(".price .struck").first().text());
 
     const $priceClone = $el.find(".price").first().clone();
@@ -148,28 +211,36 @@ function parseDealsFromHtml(html, gender) {
     let originalPrice = parseMoney(originalText);
     let salePrice = parseMoney(saleText);
 
-    // Fallback: if either missing, parse all numbers inside .price
     if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) {
       const priceTextAll = cleanText($el.find(".price").first().text());
-      const matches = priceTextAll.match(/\$?\s*\d{1,4}(?:,\d{3})*(?:\.\d{2})?/g) || [];
-      const nums = matches.map(parseMoney).filter(n => Number.isFinite(n));
-      const uniq = Array.from(new Set(nums.map(n => n.toFixed(2)))).map(s => Number(s));
+      const matches =
+        priceTextAll.match(/\$?\s*\d{1,4}(?:,\d{3})*(?:\.\d{2})?/g) || [];
+      const nums = matches.map(parseMoney).filter((n) => Number.isFinite(n));
+      const uniq = Array.from(new Set(nums.map((n) => n.toFixed(2)))).map((s) => Number(s));
       if (uniq.length >= 2) {
         originalPrice = Math.max(...uniq);
         salePrice = Math.min(...uniq);
       }
     }
 
-    // Must have BOTH prices and be a real markdown
-    if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return;
-    if (salePrice <= 0 || originalPrice <= 0) return;
-    if (salePrice >= originalPrice) return;
+    if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) {
+      dropCounts.missingBothPrices++;
+      sample("missingBothPrices", {
+        listingURL,
+        priceText: cleanText($el.find(".price").first().text()),
+      });
+      return;
+    }
 
-    if (!listingURL || !imageURL || !brand || !name) return;
+    if (salePrice >= originalPrice) {
+      dropCounts.notMarkdown++;
+      return;
+    }
 
     const listingName = cleanText(`${brand} ${name}`);
 
     deals.push({
+      // per-deal schema (your fields)
       schemaVersion: SCHEMA_VERSION,
 
       listingName,
@@ -198,80 +269,67 @@ function parseDealsFromHtml(html, gender) {
     });
   });
 
-  return { dealsFound, dealsExtracted: deals.length, deals };
+  return {
+    dealsFound,
+    dealsExtracted: deals.length,
+    deals,
+    dropCounts,
+    dropSamples,
+  };
 }
 
-// Build Firecrawl actions that actually click your pagination:
-// <div class="pages"><div class="page" data-page="1">...</div><div class="page current" data-page="2">2</div></div>
-function buildPaginationActions(maxPage, waitMs) {
-  const actions = [
-    { type: "wait", milliseconds: 1600 },
-    { type: "waitForSelector", selector: ".product.clickable", timeout: 20000 },
-  ];
-
-  // Click pages 2..maxPage if present
-  for (let p = 2; p <= maxPage; p++) {
-    actions.push(
-      {
-        type: "executeJavascript",
-        script: `
-          (function(){
-            const sel = '.pages .page[data-page="${p}"]';
-            const el = document.querySelector(sel);
-            if (el) el.click();
-          })();
-        `,
-      },
-      { type: "wait", milliseconds: waitMs },
-      // encourage lazy-load append
-      { type: "scrollToBottom" },
-      { type: "wait", milliseconds: waitMs }
-    );
+function dedupeByListingUrl(deals) {
+  const seen = new Set();
+  const out = [];
+  for (const d of deals) {
+    const key = d.listingURL;
+    if (!key) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(d);
   }
-
-  return actions;
+  return out;
 }
 
 async function fetchHtmlViaFirecrawl(url) {
   const apiKey = requireEnv("FIRECRAWL_API_KEY");
 
   const waitMs = optInt("BIGPEACH_WAIT_MS", 1400);
+  const scrolls = optInt("BIGPEACH_SCROLLS", 18);
+  const proxy = optStr("BIGPEACH_PROXY", "auto");
+  const clickPage2 = optBool("BIGPEACH_CLICK_PAGE2", true);
+  const timeout = optInt("BIGPEACH_TIMEOUT_MS", 140000);
 
-  // This site loads + appends products dynamically.
-  // Strategy:
-  // 1) wait for product tiles
-  // 2) click page 2 (if it exists)
-  // 3) scroll down a bunch of times to trigger any further lazy loads
-  const scrolls = optInt("BIGPEACH_SCROLLS", 12);
-
+  // Firecrawl actions must be one of: wait, click, screenshot, write, press, scroll, scrape
+  // Your pager is a DIV: .pages .page[data-page="2"]
   const actions = [
     { type: "wait", milliseconds: 1600 },
+    // wait until products are rendered
     { type: "wait", selector: ".product.clickable" },
-
-    // Click page 2 (exists in your pager HTML). If the selector isn't present,
-    // Firecrawl may error — so you can disable this click by setting BIGPEACH_CLICK_PAGE2=false if needed.
-    ...(String(process.env.BIGPEACH_CLICK_PAGE2 || "true").toLowerCase() === "true"
-      ? [
-          { type: "click", selector: ".pages .page[data-page='2']" },
-          { type: "wait", milliseconds: waitMs },
-        ]
-      : []),
-
-    // Scroll down repeatedly (Firecrawl scroll action supports direction + optional selector) :contentReference[oaicite:1]{index=1}
-    ...Array.from({ length: scrolls }).flatMap(() => [
-      { type: "scroll", direction: "down" },
-      { type: "wait", milliseconds: waitMs },
-    ]),
   ];
+
+  if (clickPage2) {
+    actions.push(
+      { type: "click", selector: ".pages .page[data-page='2']" },
+      { type: "wait", milliseconds: waitMs }
+    );
+  }
+
+  for (let i = 0; i < scrolls; i++) {
+    actions.push(
+      { type: "scroll", direction: "down" },
+      { type: "wait", milliseconds: waitMs }
+    );
+  }
 
   const body = {
     url,
     formats: ["html"],
     onlyMainContent: false,
     maxAge: 0,
-    proxy: optStr("BIGPEACH_PROXY", "auto"),
+    proxy,
+    timeout,
     actions,
-    timeout: optInt("BIGPEACH_TIMEOUT_MS", 120000), // allow longer renders
   };
 
   const res = await fetch("https://api.firecrawl.dev/v2/scrape", {
@@ -292,18 +350,6 @@ async function fetchHtmlViaFirecrawl(url) {
   const html = json?.data?.html;
   if (!html) throw new Error("Firecrawl response did not include data.html");
   return html;
-}
-function dedupeByListingUrl(deals) {
-  const seen = new Set();
-  const out = [];
-  for (const d of deals) {
-    const key = d.listingURL;
-    if (!key) continue;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(d);
-  }
-  return out;
 }
 
 module.exports = async function handler(req, res) {
@@ -359,9 +405,18 @@ module.exports = async function handler(req, res) {
       debug: {
         womensTilesSeen: womensParsed.dealsFound,
         womensDealsKept: womensParsed.dealsExtracted,
+        womensDropCounts: womensParsed.dropCounts,
+        womensDropSamples: womensParsed.dropSamples,
+
         mensTilesSeen: mensParsed.dealsFound,
         mensDealsKept: mensParsed.dealsExtracted,
-        maxPageClicked: optInt("BIGPEACH_MAX_PAGE", 12),
+        mensDropCounts: mensParsed.dropCounts,
+        mensDropSamples: mensParsed.dropSamples,
+
+        clickPage2: optBool("BIGPEACH_CLICK_PAGE2", true),
+        scrolls: optInt("BIGPEACH_SCROLLS", 18),
+        waitMs: optInt("BIGPEACH_WAIT_MS", 1400),
+        proxy: optStr("BIGPEACH_PROXY", "auto"),
       },
     });
   } catch (e) {
