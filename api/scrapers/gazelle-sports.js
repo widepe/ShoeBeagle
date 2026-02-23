@@ -1,4 +1,4 @@
-// /api/scrape-gazelle-sports.js  (CommonJS)
+// /api/scrape-gazelle-sports.js   (CommonJS)
 // Scrapes Gazelle Sports men's + women's sale shoes pages on Vercel (Cheerio),
 // follows "Load More" pagination via ?p=2, ?p=3, ...
 //
