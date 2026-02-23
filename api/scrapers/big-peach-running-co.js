@@ -199,35 +199,18 @@ console.log("RAW_HTML_SAMPLE", html.slice(0, 3000));
       return;
     }
 
-    // PRICE:
-    // Prefer .struck for original, and the remaining text for sale.
-    // Fallback: parse all $-amounts in .price and take max/min.
- // With this:
-const $price = $el.find(".price").first();
-const originalPrice = parseMoney($price.find(".struck").first().text());
-
-let salePrice = null;
-$price.contents().each((_, node) => {
-  if (node.type === "text") {
-    const val = parseMoney(node.data);
-    if (Number.isFinite(val) && val > 0) {
-      salePrice = val;
-    }
-  }
-});
-
-    if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) {
-      const priceTextAll = cleanText($el.find(".price").first().text());
-      const matches =
-        priceTextAll.match(/\$?\s*\d{1,4}(?:,\d{3})*(?:\.\d{2})?/g) || [];
-      const nums = matches.map(parseMoney).filter((n) => Number.isFinite(n));
-      const uniq = Array.from(new Set(nums.map((n) => n.toFixed(2)))).map((s) => Number(s));
-      if (uniq.length >= 2) {
-        originalPrice = Math.max(...uniq);
-        salePrice = Math.min(...uniq);
+// PRICE: read struck span for original, text nodes for sale
+    const $price = $el.find(".price").first();
+    let originalPrice = parseMoney($price.find(".struck").first().text());
+    let salePrice = null;
+    $price.contents().each((_, node) => {
+      if (node.type === "text") {
+        const val = parseMoney(node.data);
+        if (Number.isFinite(val) && val > 0) {
+          salePrice = val;
+        }
       }
-    }
-
+    });
     if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) {
       dropCounts.missingBothPrices++;
       sample("missingBothPrices", {
