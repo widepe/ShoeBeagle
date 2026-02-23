@@ -332,8 +332,20 @@ module.exports = async function handler(req, res) {
   } finally {
     out.scrapeDurationMs = Date.now() - t0;
   }
+  } catch (e) {
+    out.ok = false;
+    out.error = e?.stack || e?.message || String(e) || "Unknown error";
+  } finally {
+    out.scrapeDurationMs = Date.now() - t0;
+  }
 
-// Return a summary response (no deals array), but deals ARE still in the blob.
+  // Return a summary response (no deals array), but deals ARE still in the blob.
+  const responseOut = { ...out };
+  delete responseOut.deals;
+
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  return res.status(out.ok ? 200 : 500).json(responseOut);
+};// Return a summary response (no deals array), but deals ARE still in the blob.
 const responseOut = { ...out, deals: undefined };
 
 // (Optional) if you prefer the key to not exist at all:
