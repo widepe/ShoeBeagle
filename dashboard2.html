@@ -731,23 +731,37 @@
     // ------------------------------------------------------------
     // FRESH FETCH HELPER
     // Bypasses both the browser cache AND Vercel's CDN edge cache.
-    // - Appends a unique timestamp+random query param so the CDN
-    //   treats every request as a distinct URL (forces edge revalidation).
-    // - Sets Cache-Control: no-cache and Pragma: no-cache request headers
-    //   so any intermediate proxy also skips its cache.
-    // - Uses fetch's own cache: "no-store" to prevent the browser
-    //   from storing or reusing a cached response.
+    //
+    // For cross-origin requests (blob URLs): we can only use a unique
+    // query string cache-buster + cache: "no-store". Custom headers like
+    // Cache-Control trigger a CORS preflight which Vercel Blob does not
+    // support, causing a "Failed to fetch" error.
+    //
+    // For same-origin requests (canonical-stores.json on our own domain):
+    // we also send Cache-Control + Pragma headers for extra insurance.
     // ------------------------------------------------------------
     async function freshFetch(url) {
       const sep = url.includes("?") ? "&" : "?";
       const bust = `${sep}_cb=${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      return fetch(`${url}${bust}`, {
-        cache: "no-store",
-        headers: {
-          "Cache-Control": "no-cache",
-          "Pragma": "no-cache",
-        },
-      });
+      const bustUrl = `${url}${bust}`;
+
+      const isSameOrigin = url.startsWith("/") || url.startsWith(window.location.origin);
+
+      if (isSameOrigin) {
+        return fetch(bustUrl, {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+          },
+        });
+      } else {
+        // Cross-origin (Vercel Blob CDN): query-string bust + no-store only.
+        // Do NOT send custom headers — they trigger a CORS preflight that fails.
+        return fetch(bustUrl, {
+          cache: "no-store",
+        });
+      }
     }
 
     // Show JS parse/runtime errors on the page
@@ -787,7 +801,7 @@
     }
 
     async function loadCanonicalStores() {
-      const res = await freshFetch(CANONICAL_STORES_URL);
+      const res = await fetch(`${CANONICAL_STORES_URL}?t=${Date.now()}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`Failed to load canonical stores: ${res.status}`);
       const arr = await res.json();
       if (!Array.isArray(arr)) throw new Error("canonical-stores.json must be an array");
