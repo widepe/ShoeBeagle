@@ -63,6 +63,46 @@ function computeDiscountPercent(originalPrice, salePrice) {
   return Number.isFinite(pct) ? pct : null;
 }
 
+// Optional: extract a cleaner model from title (keeps listingName unchanged)
+function extractModelFromTitle(title) {
+  let t = normalizeWs(title);
+
+  // Strip leading gender phrase
+  t = t
+    .replace(/^Men's\s+/i, "")
+    .replace(/^Women's\s+/i, "")
+    .replace(/^All\s*Gender\s+/i, "");
+
+  // Cut at " - " (colors/width usually follow)
+  const dashIdx = t.indexOf(" - ");
+  if (dashIdx !== -1) t = t.slice(0, dashIdx);
+
+  // Cut at common descriptors
+  const cutPhrases = [
+    " Running Shoe",
+    " Running Shoes",
+    " Trail Running Shoe",
+    " Trail Running Shoes",
+    " Track Spike",
+    " Track Spikes",
+    " Cross Country Spike",
+    " Cross Country Spikes",
+    " Spike",
+    " Spikes",
+  ];
+
+  const lower = t.toLowerCase();
+  for (const phrase of cutPhrases) {
+    const idx = lower.indexOf(phrase.toLowerCase());
+    if (idx !== -1) {
+      t = t.slice(0, idx);
+      break;
+    }
+  }
+
+  return normalizeWs(t) || normalizeWs(title);
+}
+
 // -----------------------------
 // network
 // -----------------------------
@@ -128,11 +168,14 @@ function buildDealFromProduct(product, baseSiteUrl, defaultGender) {
 
   const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
+  // Clean model (optional but recommended)
+  const model = extractModelFromTitle(title);
+
   return {
     listingName: normalizeWs(`${brand} ${title}`),
 
     brand,
-    model: title,
+    model,
 
     salePrice,
     originalPrice,
@@ -166,7 +209,7 @@ async function scrapeCollectionProductsJson(baseSiteUrl, collectionUrl, opts = {
   const defaultGender = deriveGenderFromCollectionUrl(collectionUrl);
 
   const dropCounts = {
-    tilesFound: 0, // "products seen" across pages
+    tilesFound: 0, // products seen across pages
     dropped_soccer: 0,
     dropped_missingCore: 0,
     dropped_missingPrices: 0,
@@ -190,10 +233,16 @@ async function scrapeCollectionProductsJson(baseSiteUrl, collectionUrl, opts = {
 
     if (products.length === 0) break;
 
+    // Track whether this page introduced any new products
+    let addedThisPage = 0;
+
     for (const product of products) {
       const h = safeLower(product?.handle || "");
       if (h && seenHandles.has(h)) continue;
-      if (h) seenHandles.add(h);
+      if (h) {
+        seenHandles.add(h);
+        addedThisPage += 1;
+      }
 
       dropCounts.tilesFound += 1;
 
@@ -214,14 +263,8 @@ async function scrapeCollectionProductsJson(baseSiteUrl, collectionUrl, opts = {
       dropCounts.kept += 1;
     }
 
-    // If this page didn't add anything new, stop early
-    // (helps if the site repeats products)
-    if (products.length > 0) {
-      const uniqueThisPage = products.filter((p) => p?.handle && seenHandles.has(safeLower(p.handle))).length;
-      // not perfect, but safe early-exit signal: if products came back but we kept seeing the same set
-      // (If you’d rather avoid this, you can remove this early-break.)
-      if (uniqueThisPage === 0) break;
-    }
+    // Early exit if the site repeats the same page over and over
+    if (addedThisPage === 0) break;
 
     // If fewer than LIMIT returned, usually last page
     if (products.length < LIMIT) break;
@@ -328,12 +371,6 @@ module.exports = async function handler(req, res) {
     out.error = null;
   } catch (e) {
     out.ok = false;
-    out.error = e?.stack || e?.message || String(e);
-  } finally {
-    out.scrapeDurationMs = Date.now() - t0;
-  }
-  } catch (e) {
-    out.ok = false;
     out.error = e?.stack || e?.message || String(e) || "Unknown error";
   } finally {
     out.scrapeDurationMs = Date.now() - t0;
@@ -345,11 +382,4 @@ module.exports = async function handler(req, res) {
 
   res.setHeader("Cache-Control", "no-store, max-age=0");
   return res.status(out.ok ? 200 : 500).json(responseOut);
-};// Return a summary response (no deals array), but deals ARE still in the blob.
-const responseOut = { ...out, deals: undefined };
-
-// (Optional) if you prefer the key to not exist at all:
-delete responseOut.deals;
-
-res.status(out.ok ? 200 : 500).json(responseOut);
 };
