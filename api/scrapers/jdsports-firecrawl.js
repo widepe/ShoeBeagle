@@ -5,18 +5,6 @@
 // ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: jdsports.json
 // ✅ Returns LIGHTWEIGHT response (no deals array) + blobUrl
 // ✅ Includes dropCounts + dropReasons[] in the BLOB (and in the lightweight response)
-//
-// ENV required:
-// - FIRECRAWL_API_KEY
-// - BLOB_READ_WRITE_TOKEN
-// Optional:
-// - JDSPORTS_DEALS_BLOB_URL (for your merge system / debugging)
-//
-// Optional (recommended for cron security):
-// - CRON_SECRET
-//
-// To test in browser: visit /api/scrapers/jdsports-firecrawl
-// For cron: call /api/scrapers/jdsports-firecrawl?cron=1  (and enable the CRON_SECRET block)
 
 import { put } from "@vercel/blob";
 import * as cheerio from "cheerio";
@@ -46,7 +34,6 @@ function inferGender(listingName) {
   return null; // drop
 }
 function mustBeRunningShoes(listingName) {
-  // Drop if listing does not state "running shoes"
   return listingName.toLowerCase().includes("running shoes");
 }
 function inferShoeType(listingName) {
@@ -64,8 +51,8 @@ function deriveBrandModel(listingName) {
   s = s.replace(/^(Women's|Men's|Unisex)\s+/i, "");
 
   // Remove trailing running shoes phrases
-  s = s.replace(/\s+Running\s+Shoes\s*$/i, "");
   s = s.replace(/\s+(Trail|Road)\s+Running\s+Shoes\s*$/i, "");
+  s = s.replace(/\s+Running\s+Shoes\s*$/i, "");
   s = cleanText(s);
 
   if (!s) return { brand: "unknown", model: "unknown" };
@@ -88,6 +75,60 @@ function deriveBrandModel(listingName) {
   return { brand, model };
 }
 
+// -----------------------------
+// IMAGE URL EXTRACTION (robust)
+// -----------------------------
+function decodeHtmlEntities(s) {
+  // enough for URLs
+  return String(s || "").replace(/&amp;/g, "&").trim();
+}
+
+function pickFromSrcset(srcset) {
+  const s = cleanText(srcset);
+  if (!s) return "";
+  const first = s.split(",")[0]?.trim() || "";
+  return first.split(/\s+/)[0] || "";
+}
+
+function normalizeImgUrl(u) {
+  let url = decodeHtmlEntities(u);
+  if (!url) return "";
+  if (url.startsWith("data:")) return "";
+  if (url.startsWith("//")) url = "https:" + url;
+  return url;
+}
+
+function extractImageURL(node, $) {
+  const c = [];
+
+  node.find("img").each((_, img) => {
+    const el = $(img);
+    c.push(el.attr("src") || "");
+    c.push(el.attr("data-src") || "");
+    c.push(pickFromSrcset(el.attr("srcset") || ""));
+    c.push(pickFromSrcset(el.attr("data-srcset") || ""));
+  });
+
+  node.find("source").each((_, src) => {
+    const el = $(src);
+    c.push(pickFromSrcset(el.attr("srcset") || ""));
+    c.push(pickFromSrcset(el.attr("data-srcset") || ""));
+  });
+
+  const urls = c.map(normalizeImgUrl).filter(Boolean);
+  if (!urls.length) return "";
+
+  return (
+    urls.find((u) => u.includes("media.jdsports.com/")) ||
+    urls.find((u) => u.includes("jdsports")) ||
+    urls[0] ||
+    ""
+  );
+}
+
+// -----------------------------
+// FIRECRAWL
+// -----------------------------
 async function firecrawlScrapeHtml(url) {
   const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
@@ -102,35 +143,21 @@ async function firecrawlScrapeHtml(url) {
       url,
       formats: ["html"],
 
-      // ✅ IMPORTANT: avoid cached HTML (default maxAge is 2 days)
+      // Try to avoid cached snapshots
       maxAge: 0,
       storeInCache: false,
 
-      // ✅ Give hydration time (fixed delay before capture)
+      // Give hydration time
       waitFor: 4000,
 
-      // ✅ Extra actions (optional)
       actions: [
         { type: "wait", selector: 'div[data-testid="product-item"]' },
         { type: "wait", milliseconds: 1500 },
       ],
 
-      // Optional if JD is flaky:
       timeout: 60000,
     }),
   });
-
-  const json = await resp.json().catch(() => null);
-
-  if (!resp.ok) {
-    const msg = json?.error || json?.message || `Firecrawl HTTP ${resp.status}`;
-    throw new Error(`Firecrawl failed: ${msg}`);
-  }
-
-  const html = json?.data?.html || "";
-  if (!html) throw new Error("Firecrawl returned empty html");
-  return html;
-}
 
   const json = await resp.json().catch(() => null);
 
@@ -174,7 +201,6 @@ function makeDropTracker() {
       { reason: "kept", count: counts.kept, note: "Included in deals[]" },
     ];
 
-    // keep it clean: only show non-zero rows (plus kept)
     return rows.filter((r) => r.count > 0 || r.reason === "kept");
   }
 
@@ -182,7 +208,6 @@ function makeDropTracker() {
 }
 
 function parseDealsFromHtml(html, drop) {
-  // Block detection
   if (html.includes("Your Access Has Been Denied")) {
     return { blocked: true, dealsFound: 0, deals: [] };
   }
@@ -191,17 +216,16 @@ function parseDealsFromHtml(html, drop) {
   const tiles = $('div[data-testid="product-item"]');
   drop.counts.totalTiles = tiles.length;
 
-  // ✅ dealsFound should mean "unique products", not raw tiles
-const hrefSet = new Set();
-tiles.each((_, el) => {
-  const href = $(el).find('a[href*="/pdp/"]').first().attr("href") || "";
-  if (!href) return;
+  // dealsFound = unique PDP URLs
+  const hrefSet = new Set();
+  tiles.each((_, el) => {
+    const href = $(el).find('a[href*="/pdp/"]').first().attr("href") || "";
+    if (!href) return;
+    const abs = href.startsWith("http") ? href : `https://www.jdsports.com${href}`;
+    hrefSet.add(abs);
+  });
+  const dealsFound = hrefSet.size;
 
-  const abs = href.startsWith("http") ? href : `https://www.jdsports.com${href}`;
-  hrefSet.add(abs);
-});
-const dealsFound = hrefSet.size;
-  
   const deals = [];
 
   tiles.each((_, el) => {
@@ -220,22 +244,18 @@ const dealsFound = hrefSet.size;
       return;
     }
 
-    const imageURL = node.find("img").first().attr("src") || "";
-
     const listingName = cleanText(
       node.find("h4.text-default-primary").first().text() ||
         node.find("h4").first().text() ||
         ""
     );
 
-    // Drop: gender must be womens/mens/unisex
     const gender = inferGender(listingName);
     if (!gender) {
       drop.bump("dropped_gender");
       return;
     }
 
-    // Drop: must include "running shoes"
     if (!mustBeRunningShoes(listingName)) {
       drop.bump("dropped_notRunningShoes");
       return;
@@ -249,7 +269,6 @@ const dealsFound = hrefSet.size;
     const salePrice = parseMoney(saleText);
     const originalPrice = parseMoney(originalText);
 
-    // Drop invalid/missing/zero prices
     if (!(Number.isFinite(salePrice) && salePrice > 0)) {
       drop.bump("dropped_saleMissingOrZero");
       return;
@@ -262,6 +281,8 @@ const dealsFound = hrefSet.size;
       drop.bump("dropped_notADeal");
       return;
     }
+
+    const imageURL = extractImageURL(node, $) || "";
 
     const discountPercent = roundInt(((originalPrice - salePrice) / originalPrice) * 100);
     const { brand, model } = deriveBrandModel(listingName);
@@ -300,13 +321,12 @@ async function writeBlobJson(key, obj) {
     access: "public",
     token,
     contentType: "application/json",
-    addRandomSuffix: false, // keep exactly jdsports.json
+    addRandomSuffix: false,
   });
 
   return result?.url || null;
 }
 
-// ✅ Lightweight response: no deals[]
 function toLightweightResponse(output) {
   return {
     store: output.store,
@@ -321,7 +341,6 @@ function toLightweightResponse(output) {
     ok: output.ok,
     error: output.error,
 
-    // NEW: drop info (small + consistent)
     dropCounts: output.dropCounts || null,
     dropReasons: output.dropReasons || null,
 
@@ -331,20 +350,6 @@ function toLightweightResponse(output) {
 }
 
 export default async function handler(req, res) {
-  // -----------------------------
-  // CRON SECRET (commented for testing)
-  // -----------------------------
-  // If you use Vercel Cron, set CRON_SECRET in env vars and call:
-  // /api/scrapers/jdsports-firecrawl?cron=1&secret=YOUR_SECRET
-  //
-  // const isCron = String(req.query?.cron || "") === "1";
-  // if (isCron) {
-  //   const expected = String(process.env.CRON_SECRET || "").trim();
-  //   const got = String(req.query?.secret || req.headers["x-cron-secret"] || "").trim();
-  //   if (!expected) return res.status(500).json({ ok: false, error: "Missing CRON_SECRET env var" });
-  //   if (!got || got !== expected) return res.status(401).json({ ok: false, error: "Unauthorized" });
-  // }
-
   const startUrl =
     String(req.query?.url || "").trim() ||
     "https://www.jdsports.com/plp/all-sale/category=shoes+activity=running";
@@ -395,17 +400,14 @@ export default async function handler(req, res) {
         error: null,
         deals: parsed.deals,
 
-        // NEW: drop info written into the blob
         dropCounts: drop.counts,
         dropReasons: drop.toSummaryArray(),
       };
     }
 
-    // ✅ Write FULL JSON (including deals[]) to blob
     output.blobUrl = await writeBlobJson("jdsports.json", output);
     output.configuredBlobUrl = configuredBlobUrl;
 
-    // ✅ Return lightweight response (no deals[])
     return res.status(200).json(toLightweightResponse(output));
   } catch (err) {
     const scrapeDurationMs = Date.now() - t0;
@@ -431,7 +433,6 @@ export default async function handler(req, res) {
       configuredBlobUrl,
     };
 
-    // Best-effort: still write failure blob
     try {
       output.blobUrl = await writeBlobJson("jdsports.json", output);
     } catch {}
