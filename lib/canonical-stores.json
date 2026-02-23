@@ -136,6 +136,23 @@
     "notes": "no notes"
   },
 
+{
+  "id": "gazelle-sports",
+  "displayName": "Gazelle Sports",
+  "addedAt": "2026-02-23",
+  "lastUpdated": "2026-02-23",
+  "scrapedUrls": [
+    "https://gazellesports.com/collections/mens-sale-shoes",
+    "https://gazellesports.com/collections/womens-sale-shoes"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/gazelle-sports.json"
+  ],
+  "aliases": ["gazelle", "gazelle sports"],
+  "enabled": true,
+  "scraperType": "vercel",
+  "notes": "Shopify products.json collection scraper (mens + womens sale)"
+}  
 
 {
   "id": "hoka",
