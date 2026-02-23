@@ -293,6 +293,7 @@ function storeBaseUrl(store) {
   if (s === "als") return "https://www.als.com";
   if (s.includes("asics")) return "https://www.asics.com";
   if (s.includes("backcountry")) return "https://www.backcountry.com";
+  if (s.includes("big peach")) return "https://shop.bigpeachrunningco.com";
   if (s.includes("brooks")) return "https://www.brooksrunning.com";
   if (s.includes("finish line") || s.includes("finishline")) return "https://www.finishline.com";
   if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
@@ -1189,6 +1190,7 @@ module.exports = async (req, res) => {
   const ALS_SALE_BLOB_URL = String(process.env.ALS_SALE_BLOB_URL || "").trim();
   const ASICS_SALE_BLOB_URL = String(process.env.ASICS_SALE_BLOB_URL || "").trim();
   const BACKCOUNTRY_DEALS_BLOB_URL = String(process.env.BACKCOUNTRY_DEALS_BLOB_URL || "").trim();
+  const BIGPEACH_DEALS_BLOB_URL = String(process.env.BIGPEACH_DEALS_BLOB_URL || "").trim();
   const BROOKS_DEALS_BLOB_URL = String(process.env.BROOKS_DEALS_BLOB_URL || "").trim();
   const FINISHLINE_DEALS_BLOB_URL = String(process.env.FINISHLINE_DEALS_BLOB_URL || "").trim();
   const FLEET_FEET_CHEERIO_BLOB_URL = String(process.env.FLEET_FEET_CHEERIO_BLOB_URL || "").trim();
@@ -1227,6 +1229,7 @@ module.exports = async (req, res) => {
     console.log("[MERGE] ALS_SALE_BLOB_URL set?", !!ALS_SALE_BLOB_URL);
     console.log("[MERGE] ASICS_SALE_BLOB_URL set?", !!ASICS_SALE_BLOB_URL);
     console.log("[MERGE] BACKCOUNTRY_DEALS_BLOB_URL set?", !!BACKCOUNTRY_DEALS_BLOB_URL);
+    console.log("[MERGE] BIGPEACH_DEALS_BLOB_URL set?", !!BIGPEACH_DEALS_BLOB_URL);
     console.log("[MERGE] BROOKS_DEALS_BLOB_URL set?", !!BROOKS_DEALS_BLOB_URL);
     console.log("[MERGE] FINISHLINE_DEALS_BLOB_URL set?", !!FINISHLINE_DEALS_BLOB_URL);
     console.log("[MERGE] FLEET_FEET_CHEERIO_BLOB_URL set?", !!FLEET_FEET_CHEERIO_BLOB_URL);
@@ -1248,6 +1251,7 @@ module.exports = async (req, res) => {
       { id: "als", name: "ALS", blobUrl: ALS_SALE_BLOB_URL },
       { id: "asics", name: "ASICS", blobUrl: ASICS_SALE_BLOB_URL },
       { id: "backcountry", name: "Backcountry", blobUrl: BACKCOUNTRY_DEALS_BLOB_URL },
+      { id: "big-peach-running-co", name: "Big Peach Running Co", blobUrl: BIGPEACH_DEALS_BLOB_URL },
       { id: "brooks-running", name: "Brooks Running", blobUrl: BROOKS_DEALS_BLOB_URL },
       { id: "finishline", name: "Finish Line", blobUrl: FINISHLINE_DEALS_BLOB_URL },
       { id: "fleet-feet", name: "Fleet Feet", blobUrl: FLEET_FEET_CHEERIO_BLOB_URL },
