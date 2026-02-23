@@ -298,6 +298,7 @@ function storeBaseUrl(store) {
   if (s.includes("finish line") || s.includes("finishline")) return "https://www.finishline.com";
   if (s.includes("fleet feet")) return "https://www.fleetfeet.com";
   if (s.includes("foot locker") || s.includes("footlocker")) return "https://www.footlocker.com";
+  if (s.includes("gazelle")) return "https://www.gazellesports.com";
   if (s.includes("holabird")) return "https://www.holabirdsports.com";
   if (s.includes("hoka")) return "https://www.hoka.com";
   if (s.includes("jd sports") || s.includes("jdsports")) return "https://www.jdsports.com";
@@ -1195,6 +1196,7 @@ module.exports = async (req, res) => {
   const FINISHLINE_DEALS_BLOB_URL = String(process.env.FINISHLINE_DEALS_BLOB_URL || "").trim();
   const FLEET_FEET_CHEERIO_BLOB_URL = String(process.env.FLEET_FEET_CHEERIO_BLOB_URL || "").trim();
   const FOOTLOCKER_DEALS_BLOB_URL = String(process.env.FOOTLOCKER_DEALS_BLOB_URL || "").trim();
+  const GAZELLESPORTS_DEALS_BLOB_URL = String(process.env.GAZELLESPORTS_DEALS_BLOB_URL || "").trim();
   const HOKA_DEALS_BLOB_URL = String(process.env.HOKA_DEALS_BLOB_URL || "").trim();
   const HOLABIRD_MENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_MENS_ROAD_BLOB_URL || "").trim();
   const HOLABIRD_TRAIL_UNISEX_BLOB_URL = String(process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "").trim();
@@ -1234,6 +1236,7 @@ module.exports = async (req, res) => {
     console.log("[MERGE] FINISHLINE_DEALS_BLOB_URL set?", !!FINISHLINE_DEALS_BLOB_URL);
     console.log("[MERGE] FLEET_FEET_CHEERIO_BLOB_URL set?", !!FLEET_FEET_CHEERIO_BLOB_URL);
     console.log("[MERGE] FOOTLOCKER_DEALS_BLOB_URL set?", !!FOOTLOCKER_DEALS_BLOB_URL);
+    console.log("[MERGE] GAZELLESPORTS_DEALS_BLOB_URL set?", !!GAZELLESPORTS_DEALS_BLOB_URL);
     console.log("[MERGE] HOKA_DEALS_BLOB_URL set?", !!HOKA_DEALS_BLOB_URL);
     console.log("[MERGE] JDSPORTS_DEALS_BLOB_URL set?", !!JDSPORTS_DEALS_BLOB_URL);
     console.log("[MERGE] KOHLS_DEALS_BLOB_URL set?", !!KOHLS_DEALS_BLOB_URL);
@@ -1256,6 +1259,7 @@ module.exports = async (req, res) => {
       { id: "finishline", name: "Finish Line", blobUrl: FINISHLINE_DEALS_BLOB_URL },
       { id: "fleet-feet", name: "Fleet Feet", blobUrl: FLEET_FEET_CHEERIO_BLOB_URL },
       { id: "foot-locker", name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
+      { id: "gazelle-sports", name: "Gazelle Sports", blobUrl: GAZELLESPORTS_DEALS_BLOB_URL },
       { id: "hoka", name: "HOKA", blobUrl: HOKA_DEALS_BLOB_URL },
       // Holabird split across 3 blobs but shares 1 id
       { id: "holabird-sports", name: "Holabird Sports (Mens Road)", blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL },
