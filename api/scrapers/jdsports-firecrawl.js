@@ -1,6 +1,6 @@
 // /api/scrapers/jdsports-firecrawl.js
 //
-// ✅ Scrapes 1 JD Sports sale running page via Firecrawl (HTML)
+// ✅ Scrapes 1 JD Sports sale running page via Firecrawl (RAW HTML)
 // ✅ Applies your rules
 // ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: jdsports.json
 // ✅ Returns LIGHTWEIGHT response (no deals array) + blobUrl
@@ -9,9 +9,8 @@
 // ENV required:
 // - FIRECRAWL_API_KEY
 // - BLOB_READ_WRITE_TOKEN
-//
 // Optional:
-// - JDSPORTS_DEALS_BLOB_URL
+// - JDSPORTS_DEALS_BLOB_URL (for your merge system / debugging)
 // - CRON_SECRET (if you enable cron auth)
 
 import { put } from "@vercel/blob";
@@ -58,7 +57,7 @@ function deriveBrandModel(listingName) {
   // Remove gender prefix
   s = s.replace(/^(Women's|Men's|Unisex)\s+/i, "");
 
-  // Remove trailing running shoes phrases
+  // Remove trailing running shoes phrases (order matters)
   s = s.replace(/\s+(Trail|Road)\s+Running\s+Shoes\s*$/i, "");
   s = s.replace(/\s+Running\s+Shoes\s*$/i, "");
   s = cleanText(s);
@@ -89,14 +88,12 @@ function deriveBrandModel(listingName) {
 function decodeHtmlEntities(s) {
   return String(s || "").replace(/&amp;/g, "&").trim();
 }
-
 function pickFromSrcset(srcset) {
   const s = cleanText(srcset);
   if (!s) return "";
   const first = s.split(",")[0]?.trim() || "";
   return first.split(/\s+/)[0] || "";
 }
-
 function normalizeImgUrl(u) {
   let url = decodeHtmlEntities(u);
   if (!url) return "";
@@ -104,7 +101,6 @@ function normalizeImgUrl(u) {
   if (url.startsWith("//")) url = "https:" + url;
   return url;
 }
-
 function extractImageURL(node, $) {
   const c = [];
 
@@ -134,9 +130,9 @@ function extractImageURL(node, $) {
 }
 
 // -----------------------------
-// FIRECRAWL
+// FIRECRAWL (RAW HTML)
 // -----------------------------
-async function firecrawlScrapeHtml(url) {
+async function firecrawlScrapeRawHtml(url) {
   const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
 
@@ -148,20 +144,20 @@ async function firecrawlScrapeHtml(url) {
     },
     body: JSON.stringify({
       url,
-      formats: ["html"],
 
-      // ✅ always fresh (default cache window is 2 days)
+      // ✅ Key change: rawHtml = "no modifications" output (best for ecommerce tiles)
+      formats: ["rawHtml"],
+
+      // ✅ Disable caching (force fresh)
       maxAge: 0,
       storeInCache: false,
 
-      // ✅ allow SPA hydration time
+      // ✅ Let SPA hydrate
       waitFor: 6000,
 
-      // ✅ reduce junk / base64 bloat
+      // ✅ Avoid huge base64 blobs if any
       removeBase64Images: true,
 
-      // NOTE: not using onlyMainContent:false (can blow up HTML size / memory)
-      // NOTE: not using actions (can be flaky + not needed if waitFor is enough)
       timeout: 60000,
     }),
   });
@@ -173,9 +169,10 @@ async function firecrawlScrapeHtml(url) {
     throw new Error(`Firecrawl failed: ${msg}`);
   }
 
-  const html = json?.data?.html || "";
-  if (!html) throw new Error("Firecrawl returned empty html");
-  return html;
+  // Prefer rawHtml, but fallback to html if Firecrawl returns it
+  const rawHtml = json?.data?.rawHtml || json?.data?.html || "";
+  if (!rawHtml) throw new Error("Firecrawl returned empty rawHtml/html");
+  return rawHtml;
 }
 
 function makeDropTracker() {
@@ -192,7 +189,6 @@ function makeDropTracker() {
 
     kept: 0,
 
-    // debug
     __debug_firstTile: null,
   };
 
@@ -210,7 +206,6 @@ function makeDropTracker() {
       { reason: "dropped_notADeal", count: counts.dropped_notADeal, note: "originalPrice must be > salePrice" },
       { reason: "kept", count: counts.kept, note: "Included in deals[]" },
     ];
-
     return rows.filter((r) => r.count > 0 || r.reason === "kept");
   }
 
@@ -227,7 +222,7 @@ function parseDealsFromHtml(html, drop) {
 
   drop.counts.totalTiles = tiles.length;
 
-  // Debug: what does Firecrawl give us for first tile images?
+  // Debug: does rawHtml include images now?
   const first = tiles.first();
   const firstImg = first.find("img").first();
   drop.counts.__debug_firstTile = {
@@ -237,7 +232,7 @@ function parseDealsFromHtml(html, drop) {
     imgDataSrc: firstImg.attr("data-src") || null,
     imgSrcset: firstImg.attr("srcset") || null,
     extractedImageURL: extractImageURL(first, $) || null,
-    snippet: cleanText(first.html() || "").slice(0, 220),
+    snippet: cleanText(first.html() || "").slice(0, 260),
   };
 
   // dealsFound = unique PDP URLs
@@ -245,8 +240,7 @@ function parseDealsFromHtml(html, drop) {
   tiles.each((_, el) => {
     const href = $(el).find('a[href*="/pdp/"]').first().attr("href") || "";
     if (!href) return;
-    const abs = href.startsWith("http") ? href : `https://www.jdsports.com${href}`;
-    hrefSet.add(abs);
+    hrefSet.add(href.startsWith("http") ? href : `https://www.jdsports.com${href}`);
   });
   const dealsFound = hrefSet.size;
 
@@ -345,7 +339,7 @@ async function writeBlobJson(key, obj) {
     access: "public",
     token,
     contentType: "application/json",
-    addRandomSuffix: false,
+    addRandomSuffix: false, // keep exactly jdsports.json
   });
 
   return result?.url || null;
@@ -364,27 +358,14 @@ function toLightweightResponse(output) {
     scrapeDurationMs: output.scrapeDurationMs,
     ok: output.ok,
     error: output.error,
-
     dropCounts: output.dropCounts || null,
     dropReasons: output.dropReasons || null,
-
     blobUrl: output.blobUrl || null,
     configuredBlobUrl: output.configuredBlobUrl || null,
   };
 }
 
 export default async function handler(req, res) {
-  // -----------------------------
-  // CRON SECRET (commented for testing)
-  // -----------------------------
-  // const isCron = String(req.query?.cron || "") === "1";
-  // if (isCron) {
-  //   const expected = String(process.env.CRON_SECRET || "").trim();
-  //   const got = String(req.query?.secret || req.headers["x-cron-secret"] || "").trim();
-  //   if (!expected) return res.status(500).json({ ok: false, error: "Missing CRON_SECRET env var" });
-  //   if (!got || got !== expected) return res.status(401).json({ ok: false, error: "Unauthorized" });
-  // }
-
   const startUrl =
     String(req.query?.url || "").trim() ||
     "https://www.jdsports.com/plp/all-sale/category=shoes+activity=running";
@@ -394,49 +375,46 @@ export default async function handler(req, res) {
   const t0 = Date.now();
 
   try {
-    const html = await firecrawlScrapeHtml(startUrl);
+    const html = await firecrawlScrapeRawHtml(startUrl);
 
     const drop = makeDropTracker();
     const parsed = parseDealsFromHtml(html, drop);
 
     const scrapeDurationMs = Date.now() - t0;
 
-    let output;
-    if (parsed.blocked) {
-      output = {
-        store: "JD Sports",
-        schemaVersion: 1,
-        lastUpdated: nowIso(),
-        via: "firecrawl",
-        sourceUrls: [startUrl],
-        pagesFetched: 1,
-        dealsFound: 0,
-        dealsExtracted: 0,
-        scrapeDurationMs,
-        ok: false,
-        error: "Blocked: Your Access Has Been Denied",
-        deals: [],
-        dropCounts: { totalTiles: 0, kept: 0, __debug_firstTile: null },
-        dropReasons: [{ reason: "blocked", count: 1, note: "JD Sports returned an access denied page" }],
-      };
-    } else {
-      output = {
-        store: "JD Sports",
-        schemaVersion: 1,
-        lastUpdated: nowIso(),
-        via: "firecrawl",
-        sourceUrls: [startUrl],
-        pagesFetched: 1,
-        dealsFound: parsed.dealsFound,
-        dealsExtracted: parsed.deals.length,
-        scrapeDurationMs,
-        ok: true,
-        error: null,
-        deals: parsed.deals,
-        dropCounts: drop.counts,
-        dropReasons: drop.toSummaryArray(),
-      };
-    }
+    const output = parsed.blocked
+      ? {
+          store: "JD Sports",
+          schemaVersion: 1,
+          lastUpdated: nowIso(),
+          via: "firecrawl",
+          sourceUrls: [startUrl],
+          pagesFetched: 1,
+          dealsFound: 0,
+          dealsExtracted: 0,
+          scrapeDurationMs,
+          ok: false,
+          error: "Blocked: Your Access Has Been Denied",
+          deals: [],
+          dropCounts: { totalTiles: 0, kept: 0, __debug_firstTile: null },
+          dropReasons: [{ reason: "blocked", count: 1, note: "JD Sports returned an access denied page" }],
+        }
+      : {
+          store: "JD Sports",
+          schemaVersion: 1,
+          lastUpdated: nowIso(),
+          via: "firecrawl",
+          sourceUrls: [startUrl],
+          pagesFetched: 1,
+          dealsFound: parsed.dealsFound,
+          dealsExtracted: parsed.deals.length,
+          scrapeDurationMs,
+          ok: true,
+          error: null,
+          deals: parsed.deals,
+          dropCounts: drop.counts,
+          dropReasons: drop.toSummaryArray(),
+        };
 
     output.blobUrl = await writeBlobJson("jdsports.json", output);
     output.configuredBlobUrl = configuredBlobUrl;
@@ -464,7 +442,6 @@ export default async function handler(req, res) {
       configuredBlobUrl,
     };
 
-    // Best-effort failure blob
     try {
       output.blobUrl = await writeBlobJson("jdsports.json", output);
     } catch {}
