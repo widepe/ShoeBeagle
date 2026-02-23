@@ -99,8 +99,8 @@ function normalizeImgUrl(u) {
 }
 
 function extractImageURL(node, $) {
+  // 1. Try standard img src extraction
   const c = [];
-
   node.find("img").each((_, img) => {
     const el = $(img);
     c.push(el.attr("src") || "");
@@ -116,14 +116,21 @@ function extractImageURL(node, $) {
   });
 
   const urls = c.map(normalizeImgUrl).filter(Boolean);
-  if (!urls.length) return "";
-
-  return (
+  const fromImg =
     urls.find((u) => u.includes("media.jdsports.com/")) ||
     urls.find((u) => u.includes("jdsports")) ||
     urls[0] ||
-    ""
-  );
+    "";
+
+  if (fromImg) return fromImg;
+
+  // 2. Fallback: construct from data-sku (always present, matches observed URL pattern)
+  const sku = cleanText(node.attr("data-sku") || "");
+  if (sku) {
+    return `https://media.jdsports.com/s/jdsports/${sku}?$Main$&w=660&h=660&fmt=auto`;
+  }
+
+  return "";
 }
 
 // -----------------------------
