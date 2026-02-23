@@ -127,58 +127,73 @@ async function fetchHtmlViaFirecrawl(url) {
 function parseNikeCardsFromHtml(html, baseUrl = "https://www.nike.com") {
   const $ = cheerio.load(html);
 
-  const cards = $('[data-testid="product-card"]');
-  const deals = [];
+  // Nike cards contain a very reliable unique link overlay
+  const linkEls = $('a[data-testid="product-card__link-overlay"]');
 
-  // Use both DOM count + max data-product-position (virtualization-safe)
-  let domTiles = 0;
+  const deals = [];
+  const seen = new Set();
+
+  let domLinkCount = 0;
+  let droppedDuplicates = 0;
+  let droppedSeePriceInBag = 0;
+  let droppedMissingPrice = 0;
+
+  // Optional debug: track max position if present on a parent wrapper
   let maxPosition = 0;
 
-  let droppedSeePriceInBag = 0;
+  linkEls.each((_, a) => {
+    domLinkCount++;
 
-  cards.each((_, el) => {
-    domTiles++;
+    const $a = $(a);
+    let href = cleanText($a.attr("href") || "");
+    if (!href) return;
 
-    const $card = $(el);
+    const listingURL = href.startsWith("http")
+      ? href
+      : `${baseUrl}${href.startsWith("/") ? "" : "/"}${href}`;
 
-    const pos = Number($card.attr("data-product-position") || 0);
+    // ✅ hard de-dupe by listingURL BEFORE touching anything else
+    if (seen.has(listingURL)) {
+      droppedDuplicates++;
+      return;
+    }
+    seen.add(listingURL);
+
+    // Walk up to the closest "card-ish" root.
+    // In your snippet, <figure> is the natural card root.
+    const $root = $a.closest("figure").length ? $a.closest("figure") : $a.closest('[data-testid="product-card"]');
+
+    // Track product position if it exists on some wrapper (won’t break if missing)
+    const pos = Number($root.attr("data-product-position") || 0);
     if (Number.isFinite(pos) && pos > maxPosition) maxPosition = pos;
 
-    // Detect “See Price In Bag”
-    const cardText = cleanText($card.text());
+    // Detect “See Price In Bag” at the card level
+    const cardText = cleanText($root.text());
     if (/see price in bag/i.test(cardText)) {
       droppedSeePriceInBag++;
       return;
     }
 
-    const title = cleanText($card.find(".product-card__title").first().text());
-    const subtitle = cleanText($card.find(".product-card__subtitle").first().text());
+    const title = cleanText($root.find(".product-card__title").first().text());
+    const subtitle = cleanText($root.find(".product-card__subtitle").first().text());
 
-    // Listing URL
-    let href =
-      $card.find('a[data-testid="product-card__link-overlay"]').attr("href") ||
-      $card.find('a[data-testid="product-card__img-link-overlay"]').attr("href") ||
-      "";
-    href = cleanText(href);
+    // Image URL (try hero image first)
+    const imageURL =
+      cleanText($root.find("img.product-card__hero-image").attr("src") || "") ||
+      cleanText($root.find("img").first().attr("src") || "") ||
+      null;
 
-    const listingURL = href
-      ? href.startsWith("http")
-        ? href
-        : `${baseUrl}${href.startsWith("/") ? "" : "/"}${href}`
-      : null;
-
-    // Image URL
-    const imageURL = cleanText($card.find("img.product-card__hero-image").attr("src") || "") || null;
-
-    // Prices (current + original)
-    const saleText = cleanText($card.find('[data-testid="product-price-reduced"]').first().text());
-    const origText = cleanText($card.find('[data-testid="product-price"]').first().text());
+    // Prices
+    const saleText = cleanText($root.find('[data-testid="product-price-reduced"]').first().text());
+    const origText = cleanText($root.find('[data-testid="product-price"]').first().text());
 
     const salePrice = toNumPrice(saleText);
     const originalPrice = toNumPrice(origText);
 
-    // If either is missing, skip (your merge rules require both)
-    if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
+    if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) {
+      droppedMissingPrice++;
+      return;
+    }
 
     const discountPercent = computeDiscountPercent(salePrice, originalPrice);
 
@@ -186,9 +201,7 @@ function parseNikeCardsFromHtml(html, baseUrl = "https://www.nike.com") {
     const gender = inferGenderFromTitleText(fullTitleForInference);
     const shoeType = inferShoeTypeFromTitleText(fullTitleForInference);
 
-    const listingName = title || cleanText($card.find("a").first().text()) || "Nike Shoe";
-
-    // Nike brand/model (brand fixed)
+    const listingName = title || cleanText($a.text()) || "Nike Shoe";
     const brand = "Nike";
     const model = title || listingName;
 
@@ -203,7 +216,6 @@ function parseNikeCardsFromHtml(html, baseUrl = "https://www.nike.com") {
       originalPrice,
       discountPercent,
 
-      // Range fields: not provided by Nike cards here; keep null
       salePriceLow: null,
       salePriceHigh: null,
       originalPriceLow: null,
@@ -211,7 +223,6 @@ function parseNikeCardsFromHtml(html, baseUrl = "https://www.nike.com") {
       discountPercentUpTo: null,
 
       store: STORE,
-
       listingURL,
       imageURL,
 
@@ -220,19 +231,23 @@ function parseNikeCardsFromHtml(html, baseUrl = "https://www.nike.com") {
     });
   });
 
-  const totalTiles = Math.max(domTiles, maxPosition);
-
   return {
     deals,
     totals: {
-      totalTiles,
-      domTiles,
+      // "domLinkCount" is what was in the DOM snapshot
+      domTiles: domLinkCount,
+
+      // "totalTiles" should be UNIQUE cards, not maxPosition/dom count
+      totalTiles: seen.size,
+
       maxPosition,
+
       droppedSeePriceInBag,
+      droppedDuplicates,
+      droppedMissingPrice,
     },
   };
 }
-
 // -----------------------------
 // HANDLER
 // -----------------------------
@@ -268,12 +283,13 @@ module.exports = async function handler(req, res) {
       ok: true,
       error: null,
 
-      dropCounts: {
-        totalTiles: parsed.totals.totalTiles,
-        domTiles: parsed.totals.domTiles, // helpful debug: how many were actually in DOM
-        maxPosition: parsed.totals.maxPosition, // helpful debug: virtualization-safe count
-        dropped_seePriceInBag: parsed.totals.droppedSeePriceInBag,
-      },
+dropCounts: {
+  totalTiles: parsed.totals.totalTiles,
+  domTiles: parsed.totals.domTiles,
+  dropped_duplicates: parsed.totals.droppedDuplicates,
+  dropped_seePriceInBag: parsed.totals.droppedSeePriceInBag,
+  dropped_missingPrice: parsed.totals.droppedMissingPrice,
+},
 
       deals: parsed.deals,
     };
