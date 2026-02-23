@@ -98,13 +98,14 @@ async function firecrawlScrapeHtml(url) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      url,
-      formats: ["html"],
-      // optional: uncomment if JD needs more JS time
-      // waitFor: 3000,
-    }),
-  });
+body: JSON.stringify({
+  url,
+  formats: ["html"],
+  actions: [
+    { type: "wait", selector: 'div[data-testid="product-item"] img[src^="http"]' },
+    { type: "wait", milliseconds: 2000 },
+  ],
+}),
 
   const json = await resp.json().catch(() => null);
 
