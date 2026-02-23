@@ -292,6 +292,12 @@ async function fetchHtmlViaFirecrawl(url) {
 module.exports = async function handler(req, res) {
   const t0 = Date.now();
 
+  // Uncomment to protect this endpoint with a secret when not testing:
+  // const secret = process.env.CRON_SECRET;
+  // if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
+  //   return res.status(401).json({ error: "Unauthorized" });
+  // }
+
   try {
     requireEnv("BLOB_READ_WRITE_TOKEN");
     requireEnv("FIRECRAWL_API_KEY");
@@ -321,8 +327,9 @@ module.exports = async function handler(req, res) {
       contentType: "application/json",
     });
 
+const { deals: _omitted, ...payloadWithoutDeals } = payload;
     return res.status(200).json({
-      ...payload,
+      ...payloadWithoutDeals,
       blobUrl: blob.url,
       debug: {
         tilesSeen: parsed.dealsFound,
