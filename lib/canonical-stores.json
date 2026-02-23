@@ -52,8 +52,24 @@
   "notes": "Backcountry running shoes sale page via Firecrawl. Excludes cards without an original (strikethrough) price. Supports current-price ranges. Writes to backcountry.json."
 },
 
-
-  
+{
+    "id": "big-peach-running-co",
+    "displayName": "Big Peach Running Co",
+    "addedAt": "2026-02-23",
+    "lastUpdated": "2026-02-23",
+    "scrapedUrls": [
+      "https://shop.bigpeachrunningco.com/category/17804/deals-footwear"
+    ],
+    "expectedBlob": [
+      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/big-peach-running-co.json"
+    ],
+    "aliases": ["big peach", "big peach running", "big peach running co"],
+    "enabled": true,
+    "scraperType": "firecrawl",
+    "notes": "Big Peach Running Co deals footwear page via Firecrawl. Handles multiple pages automatically by detecting pagination. Gender inferred from product name. Writes to big-peach-running-co.json."
+  },
+  {
+    "id": "brooks-running",  
   {
     "id": "brooks-running",
     "displayName": "Brooks Running",
