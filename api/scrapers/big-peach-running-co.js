@@ -1,27 +1,25 @@
 // /api/scrapers/big-peach-running-co.js  (CommonJS)
-// Scrapes BOTH:
-//   https://shop.bigpeachrunningco.com/category/17193/WomensFootwear
-//   https://shop.bigpeachrunningco.com/category/17194/MensFootwear
 //
-// Writes ONE blob:
-//   .../big-peach-running-co.json
+// Scrapes BOTH category pages (Women + Men) using Firecrawl-rendered DOM + pagination clicks,
+// then writes ONE blob: .../big-peach-running-co.json
 //
-// RULES:
-// - Drop deals if they don't have BOTH salePrice and originalPrice
+// Pages:
+//  - https://shop.bigpeachrunningco.com/category/17193/WomensFootwear
+//  - https://shop.bigpeachrunningco.com/category/17194/MensFootwear
+//
+// Rules:
+// - Drop deals unless BOTH salePrice and originalPrice exist AND sale < original
 // - shoeType = "unknown"
-// - Uses your canonical per-deal schema + your top-level structure
+// - Write canonical deal objects using your schema (including optional range fields set to null)
 //
-// NOTE:
-// This site appends more products without changing URL (AJAX/infinite-style).
-// So: we attempt plain fetch first; if tiles aren't in raw HTML, we fall back to Firecrawl
-// with "scroll to bottom" actions a few times to force products to load before parsing.
+// Required env vars:
+// - BLOB_READ_WRITE_TOKEN
+// - FIRECRAWL_API_KEY
 //
-// ENV REQUIRED:
-// - BLOB_READ_WRITE_TOKEN  (Vercel Blob)
-// - FIRECRAWL_API_KEY      (only needed if raw HTML doesn't contain tiles)
-// Optional:
-// - BIGPEACH_SCROLLS (default 8)   // how many scroll-to-bottom cycles in Firecrawl
-// - BIGPEACH_WAIT_MS (default 900) // wait after each scroll in Firecrawl
+// Optional env vars:
+// - BIGPEACH_MAX_PAGE        default 6   (click page numbers 2..MAX_PAGE)
+// - BIGPEACH_WAIT_MS         default 1200 (wait between actions)
+// - BIGPEACH_PROXY           default "auto" ("basic"|"enhanced"|"auto")
 
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
@@ -49,12 +47,16 @@ function optInt(name, def) {
   return Number.isFinite(n) ? Math.floor(n) : def;
 }
 
+function optStr(name, def) {
+  const v = String(process.env[name] || "").trim();
+  return v || def;
+}
+
 function cleanText(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
 }
 
 function parseMoney(s) {
-  // "$274.99" -> 274.99
   const m = String(s || "").replace(/,/g, "").match(/(\d+(\.\d+)?)/);
   return m ? Number(m[1]) : null;
 }
@@ -68,7 +70,6 @@ function absUrl(relOrAbs) {
 }
 
 function parseBgImageUrl(styleAttr) {
-  // background-image: url("https://...")
   const s = String(styleAttr || "");
   const m = s.match(/background-image\s*:\s*url\((["']?)(.*?)\1\)/i);
   return m ? m[2] : null;
@@ -92,61 +93,6 @@ function computeDiscountPercent(originalPrice, salePrice) {
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
-async function fetchHtmlPlain(url) {
-  const res = await fetch(url, {
-    headers: {
-      // keep it boring; this is not “bot protection bypass”
-      "user-agent": "Mozilla/5.0 (compatible; ShoeBeagleBot/1.0)",
-      accept: "text/html,application/xhtml+xml",
-    },
-  });
-  if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
-  return await res.text();
-}
-
-// Firecrawl scrape -> HTML
-async function fetchHtmlViaFirecrawl(url) {
-  const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
-  if (!apiKey) throw new Error("FIRECRAWL_API_KEY env var is not set (needed for Firecrawl fallback).");
-
-  const scrolls = optInt("BIGPEACH_SCROLLS", 8);
-  const waitMs = optInt("BIGPEACH_WAIT_MS", 900);
-
-  // Firecrawl “scrape” with actions (scroll + wait) to force lazy-loaded products
-  const body = {
-    url,
-    formats: ["html"],
-    // Actions are best-effort — if the page is already fully loaded, this is harmless.
-    actions: [
-      { type: "wait", milliseconds: 1200 },
-      { type: "waitForSelector", selector: ".product.clickable", timeout: 15000 },
-      ...Array.from({ length: scrolls }).flatMap(() => [
-        { type: "scrollToBottom" },
-        { type: "wait", milliseconds: waitMs },
-      ]),
-    ],
-  };
-
-  const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Firecrawl failed: ${res.status} ${res.statusText} ${txt}`.trim());
-  }
-
-  const json = await res.json();
-  const html = json?.data?.html;
-  if (!html) throw new Error("Firecrawl response did not include data.html");
-  return html;
-}
-
 function parseDealsFromHtml(html, gender) {
   const $ = cheerio.load(html);
 
@@ -163,12 +109,11 @@ function parseDealsFromHtml(html, gender) {
     const name = cleanText($el.find(".name").first().text());
     const brand = cleanText($el.find(".brand").first().text());
 
-    // image is background-image in .image style attr
     const imageURL = parseBgImageUrl($el.find(".image").attr("style"));
 
     const originalText = cleanText($el.find(".price .struck").first().text());
 
-    // sale text = price text minus struck
+    // sale text = .price minus .struck
     const $priceClone = $el.find(".price").first().clone();
     $priceClone.find(".struck").remove();
     const saleText = cleanText($priceClone.text());
@@ -176,7 +121,7 @@ function parseDealsFromHtml(html, gender) {
     const originalPrice = parseMoney(originalText);
     const salePrice = parseMoney(saleText);
 
-    // Must have BOTH prices, and it must be an actual markdown
+    // Must have BOTH prices and be a real markdown
     if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return;
     if (salePrice <= 0 || originalPrice <= 0) return;
     if (salePrice >= originalPrice) return;
@@ -186,7 +131,6 @@ function parseDealsFromHtml(html, gender) {
     const listingName = cleanText(`${brand} ${name}`);
 
     deals.push({
-      // per-deal schema
       schemaVersion: SCHEMA_VERSION,
 
       listingName,
@@ -218,34 +162,98 @@ function parseDealsFromHtml(html, gender) {
   return { dealsFound, dealsExtracted: deals.length, deals };
 }
 
-async function getPageHtml(url) {
-  // try raw first
-  const raw = await fetchHtmlPlain(url);
-  if (raw.includes('class="product clickable"') || raw.includes("product clickable")) {
-    return { html: raw, via: "cheerio" };
+function buildPaginationActions(maxPage, waitMs) {
+  // We click page numbers 2..maxPage using executeJavascript, because:
+  // - URL does not change
+  // - clicking appends products to existing list
+  // Firecrawl supports executeJavascript actions. :contentReference[oaicite:2]{index=2}
+  const actions = [
+    { type: "wait", milliseconds: 1500 },
+    // wait for the product grid to exist (after JS renders)
+    { type: "wait", selector: ".product.clickable" },
+  ];
+
+  for (let p = 2; p <= maxPage; p++) {
+    actions.push(
+      {
+        type: "executeJavascript",
+        script: `
+          (function(){
+            const targetText = "${p}";
+            // Try common pagination patterns: links/buttons with exact text
+            const candidates = Array.from(document.querySelectorAll('a,button'));
+            const el = candidates.find(x => (x.textContent || "").trim() === targetText);
+            if (el) el.click();
+          })();
+        `,
+      },
+      { type: "wait", milliseconds: waitMs }
+    );
   }
 
-  // fallback to firecrawl rendered HTML
-  const rendered = await fetchHtmlViaFirecrawl(url);
-  return { html: rendered, via: "firecrawl" };
+  // Add a few scrolls down to encourage any lazy loading within the final page
+  actions.push(
+    { type: "scroll", direction: "down" },
+    { type: "wait", milliseconds: waitMs },
+    { type: "scroll", direction: "down" },
+    { type: "wait", milliseconds: waitMs }
+  );
+
+  return actions;
+}
+
+async function fetchHtmlViaFirecrawl(url) {
+  const apiKey = requireEnv("FIRECRAWL_API_KEY");
+  const maxPage = optInt("BIGPEACH_MAX_PAGE", 6);
+  const waitMs = optInt("BIGPEACH_WAIT_MS", 1200);
+  const proxy = optStr("BIGPEACH_PROXY", "auto");
+
+  const body = {
+    url,
+    formats: ["html"],
+    onlyMainContent: false, // IMPORTANT: product grid is not "main content" reliably
+    maxAge: 0,              // IMPORTANT: avoid cached partial renders
+    proxy,                  // "auto" retries with enhanced if needed
+    actions: buildPaginationActions(maxPage, waitMs),
+  };
+
+  // v2 scrape endpoint (per current docs)
+  const res = await fetch("https://api.firecrawl.dev/v2/scrape", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Firecrawl failed: ${res.status} ${res.statusText} ${txt}`.trim());
+  }
+
+  const json = await res.json();
+  const html = json?.data?.html;
+  if (!html) throw new Error("Firecrawl response did not include data.html");
+  return html;
 }
 
 module.exports = async function handler(req, res) {
   const t0 = Date.now();
 
   try {
-    // Blob token required
     requireEnv("BLOB_READ_WRITE_TOKEN");
+    requireEnv("FIRECRAWL_API_KEY");
 
     const sourceUrls = [WOMENS_URL, MENS_URL];
 
-    // Fetch + parse womens
-    const womensFetched = await getPageHtml(WOMENS_URL);
-    const womensParsed = parseDealsFromHtml(womensFetched.html, "womens");
+    // Women
+    const womensHtml = await fetchHtmlViaFirecrawl(WOMENS_URL);
+    const womensParsed = parseDealsFromHtml(womensHtml, "womens");
 
-    // Fetch + parse mens
-    const mensFetched = await getPageHtml(MENS_URL);
-    const mensParsed = parseDealsFromHtml(mensFetched.html, "mens");
+    // Men
+    const mensHtml = await fetchHtmlViaFirecrawl(MENS_URL);
+    const mensParsed = parseDealsFromHtml(mensHtml, "mens");
 
     const deals = [...womensParsed.deals, ...mensParsed.deals];
 
@@ -254,12 +262,12 @@ module.exports = async function handler(req, res) {
       schemaVersion: SCHEMA_VERSION,
 
       lastUpdated: nowIso(),
-      // If either needed firecrawl, report firecrawl; else cheerio
-      via: womensFetched.via === "firecrawl" || mensFetched.via === "firecrawl" ? "firecrawl" : "cheerio",
+      via: "firecrawl",
 
       sourceUrls,
       pagesFetched: 2,
 
+      // NOTE: dealsFound is how many tiles were present AFTER paging clicks
       dealsFound: womensParsed.dealsFound + mensParsed.dealsFound,
       dealsExtracted: deals.length,
 
@@ -271,7 +279,6 @@ module.exports = async function handler(req, res) {
       deals,
     };
 
-    // Write blob (no random suffix)
     const blob = await put("big-peach-running-co.json", JSON.stringify(payload, null, 2), {
       access: "public",
       addRandomSuffix: false,
@@ -281,12 +288,20 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({
       ...payload,
       blobUrl: blob.url,
+      debug: {
+        womensTilesSeen: womensParsed.dealsFound,
+        womensDealsKept: womensParsed.dealsExtracted,
+        mensTilesSeen: mensParsed.dealsFound,
+        mensDealsKept: mensParsed.dealsExtracted,
+        maxPageClicked: optInt("BIGPEACH_MAX_PAGE", 6),
+      },
     });
   } catch (e) {
     return res.status(500).json({
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
       lastUpdated: nowIso(),
+      via: "firecrawl",
       ok: false,
       error: e?.message || "unknown error",
       scrapeDurationMs: Date.now() - t0,
