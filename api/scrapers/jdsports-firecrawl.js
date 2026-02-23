@@ -188,22 +188,18 @@ async function firecrawlScrapeHtml(url) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      url,
+  body: JSON.stringify({
+  url,
+  formats: ["html"],
 
-      // ask for rawHtml first, but accept html as fallback
-      formats: ["rawHtml", "html"],
+  maxAge: 0,
+  storeInCache: false,
 
-      // always fresh
-      maxAge: 0,
-      storeInCache: false,
+  waitFor: 2000,
+  removeBase64Images: true,
 
-      // let SPA hydrate
-      waitFor: 6000,
-      removeBase64Images: true,
-
-      timeout: 60000,
-    }),
+  timeout: 60000,
+}),
   });
 
   const json = await resp.json().catch(() => null);
@@ -276,17 +272,6 @@ function parseDealsFromHtml(html, drop) {
   const derivedSku = deriveSkuFromListingURL(firstListingURL);
   const firstImg = first.find("img").first();
 
-  drop.counts.__debug_firstTile = {
-    tileExists: tiles.length > 0,
-    imgCount: first.find("img").length,
-    imgSrc: firstImg.attr("src") || null,
-    skuAttr: first.attr("data-sku") || null,
-    firstListingURL: firstListingURL || null,
-    derivedSku: derivedSku || null,
-    fallbackImageURL: derivedSku ? buildImageUrlFromSku(derivedSku) : null,
-    extractedImageURL: firstListingURL ? extractImageURL(first, $, firstListingURL) : null,
-    snippet: cleanText(first.html() || "").slice(0, 260),
-  };
 
   // dealsFound = unique PDP URLs
   const hrefSet = new Set();
