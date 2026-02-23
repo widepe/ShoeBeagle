@@ -242,12 +242,12 @@ function dedupeByListingUrl(deals) {
 
 async function fetchHtmlViaFirecrawl(url) {
   const apiKey = requireEnv("FIRECRAWL_API_KEY");
-  const waitMs = optInt("BIGPEACH_WAIT_MS", 1500);
-  const scrolls = optInt("BIGPEACH_SCROLLS", 3);
+  const waitMs = optInt("BIGPEACH_WAIT_MS", 800);
+  const scrolls = optInt("BIGPEACH_SCROLLS", 2);
   const proxy = optStr("BIGPEACH_PROXY", "auto");
   const timeout = optInt("BIGPEACH_TIMEOUT_MS", 60000);
 
-  const actions = [
+const actions = [
     { type: "wait", milliseconds: 2000 },
     { type: "wait", selector: ".product.clickable" },
   ];
@@ -258,6 +258,15 @@ async function fetchHtmlViaFirecrawl(url) {
       { type: "wait", milliseconds: waitMs }
     );
   }
+
+  // click page 2 and wait for new tiles to load
+
+  actions.push(
+    { type: "click", selector: ".pages .page[data-page='2']" },
+    { type: "wait", milliseconds: 1500 },
+    { type: "scroll", direction: "down" },
+    { type: "wait", milliseconds: 800 }
+  );
 
   const body = {
     url,
