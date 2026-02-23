@@ -9,14 +9,10 @@
 // ENV required:
 // - FIRECRAWL_API_KEY
 // - BLOB_READ_WRITE_TOKEN
+//
 // Optional:
-// - JDSPORTS_DEALS_BLOB_URL (for your merge system / debugging)
-//
-// Optional (recommended for cron security):
-// - CRON_SECRET
-//
-// To test in browser: visit /api/scrapers/jdsports-firecrawl
-// For cron: call /api/scrapers/jdsports-firecrawl?cron=1  (and enable the CRON_SECRET block)
+// - JDSPORTS_DEALS_BLOB_URL
+// - CRON_SECRET (if you enable cron auth)
 
 import { put } from "@vercel/blob";
 import * as cheerio from "cheerio";
@@ -91,7 +87,6 @@ function deriveBrandModel(listingName) {
 // IMAGE URL EXTRACTION (robust)
 // -----------------------------
 function decodeHtmlEntities(s) {
-  // enough for URLs
   return String(s || "").replace(/&amp;/g, "&").trim();
 }
 
@@ -155,25 +150,18 @@ async function firecrawlScrapeHtml(url) {
       url,
       formats: ["html"],
 
-      // ✅ stop "main content" reduction from stripping tags/attrs
-      onlyMainContent: false,
-
-      // ✅ keep image-related tags in output
-      includeTags: ["img", "picture", "source", "a", "div", "h4", "p"],
-
-      // ✅ avoid cached snapshots
+      // ✅ always fresh (default cache window is 2 days)
       maxAge: 0,
       storeInCache: false,
 
-      // ✅ let the SPA hydrate
+      // ✅ allow SPA hydration time
       waitFor: 6000,
 
-      // ✅ additional waits (best-effort)
-      actions: [
-        { type: "wait", selector: 'div[data-testid="product-item"]' },
-        { type: "wait", milliseconds: 1500 },
-      ],
+      // ✅ reduce junk / base64 bloat
+      removeBase64Images: true,
 
+      // NOTE: not using onlyMainContent:false (can blow up HTML size / memory)
+      // NOTE: not using actions (can be flaky + not needed if waitFor is enough)
       timeout: 60000,
     }),
   });
@@ -204,7 +192,7 @@ function makeDropTracker() {
 
     kept: 0,
 
-    // debug slot (will be filled)
+    // debug
     __debug_firstTile: null,
   };
 
@@ -239,7 +227,7 @@ function parseDealsFromHtml(html, drop) {
 
   drop.counts.totalTiles = tiles.length;
 
-  // Debug: what does the first tile look like?
+  // Debug: what does Firecrawl give us for first tile images?
   const first = tiles.first();
   const firstImg = first.find("img").first();
   drop.counts.__debug_firstTile = {
@@ -249,7 +237,7 @@ function parseDealsFromHtml(html, drop) {
     imgDataSrc: firstImg.attr("data-src") || null,
     imgSrcset: firstImg.attr("srcset") || null,
     extractedImageURL: extractImageURL(first, $) || null,
-    htmlSnippet: cleanText(first.html() || "").slice(0, 300),
+    snippet: cleanText(first.html() || "").slice(0, 220),
   };
 
   // dealsFound = unique PDP URLs
@@ -357,13 +345,12 @@ async function writeBlobJson(key, obj) {
     access: "public",
     token,
     contentType: "application/json",
-    addRandomSuffix: false, // keep exactly jdsports.json
+    addRandomSuffix: false,
   });
 
   return result?.url || null;
 }
 
-// ✅ Lightweight response: no deals[]
 function toLightweightResponse(output) {
   return {
     store: output.store,
@@ -390,9 +377,6 @@ export default async function handler(req, res) {
   // -----------------------------
   // CRON SECRET (commented for testing)
   // -----------------------------
-  // If you use Vercel Cron, set CRON_SECRET in env vars and call:
-  // /api/scrapers/jdsports-firecrawl?cron=1&secret=YOUR_SECRET
-  //
   // const isCron = String(req.query?.cron || "") === "1";
   // if (isCron) {
   //   const expected = String(process.env.CRON_SECRET || "").trim();
@@ -432,7 +416,6 @@ export default async function handler(req, res) {
         ok: false,
         error: "Blocked: Your Access Has Been Denied",
         deals: [],
-
         dropCounts: { totalTiles: 0, kept: 0, __debug_firstTile: null },
         dropReasons: [{ reason: "blocked", count: 1, note: "JD Sports returned an access denied page" }],
       };
@@ -450,17 +433,14 @@ export default async function handler(req, res) {
         ok: true,
         error: null,
         deals: parsed.deals,
-
         dropCounts: drop.counts,
         dropReasons: drop.toSummaryArray(),
       };
     }
 
-    // ✅ Write FULL JSON (including deals[]) to blob
     output.blobUrl = await writeBlobJson("jdsports.json", output);
     output.configuredBlobUrl = configuredBlobUrl;
 
-    // ✅ Return lightweight response (no deals[])
     return res.status(200).json(toLightweightResponse(output));
   } catch (err) {
     const scrapeDurationMs = Date.now() - t0;
@@ -478,15 +458,13 @@ export default async function handler(req, res) {
       ok: false,
       error: String(err?.message || err),
       deals: [],
-
       dropCounts: null,
       dropReasons: null,
-
       blobUrl: null,
       configuredBlobUrl,
     };
 
-    // Best-effort: still write failure blob
+    // Best-effort failure blob
     try {
       output.blobUrl = await writeBlobJson("jdsports.json", output);
     } catch {}
