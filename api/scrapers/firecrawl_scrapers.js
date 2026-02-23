@@ -22,12 +22,12 @@ const RUN_CONCURRENTLY = true; // set false to run one-after-another (safer)
 // ===========================
 const ENABLED = {
   backcountry: true,
+  bigpeach: true,
   finishline: true,
   hoka: true,
   jdsports: true,
   kohls: true,
   nike: true,
-
 };
 
 // ===========================
