@@ -333,5 +333,11 @@ module.exports = async function handler(req, res) {
     out.scrapeDurationMs = Date.now() - t0;
   }
 
-  res.status(out.ok ? 200 : 500).json(out);
+// Return a summary response (no deals array), but deals ARE still in the blob.
+const responseOut = { ...out, deals: undefined };
+
+// (Optional) if you prefer the key to not exist at all:
+delete responseOut.deals;
+
+res.status(out.ok ? 200 : 500).json(responseOut);
 };
