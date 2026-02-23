@@ -147,7 +147,7 @@ function pickImageUrl($el) {
 
 function parseDealsFromHtml(html, gender) {
   const $ = cheerio.load(html);
-
+console.log("RAW_HTML_SAMPLE", html.slice(0, 3000));
   const dropCounts = {
     missingListingURL: 0,
     missingImageURL: 0,
@@ -300,7 +300,7 @@ async function fetchHtmlViaFirecrawl(url) {
   const apiKey = requireEnv("FIRECRAWL_API_KEY");
 
   const waitMs = optInt("BIGPEACH_WAIT_MS", 1400);
-  const scrolls = optInt("BIGPEACH_SCROLLS", 18);
+  const scrolls = optInt("BIGPEACH_SCROLLS", 3);
   const proxy = optStr("BIGPEACH_PROXY", "auto");
   const clickPage2 = optBool("BIGPEACH_CLICK_PAGE2", true);
   const timeout = optInt("BIGPEACH_TIMEOUT_MS", 140000);
