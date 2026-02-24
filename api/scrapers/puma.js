@@ -287,10 +287,24 @@ module.exports = async function handler(req, res) {
     // mandatory blob write
     out.blobUrl = await writeBlobJsonOrThrow(blobPath, out);
 
-    out.ok = true;
+const { put } = require("@vercel/blob");
 
-    res.setHeader("content-type", "application/json; charset=utf-8");
-    res.status(200).send(JSON.stringify(out, null, 2));
+const token = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
+if (!token) throw new Error("Missing BLOB_READ_WRITE_TOKEN");
+
+const blobPath = String(process.env.PUMA_BLOB_PATH || "puma.json").trim();
+
+const blob = await put(blobPath, JSON.stringify(out, null, 2), {
+  access: "public",
+  contentType: "application/json",
+  token,
+});
+
+out.blobUrl = blob.url;
+out.ok = true;
+
+res.setHeader("content-type", "application/json; charset=utf-8");
+res.status(200).send(JSON.stringify(out, null, 2));
   } catch (err) {
     out.scrapeDurationMs = Date.now() - t0;
     out.ok = false;
