@@ -32,7 +32,16 @@ async function callInternal(req, path) {
   const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
 
   const t0 = Date.now();
-  const res = await fetch(url, { method: "GET" });
+  const cronSecret =
+  String(req.headers["x-cron-secret"] || "").trim() ||
+  (String(req.headers.authorization || "").trim().startsWith("Bearer ")
+    ? String(req.headers.authorization).trim().slice("Bearer ".length).trim()
+    : "");
+
+const headers = {};
+if (cronSecret) headers["x-cron-secret"] = cronSecret;
+
+const res = await fetch(url, { method: "GET", headers });
   const text = await res.text();
   const elapsedMs = Date.now() - t0;
 
