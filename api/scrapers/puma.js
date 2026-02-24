@@ -1,17 +1,8 @@
-// /api/puma.js  (CommonJS)
-// Cheerio scraper for PUMA sale running shoes, writes blob to /puma.json
-//
-// Env vars you likely want:
-// - BLOB_READ_WRITE_TOKEN           (required to write to Vercel Blob)
-// - PUMA_BLOB_PATH                 (optional; default: "puma.json")
-// - PUMA_SOURCE_URL                (optional; default is the URL you gave)
-//
-// Merge env var (in your merge-deals.js) would point to the blob URL produced:
-// - PUMA_DEALS_BLOB_URL = https://...public.blob.vercel-storage.com/puma.json
+// /api/scrape-puma.js  (CommonJS)
+// PUMA sale running shoes scraper (Cheerio) + offset pagination + dropCounts + mandatory blob write
 
 const cheerio = require("cheerio");
-
-let put; // lazy-load @vercel/blob only when needed
+let put; // lazy-load @vercel/blob
 
 function nowIso() {
   return new Date().toISOString();
@@ -22,7 +13,6 @@ function normalizeWhitespace(s) {
 }
 
 function decodeHtmlEntities(s) {
-  // good-enough decoding for common entities we see in product names
   return String(s || "")
     .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
@@ -34,7 +24,6 @@ function decodeHtmlEntities(s) {
 }
 
 function parseMoney(text) {
-  // "$48.99" -> 48.99
   const t = String(text || "").replace(/[^\d.]/g, "");
   if (!t) return null;
   const n = Number(t);
@@ -55,8 +44,6 @@ function inferGenderAndType(h3Text) {
   else if (t.includes("women's") || t.includes("womens")) gender = "womens";
 
   let shoeType = "unknown";
-  // Your rule: if AFTER gender it states road running => road; trail running => trail; else unknown.
-  // We’ll simply search the whole string for these phrases.
   if (t.includes("road running")) shoeType = "road";
   else if (t.includes("trail running")) shoeType = "trail";
 
@@ -72,7 +59,6 @@ function absolutizeUrl(href) {
 }
 
 async function fetchHtml(url) {
-  // Basic “looks like a browser” headers (helps with some ecomm stacks)
   const res = await fetch(url, {
     redirect: "follow",
     headers: {
@@ -93,58 +79,82 @@ async function fetchHtml(url) {
   return await res.text();
 }
 
-function extractDealsFromHtml(html, sourceUrl) {
+function extractDealsFromHtml(html, dropCounts) {
   const $ = cheerio.load(html);
   const tiles = $('li[data-test-id="product-list-item"]');
+  dropCounts.totalTiles += tiles.length;
 
-  // If for any reason the attribute-based tiles aren't present in the server HTML,
-  // you can still sometimes find product cards via headings/links — but we’ll
-  // keep that fallback minimal and safe.
-  const found = tiles.length;
+  // helpful debug: snapshot first tile structure
+  if (!dropCounts.__debug_firstTile && tiles.length) {
+    const $t = $(tiles.first());
+    dropCounts.__debug_firstTile = {
+      tileExists: true,
+      firstModel: decodeHtmlEntities(normalizeWhitespace($t.find("h2").first().text())),
+      firstH3: decodeHtmlEntities(normalizeWhitespace($t.find("h3").first().text())),
+      firstHref:
+        $t.find('a[data-test-id="product-list-item-link"]').attr("href") ||
+        $t.find("a[href*='/us/en/pd/']").first().attr("href") ||
+        null,
+      firstImg: $t.find("img").first().attr("src") || null,
+      firstSale: normalizeWhitespace($t.find('[data-test-id="sale-price"]').first().text()),
+      firstOrig: normalizeWhitespace($t.find('[data-test-id="price"]').first().text()),
+    };
+  }
 
   const deals = [];
+
   for (const el of tiles.toArray()) {
     const $el = $(el);
 
-    // URL
     const href =
       $el.find('a[data-test-id="product-list-item-link"]').attr("href") ||
       $el.find("a[href*='/us/en/pd/']").first().attr("href") ||
       null;
     const listingURL = absolutizeUrl(href);
+    if (!listingURL) {
+      dropCounts.dropped_missingUrl++;
+      continue;
+    }
 
-    // Image
-    const img =
-      $el.find("img").first().attr("src") ||
-      $el.find("img").first().attr("data-src") ||
-      null;
+    const img = $el.find("img").first().attr("src") || $el.find("img").first().attr("data-src") || null;
     const imageURL = img ? String(img).trim() : null;
+    if (!imageURL) {
+      dropCounts.dropped_missingImage++;
+      continue;
+    }
 
-    // Model
     const modelRaw = $el.find("h2").first().text();
     const model = decodeHtmlEntities(normalizeWhitespace(modelRaw));
+    if (!model) {
+      dropCounts.dropped_missingModel++;
+      continue;
+    }
 
-    // Category line (gender/type lives here)
     const h3Raw = $el.find("h3").first().text();
     const h3Text = decodeHtmlEntities(normalizeWhitespace(h3Raw));
     const { gender, shoeType } = inferGenderAndType(h3Text);
 
-    // Prices
     const saleText = $el.find('[data-test-id="sale-price"]').first().text();
     const origText = $el.find('[data-test-id="price"]').first().text();
     const salePrice = parseMoney(saleText);
     const originalPrice = parseMoney(origText);
 
-    // Only accept “real deals” with both prices
-    if (!listingURL || !imageURL || !model) continue;
-    if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice) || salePrice <= 0 || originalPrice <= 0) continue;
-    if (salePrice >= originalPrice) continue;
+    if (!Number.isFinite(salePrice) || salePrice <= 0) {
+      dropCounts.dropped_saleMissingOrZero++;
+      continue;
+    }
+    if (!Number.isFinite(originalPrice) || originalPrice <= 0) {
+      dropCounts.dropped_originalMissingOrZero++;
+      continue;
+    }
+    if (salePrice >= originalPrice) {
+      dropCounts.dropped_notADeal++;
+      continue;
+    }
 
     const brand = "Puma";
     const store = "PUMA";
 
-    // listingName: keep it simple + close to what PUMA presents
-    // (your merge step can parse brand/model from it if needed)
     const listingName = normalizeWhitespace(`${brand} ${model} ${h3Text}`.trim());
 
     deals.push({
@@ -159,7 +169,6 @@ function extractDealsFromHtml(html, sourceUrl) {
       originalPrice,
       discountPercent: computeDiscountPercent(salePrice, originalPrice),
 
-      // Range fields: not provided on tiles (single prices here)
       salePriceLow: null,
       salePriceHigh: null,
       originalPriceLow: null,
@@ -174,79 +183,120 @@ function extractDealsFromHtml(html, sourceUrl) {
       gender,
       shoeType,
     });
+
+    dropCounts.kept++;
   }
 
-  return { dealsFound: found, deals };
+  return { dealsFoundThisPage: tiles.length, deals };
 }
 
-async function writeBlobJson(blobPath, jsonObj) {
+async function writeBlobJsonOrThrow(blobPath, jsonObj) {
   const token = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
-  if (!token) return { blobUrl: null, wrote: false, warning: "Missing BLOB_READ_WRITE_TOKEN; skipping blob write." };
+  if (!token) throw new Error("Missing BLOB_READ_WRITE_TOKEN (blob write is required).");
 
-  if (!put) {
-    // lazy import so the route still works without blob writing during local tests
-    ({ put } = require("@vercel/blob"));
-  }
+  if (!put) ({ put } = require("@vercel/blob"));
 
   const body = JSON.stringify(jsonObj, null, 2);
+
+  // If this fails, we WANT to throw so you see it immediately
   const blob = await put(blobPath, body, {
     access: "public",
     contentType: "application/json",
     token,
   });
 
-  return { blobUrl: blob?.url || null, wrote: true, warning: null };
+  if (!blob?.url) throw new Error("Blob write returned no url.");
+  return blob.url;
+}
+
+function buildPagedUrl(baseUrl, offset) {
+  const u = new URL(baseUrl);
+  u.searchParams.set("offset", String(offset));
+  return u.toString();
 }
 
 module.exports = async function handler(req, res) {
   const t0 = Date.now();
 
-  // allow override for testing
-  const url =
+  // Base URL should NOT hardcode offset; we’ll paginate it.
+  const baseUrl =
     String(req.query?.url || "").trim() ||
     String(process.env.PUMA_SOURCE_URL || "").trim() ||
-    "https://us.puma.com/us/en/sale/all-sale?filter_product_division=%3E{shoes}&filter_sport_type=%3E{running}&offset=264";
+    "https://us.puma.com/us/en/sale/all-sale?filter_product_division=%3E{shoes}&filter_sport_type=%3E{running}";
 
   const blobPath = String(process.env.PUMA_BLOB_PATH || "puma.json").trim();
 
-  const meta = {
+  // Pagination controls
+  const pageSize = Number(req.query?.pageSize || process.env.PUMA_PAGE_SIZE || 24);
+  const maxPages = Number(req.query?.maxPages || process.env.PUMA_MAX_PAGES || 20); // safety cap
+
+  const out = {
     store: "PUMA",
     schemaVersion: 1,
     lastUpdated: nowIso(),
     via: "cheerio",
-    sourceUrls: [url],
-    pagesFetched: 1,
+    sourceUrls: [],
+    pagesFetched: 0,
     dealsFound: 0,
     dealsExtracted: 0,
     scrapeDurationMs: 0,
     ok: false,
     error: null,
+    dropCounts: {
+      totalTiles: 0,
+      dropped_missingUrl: 0,
+      dropped_missingImage: 0,
+      dropped_missingModel: 0,
+      dropped_saleMissingOrZero: 0,
+      dropped_originalMissingOrZero: 0,
+      dropped_notADeal: 0,
+      kept: 0,
+      __debug_firstTile: null,
+    },
+    deals: [],
   };
 
   try {
-    const html = await fetchHtml(url);
+    const seen = new Set();
 
-    const { dealsFound, deals } = extractDealsFromHtml(html, url);
+    for (let page = 0; page < maxPages; page++) {
+      const offset = page * pageSize;
+      const url = buildPagedUrl(baseUrl, offset);
+      out.sourceUrls.push(url);
 
-    meta.dealsFound = dealsFound;
-    meta.dealsExtracted = deals.length;
-    meta.scrapeDurationMs = Date.now() - t0;
-    meta.ok = true;
+      const html = await fetchHtml(url);
+      const { dealsFoundThisPage, deals } = extractDealsFromHtml(html, out.dropCounts);
 
-    const out = { ...meta, deals };
+      out.pagesFetched += 1;
+      out.dealsFound += dealsFoundThisPage;
 
-    const blobWrite = await writeBlobJson(blobPath, out);
-    if (blobWrite.blobUrl) out.blobUrl = blobWrite.blobUrl;
-    if (blobWrite.warning) out.blobWriteWarning = blobWrite.warning;
+      // de-dupe by listingURL
+      for (const d of deals) {
+        if (seen.has(d.listingURL)) continue;
+        seen.add(d.listingURL);
+        out.deals.push(d);
+      }
+
+      // Stop when a page yields no product tiles
+      if (dealsFoundThisPage === 0) break;
+    }
+
+    out.dealsExtracted = out.deals.length;
+    out.scrapeDurationMs = Date.now() - t0;
+
+    // mandatory blob write
+    out.blobUrl = await writeBlobJsonOrThrow(blobPath, out);
+
+    out.ok = true;
 
     res.setHeader("content-type", "application/json; charset=utf-8");
     res.status(200).send(JSON.stringify(out, null, 2));
   } catch (err) {
-    meta.scrapeDurationMs = Date.now() - t0;
-    meta.ok = false;
-    meta.error = String(err?.message || err);
+    out.scrapeDurationMs = Date.now() - t0;
+    out.ok = false;
+    out.error = String(err?.message || err);
 
     res.setHeader("content-type", "application/json; charset=utf-8");
-    res.status(500).send(JSON.stringify(meta, null, 2));
+    res.status(500).send(JSON.stringify(out, null, 2));
   }
 };
