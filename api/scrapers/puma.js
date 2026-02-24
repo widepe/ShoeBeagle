@@ -300,7 +300,7 @@ module.exports = async function handler(req, res) {
     String(req.query?.url || "").trim() ||
     optionalEnv(
       "PUMA_START_URL",
-      "https://us.puma.com/us/en/sale/all-sale?filter_product_division=%3E%7Bshoes%7D&filter_sport_type=%3E%7Brunning%7D"
+      "https://us.puma.com/us/en/sale/all-sale?filter_product_division=%3E{shoes}&filter_sport_type=%3E{running}"
     );
 
   const PAGE_SIZE = safeInt(optionalEnv("PUMA_PAGE_SIZE", "24"), 24);
