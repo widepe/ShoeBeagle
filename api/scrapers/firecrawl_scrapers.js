@@ -68,10 +68,10 @@ const TARGETS = [
     name: "Kohl's Firecrawl",
     path: "/api/scrapers/kohls-firecrawl",
   },
-  {
+{
   key: "nike",
   name: "Nike Firecrawl",
-  path: "/api/scrapers/nike",
+  path: "/api/scrapers/nike-firecrawl",
 },
   
 ];
