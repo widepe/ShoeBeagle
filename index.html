@@ -773,41 +773,13 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
           const built = buildUnifiedSuggestions(typed);
           suggestionState.mode = built.mode;
 
-renderSuggestions(built.items, (value) => {
-  const bm = splitBrandModelFromPicked(value);
-  if (bm.brand && bm.model) qInput.value = `${bm.brand} ${bm.model}`.trim();
-  else qInput.value = value;
-
-  closeSuggestions();
-  updateFetchReady();
-
-  // ✅ one-click search: immediately submit (same behavior as hitting Fetch)
-  if (form && typeof form.requestSubmit === "function") {
-    form.requestSubmit(fetchBtn || undefined);
-  } else if (form) {
-    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-  }
-});
+renderSuggestions(built.items, (value) => applySuggestionAndSearch(value));
 
           updateFetchReady();
         });
 
         qInput.addEventListener("keydown", (e) => {
-handleSuggestionKeys(e, (value) => {
-  const bm = splitBrandModelFromPicked(value);
-  if (bm.brand && bm.model) qInput.value = `${bm.brand} ${bm.model}`.trim();
-  else qInput.value = value;
-
-  closeSuggestions();
-  updateFetchReady();
-
-  // ✅ Enter on a highlighted suggestion triggers the search too
-  if (form && typeof form.requestSubmit === "function") {
-    form.requestSubmit(fetchBtn || undefined);
-  } else if (form) {
-    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-  }
-});
+handleSuggestionKeys(e, (value) => applySuggestionAndSearch(value));
         });
 
         qInput.addEventListener("blur", () => setTimeout(() => closeSuggestions(), 140));
