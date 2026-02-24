@@ -1,3 +1,9 @@
+// TEMP DEBUG — REMOVE AFTER YOU GET THE STACK
+process.on("warning", (w) => {
+  if (w?.name === "DeprecationWarning" || String(w?.code || "").startsWith("DEP")) {
+    console.warn("WARNING STACK:\n" + (w?.stack || w?.message || w));
+  }
+});
 // /api/scrapers/apify_scrapers.js
 // Trigger-only runner for Apify Actors (does NOT wait for completion, does NOT write blobs)
 
