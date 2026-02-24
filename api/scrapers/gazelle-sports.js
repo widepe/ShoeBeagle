@@ -281,13 +281,15 @@ module.exports = async function handler(req, res) {
   // ---------------------------------
   const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
   if (CRON_SECRET) {
-    // Avoid req.query (Vercel runtime uses deprecated url.parse() under the hood)
-    const urlObj = new URL(req.url, "http://localhost"); // base required for relative req.url
-    const provided =
-      String(req.headers["x-cron-secret"] || "").trim() ||
-      String(urlObj.searchParams.get("cron_secret") || "").trim();
+    const urlObj = new URL(req.url, "http://localhost");
 
-    if (provided !== CRON_SECRET) {
+    const auth = String(req.headers.authorization || "").trim();
+    const xCron = String(req.headers["x-cron-secret"] || "").trim();
+    const qs = String(urlObj.searchParams.get("cron_secret") || "").trim();
+
+    const ok = auth === `Bearer ${CRON_SECRET}` || xCron === CRON_SECRET || qs === CRON_SECRET;
+
+    if (!ok) {
       return res.status(401).json({ ok: false, error: "Unauthorized: Invalid CRON_SECRET" });
     }
   }
