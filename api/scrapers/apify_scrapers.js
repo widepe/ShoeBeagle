@@ -1,9 +1,3 @@
-// TEMP DEBUG — REMOVE AFTER YOU GET THE STACK
-process.on("warning", (w) => {
-  if (w?.name === "DeprecationWarning" || String(w?.code || "").startsWith("DEP")) {
-    console.warn("WARNING STACK:\n" + (w?.stack || w?.message || w));
-  }
-});
 // /api/scrapers/apify_scrapers.js
 // Trigger-only runner for Apify Actors (does NOT wait for completion, does NOT write blobs)
 
@@ -59,7 +53,7 @@ async function runWithConcurrency(items, concurrency, worker) {
 const ENABLED = {
   asics: true,
   brooks: true,
-  footlocker: true,  
+  footlocker: true,
   mizuno: true,
   puma: true,
   rei: true,
@@ -102,8 +96,6 @@ module.exports = async (req, res) => {
     }
   }
 
-
-  
   const startedAtIso = nowIso();
   const overallStart = Date.now();
 
@@ -112,14 +104,15 @@ module.exports = async (req, res) => {
     return res.status(500).json({ success: false, error: "Missing APIFY_TOKEN env var" });
   }
 
-  // Avoid req.query (Vercel runtime uses deprecated url.parse() under the hood)
+  // IMPORTANT: avoid req.query (Vercel runtime uses deprecated url.parse() under the hood)
   const urlObj = new URL(req.url, "http://localhost");
 
   const onlySet = parseCsvParam(urlObj.searchParams.get("only"));
   const skipSet = parseCsvParam(urlObj.searchParams.get("skip"));
 
-  const concurrencyParam = parseInt(String(req.query?.concurrency || ""), 10);
-  const TRIGGER_CONCURRENCY = Number.isFinite(concurrencyParam) && concurrencyParam > 0 ? concurrencyParam : TARGETS.length;
+  const concurrencyParam = parseInt(String(urlObj.searchParams.get("concurrency") || ""), 10);
+  const TRIGGER_CONCURRENCY =
+    Number.isFinite(concurrencyParam) && concurrencyParam > 0 ? concurrencyParam : TARGETS.length;
 
   async function triggerOne(t) {
     const key = t.key;
@@ -153,7 +146,7 @@ module.exports = async (req, res) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${APIFY_TOKEN}`,
+          Authorization: `Bearer ${APIFY_TOKEN}`,
         },
         body: JSON.stringify(maybeInput || {}),
       });
