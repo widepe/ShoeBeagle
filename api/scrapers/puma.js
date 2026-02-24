@@ -1,304 +1,306 @@
-// /api/scrape-puma.js
-// Scrape PUMA running shoe sale via the JSON search endpoint (GraphQL -> Fredhopper-like results)
-// Writes blob to puma.json
+// /api/puma.js  (CommonJS, Vercel Serverless Function)
+//
+// Scrapes PUMA running shoes sale lister using Cheerio and writes to Vercel Blob.
+//
+// ✅ Uses PUMA_DEALS_BLOB_URL env var (FULL blob URL) to determine blob pathname.
+// ✅ Avoids the broken `offset=` pagination by paging with `fh_start_index=`
+// ✅ Stops early if a page adds 0 new unique products (prevents “scrape beyond empty pages”)
+// ✅ Gender + shoeType rules exactly as you specified (from the card subheader)
+//
+// Test:
+//   /api/puma
+//
+// Optional overrides:
+//   /api/puma?startUrl=https://us.puma.com/us/en/sale/all-sale?filter_product_division=%3E%7Bshoes%7D&filter_sport_type=%3E%7Brunning%7D
+//
+// Requires env vars:
+//   - BLOB_READ_WRITE_TOKEN
+//   - PUMA_DEALS_BLOB_URL   (example: https://...public.blob.vercel-storage.com/puma.json)
 
+const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
 
-// -----------------------------
-// helpers
-// -----------------------------
 function nowIso() {
   return new Date().toISOString();
 }
 
-function requireEnv(name) {
-  const v = String(process.env[name] || "").trim();
-  return v || null;
-}
-
-function parseOptionalJsonEnv(name) {
-  const raw = String(process.env[name] || "").trim();
-  if (!raw) return null;
-  try {
-    const obj = JSON.parse(raw);
-    return obj && typeof obj === "object" ? obj : null;
-  } catch (e) {
-    return { __error: `Invalid JSON in ${name}: ${e?.message || "parse error"}` };
-  }
-}
-
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-function toNumPrice(x) {
-  if (x == null) return null;
-  if (typeof x === "number" && Number.isFinite(x)) return x;
-  const s = String(x).trim();
+function toAbsUrl(href) {
+  const s = String(href || "").trim();
   if (!s) return null;
-  const m = s.replace(/,/g, "").match(/(\d+(\.\d+)?)/);
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  if (s.startsWith("/")) return `https://us.puma.com${s}`;
+  return `https://us.puma.com/${s}`;
+}
+
+function parseMoney(s) {
+  const t = String(s || "").replace(/[, ]+/g, "").trim();
+  if (!t) return null;
+  const m = t.match(/-?\d+(\.\d+)?/);
   if (!m) return null;
-  const n = Number(m[1]);
+  const n = Number(m[0]);
   return Number.isFinite(n) ? n : null;
 }
 
-function pct(off, orig) {
-  if (!Number.isFinite(off) || !Number.isFinite(orig) || orig <= 0) return null;
-  return Math.round(((orig - off) / orig) * 100);
+function cleanText(s) {
+  return String(s || "")
+    .replace(/\s+/g, " ")
+    .replace(/\u00a0/g, " ")
+    .trim();
 }
 
-function slugifyPumaName(name) {
-  // PUMA slugs look like:
-  // "Skyrocket Lite 2 Women's Shoes" -> "skyrocket-lite-2-womens-shoes"
-  // keep it simple & robust
-  return String(name || "")
-    .toLowerCase()
-    .replace(/&/g, " and ")
-    .replace(/['’]/g, "") // remove apostrophes
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+// Your rules:
+// - Gender from subheader: Men's / Women's, else unknown
+// - shoeType from subheader: contains "road running" => road,
+//   contains "trail running" => trail, else unknown
+function deriveGenderAndType(subHeaderRaw) {
+  const sub = cleanText(subHeaderRaw);
+  const lower = sub.toLowerCase();
+
+  let gender = "unknown";
+  if (/\bmen'?s\b/.test(lower) || /\bmen\b/.test(lower)) gender = "mens";
+  else if (/\bwomen'?s\b/.test(lower) || /\bwomen\b/.test(lower)) gender = "womens";
+
+  let shoeType = "unknown";
+  if (lower.includes("road running")) shoeType = "road";
+  else if (lower.includes("trail running")) shoeType = "trail";
+
+  return { gender, shoeType, subHeader: sub };
 }
 
-function deriveGender(subHeaderOrName) {
-  const s = String(subHeaderOrName || "").toLowerCase();
-  if (/\bmen\b|\bmens\b|\bmen's\b/.test(s)) return "mens";
-  if (/\bwomen\b|\bwomens\b|\bwomen's\b/.test(s)) return "womens";
-  return "unknown";
+// Extract a likely total item count from the HTML if present.
+// We try a few patterns; if none found, we’ll still paginate until “no new uniques”.
+function extractTotalItemsFromHtml(html) {
+  // Common in the JSON blobs you pasted: "totalItems":270
+  const m1 = html.match(/"totalItems"\s*:\s*(\d{1,6})/);
+  if (m1) return Number(m1[1]);
+
+  // Sometimes: "nrOfItemsInSelection":270
+  const m2 = html.match(/"nrOfItemsInSelection"\s*:\s*(\d{1,6})/);
+  if (m2) return Number(m2[1]);
+
+  return null;
 }
 
-function deriveShoeType(subHeaderOrName) {
-  const s = String(subHeaderOrName || "").toLowerCase();
-  if (s.includes("road running")) return "road";
-  if (s.includes("trail running")) return "trail";
-  return "unknown";
+// Ensure URL has fh_view_size and fh_start_index for server-side paging.
+function withFhPaging(urlStr, startIndex, viewSize) {
+  const u = new URL(urlStr);
+  if (!u.searchParams.get("fh_view_size")) u.searchParams.set("fh_view_size", String(viewSize));
+  u.searchParams.set("fh_start_index", String(startIndex));
+  return u.toString();
 }
 
-function buildListingUrlFromHit(masterName, masterId, colorValue) {
-  // Matches the pattern you showed:
-  // /us/en/pd/cell-thrill-dash-mens-sneakers/311728?swatch=05
-  const slug = slugifyPumaName(masterName);
-  if (!slug || !masterId) return null;
-  const sw = String(colorValue || "").trim();
-  const q = sw ? `?swatch=${encodeURIComponent(sw)}` : "";
-  return `https://us.puma.com/us/en/pd/${slug}/${encodeURIComponent(masterId)}${q}`;
+function blobPathFromFullUrl(fullUrl) {
+  const raw = String(fullUrl || "").trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    // pathname like "/puma.json" or "/folder/puma.json"
+    return u.pathname.replace(/^\/+/, "") || null;
+  } catch {
+    return null;
+  }
 }
 
-// -----------------------------
-// GraphQL fetch
-// -----------------------------
-async function postGraphql(endpoint, body, extraHeaders) {
-  const headers = {
-    "content-type": "application/json",
-    accept: "application/json",
-    ...(extraHeaders || {}),
-  };
-
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
+async function fetchHtml(url) {
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      "user-agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36",
+      accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    },
   });
 
-  const text = await res.text();
-  let json = null;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    // leave json null
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Fetch failed ${res.status} ${res.statusText} — ${text.slice(0, 200)}`);
   }
 
-  if (!res.ok) {
-    const msg = json?.errors?.[0]?.message || text.slice(0, 500) || `HTTP ${res.status}`;
-    throw new Error(`PUMA GraphQL failed (${res.status}): ${msg}`);
-  }
-  if (!json) throw new Error("PUMA GraphQL returned non-JSON response");
-  return json;
+  return await res.text();
 }
 
-// -----------------------------
-// handler
-// -----------------------------
+function parseTilesFromHtml(html) {
+  const $ = cheerio.load(html);
+  const tiles = $("li[data-test-id='product-list-item']");
+  const parsed = [];
+
+  tiles.each((_, el) => {
+    const $li = $(el);
+
+    const href =
+      $li.find("a[data-test-id='product-list-item-link']").attr("href") ||
+      $li.find("a[href*='/us/en/pd/']").attr("href") ||
+      "";
+
+    const listingURL = toAbsUrl(href);
+    const model = cleanText($li.find("h2").first().text());
+
+    // Card subheader (your gender/shoeType rules depend on this)
+    const subHeaderRaw = $li.find("h3").first().text();
+    const { gender, shoeType, subHeader } = deriveGenderAndType(subHeaderRaw);
+
+    // Prices
+    const saleRaw = $li.find("[data-test-id='sale-price']").first().text();
+    const origRaw = $li.find("[data-test-id='price']").first().text();
+    const salePrice = parseMoney(saleRaw);
+    const originalPrice = parseMoney(origRaw);
+
+    // Image
+    const img =
+      $li.find("img").first().attr("src") ||
+      $li.find("img").first().attr("data-src") ||
+      null;
+
+    const imageURL = cleanText(img);
+
+    parsed.push({
+      listingURL,
+      model,
+      subHeader,
+      gender,
+      shoeType,
+      salePrice,
+      originalPrice,
+      imageURL: imageURL || null,
+    });
+  });
+
+  return parsed;
+}
+
 module.exports = async function handler(req, res) {
   const t0 = Date.now();
 
-  // ✅ required
-  const endpoint = requireEnv("PUMA_GRAPHQL_ENDPOINT");
-  const blobToken = requireEnv("BLOB_READ_WRITE_TOKEN");
+  // ✅ Define these FIRST to avoid “Cannot access 'blobPath' before initialization”
+  const blobToken = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
+  const blobUrlEnv = String(process.env.PUMA_DEALS_BLOB_URL || "").trim();
+  const blobPath = blobPathFromFullUrl(blobUrlEnv);
 
-  if (!endpoint) {
-    res.status(500).json({ ok: false, error: "Missing env var PUMA_GRAPHQL_ENDPOINT" });
-    return;
-  }
-  if (!blobToken) {
-    res.status(500).json({ ok: false, error: "Missing env var BLOB_READ_WRITE_TOKEN" });
-    return;
-  }
+  const VIEW_SIZE = 24;
+  const MAX_PAGES_HARD_CAP = 50; // safety
 
-  const blobPath = String(process.env.PUMA_BLOB_PATH || "puma.json").trim() || "puma.json";
-  const extraHeaders = parseOptionalJsonEnv("PUMA_GRAPHQL_EXTRA_HEADERS_JSON");
-  if (extraHeaders?.__error) {
-    res.status(500).json({ ok: false, error: extraHeaders.__error });
-    return;
-  }
+  const startUrl =
+    String(req.query?.startUrl || "").trim() ||
+    "https://us.puma.com/us/en/sale/all-sale?filter_product_division=%3E%7Bshoes%7D&filter_sport_type=%3E%7Brunning%7D";
 
-  // Pagination knobs
-  const viewSize = 24;
-  const maxPages = Number(req.query?.maxPages || 50); // safety cap
-  const throttleMs = Number(req.query?.throttleMs || 120); // be polite
-
-  // This is the important part: use fh_start_index pagination, not offset=
-  // Start index defaults to 0.
-  let startIndex = 0;
-
-  // OUTPUT
   const out = {
     store: "PUMA",
     schemaVersion: 1,
     lastUpdated: nowIso(),
-    via: "cheerio", // keep your label if you want, but this is JSON API
+    via: "cheerio",
     sourceUrls: [],
     pagesFetched: 0,
     dealsFound: 0,
     dealsExtracted: 0,
     scrapeDurationMs: 0,
-    ok: true,
+    ok: false,
     error: null,
     dropCounts: {
-      totalItemsSeen: 0,
-      dropped_notADeal: 0,
+      totalTiles: 0,
+      dropped_duplicate: 0,
       dropped_missingUrl: 0,
       dropped_missingImage: 0,
       dropped_missingModel: 0,
       dropped_saleMissingOrZero: 0,
       dropped_originalMissingOrZero: 0,
-      kept: 0,
+      dropped_notADeal: 0,
+      keptUnique: 0,
+      __debug_firstTile: null,
+      stopReason: null,
     },
     deals: [],
   };
 
-  const seen = new Set();
-  let totalItems = null;
-
   try {
-    for (let page = 0; page < maxPages; page++) {
-      // Build the same query the site uses (you already captured the *response*).
-      // You must mirror the site's request body here.
-      //
-      // IMPORTANT:
-      // - The exact "query" string may differ on your end.
-      // - If your network request used "operationName" + "variables", copy that.
-      //
-      // Below is a flexible shape that works when the endpoint accepts a persisted query,
-      // OR when it accepts a "query" document. If your request had different keys,
-      // paste the request body and we’ll match it exactly.
+    if (!blobToken) throw new Error("Missing BLOB_READ_WRITE_TOKEN env var");
+    if (!blobUrlEnv) throw new Error("Missing PUMA_DEALS_BLOB_URL env var");
+    if (!blobPath) throw new Error("PUMA_DEALS_BLOB_URL is not a valid URL (could not parse pathname)");
 
-      const body = {
-        // If your request includes operationName, set it here:
-        operationName: "searchProducts",
-        // If your request includes a GraphQL "query", put it here.
-        // If your request was "persisted query" style, you will instead have extensions.persistedQuery.
-        // query: "....",
-        variables: {
-          // the key thing is fh_start_index and fh_view_size
-          // Many implementations accept these inside a "urlParams" string. Yours clearly does.
-          urlParams: `fh_view_size=${viewSize}&country=us&eb_segment=5&environment=live&fh_view=lister&row_size=4&platform=web&fh_start_index=${startIndex}&fh_location=%2f%2fcatalog01%2fen_US%2fcategories%3c%7bcatalog01_us%7d%2fcategories%3c%7bcatalog01_us_us0sale%7d%2fcategories%3c%7bcatalog01_us_us0sale_us0sale0all0sale%7d%2fproduct_division%3e%7bshoes%7d%2fsport_type%3e%7brunning%7d`,
-        },
-      };
+    // Fetch first page to learn total item count if possible
+    const html0 = await fetchHtml(withFhPaging(startUrl, 0, VIEW_SIZE));
+    const totalItems = extractTotalItemsFromHtml(html0);
 
-      const json = await postGraphql(endpoint, body, extraHeaders);
+    // Plan pages
+    const plannedPages =
+      typeof totalItems === "number" && Number.isFinite(totalItems) && totalItems > 0
+        ? Math.min(MAX_PAGES_HARD_CAP, Math.ceil(totalItems / VIEW_SIZE))
+        : MAX_PAGES_HARD_CAP; // unknown total: rely on stop condition
 
-      const sp = json?.data?.searchProducts;
-      const itemsSection = sp?.itemsSection;
-      const results = itemsSection?.results;
-      const items = itemsSection?.items || [];
+    const seen = new Set(); // dedupe by listingURL
+    const deals = [];
 
-      // Capture totalItems once (this makes stopping correct & fast)
-      if (typeof results?.totalItems === "number" && totalItems == null) {
-        totalItems = results.totalItems;
+    for (let page = 0; page < plannedPages; page++) {
+      const startIndex = page * VIEW_SIZE;
+      const pageUrl = withFhPaging(startUrl, startIndex, VIEW_SIZE);
+      out.sourceUrls.push(pageUrl);
+
+      const html = page === 0 ? html0 : await fetchHtml(pageUrl);
+      out.pagesFetched++;
+
+      const tiles = parseTilesFromHtml(html);
+      out.dropCounts.totalTiles += tiles.length;
+
+      if (!out.dropCounts.__debug_firstTile && tiles[0]) {
+        out.dropCounts.__debug_firstTile = {
+          tileExists: true,
+          firstModel: tiles[0].model || null,
+          firstSubHeader: tiles[0].subHeader || null,
+          firstHref: tiles[0].listingURL || null,
+          firstImg: tiles[0].imageURL || null,
+          firstSale: tiles[0].salePrice,
+          firstOrig: tiles[0].originalPrice,
+        };
       }
 
-      // Track the “source urls” in a human way
-      out.sourceUrls.push(`fh_start_index=${startIndex}&fh_view_size=${viewSize}`);
+      const before = seen.size;
 
-      out.pagesFetched += 1;
-      out.dropCounts.totalItemsSeen += items.length;
-      out.dealsFound += items.length;
-
-      let newUniqueThisPage = 0;
-
-      for (const it of items) {
-        const hit = it?.productSearchHit;
-        const master = hit?.masterProduct;
-        const variant = hit?.variantProduct;
-
-        const masterId = master?.id || hit?.masterId || hit?.id;
-        const colorValue = hit?.color || variant?.colorValue;
-        const masterName = master?.name || variant?.name || "";
-
-        const model = String(master?.header || variant?.header || "").trim() || String(masterName).trim();
-
-        const imageURL =
-          variant?.preview ||
-          variant?.images?.[0]?.href ||
-          master?.image?.href ||
-          master?.image?.verticalImageHref ||
-          null;
-
-        const salePrice = toNumPrice(variant?.productPrice?.salePrice);
-        const originalPrice = toNumPrice(variant?.productPrice?.price);
-
-        // listingURL: we construct from name + id + swatch (works like your HTML example)
-        const listingURL = buildListingUrlFromHit(masterName, masterId, colorValue);
-
-        // Derive gender/shoeType from the same label you see on the card
-        // In this API, subHeader is the closest analog.
-        const subHeader = String(master?.subHeader || variant?.subHeader || "").trim();
-        const gender = deriveGender(subHeader || masterName);
-        const shoeType = deriveShoeType(subHeader || masterName);
-
-        // Drops (in case the API returns weird items)
-        if (!listingURL) {
-          out.dropCounts.dropped_missingUrl += 1;
+      for (const t of tiles) {
+        // Required fields per your canonical deal logic
+        if (!t.listingURL) {
+          out.dropCounts.dropped_missingUrl++;
           continue;
         }
-        if (!imageURL) {
-          out.dropCounts.dropped_missingImage += 1;
+        if (seen.has(t.listingURL)) {
+          out.dropCounts.dropped_duplicate++;
           continue;
         }
-        if (!model) {
-          out.dropCounts.dropped_missingModel += 1;
+        if (!t.imageURL) {
+          out.dropCounts.dropped_missingImage++;
           continue;
         }
-        if (!(salePrice > 0)) {
-          out.dropCounts.dropped_saleMissingOrZero += 1;
+        if (!t.model) {
+          out.dropCounts.dropped_missingModel++;
           continue;
         }
-        if (!(originalPrice > 0)) {
-          out.dropCounts.dropped_originalMissingOrZero += 1;
+        if (!t.salePrice || t.salePrice <= 0) {
+          out.dropCounts.dropped_saleMissingOrZero++;
           continue;
         }
-        if (!(salePrice < originalPrice)) {
-          out.dropCounts.dropped_notADeal += 1;
+        if (!t.originalPrice || t.originalPrice <= 0) {
+          out.dropCounts.dropped_originalMissingOrZero++;
+          continue;
+        }
+        if (t.salePrice >= t.originalPrice) {
+          out.dropCounts.dropped_notADeal++;
           continue;
         }
 
-        // de-dupe
-        if (seen.has(listingURL)) continue;
-        seen.add(listingURL);
-        newUniqueThisPage += 1;
+        seen.add(t.listingURL);
 
-        const discountPercent = pct(salePrice, originalPrice);
+        const discountPercent = Math.round(((t.originalPrice - t.salePrice) / t.originalPrice) * 100);
 
-        out.deals.push({
+        deals.push({
           schemaVersion: 1,
-          listingName: masterName || model,
-          brand: "Puma",
-          model,
-          salePrice,
-          originalPrice,
+
+          listingName: `PUMA ${t.model} ${t.subHeader}`.trim(),
+          brand: "PUMA",
+          model: t.model,
+
+          salePrice: t.salePrice,
+          originalPrice: t.originalPrice,
           discountPercent,
 
+          // no ranges on this lister
           salePriceLow: null,
           salePriceHigh: null,
           originalPriceLow: null,
@@ -306,59 +308,45 @@ module.exports = async function handler(req, res) {
           discountPercentUpTo: null,
 
           store: "PUMA",
-          listingURL,
-          imageURL,
-          gender,
-          shoeType,
+          listingURL: t.listingURL,
+          imageURL: t.imageURL,
+
+          gender: t.gender,
+          shoeType: t.shoeType,
         });
-
-        out.dropCounts.kept += 1;
       }
 
-      // ✅ stop conditions
-      if (items.length === 0) {
-        out.stopReason = "no_items";
+      const added = seen.size - before;
+      if (added === 0) {
+        out.dropCounts.stopReason = "no_new_unique_urls";
         break;
       }
-
-      // If the endpoint ever repeats the same page, stop immediately
-      if (newUniqueThisPage === 0) {
-        out.stopReason = "no_new_unique_deals";
-        break;
-      }
-
-      startIndex += viewSize;
-
-      // If we know totalItems, stop exactly at end
-      if (typeof totalItems === "number" && startIndex >= totalItems) {
-        out.stopReason = "reached_totalItems";
-        break;
-      }
-
-      if (throttleMs > 0) await sleep(throttleMs);
     }
 
-    out.dealsExtracted = out.deals.length;
-    out.scrapeDurationMs = Date.now() - t0;
+    out.deals = deals;
+    out.dealsFound = out.dropCounts.totalTiles;
+    out.dealsExtracted = deals.length;
+    out.dropCounts.keptUnique = deals.length;
 
-    // write blob
+    // Write blob
     const blob = await put(blobPath, JSON.stringify(out, null, 2), {
       access: "public",
       contentType: "application/json",
       token: blobToken,
     });
 
+    out.ok = true;
+    out.error = null;
     out.blobUrl = blob.url;
+    out.scrapeDurationMs = Date.now() - t0;
 
-    res.setHeader("content-type", "application/json; charset=utf-8");
-    res.status(200).send(JSON.stringify(out, null, 2));
-  } catch (err) {
-    const outErr = {
-      ok: false,
-      error: err?.message || String(err),
-      lastUpdated: nowIso(),
-      scrapeDurationMs: Date.now() - t0,
-    };
-    res.status(500).json(outErr);
+    return res.status(200).json(out);
+  } catch (e) {
+    out.ok = false;
+    out.error = e?.message || String(e);
+    out.scrapeDurationMs = Date.now() - t0;
+
+    // Still return the partial debug we have
+    return res.status(500).json(out);
   }
 };
