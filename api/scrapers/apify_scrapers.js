@@ -53,12 +53,13 @@ async function runWithConcurrency(items, concurrency, worker) {
 const ENABLED = {
   asics: true,
   brooks: true,
+  footlocker: true,  
+  mizuno: true,
+  puma: true,
   rei: true,
+  rnj: true,
   roadrunner: true,
   zappos: true,
-  footlocker: true,
-  rnj: true,
-  mizuno: true,
 };
 
 // ===========================
@@ -69,6 +70,7 @@ const TARGETS = [
   { key: "brooks", name: "Brooks Running", actorEnv: "APIFY_BROOKS_ACTOR_ID", inputEnv: "APIFY_BROOKS_INPUT_JSON" },
   { key: "footlocker", name: "Foot Locker", actorEnv: "APIFY_FOOTLOCKER_ACTOR_ID", inputEnv: "APIFY_FOOTLOCKER_INPUT_JSON" },
   { key: "mizuno", name: "Mizuno", actorEnv: "APIFY_MIZUNO_ACTOR_ID", inputEnv: "APIFY_MIZUNO_INPUT_JSON" },
+  { key: "puma", name: "PUMA", actorEnv: "APIFY_PUMA_ACTOR_ID", inputEnv: "APIFY_PUMA_INPUT_JSON" },
   { key: "rei", name: "REI Outlet", actorEnv: "APIFY_REI_ACTOR_ID", inputEnv: "APIFY_REI_INPUT_JSON" },
   { key: "roadrunner", name: "Road Runner Sports", actorEnv: "APIFY_ROADRUNNER_ACTOR_ID", inputEnv: "APIFY_ROADRUNNER_INPUT_JSON" },
   { key: "rnj", name: "RnJ Sports", actorEnv: "APIFY_RNJSPORTS_ACTOR_ID", inputEnv: "APIFY_RNJSPORTS_INPUT_JSON" },
