@@ -1159,7 +1159,7 @@ input[type="text"], input[type="search"]{
   }
 }
   /* ==============================
-     LOAD MORE (mobile portrait only)
+     LOAD MORE (mobile portrait)
   ============================== */
 
   .load-more-wrap{
@@ -1167,9 +1167,7 @@ input[type="text"], input[type="search"]{
     display:flex;
     justify-content:center;
     align-items:center;
-
-    padding:18px 12px 26px;   /* breathing room around button */
-    margin-top:12px;
+    padding:10px 0 16px;   /* small breathing room */
   }
 
   .load-more-btn{
@@ -1177,28 +1175,24 @@ input[type="text"], input[type="search"]{
     align-items:center;
     justify-content:center;
 
-    /* ~2x taller than pager button */
-    height:84px;
-    min-width:90%;
-    max-width:520px;
+    padding:10px 18px;     /* just light padding around text */
+    height:auto;           /* remove forced tall height */
+    min-width:auto;
 
-    padding:0 28px;
-
-    border-radius:18px;
-    border:2px solid var(--sb-blue);
+    border-radius:12px;
+    border:1.5px solid var(--sb-blue);
     background:var(--sb-blue);
     color:#fff;
 
-    font-size:1.4rem;
-    font-weight:900;
-    letter-spacing:0.3px;
-
-    box-shadow:0 10px 20px rgba(0,0,0,0.15);
+    font-size:1.15rem;     /* one size smaller */
+    font-weight:800;
   }
 
   .load-more-btn:active{
     transform:translateY(1px);
-  }/* =========================================================
+  }
+
+/* =========================================================
    DESKTOP VIEW (align top cluster to grid outer width)
 ========================================================= */
 @media (min-width:901px){
