@@ -1,282 +1,283 @@
-// /api/scrape-puma.js  (CommonJS)
-// Scrapes PUMA "All Sale" filtered to Running Shoes, paginates with `offset=`,
-// dedupes by URL, writes FULL JSON (including deals[]) to your blob, and
-// returns ONLY metadata (no deals array) in the HTTP response.
+// /api/scrapers/puma.js   (CommonJS)
+// Scrape PUMA Running Shoes on Sale (HTML + Cheerio), dedupe across pages,
+// write FULL JSON (including deals array) to Vercel Blob at PUMA_DEALS_BLOB_URL,
+// but DO NOT return the deals array in the API response.
 //
-// REQUIRED ENV VARS
-// - PUMA_DEALS_BLOB_URL   (example: https://...public.blob.vercel-storage.com/puma.json)
-// - BLOB_READ_WRITE_TOKEN (or VERCEL_BLOB_READ_WRITE_TOKEN, depending on your setup)
+// Env vars required:
+// - PUMA_DEALS_BLOB_URL  (example: https://...public.blob.vercel-storage.com/puma.json)
+// - BLOB_READ_WRITE_TOKEN  (Vercel Blob RW token)
 //
-// Optional
-// - PUMA_MAX_PAGES        (default 25)
-// - PUMA_PAGE_SIZE        (default 24)
-// - PUMA_CONCURRENCY      (default 4)
+// Notes:
+// - Uses offset=0,24,48... pagination (the one you showed that returns 270 products total).
+// - Stops automatically when a page yields 0 NEW unique listingURLs.
+// - Also stops if a page returns 0 tiles (safety).
+//
+// Test:
+//   /api/scrapers/puma
+//
+// Optional query params:
+//   ?maxPages=50   (default 80)
+//   ?pageSize=24   (default 24)
 
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
 
-// -----------------------------
-// helpers
-// -----------------------------
 function nowIso() {
   return new Date().toISOString();
 }
 
-function envStr(name) {
+function asInt(v, fallback) {
+  const n = Number.parseInt(String(v || ""), 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function requireEnv(name) {
   const v = String(process.env[name] || "").trim();
   return v || null;
 }
 
-function getBlobToken() {
-  return (
-    envStr("BLOB_READ_WRITE_TOKEN") ||
-    envStr("VERCEL_BLOB_READ_WRITE_TOKEN") ||
-    null
-  );
-}
-
-function blobPathFromPublicBlobUrl(publicUrl) {
-  // Example:
-  // https://xxxxx.public.blob.vercel-storage.com/puma.json  -> "puma.json"
-  // https://xxxxx.public.blob.vercel-storage.com/folder/puma.json -> "folder/puma.json"
+function safeUrlJoin(base, href) {
   try {
-    const u = new URL(publicUrl);
-    let p = (u.pathname || "").replace(/^\/+/, "");
-    if (!p) return null;
-    return p;
+    return new URL(href, base).toString();
   } catch {
-    return null;
+    return href || null;
   }
 }
 
-function absUrl(href) {
-  if (!href) return null;
-  if (/^https?:\/\//i.test(href)) return href;
-  // PUMA uses /us/en/...
-  if (href.startsWith("/")) return `https://us.puma.com${href}`;
-  return `https://us.puma.com/${href}`;
+function normalizeWhitespace(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
 }
 
-function cleanText(s) {
-  return String(s || "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function parseUsdNumber(x) {
-  // accepts "$34.99", "34.99", "$70.00"
-  const m = String(x || "").replace(/,/g, "").match(/(\d+(\.\d+)?)/);
+function parsePriceNumber(x) {
+  // Handles "$34.99", "34.99", " $70.00 "
+  const s = String(x || "").replace(/[,]/g, "").trim();
+  const m = s.match(/(\d+(\.\d+)?)/);
   if (!m) return null;
   const n = Number(m[1]);
   return Number.isFinite(n) ? n : null;
 }
 
 function computeDiscountPercent(sale, orig) {
-  if (
-    typeof sale !== "number" ||
-    typeof orig !== "number" ||
-    !Number.isFinite(sale) ||
-    !Number.isFinite(orig) ||
-    orig <= 0 ||
-    sale <= 0 ||
-    sale >= orig
-  ) {
-    return null;
-  }
-  return Math.round(((orig - sale) / orig) * 100);
+  if (!Number.isFinite(sale) || !Number.isFinite(orig) || orig <= 0) return null;
+  const pct = Math.round(((orig - sale) / orig) * 100);
+  if (!Number.isFinite(pct)) return null;
+  // Guard against weird negatives
+  if (pct <= 0) return 0;
+  return pct;
 }
 
-function detectGenderFromText(t) {
-  const s = String(t || "").toLowerCase();
-  if (/\bmen['’]s\b/.test(s) || /\bmens\b/.test(s)) return "mens";
-  if (/\bwomen['’]s\b/.test(s) || /\bwomens\b/.test(s)) return "womens";
-  if (/\bkid['’]s\b/.test(s) || /\bkids\b/.test(s) || /\byouth\b/.test(s))
-    return "kids";
+function detectGenderFromSubHeader(subHeader) {
+  const s = String(subHeader || "").toLowerCase();
+  if (s.includes("women")) return "womens";
+  if (s.includes("men")) return "mens";
+  if (s.includes("kid") || s.includes("youth") || s.includes("boys") || s.includes("girls")) return "kids";
   return "unknown";
 }
 
-// -----------------------------
-// fetch
-// -----------------------------
+function blobUrlToPathname(blobUrl) {
+  // Converts: https://...public.blob.vercel-storage.com/puma.json  ->  "puma.json"
+  try {
+    const u = new URL(blobUrl);
+    let p = u.pathname || "";
+    if (p.startsWith("/")) p = p.slice(1);
+    return p || null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchHtml(url) {
   const res = await fetch(url, {
     method: "GET",
     headers: {
+      // These headers help reduce “variant HTML” / bot weirdness.
       "user-agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "accept-language": "en-US,en;q=0.9",
+      "cache-control": "no-cache",
+      pragma: "no-cache",
     },
   });
 
-  const html = await res.text().catch(() => "");
+  const text = await res.text();
   if (!res.ok) {
-    const msg = `HTTP ${res.status} ${res.statusText}`.trim();
-    throw new Error(`${msg} while fetching ${url}`);
+    const snippet = text ? text.slice(0, 400) : "";
+    throw new Error(`HTTP ${res.status} fetching HTML. ${snippet}`);
   }
-  if (!html || html.length < 500) {
-    throw new Error(`Empty/short HTML while fetching ${url}`);
-  }
-  return html;
+  return text;
 }
 
-// -----------------------------
-// parse one page
-// -----------------------------
-function extractDealsFromHtml(html) {
+function extractTilesFromHtml(html, pageUrl) {
   const $ = cheerio.load(html);
 
-  // PUMA list pages are fairly consistent: product tiles contain a link to /us/en/pd/...
-  // We’ll grab any anchor with /pd/ inside, then walk up a bit to find nearby text for pricing.
+  // The parsed “text view” shows product cards as:
+  //  - h2 for product name
+  //  - h3 for subheader
+  //  - image links
+  //
+  // In practice on PUMA, the product grid cards are typically anchors to /us/en/pd/...
+  // We’ll target anchors that look like PDP links and then walk upward to find nearby text/prices/images.
+  //
+  // This is intentionally resilient (PUMA changes classnames often).
+
+  const pdpAnchors = [];
+  $('a[href*="/us/en/pd/"]').each((_, a) => {
+    const href = $(a).attr("href");
+    if (!href) return;
+    const full = safeUrlJoin("https://us.puma.com", href);
+    if (!full) return;
+
+    // Dedupe anchors on the same page
+    pdpAnchors.push({ href: full, el: a });
+  });
+
+  // If their markup nests multiple anchors per card, we want “unique by href” later.
   const tiles = [];
 
-  const anchors = Array.from($('a[href*="/us/en/pd/"]'));
-  for (const a of anchors) {
-    const href = $(a).attr("href");
-    const url = absUrl(href);
-    if (!url) continue;
+  for (const { href, el } of pdpAnchors) {
+    const $a = $(el);
 
-    // walk up to a reasonable container (product card)
-    const $card =
-      $(a).closest("li, article, div").first().length ? $(a).closest("li, article, div").first() : $(a);
+    // Try to find the “card” root: closest element that contains an H2-like title and prices.
+    // We’ll walk up a few levels.
+    let $root = $a;
+    for (let i = 0; i < 6; i++) {
+      const hasPriceText =
+        normalizeWhitespace($root.text()).includes("$") || $root.find('*:contains("$")').length > 0;
+      const hasImg = $root.find("img").length > 0 || $root.find("picture img").length > 0;
+      if (hasPriceText && hasImg) break;
+      const parent = $root.parent();
+      if (!parent || parent.length === 0) break;
+      $root = parent;
+    }
 
-    const cardText = cleanText($card.text());
+    // Title model: prefer heading text inside the root (often "## Cell Thrill Dash")
+    let model = "";
+    const h2 = $root.find("h2").first();
+    if (h2.length) model = normalizeWhitespace(h2.text());
+    if (!model) {
+      // fallback: aria-label or image alt sometimes contains “<name>, <color>, large”
+      const imgAlt = $root.find("img").first().attr("alt");
+      if (imgAlt) {
+        // e.g. "Cell Thrill Dash Men's Sneakers, PUMA Navy-PUMA White, large"
+        model = normalizeWhitespace(String(imgAlt).split(",")[0]);
+      }
+    }
 
-    // Title/model heuristics: prefer the anchor text; fallback to nearby headings
-    let model =
-      cleanText($(a).attr("aria-label")) ||
-      cleanText($(a).text()) ||
-      cleanText($card.find("h2,h3").first().text());
+    // Subheader (gender hint): usually h3 like "Men's Sneakers" / "Women's Shoes"
+    let subHeader = "";
+    const h3 = $root.find("h3").first();
+    if (h3.length) subHeader = normalizeWhitespace(h3.text());
 
-    // Many PUMA tiles show "## <header>" and "### <subheader>" in accessible text;
-    // we just need something consistent for `model`.
-    model = model || null;
+    // Image: prefer puma.com image URLs in attributes
+    let imageURL = null;
+    const img = $root.find("img").first();
+    if (img.length) {
+      imageURL =
+        img.attr("src") ||
+        img.attr("data-src") ||
+        img.attr("data-lazy") ||
+        img.attr("data-original") ||
+        null;
+    }
+    if (imageURL && imageURL.startsWith("//")) imageURL = "https:" + imageURL;
 
-    // Image
-    let imageURL =
-      $(a).find("img").attr("src") ||
-      $(a).find("img").attr("data-src") ||
-      $card.find("img").first().attr("src") ||
-      $card.find("img").first().attr("data-src") ||
-      null;
+    // Prices: on the text view we saw "$34.99$70.00" adjacent.
+    // We’ll extract the first two distinct $ amounts found in root text.
+    const rootText = normalizeWhitespace($root.text());
+    const priceMatches = rootText.match(/\$\s*\d+(?:\.\d{2})?/g) || [];
+    const distinct = [];
+    for (const p of priceMatches) {
+      const n = parsePriceNumber(p);
+      if (!Number.isFinite(n)) continue;
+      if (!distinct.includes(n)) distinct.push(n);
+      if (distinct.length >= 2) break;
+    }
 
-    imageURL = imageURL ? String(imageURL).trim() : null;
-
-    // Price heuristics: look for two dollar amounts in the card text
-    // usually: "$34.99$70.00" or "$34.99 $70.00"
-    const money = cardText.match(/\$\s*\d+(?:\.\d+)?/g) || [];
-    const sale = parseUsdNumber(money[0] || null);
-    const orig = parseUsdNumber(money[1] || null);
-
-    // Gender hint often present like "Men's Sneakers" / "Women's Shoes"
-    const gender = detectGenderFromText(cardText);
+    const salePrice = distinct.length >= 1 ? distinct[0] : null;
+    const originalPrice = distinct.length >= 2 ? distinct[1] : null;
 
     tiles.push({
-      url,
+      listingURL: href,
       model,
+      subHeader,
       imageURL,
-      sale,
-      orig,
-      gender,
-      cardText,
+      salePrice,
+      originalPrice,
+      pageUrl,
     });
   }
 
-  // de-dupe within page by URL (anchors repeat a lot)
-  const seen = new Set();
-  const unique = [];
-  for (const t of tiles) {
-    if (!t.url || seen.has(t.url)) continue;
-    seen.add(t.url);
-    unique.push(t);
-  }
-
-  return { tilesSeen: tiles.length, tilesUnique: unique.length, tiles: unique };
+  return tiles;
 }
 
-// -----------------------------
-// build canonical deal
-// -----------------------------
-function toCanonicalDeal(t) {
-  const model = t.model ? cleanText(t.model) : null;
-  if (!model) return { deal: null, drop: "missingModel" };
+function buildDealFromTile(tile) {
+  const model = normalizeWhitespace(tile.model);
+  if (!model) return { ok: false, reason: "missingModel" };
 
-  if (typeof t.sale !== "number" || t.sale <= 0) return { deal: null, drop: "saleMissingOrZero" };
-  if (typeof t.orig !== "number" || t.orig <= 0) return { deal: null, drop: "originalMissingOrZero" };
+  const listingURL = tile.listingURL || null;
+  if (!listingURL) return { ok: false, reason: "missingUrl" };
 
-  // must be a deal (sale < orig)
-  if (!(t.sale < t.orig)) return { deal: null, drop: "notADeal" };
+  const imageURL = tile.imageURL || null;
+  if (!imageURL) return { ok: false, reason: "missingImage" };
 
-  const listingURL = t.url;
-  if (!listingURL) return { deal: null, drop: "missingUrl" };
+  const salePrice = tile.salePrice;
+  const originalPrice = tile.originalPrice;
 
-  const imageURL = t.imageURL || null;
-  if (!imageURL) return { deal: null, drop: "missingImage" };
+  if (!Number.isFinite(salePrice) || salePrice <= 0) return { ok: false, reason: "saleMissingOrZero" };
+  if (!Number.isFinite(originalPrice) || originalPrice <= 0) return { ok: false, reason: "originalMissingOrZero" };
+  if (salePrice >= originalPrice) return { ok: false, reason: "notADeal" };
 
-  const discountPercent = computeDiscountPercent(t.sale, t.orig);
+  const discountPercent = computeDiscountPercent(salePrice, originalPrice);
 
-  return {
-    drop: null,
-    deal: {
-      schemaVersion: 1,
-      listingName: `PUMA ${model}`,
-      brand: "PUMA",
-      model,
-      salePrice: t.sale,
-      originalPrice: t.orig,
-      discountPercent: discountPercent,
+  const gender = detectGenderFromSubHeader(tile.subHeader);
 
-      // optional range fields (not used here)
-      salePriceLow: null,
-      salePriceHigh: null,
-      originalPriceLow: null,
-      originalPriceHigh: null,
-      discountPercentUpTo: null,
-
-      store: "PUMA",
-      listingURL,
-      imageURL,
-      gender: t.gender || "unknown",
-      shoeType: "unknown",
-    },
+  // Keep it simple. You can run your detectShoeType() later in merge if you want.
+  const deal = {
+    schemaVersion: 1,
+    listingName: `PUMA ${model} ${tile.subHeader ? tile.subHeader : ""}`.trim(),
+    brand: "PUMA",
+    model,
+    salePrice,
+    originalPrice,
+    discountPercent,
+    salePriceLow: null,
+    salePriceHigh: null,
+    originalPriceLow: null,
+    originalPriceHigh: null,
+    discountPercentUpTo: null,
+    store: "PUMA",
+    listingURL,
+    imageURL,
+    gender,
+    shoeType: "unknown",
   };
+
+  return { ok: true, deal };
 }
 
-// -----------------------------
-// main handler
-// -----------------------------
 module.exports = async function handler(req, res) {
   const t0 = Date.now();
 
-  const PUMA_DEALS_BLOB_URL = envStr("PUMA_DEALS_BLOB_URL");
-  const blobToken = getBlobToken();
+  const blobUrl = requireEnv("PUMA_DEALS_BLOB_URL");
+  const blobToken = requireEnv("BLOB_READ_WRITE_TOKEN");
 
-  if (!PUMA_DEALS_BLOB_URL) {
-    return res.status(500).json({ ok: false, error: "Missing env var PUMA_DEALS_BLOB_URL" });
-  }
-  if (!blobToken) {
-    return res.status(500).json({
-      ok: false,
-      error: "Missing blob token env var (BLOB_READ_WRITE_TOKEN or VERCEL_BLOB_READ_WRITE_TOKEN)",
-    });
-  }
+  if (!blobUrl) return res.status(500).json({ ok: false, error: "Missing env var PUMA_DEALS_BLOB_URL" });
+  if (!blobToken) return res.status(500).json({ ok: false, error: "Missing env var BLOB_READ_WRITE_TOKEN" });
 
-  const blobPath = blobPathFromPublicBlobUrl(PUMA_DEALS_BLOB_URL);
-  if (!blobPath) {
-    return res.status(500).json({
-      ok: false,
-      error: "PUMA_DEALS_BLOB_URL must be a valid public blob URL ending in a filename (e.g. .../puma.json)",
-    });
-  }
+  const blobPath = blobUrlToPathname(blobUrl);
+  if (!blobPath) return res.status(500).json({ ok: false, error: "PUMA_DEALS_BLOB_URL is not a valid URL" });
 
-  const pageSize = Math.max(1, Number(envStr("PUMA_PAGE_SIZE") || 24));
-  const maxPages = Math.max(1, Number(envStr("PUMA_MAX_PAGES") || 25));
-  const concurrency = Math.max(1, Number(envStr("PUMA_CONCURRENCY") || 4));
+  const pageSize = asInt(req.query?.pageSize, 24);
+  const maxPages = asInt(req.query?.maxPages, 80);
 
+  // Base listing url (your filter)
   const base =
     "https://us.puma.com/us/en/sale/all-sale?filter_product_division=%3E%7Bshoes%7D&filter_sport_type=%3E%7Brunning%7D";
 
   const sourceUrls = [];
+  const seenListingUrls = new Set();
+
   const dropCounts = {
     totalTiles: 0,
     dropped_duplicate: 0,
@@ -286,148 +287,156 @@ module.exports = async function handler(req, res) {
     dropped_saleMissingOrZero: 0,
     dropped_originalMissingOrZero: 0,
     dropped_notADeal: 0,
-    keptUnique: 0,
-    stopReason: null,
-    __debug_firstTile: null,
+    stopped_noNewFromHtml: 0,
+    stopped_noTiles: 0,
   };
 
-  const seenUrls = new Set();
   const deals = [];
 
-  let page = 0;
-  let stop = false;
+  let pagesFetched = 0;
+  let dealsFound = 0;
 
-  async function scrapeOneOffset(offset) {
-    const url = `${base}&offset=${offset}`;
-    sourceUrls.push(url);
-
-    const html = await fetchHtml(url);
-    const { tilesSeen, tilesUnique, tiles } = extractDealsFromHtml(html);
-
-    dropCounts.totalTiles += tilesUnique;
-
-    if (!dropCounts.__debug_firstTile && tiles && tiles.length) {
-      const ft = tiles[0];
-      dropCounts.__debug_firstTile = {
-        tileExists: true,
-        firstModel: ft.model || null,
-        firstHref: ft.url || null,
-        firstImg: ft.imageURL || null,
-        firstSale: ft.sale || null,
-        firstOrig: ft.orig || null,
-      };
-    }
-
-    let newUniqueUrls = 0;
-
-    for (const t of tiles) {
-      if (!t.url) {
-        dropCounts.dropped_missingUrl += 1;
-        continue;
-      }
-      if (seenUrls.has(t.url)) {
-        dropCounts.dropped_duplicate += 1;
-        continue;
-      }
-      seenUrls.add(t.url);
-      newUniqueUrls += 1;
-
-      const { deal, drop } = toCanonicalDeal(t);
-      if (!deal) {
-        if (drop === "missingModel") dropCounts.dropped_missingModel += 1;
-        else if (drop === "saleMissingOrZero") dropCounts.dropped_saleMissingOrZero += 1;
-        else if (drop === "originalMissingOrZero") dropCounts.dropped_originalMissingOrZero += 1;
-        else if (drop === "notADeal") dropCounts.dropped_notADeal += 1;
-        else if (drop === "missingUrl") dropCounts.dropped_missingUrl += 1;
-        else if (drop === "missingImage") dropCounts.dropped_missingImage += 1;
-        continue;
-      }
-
-      deals.push(deal);
-      dropCounts.keptUnique += 1;
-    }
-
-    return { url, tilesSeen, tilesUnique, newUniqueUrls };
-  }
+  let ok = true;
+  let error = null;
 
   try {
-    // Paginate offsets: 0, 24, 48, ...
-    // We stop when a page yields 0 new unique URLs.
-    while (!stop && page < maxPages) {
-      // batch offsets
-      const batch = [];
-      for (let i = 0; i < concurrency && page < maxPages; i += 1) {
-        const offset = page * pageSize;
-        batch.push(scrapeOneOffset(offset));
-        page += 1;
+    for (let page = 0; page < maxPages; page++) {
+      const offset = page * pageSize;
+      const url = `${base}&offset=${offset}`;
+      sourceUrls.push(url);
+
+      const html = await fetchHtml(url);
+      pagesFetched++;
+
+      const tiles = extractTilesFromHtml(html, url);
+      dropCounts.totalTiles += tiles.length;
+      dealsFound += tiles.length;
+
+      if (tiles.length === 0) {
+        dropCounts.stopped_noTiles += 1;
+        break;
       }
 
-      const results = await Promise.all(batch);
+      let newUniqueThisPage = 0;
 
-      // if *every* page in this batch produced no new unique URLs, stop
-      const anyNew = results.some((r) => r.newUniqueUrls > 0);
-      if (!anyNew) {
-        dropCounts.stopReason = "no_new_unique_urls";
-        stop = true;
+      for (const tile of tiles) {
+        if (!tile.listingURL) {
+          dropCounts.dropped_missingUrl += 1;
+          continue;
+        }
+
+        if (seenListingUrls.has(tile.listingURL)) {
+          dropCounts.dropped_duplicate += 1;
+          continue;
+        }
+
+        // Mark as seen early to prevent double adds from multiple anchors per card
+        seenListingUrls.add(tile.listingURL);
+        newUniqueThisPage++;
+
+        const built = buildDealFromTile(tile);
+        if (!built.ok) {
+          const r = built.reason;
+          if (r === "missingModel") dropCounts.dropped_missingModel += 1;
+          else if (r === "missingUrl") dropCounts.dropped_missingUrl += 1;
+          else if (r === "missingImage") dropCounts.dropped_missingImage += 1;
+          else if (r === "saleMissingOrZero") dropCounts.dropped_saleMissingOrZero += 1;
+          else if (r === "originalMissingOrZero") dropCounts.dropped_originalMissingOrZero += 1;
+          else if (r === "notADeal") dropCounts.dropped_notADeal += 1;
+          continue;
+        }
+
+        deals.push(built.deal);
+      }
+
+      // ✅ Stop condition: page produced no NEW unique URLs.
+      // This is the key fix so it stops properly whether 10 products or 943.
+      if (newUniqueThisPage === 0) {
+        dropCounts.stopped_noNewFromHtml += 1;
+        break;
+      }
+
+      // Extra safety: if fewer tiles than pageSize, likely last page.
+      if (tiles.length < pageSize) {
+        break;
       }
     }
 
-    // Write full payload (WITH deals[]) to blob
-    const payload = {
+    const payloadForBlob = {
       store: "PUMA",
       schemaVersion: 1,
       lastUpdated: nowIso(),
       via: "cheerio",
       sourceUrls,
-      pagesFetched: sourceUrls.length,
-      dealsFound: dropCounts.totalTiles,
+      pagesFetched,
+      dealsFound,
       dealsExtracted: deals.length,
       scrapeDurationMs: Date.now() - t0,
       ok: true,
       error: null,
-      dropCounts,
-      deals, // <-- stays in blob only; NOT returned in HTTP response below
+      dropCounts: {
+        ...dropCounts,
+        keptUnique: seenListingUrls.size,
+      },
+      deals, // ✅ full array stored in blob ONLY
     };
 
-    const putRes = await put(blobPath, JSON.stringify(payload, null, 2), {
+    await put(blobPath, JSON.stringify(payloadForBlob, null, 2), {
       access: "public",
-      addRandomSuffix: false,
       contentType: "application/json",
       token: blobToken,
-    });
-
-    // Respond with metadata ONLY (no deals array)
-    return res.status(200).json({
-      store: "PUMA",
-      schemaVersion: 1,
-      lastUpdated: payload.lastUpdated,
-      via: payload.via,
-      sourceUrls: payload.sourceUrls,
-      pagesFetched: payload.pagesFetched,
-      dealsFound: payload.dealsFound,
-      dealsExtracted: payload.dealsExtracted,
-      scrapeDurationMs: payload.scrapeDurationMs,
-      ok: true,
-      error: null,
-      dropCounts: payload.dropCounts,
-      blobUrl: putRes?.url || PUMA_DEALS_BLOB_URL,
+      addRandomSuffix: false, // keep exact pathname so merge can find it consistently
     });
   } catch (e) {
-    // On error, do NOT include deals array in response.
-    return res.status(500).json({
-      store: "PUMA",
-      schemaVersion: 1,
-      lastUpdated: nowIso(),
-      via: "cheerio",
-      sourceUrls,
-      pagesFetched: sourceUrls.length,
-      dealsFound: dropCounts.totalTiles,
-      dealsExtracted: deals.length,
-      scrapeDurationMs: Date.now() - t0,
-      ok: false,
-      error: e?.message || "Unknown error",
-      dropCounts,
-      // intentionally: no deals
-    });
+    ok = false;
+    error = e?.message || String(e);
+
+    // If something failed, still write a small error blob (optional).
+    // Comment this out if you prefer not to overwrite.
+    try {
+      const errBlob = {
+        store: "PUMA",
+        schemaVersion: 1,
+        lastUpdated: nowIso(),
+        via: "cheerio",
+        sourceUrls,
+        pagesFetched,
+        dealsFound,
+        dealsExtracted: deals.length,
+        scrapeDurationMs: Date.now() - t0,
+        ok: false,
+        error,
+        dropCounts,
+      };
+      await put(blobPath, JSON.stringify(errBlob, null, 2), {
+        access: "public",
+        contentType: "application/json",
+        token: blobToken,
+        addRandomSuffix: false,
+      });
+    } catch {
+      // ignore secondary failure
+    }
   }
+
+  // ✅ IMPORTANT: Do NOT include deals array in the API response.
+  // Return metadata + where it was written.
+  return res.status(ok ? 200 : 500).json({
+    store: "PUMA",
+    schemaVersion: 1,
+    lastUpdated: nowIso(),
+    via: "cheerio",
+    sourceUrls,
+    pagesFetched,
+    dealsFound,
+    dealsExtracted: deals.length,
+    scrapeDurationMs: Date.now() - t0,
+    ok,
+    error,
+    dropCounts: {
+      ...dropCounts,
+      keptUnique: seenListingUrls.size,
+    },
+    blobUrl, // so you can click and verify
+  });
 };
