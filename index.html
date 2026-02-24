@@ -793,15 +793,21 @@ renderSuggestions(built.items, (value) => {
         });
 
         qInput.addEventListener("keydown", (e) => {
-          handleSuggestionKeys(e, (value) => {
-            const bm = splitBrandModelFromPicked(value);
-            if (bm.brand && bm.model) qInput.value = `${bm.brand} ${bm.model}`.trim();
-            else qInput.value = value;
+handleSuggestionKeys(e, (value) => {
+  const bm = splitBrandModelFromPicked(value);
+  if (bm.brand && bm.model) qInput.value = `${bm.brand} ${bm.model}`.trim();
+  else qInput.value = value;
 
-            closeSuggestions();
-            setTimeout(() => fetchBtn && fetchBtn.focus(), 0);
-            updateFetchReady();
-          });
+  closeSuggestions();
+  updateFetchReady();
+
+  // ✅ Enter on a highlighted suggestion triggers the search too
+  if (form && typeof form.requestSubmit === "function") {
+    form.requestSubmit(fetchBtn || undefined);
+  } else if (form) {
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  }
+});
         });
 
         qInput.addEventListener("blur", () => setTimeout(() => closeSuggestions(), 140));
