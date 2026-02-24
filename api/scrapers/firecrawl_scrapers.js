@@ -128,7 +128,7 @@ async function runOneTarget(baseUrl, runId, t, cronSecret) {
         headers: {
           "User-Agent": "ShoeBeagle-FirecrawlRunner/1.0",
           // ✅ pass through cron secret so /api/scrapers/backcountry (and others that enforce it) can run
-          ...(cronSecret ? { "x-cron-secret": cronSecret } : {}),
+          ...(cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {}),
         },
       },
       DEFAULT_TIMEOUT_MS
