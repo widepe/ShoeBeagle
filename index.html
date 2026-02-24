@@ -773,15 +773,21 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
           const built = buildUnifiedSuggestions(typed);
           suggestionState.mode = built.mode;
 
-          renderSuggestions(built.items, (value) => {
-            const bm = splitBrandModelFromPicked(value);
-            if (bm.brand && bm.model) qInput.value = `${bm.brand} ${bm.model}`.trim();
-            else qInput.value = value;
+renderSuggestions(built.items, (value) => {
+  const bm = splitBrandModelFromPicked(value);
+  if (bm.brand && bm.model) qInput.value = `${bm.brand} ${bm.model}`.trim();
+  else qInput.value = value;
 
-            closeSuggestions();
-            setTimeout(() => fetchBtn && fetchBtn.focus(), 0);
-            updateFetchReady();
-          });
+  closeSuggestions();
+  updateFetchReady();
+
+  // ✅ one-click search: immediately submit (same behavior as hitting Fetch)
+  if (form && typeof form.requestSubmit === "function") {
+    form.requestSubmit(fetchBtn || undefined);
+  } else if (form) {
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  }
+});
 
           updateFetchReady();
         });
