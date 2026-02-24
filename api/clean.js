@@ -1,71 +1,81 @@
 // /api/clean-scraper-data.js
-// RUN ONCE, then delete this file.
+//
+// Removes entire scraper entries where:
+//   entry.error === "Request failed with status code 404"
+//
+// Writes back to the same blob key: scraper-data.json
 
 const { put } = require("@vercel/blob");
- 
-const INPUT_URL =
+
+const SRC_URL =
   "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/scraper-data.json";
 
-const BLOCKED_FILENAMES = new Set([
-  "apify-deals_blob.json",
-  "cheerio-deals_blob.json",
-  "deals-other.json",
-]);
-
-function getFilename(url) {
-  try {
-    const u = new URL(url);
-    return u.pathname.split("/").pop();
-  } catch {
-    return "";
-  }
-}
+const DROP_ERROR_EXACT = "Request failed with status code 404";
 
 module.exports = async function handler(req, res) {
   try {
-    // 1. Fetch existing scraper-data.json
-    const response = await fetch(INPUT_URL);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch original file`);
+    if (req.method !== "GET" && req.method !== "POST") {
+      return res.status(405).json({ ok: false, error: "Use GET or POST" });
     }
 
-    const data = await response.json();
+    // Fetch current JSON
+    const r = await fetch(SRC_URL, { cache: "no-store" });
+    if (!r.ok) {
+      return res.status(502).json({
+        ok: false,
+        error: `Failed to fetch source JSON: ${r.status} ${r.statusText}`,
+        srcUrl: SRC_URL,
+      });
+    }
 
-    let removed = 0;
+    const data = await r.json();
+    if (!data || !Array.isArray(data.days)) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Unexpected JSON shape (missing days[])" });
+    }
 
-    // 2. Remove unwanted scraper entries
-    data.days = data.days.map(day => {
-      const filtered = (day.scrapers || []).filter(scraper => {
-        const filename = getFilename(scraper.blobUrl || "");
-        const shouldRemove = BLOCKED_FILENAMES.has(filename);
-        if (shouldRemove) removed++;
-        return !shouldRemove;
+    let removedTotal = 0;
+    const removedByDay = [];
+
+    const cleanedDays = data.days.map((day) => {
+      const scrapers = Array.isArray(day.scrapers) ? day.scrapers : [];
+      const before = scrapers.length;
+
+      const kept = scrapers.filter((entry) => {
+        const err = entry && typeof entry === "object" ? entry.error : null;
+        return err !== DROP_ERROR_EXACT;
       });
 
-      return { ...day, scrapers: filtered };
+      const removed = before - kept.length;
+      removedTotal += removed;
+      if (removed) removedByDay.push({ dayUTC: day.dayUTC, removed });
+
+      return { ...day, scrapers: kept };
     });
 
-    data.lastUpdated = new Date().toISOString();
+    const cleaned = {
+      ...data,
+      lastUpdated: new Date().toISOString(),
+      days: cleanedDays,
+    };
 
-    // 3. Overwrite original blob
-    const result = await put("scraper-data.json", JSON.stringify(data, null, 2), {
+    // Overwrite same blob name (no random suffix)
+    const blob = await put("scraper-data.json", JSON.stringify(cleaned, null, 2), {
       access: "public",
       contentType: "application/json",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
       addRandomSuffix: false,
     });
 
-    res.status(200).json({
-      ok: true,
-      removed,
-      updatedUrl: result.url,
-      message: "Cleanup complete. You can now delete this API file.",
-    });
+    res.setHeader("Cache-Control", "no-store, max-age=0");
 
-  } catch (err) {
-    res.status(500).json({
-      ok: false,
-      error: err.message,
+    return res.status(200).json({
+      ok: true,
+      removedTotal,
+      removedByDay,
+      updatedBlobUrl: blob.url,
     });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e?.message || String(e) });
   }
 };
