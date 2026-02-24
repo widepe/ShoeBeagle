@@ -350,9 +350,15 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-const auth = req.headers.authorization;
-if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-  return res.status(401).json({ success: false, error: "Unauthorized" });
+const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
+if (CRON_SECRET) {
+  const auth = String(req.headers.authorization || "").trim();
+  const xCron = String(req.headers["x-cron-secret"] || "").trim();
+  const ok = auth === `Bearer ${CRON_SECRET}` || xCron === CRON_SECRET;
+
+  if (!ok) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
 }
 
 
