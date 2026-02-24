@@ -118,10 +118,6 @@ module.exports = async (req, res) => {
   const onlySet = parseCsvParam(urlObj.searchParams.get("only"));
   const skipSet = parseCsvParam(urlObj.searchParams.get("skip"));
 
-  const concurrencyParam = parseInt(String(urlObj.searchParams.get("concurrency") || ""), 10);
-  const TRIGGER_CONCURRENCY =
-    Number.isFinite(concurrencyParam) && concurrencyParam > 0 ? concurrencyParam : TARGETS.length;
-
   const concurrencyParam = parseInt(String(req.query?.concurrency || ""), 10);
   const TRIGGER_CONCURRENCY = Number.isFinite(concurrencyParam) && concurrencyParam > 0 ? concurrencyParam : TARGETS.length;
 
