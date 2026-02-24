@@ -188,18 +188,18 @@ async function firecrawlScrapeHtml(url) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-  body: JSON.stringify({
-  url,
-  formats: ["html"],
+    body: JSON.stringify({
+      url,
+      formats: ["html"],
 
-  maxAge: 0,
-  storeInCache: false,
+      maxAge: 0,
+      storeInCache: false,
 
-  waitFor: 2000,
-  removeBase64Images: true,
+      waitFor: 2000,
+      removeBase64Images: true,
 
-  timeout: 60000,
-}),
+      timeout: 60000,
+    }),
   });
 
   const json = await resp.json().catch(() => null);
@@ -260,18 +260,6 @@ function parseDealsFromHtml(html, drop) {
   const tiles = $('div[data-testid="product-item"]');
 
   drop.counts.totalTiles = tiles.length;
-
-  // Debug: use PDP URL to derive SKU and image URL
-  const first = tiles.first();
-  const firstHref = first.find('a[href*="/pdp/"]').first().attr("href") || "";
-  const firstListingURL = firstHref
-    ? firstHref.startsWith("http")
-      ? firstHref
-      : `https://www.jdsports.com${firstHref}`
-    : "";
-  const derivedSku = deriveSkuFromListingURL(firstListingURL);
-  const firstImg = first.find("img").first();
-
 
   // dealsFound = unique PDP URLs
   const hrefSet = new Set();
@@ -407,19 +395,22 @@ function toLightweightResponse(output) {
 }
 
 export default async function handler(req, res) {
+  // Avoid req.query (Vercel runtime uses deprecated url.parse() under the hood)
+  const urlObj = new URL(req.url, "http://localhost");
+
   // -----------------------------
-  // CRON SECRET (commented for testing)
+  // CRON SECRET (optional)
   // -----------------------------
-   const isCron = String(req.query?.cron || "") === "1";
-   if (isCron) {
-     const expected = String(process.env.CRON_SECRET || "").trim();
-     const got = String(req.query?.secret || req.headers["x-cron-secret"] || "").trim();
-     if (!expected) return res.status(500).json({ ok: false, error: "Missing CRON_SECRET env var" });
-     if (!got || got !== expected) return res.status(401).json({ ok: false, error: "Unauthorized" });
-   }
+  const isCron = String(urlObj.searchParams.get("cron") || "") === "1";
+  if (isCron) {
+    const expected = String(process.env.CRON_SECRET || "").trim();
+    const got = String(urlObj.searchParams.get("secret") || req.headers["x-cron-secret"] || "").trim();
+    if (!expected) return res.status(500).json({ ok: false, error: "Missing CRON_SECRET env var" });
+    if (!got || got !== expected) return res.status(401).json({ ok: false, error: "Unauthorized" });
+  }
 
   const startUrl =
-    String(req.query?.url || "").trim() ||
+    String(urlObj.searchParams.get("url") || "").trim() ||
     "https://www.jdsports.com/plp/all-sale/category=shoes+activity=running";
 
   const configuredBlobUrl = String(process.env.JDSPORTS_DEALS_BLOB_URL || "").trim() || null;
