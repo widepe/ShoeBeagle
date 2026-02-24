@@ -279,15 +279,18 @@ module.exports = async function handler(req, res) {
   // ---------------------------------
   // CRON SECRET PROTECTION (commented out)
   // ---------------------------------
-   const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
-   if (CRON_SECRET) {
-     const provided =
-       String(req.headers["x-cron-secret"] || "").trim() ||
-       String(req.query?.cron_secret || "").trim();
-     if (provided !== CRON_SECRET) {
-       return res.status(401).json({ ok: false, error: "Unauthorized: Invalid CRON_SECRET" });
-     }
-   }
+  const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
+  if (CRON_SECRET) {
+    // Avoid req.query (Vercel runtime uses deprecated url.parse() under the hood)
+    const urlObj = new URL(req.url, "http://localhost"); // base required for relative req.url
+    const provided =
+      String(req.headers["x-cron-secret"] || "").trim() ||
+      String(urlObj.searchParams.get("cron_secret") || "").trim();
+
+    if (provided !== CRON_SECRET) {
+      return res.status(401).json({ ok: false, error: "Unauthorized: Invalid CRON_SECRET" });
+    }
+  }
 
   const t0 = Date.now();
 
@@ -326,7 +329,7 @@ module.exports = async function handler(req, res) {
       womens: womens.dropCounts,
       total: {
         tilesFound: (mens.dropCounts.tilesFound || 0) + (womens.dropCounts.tilesFound || 0),
-        dropped_soccer: mens.dropCounts.dropped_soccer + womens.dropCounts.dropped_soccer,
+        dropped_bannedWord: (mens.dropCounts.dropped_bannedWord || 0) + (womens.dropCounts.dropped_bannedWord || 0),
         dropped_missingCore: mens.dropCounts.dropped_missingCore + womens.dropCounts.dropped_missingCore,
         dropped_missingPrices: mens.dropCounts.dropped_missingPrices + womens.dropCounts.dropped_missingPrices,
         dropped_badPrices: mens.dropCounts.dropped_badPrices + womens.dropCounts.dropped_badPrices,
