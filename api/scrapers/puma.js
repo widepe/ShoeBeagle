@@ -1,342 +1,232 @@
-// api/puma.js  (CommonJS)
-// Scrape PUMA running shoes sale listing and write to a Vercel Blob.
+// /api/scrape-puma.js  (CommonJS)
+// Scrapes PUMA "All Sale" filtered to Running Shoes, paginates with `offset=`,
+// dedupes by URL, writes FULL JSON (including deals[]) to your blob, and
+// returns ONLY metadata (no deals array) in the HTTP response.
 //
-// ENV required:
-//   PUMA_DEALS_BLOB_URL = https://....public.blob.vercel-storage.com/puma.json
+// REQUIRED ENV VARS
+// - PUMA_DEALS_BLOB_URL   (example: https://...public.blob.vercel-storage.com/puma.json)
+// - BLOB_READ_WRITE_TOKEN (or VERCEL_BLOB_READ_WRITE_TOKEN, depending on your setup)
 //
-// ENV optional (recommended if you have it):
-//   PUMA_GRAPHQL_ENDPOINT = full URL to the site GraphQL endpoint (if you’ve discovered it)
-//
-// Notes:
-// - We do NOT rely on "offset=" working (often it doesn't). We stop when a page yields 0 new items.
-// - If GraphQL works, we use it to fetch all items cleanly.
-// - If GraphQL is not available, we fall back to HTML list items: li[data-test-id="product-list-item"].
+// Optional
+// - PUMA_MAX_PAGES        (default 25)
+// - PUMA_PAGE_SIZE        (default 24)
+// - PUMA_CONCURRENCY      (default 4)
 
 const cheerio = require("cheerio");
-
-// Node 18+ has global fetch
 const { put } = require("@vercel/blob");
 
+// -----------------------------
+// helpers
+// -----------------------------
 function nowIso() {
   return new Date().toISOString();
 }
 
-function requireEnv(name) {
-  const v = String(process.env[name] || "").trim();
-  if (!v) throw new Error(`Missing env var ${name}`);
-  return v;
-}
-
-function optEnv(name) {
+function envStr(name) {
   const v = String(process.env[name] || "").trim();
   return v || null;
 }
 
-function absUrl(base, href) {
+function getBlobToken() {
+  return (
+    envStr("BLOB_READ_WRITE_TOKEN") ||
+    envStr("VERCEL_BLOB_READ_WRITE_TOKEN") ||
+    null
+  );
+}
+
+function blobPathFromPublicBlobUrl(publicUrl) {
+  // Example:
+  // https://xxxxx.public.blob.vercel-storage.com/puma.json  -> "puma.json"
+  // https://xxxxx.public.blob.vercel-storage.com/folder/puma.json -> "folder/puma.json"
   try {
-    return new URL(href, base).toString();
+    const u = new URL(publicUrl);
+    let p = (u.pathname || "").replace(/^\/+/, "");
+    if (!p) return null;
+    return p;
   } catch {
     return null;
   }
 }
 
-function parseMoney(s) {
-  const t = String(s || "").replace(/[^\d.]/g, "").trim();
-  if (!t) return null;
-  const n = Number(t);
+function absUrl(href) {
+  if (!href) return null;
+  if (/^https?:\/\//i.test(href)) return href;
+  // PUMA uses /us/en/...
+  if (href.startsWith("/")) return `https://us.puma.com${href}`;
+  return `https://us.puma.com/${href}`;
+}
+
+function cleanText(s) {
+  return String(s || "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseUsdNumber(x) {
+  // accepts "$34.99", "34.99", "$70.00"
+  const m = String(x || "").replace(/,/g, "").match(/(\d+(\.\d+)?)/);
+  if (!m) return null;
+  const n = Number(m[1]);
   return Number.isFinite(n) ? n : null;
 }
 
-// Your rule:
-// - Gender is clearly stated on card: "Men's ..." or "Women's ...", else "unknown"
-// - If AFTER gender it states "road running" => shoeType road
-// - If AFTER gender it states "trail running" => shoeType trail
-// - otherwise shoeType unknown
-function parseGenderAndTypeFromSubtitle(subtitleRaw) {
-  const subtitle = String(subtitleRaw || "").trim();
-  const low = subtitle.toLowerCase();
-
-  let gender = "unknown";
-  if (/\bmen'?s\b/.test(low)) gender = "mens";
-  else if (/\bwomen'?s\b/.test(low)) gender = "womens";
-
-  // "after gender it states road running / trail running" — we interpret as:
-  // the subtitle contains "... road running ..." or "... trail running ..."
-  let shoeType = "unknown";
-  if (low.includes("road running")) shoeType = "road";
-  else if (low.includes("trail running")) shoeType = "trail";
-
-  return { gender, shoeType, subtitle };
+function computeDiscountPercent(sale, orig) {
+  if (
+    typeof sale !== "number" ||
+    typeof orig !== "number" ||
+    !Number.isFinite(sale) ||
+    !Number.isFinite(orig) ||
+    orig <= 0 ||
+    sale <= 0 ||
+    sale >= orig
+  ) {
+    return null;
+  }
+  return Math.round(((orig - sale) / orig) * 100);
 }
 
-function buildListingName({ brand, model, subtitle }) {
-  const parts = [brand, model, subtitle].filter(Boolean);
-  return parts.join(" ").replace(/\s+/g, " ").trim();
+function detectGenderFromText(t) {
+  const s = String(t || "").toLowerCase();
+  if (/\bmen['’]s\b/.test(s) || /\bmens\b/.test(s)) return "mens";
+  if (/\bwomen['’]s\b/.test(s) || /\bwomens\b/.test(s)) return "womens";
+  if (/\bkid['’]s\b/.test(s) || /\bkids\b/.test(s) || /\byouth\b/.test(s))
+    return "kids";
+  return "unknown";
 }
 
-async function fetchText(url, headers = {}) {
-  const resp = await fetch(url, {
+// -----------------------------
+// fetch
+// -----------------------------
+async function fetchHtml(url) {
+  const res = await fetch(url, {
     method: "GET",
     headers: {
       "user-agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
-      "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      ...headers,
+      accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "accept-language": "en-US,en;q=0.9",
     },
   });
-  const text = await resp.text();
-  return { ok: resp.ok, status: resp.status, text };
-}
 
-function discoverGraphqlEndpointFromHtml(html, origin) {
-  // Heuristics:
-  // 1) look for absolute URLs containing "graphql"
-  // 2) fallback to common relative paths on Next sites
-  const candidates = new Set();
-
-  const reAbs = /https?:\/\/[^\s"'<>]+graphql[^\s"'<>]*/gi;
-  let m;
-  while ((m = reAbs.exec(html))) candidates.add(m[0]);
-
-  // Common relative endpoints
-  candidates.add(new URL("/api/graphql", origin).toString());
-  candidates.add(new URL("/graphql", origin).toString());
-
-  // return first plausible
-  for (const c of candidates) {
-    if (String(c).toLowerCase().includes("graphql")) return c;
+  const html = await res.text().catch(() => "");
+  if (!res.ok) {
+    const msg = `HTTP ${res.status} ${res.statusText}`.trim();
+    throw new Error(`${msg} while fetching ${url}`);
   }
-  return null;
-}
-
-async function tryGraphqlSearchAll({
-  listingUrl,
-  graphqlEndpoint,
-  dropCounts,
-  sourceUrls,
-}) {
-  // We do NOT know the exact GraphQL query name/shape on the server from here.
-  // You already pasted a response with: data.searchProducts.itemsSection.results.totalItems = 270
-  //
-  // So: this function expects you to provide a working endpoint AND we’ll attempt a
-  // "best guess" POST that many PUMA/FH (Fredhopper) setups accept.
-  //
-  // If it fails, caller falls back to HTML.
-
-  const origin = new URL(listingUrl).origin;
-
-  // Build FH params (these appear in your pasted payload)
-  // We’ll use them in a generic way; if your endpoint needs different structure,
-  // this will fail fast and fallback will kick in.
-  const viewSize = 24;
-
-  // NOTE: if your endpoint requires special headers/cookies, HTML fallback is safer.
-  const headers = {
-    "content-type": "application/json",
-    accept: "application/json",
-    origin,
-    referer: listingUrl,
-  };
-
-  const all = [];
-  const seen = new Set();
-
-  // We’ll attempt up to 100 pages; break when no new items.
-  for (let startIndex = 0; startIndex < 2400; startIndex += viewSize) {
-    const body = {
-      // A very common pattern is:
-      // { "operationName": "...", "variables": {...}, "query": "..." }
-      //
-      // But we don’t have the query text. So we can only support GraphQL
-      // if you’re routing through an endpoint that accepts FH params directly
-      // (some do), OR if you later paste the real query.
-      //
-      // Because of that uncertainty, we keep this "best-effort" and fail fast.
-      fh_view_size: viewSize,
-      fh_start_index: startIndex,
-      // We keep the original listing URL filters by sending the path piece.
-      // Many FH-backed endpoints accept this kind of location parameter:
-      fh_location: "/catalog01/en_US/categories<{catalog01_us}>/categories<{catalog01_us_us0sale}>/categories<{catalog01_us_us0sale_us0sale0all0sale}>/product_division>{shoes}/sport_type>{running}",
-    };
-
-    const resp = await fetch(graphqlEndpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
-
-    if (!resp.ok) {
-      throw new Error(`GraphQL HTTP ${resp.status}`);
-    }
-
-    const json = await resp.json();
-    const items =
-      json?.data?.searchProducts?.itemsSection?.items ||
-      json?.data?.searchProducts?.itemsSection?.itemsSection?.items ||
-      null;
-
-    if (!Array.isArray(items)) {
-      // Not the expected shape -> fail and fallback.
-      throw new Error("GraphQL response shape not recognized");
-    }
-
-    let addedThisPage = 0;
-
-    for (const it of items) {
-      const hit = it?.productSearchHit;
-      const master = hit?.masterProduct;
-      const variant = hit?.variantProduct;
-
-      const model = String(master?.header || "").trim();
-      const subtitle = String(master?.subHeader || variant?.subHeader || "").trim();
-
-      const { gender, shoeType } = parseGenderAndTypeFromSubtitle(subtitle);
-
-      const salePrice = Number(variant?.productPrice?.salePrice);
-      const originalPrice = Number(variant?.productPrice?.price);
-
-      const img =
-        variant?.preview ||
-        master?.image?.href ||
-        master?.image?.verticalImageHref ||
-        null;
-
-      // Link building is not obvious from GraphQL alone; many include it in link[0].urlParams.
-      // We’ll skip GraphQL if we can’t build a URL.
-      const detailParams = it?.link?.find((x) => x?.name === "Detail")?.urlParams || "";
-      // If you have a better URL in your real payload, swap it in here.
-      // For now we require styleNumber to build a PDP URL reliably.
-      const styleNumber = String(variant?.styleNumber || it?.id || "").trim();
-      if (!styleNumber) continue;
-
-      // PDP pattern on site is usually /us/en/pd/<slug>/<id>?swatch=<color>
-      // Without slug, we can’t guarantee the exact path. So we consider GraphQL incomplete
-      // unless we have link params that include fh_secondid or a direct link.
-      let listingURL = null;
-      if (detailParams) {
-        // This is NOT a PDP URL, but it’s at least a stable detail link in many FH installs.
-        listingURL = `${listingUrl.split("?")[0]}?${detailParams}`;
-      }
-
-      const key = styleNumber;
-      if (seen.has(key)) {
-        dropCounts.dropped_duplicate++;
-        continue;
-      }
-      seen.add(key);
-
-      if (!model) dropCounts.dropped_missingModel++;
-      if (!img) dropCounts.dropped_missingImage++;
-      if (!listingURL) dropCounts.dropped_missingUrl++;
-      if (!Number.isFinite(salePrice) || salePrice <= 0) dropCounts.dropped_saleMissingOrZero++;
-      if (!Number.isFinite(originalPrice) || originalPrice <= 0) dropCounts.dropped_originalMissingOrZero++;
-
-      // We still enforce your merge rule philosophy: must have sale + original and be a deal.
-      if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice) || salePrice <= 0 || originalPrice <= 0) {
-        continue;
-      }
-      if (salePrice >= originalPrice) {
-        dropCounts.dropped_notADeal++;
-        continue;
-      }
-
-      const discountPercent = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
-
-      const deal = {
-        listingName: buildListingName({ brand: "Puma", model, subtitle }),
-        brand: "Puma",
-        model,
-
-        salePrice,
-        originalPrice,
-        discountPercent,
-
-        salePriceLow: null,
-        salePriceHigh: null,
-        originalPriceLow: null,
-        originalPriceHigh: null,
-        discountPercentUpTo: null,
-
-        store: "PUMA",
-        listingURL,
-        imageURL: img,
-
-        gender,
-        shoeType,
-      };
-
-      all.push(deal);
-      addedThisPage++;
-    }
-
-    sourceUrls.push(`${graphqlEndpoint} (POST startIndex=${startIndex})`);
-
-    if (addedThisPage === 0) {
-      dropCounts.stopped_noNewFromGraphql++;
-      break;
-    }
+  if (!html || html.length < 500) {
+    throw new Error(`Empty/short HTML while fetching ${url}`);
   }
-
-  return all;
+  return html;
 }
 
-function parseDealsFromHtml({ html, baseUrl, dropCounts }) {
+// -----------------------------
+// parse one page
+// -----------------------------
+function extractDealsFromHtml(html) {
   const $ = cheerio.load(html);
 
-  const tiles = $('li[data-test-id="product-list-item"]');
-  const deals = [];
-  const seen = new Set();
+  // PUMA list pages are fairly consistent: product tiles contain a link to /us/en/pd/...
+  // We’ll grab any anchor with /pd/ inside, then walk up a bit to find nearby text for pricing.
+  const tiles = [];
 
-  tiles.each((_, el) => {
-    const $el = $(el);
-    const productId = String($el.attr("data-product-id") || "").trim();
+  const anchors = Array.from($('a[href*="/us/en/pd/"]'));
+  for (const a of anchors) {
+    const href = $(a).attr("href");
+    const url = absUrl(href);
+    if (!url) continue;
 
-    const href = $el.find('a[data-test-id="product-list-item-link"]').attr("href") || "";
-    const listingURL = absUrl(baseUrl, href);
+    // walk up to a reasonable container (product card)
+    const $card =
+      $(a).closest("li, article, div").first().length ? $(a).closest("li, article, div").first() : $(a);
 
-    const model = String($el.find("h2").first().text() || "").trim();
+    const cardText = cleanText($card.text());
 
-    const subtitle = String($el.find("h3").first().text() || "").trim();
-    const { gender, shoeType } = parseGenderAndTypeFromSubtitle(subtitle);
+    // Title/model heuristics: prefer the anchor text; fallback to nearby headings
+    let model =
+      cleanText($(a).attr("aria-label")) ||
+      cleanText($(a).text()) ||
+      cleanText($card.find("h2,h3").first().text());
 
-    const img =
-      $el.find('img[src]').first().attr("src") ||
-      $el.find("img").first().attr("data-src") ||
+    // Many PUMA tiles show "## <header>" and "### <subheader>" in accessible text;
+    // we just need something consistent for `model`.
+    model = model || null;
+
+    // Image
+    let imageURL =
+      $(a).find("img").attr("src") ||
+      $(a).find("img").attr("data-src") ||
+      $card.find("img").first().attr("src") ||
+      $card.find("img").first().attr("data-src") ||
       null;
 
-    const saleText = $el.find('[data-test-id="sale-price"]').first().text();
-    const origText = $el.find('[data-test-id="price"]').first().text();
+    imageURL = imageURL ? String(imageURL).trim() : null;
 
-    const salePrice = parseMoney(saleText);
-    const originalPrice = parseMoney(origText);
+    // Price heuristics: look for two dollar amounts in the card text
+    // usually: "$34.99$70.00" or "$34.99 $70.00"
+    const money = cardText.match(/\$\s*\d+(?:\.\d+)?/g) || [];
+    const sale = parseUsdNumber(money[0] || null);
+    const orig = parseUsdNumber(money[1] || null);
 
-    dropCounts.totalTiles++;
+    // Gender hint often present like "Men's Sneakers" / "Women's Shoes"
+    const gender = detectGenderFromText(cardText);
 
-    const key = productId || listingURL || `${model}::${saleText}::${origText}`;
-    if (seen.has(key)) {
-      dropCounts.dropped_duplicate++;
-      return;
-    }
-    seen.add(key);
-
-    if (!listingURL) { dropCounts.dropped_missingUrl++; return; }
-    if (!img) { dropCounts.dropped_missingImage++; return; }
-    if (!model) { dropCounts.dropped_missingModel++; return; }
-    if (!salePrice || salePrice <= 0) { dropCounts.dropped_saleMissingOrZero++; return; }
-    if (!originalPrice || originalPrice <= 0) { dropCounts.dropped_originalMissingOrZero++; return; }
-    if (salePrice >= originalPrice) { dropCounts.dropped_notADeal++; return; }
-
-    const discountPercent = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
-
-    deals.push({
-      listingName: buildListingName({ brand: "Puma", model, subtitle }),
-      brand: "Puma",
+    tiles.push({
+      url,
       model,
+      imageURL,
+      sale,
+      orig,
+      gender,
+      cardText,
+    });
+  }
 
-      salePrice,
-      originalPrice,
-      discountPercent,
+  // de-dupe within page by URL (anchors repeat a lot)
+  const seen = new Set();
+  const unique = [];
+  for (const t of tiles) {
+    if (!t.url || seen.has(t.url)) continue;
+    seen.add(t.url);
+    unique.push(t);
+  }
 
+  return { tilesSeen: tiles.length, tilesUnique: unique.length, tiles: unique };
+}
+
+// -----------------------------
+// build canonical deal
+// -----------------------------
+function toCanonicalDeal(t) {
+  const model = t.model ? cleanText(t.model) : null;
+  if (!model) return { deal: null, drop: "missingModel" };
+
+  if (typeof t.sale !== "number" || t.sale <= 0) return { deal: null, drop: "saleMissingOrZero" };
+  if (typeof t.orig !== "number" || t.orig <= 0) return { deal: null, drop: "originalMissingOrZero" };
+
+  // must be a deal (sale < orig)
+  if (!(t.sale < t.orig)) return { deal: null, drop: "notADeal" };
+
+  const listingURL = t.url;
+  if (!listingURL) return { deal: null, drop: "missingUrl" };
+
+  const imageURL = t.imageURL || null;
+  if (!imageURL) return { deal: null, drop: "missingImage" };
+
+  const discountPercent = computeDiscountPercent(t.sale, t.orig);
+
+  return {
+    drop: null,
+    deal: {
+      schemaVersion: 1,
+      listingName: `PUMA ${model}`,
+      brand: "PUMA",
+      model,
+      salePrice: t.sale,
+      originalPrice: t.orig,
+      discountPercent: discountPercent,
+
+      // optional range fields (not used here)
       salePriceLow: null,
       salePriceHigh: null,
       originalPriceLow: null,
@@ -345,194 +235,199 @@ function parseDealsFromHtml({ html, baseUrl, dropCounts }) {
 
       store: "PUMA",
       listingURL,
-      imageURL: img,
-
-      gender,
-      shoeType,
-    });
-  });
-
-  return { deals, tilesFound: tiles.length };
+      imageURL,
+      gender: t.gender || "unknown",
+      shoeType: "unknown",
+    },
+  };
 }
 
+// -----------------------------
+// main handler
+// -----------------------------
 module.exports = async function handler(req, res) {
   const t0 = Date.now();
 
-  // You can override the start URL by calling:
-  //   /api/puma?url=https://us.puma.com/us/en/sale/all-sale?...&offset=0
-  const startUrl =
-    String(req.query?.url || "").trim() ||
-    "https://us.puma.com/us/en/sale/all-sale?filter_product_division=%3E%7Bshoes%7D&filter_sport_type=%3E%7Brunning%7D&offset=0";
+  const PUMA_DEALS_BLOB_URL = envStr("PUMA_DEALS_BLOB_URL");
+  const blobToken = getBlobToken();
 
-  const blobUrl = requireEnv("PUMA_DEALS_BLOB_URL");
-  const graphqlEnv = optEnv("PUMA_GRAPHQL_ENDPOINT");
-
-  const out = {
-    store: "PUMA",
-    schemaVersion: 1,
-    lastUpdated: nowIso(),
-    via: "cheerio",
-    sourceUrls: [],
-    pagesFetched: 0,
-    dealsFound: 0,
-    dealsExtracted: 0,
-    scrapeDurationMs: 0,
-    ok: true,
-    error: null,
-    dropCounts: {
-      totalTiles: 0,
-      dropped_duplicate: 0,
-      dropped_missingUrl: 0,
-      dropped_missingImage: 0,
-      dropped_missingModel: 0,
-      dropped_saleMissingOrZero: 0,
-      dropped_originalMissingOrZero: 0,
-      dropped_notADeal: 0,
-      stopped_noNewFromHtml: 0,
-      stopped_noNewFromGraphql: 0,
-    },
-    deals: [],
-    blobUrl,
-  };
-
-  const origin = new URL(startUrl).origin;
-
-  try {
-    // 1) Fetch the first page HTML
-    const first = await fetchText(startUrl);
-    out.pagesFetched++;
-    out.sourceUrls.push(startUrl);
-
-    if (!first.ok) throw new Error(`HTTP ${first.status} fetching start URL`);
-
-    // 2) Try GraphQL (optional): env -> else discover from HTML
-    let graphqlEndpoint = graphqlEnv;
-    if (!graphqlEndpoint) {
-      graphqlEndpoint = discoverGraphqlEndpointFromHtml(first.text, origin);
-      // If discover just returns generic /api/graphql but it’s not real, it’ll fail and we’ll fallback.
-    }
-
-    // Attempt GraphQL only if we have something plausible
-    if (graphqlEndpoint) {
-      try {
-        const gqlDeals = await tryGraphqlSearchAll({
-          listingUrl: startUrl,
-          graphqlEndpoint,
-          dropCounts: out.dropCounts,
-          sourceUrls: out.sourceUrls,
-        });
-
-        if (gqlDeals.length > 0) {
-          out.via = "graphql";
-          out.deals = gqlDeals;
-          out.dealsFound = gqlDeals.length;
-          out.dealsExtracted = gqlDeals.length;
-        }
-      } catch (e) {
-        // GraphQL attempt failed -> fall back to HTML paging below
-        out.sourceUrls.push(`GraphQL failed (${graphqlEndpoint}): ${e?.message || "error"}`);
-      }
-    }
-
-    // 3) If GraphQL didn’t populate deals, fall back to HTML paging using offset= increments
-    if (!Array.isArray(out.deals) || out.deals.length === 0) {
-      out.via = "cheerio";
-
-      const pageSize = 24;
-      const maxPages = 100; // safety
-      const all = [];
-      const seenKeys = new Set();
-
-      // Parse page 0 first (we already have HTML)
-      {
-        const { deals, tilesFound } = parseDealsFromHtml({
-          html: first.text,
-          baseUrl: origin,
-          dropCounts: out.dropCounts,
-        });
-
-        out.dealsFound += tilesFound;
-        for (const d of deals) {
-          const key = d.listingURL || d.imageURL || d.listingName;
-          if (seenKeys.has(key)) {
-            out.dropCounts.dropped_duplicate++;
-            continue;
-          }
-          seenKeys.add(key);
-          all.push(d);
-        }
-      }
-
-      // Now page forward using offset=
-      for (let page = 1; page < maxPages; page++) {
-        const offset = page * pageSize;
-
-        // Replace/append offset param
-        const u = new URL(startUrl);
-        u.searchParams.set("offset", String(offset));
-        const url = u.toString();
-
-        const r = await fetchText(url);
-        out.pagesFetched++;
-        out.sourceUrls.push(url);
-
-        if (!r.ok) break;
-
-        const before = all.length;
-        const { deals, tilesFound } = parseDealsFromHtml({
-          html: r.text,
-          baseUrl: origin,
-          dropCounts: out.dropCounts,
-        });
-
-        out.dealsFound += tilesFound;
-
-        for (const d of deals) {
-          const key = d.listingURL || d.imageURL || d.listingName;
-          if (seenKeys.has(key)) {
-            out.dropCounts.dropped_duplicate++;
-            continue;
-          }
-          seenKeys.add(key);
-          all.push(d);
-        }
-
-        const added = all.length - before;
-
-        // ✅ Critical stop condition:
-        // If this page added 0 new unique deals, we're looping the same content. Stop immediately.
-        if (added === 0) {
-          out.dropCounts.stopped_noNewFromHtml++;
-          break;
-        }
-      }
-
-      out.deals = all;
-      out.dealsExtracted = all.length;
-    }
-
-    // Final counts
-    out.dealsExtracted = Array.isArray(out.deals) ? out.deals.length : 0;
-
-    // 4) Write to blob
-    // We “put” to the *exact* blob URL you provided, using it as pathname.
-    // Vercel Blob wants a pathname, not full URL, so we extract the path.
-    const blobPathname = new URL(blobUrl).pathname.replace(/^\//, "");
-
-    await put(blobPathname, JSON.stringify(out, null, 2), {
-      access: "public",
-      contentType: "application/json",
-      addRandomSuffix: false,
+  if (!PUMA_DEALS_BLOB_URL) {
+    return res.status(500).json({ ok: false, error: "Missing env var PUMA_DEALS_BLOB_URL" });
+  }
+  if (!blobToken) {
+    return res.status(500).json({
+      ok: false,
+      error: "Missing blob token env var (BLOB_READ_WRITE_TOKEN or VERCEL_BLOB_READ_WRITE_TOKEN)",
     });
-
-    out.ok = true;
-    out.error = null;
-  } catch (e) {
-    out.ok = false;
-    out.error = e?.message || String(e);
-  } finally {
-    out.scrapeDurationMs = Date.now() - t0;
   }
 
-  res.status(out.ok ? 200 : 500).json(out);
+  const blobPath = blobPathFromPublicBlobUrl(PUMA_DEALS_BLOB_URL);
+  if (!blobPath) {
+    return res.status(500).json({
+      ok: false,
+      error: "PUMA_DEALS_BLOB_URL must be a valid public blob URL ending in a filename (e.g. .../puma.json)",
+    });
+  }
+
+  const pageSize = Math.max(1, Number(envStr("PUMA_PAGE_SIZE") || 24));
+  const maxPages = Math.max(1, Number(envStr("PUMA_MAX_PAGES") || 25));
+  const concurrency = Math.max(1, Number(envStr("PUMA_CONCURRENCY") || 4));
+
+  const base =
+    "https://us.puma.com/us/en/sale/all-sale?filter_product_division=%3E%7Bshoes%7D&filter_sport_type=%3E%7Brunning%7D";
+
+  const sourceUrls = [];
+  const dropCounts = {
+    totalTiles: 0,
+    dropped_duplicate: 0,
+    dropped_missingUrl: 0,
+    dropped_missingImage: 0,
+    dropped_missingModel: 0,
+    dropped_saleMissingOrZero: 0,
+    dropped_originalMissingOrZero: 0,
+    dropped_notADeal: 0,
+    keptUnique: 0,
+    stopReason: null,
+    __debug_firstTile: null,
+  };
+
+  const seenUrls = new Set();
+  const deals = [];
+
+  let page = 0;
+  let stop = false;
+
+  async function scrapeOneOffset(offset) {
+    const url = `${base}&offset=${offset}`;
+    sourceUrls.push(url);
+
+    const html = await fetchHtml(url);
+    const { tilesSeen, tilesUnique, tiles } = extractDealsFromHtml(html);
+
+    dropCounts.totalTiles += tilesUnique;
+
+    if (!dropCounts.__debug_firstTile && tiles && tiles.length) {
+      const ft = tiles[0];
+      dropCounts.__debug_firstTile = {
+        tileExists: true,
+        firstModel: ft.model || null,
+        firstHref: ft.url || null,
+        firstImg: ft.imageURL || null,
+        firstSale: ft.sale || null,
+        firstOrig: ft.orig || null,
+      };
+    }
+
+    let newUniqueUrls = 0;
+
+    for (const t of tiles) {
+      if (!t.url) {
+        dropCounts.dropped_missingUrl += 1;
+        continue;
+      }
+      if (seenUrls.has(t.url)) {
+        dropCounts.dropped_duplicate += 1;
+        continue;
+      }
+      seenUrls.add(t.url);
+      newUniqueUrls += 1;
+
+      const { deal, drop } = toCanonicalDeal(t);
+      if (!deal) {
+        if (drop === "missingModel") dropCounts.dropped_missingModel += 1;
+        else if (drop === "saleMissingOrZero") dropCounts.dropped_saleMissingOrZero += 1;
+        else if (drop === "originalMissingOrZero") dropCounts.dropped_originalMissingOrZero += 1;
+        else if (drop === "notADeal") dropCounts.dropped_notADeal += 1;
+        else if (drop === "missingUrl") dropCounts.dropped_missingUrl += 1;
+        else if (drop === "missingImage") dropCounts.dropped_missingImage += 1;
+        continue;
+      }
+
+      deals.push(deal);
+      dropCounts.keptUnique += 1;
+    }
+
+    return { url, tilesSeen, tilesUnique, newUniqueUrls };
+  }
+
+  try {
+    // Paginate offsets: 0, 24, 48, ...
+    // We stop when a page yields 0 new unique URLs.
+    while (!stop && page < maxPages) {
+      // batch offsets
+      const batch = [];
+      for (let i = 0; i < concurrency && page < maxPages; i += 1) {
+        const offset = page * pageSize;
+        batch.push(scrapeOneOffset(offset));
+        page += 1;
+      }
+
+      const results = await Promise.all(batch);
+
+      // if *every* page in this batch produced no new unique URLs, stop
+      const anyNew = results.some((r) => r.newUniqueUrls > 0);
+      if (!anyNew) {
+        dropCounts.stopReason = "no_new_unique_urls";
+        stop = true;
+      }
+    }
+
+    // Write full payload (WITH deals[]) to blob
+    const payload = {
+      store: "PUMA",
+      schemaVersion: 1,
+      lastUpdated: nowIso(),
+      via: "cheerio",
+      sourceUrls,
+      pagesFetched: sourceUrls.length,
+      dealsFound: dropCounts.totalTiles,
+      dealsExtracted: deals.length,
+      scrapeDurationMs: Date.now() - t0,
+      ok: true,
+      error: null,
+      dropCounts,
+      deals, // <-- stays in blob only; NOT returned in HTTP response below
+    };
+
+    const putRes = await put(blobPath, JSON.stringify(payload, null, 2), {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: "application/json",
+      token: blobToken,
+    });
+
+    // Respond with metadata ONLY (no deals array)
+    return res.status(200).json({
+      store: "PUMA",
+      schemaVersion: 1,
+      lastUpdated: payload.lastUpdated,
+      via: payload.via,
+      sourceUrls: payload.sourceUrls,
+      pagesFetched: payload.pagesFetched,
+      dealsFound: payload.dealsFound,
+      dealsExtracted: payload.dealsExtracted,
+      scrapeDurationMs: payload.scrapeDurationMs,
+      ok: true,
+      error: null,
+      dropCounts: payload.dropCounts,
+      blobUrl: putRes?.url || PUMA_DEALS_BLOB_URL,
+    });
+  } catch (e) {
+    // On error, do NOT include deals array in response.
+    return res.status(500).json({
+      store: "PUMA",
+      schemaVersion: 1,
+      lastUpdated: nowIso(),
+      via: "cheerio",
+      sourceUrls,
+      pagesFetched: sourceUrls.length,
+      dealsFound: dropCounts.totalTiles,
+      dealsExtracted: deals.length,
+      scrapeDurationMs: Date.now() - t0,
+      ok: false,
+      error: e?.message || "Unknown error",
+      dropCounts,
+      // intentionally: no deals
+    });
+  }
 };
