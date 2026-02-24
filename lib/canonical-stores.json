@@ -295,6 +295,24 @@
   "scraperType": "firecrawl",
   "notes": "Nike sale running shoes page via Firecrawl. Uses scroll actions to load more tiles (infinite scroll). Drops 'See Price in Bag' items and counts drops. ShoeType inferred from title keywords: road/trail/track; gender inferred from title: Women's/Men's/Unisex else unknown. Writes to nike.json."
 },
+
+{
+  "id": "puma",
+  "displayName": "PUMA",
+  "addedAt": "2026-02-24",
+  "lastUpdated": "2026-02-24",
+  "scrapedUrls": [
+    "https://us.puma.com/us/en/sale/all-sale?filter_product_division=%3E%7Bshoes%7D&filter_sport_type=%3E%7Brunning%7D"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/puma.json"
+  ],
+  "aliases": ["puma"],
+  "enabled": true,
+  "scraperType": "apify",
+  "notes": "PUMA US running shoes sale page via Apify Playwright (infinite scroll). Extracts h2 model, h3 subtitle, sale-price + price data-test-id values. Writes to puma.json via PUMA_DEALS_BLOB_URL / BLOB_READ_WRITE_TOKEN."
+},
+  
   
   {
     "id": "rei-outlet",
