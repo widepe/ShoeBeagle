@@ -1175,16 +1175,16 @@ input[type="text"], input[type="search"]{
     align-items:center;
     justify-content:center;
 
-    padding:10px 18px;     /* just light padding around text */
+    padding:6px 14px;     /* just light padding around text */
     height:auto;           /* remove forced tall height */
     min-width:auto;
 
-    border-radius:12px;
+    border-radius:8px;
     border:1.5px solid var(--sb-blue);
     background:var(--sb-blue);
     color:#fff;
 
-    font-size:1.15rem;     /* one size smaller */
+    font-size:0.95rem;  
     font-weight:800;
   }
 
