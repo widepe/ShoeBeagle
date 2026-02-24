@@ -753,6 +753,27 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
         return { brand: "", model: s };
       }
 
+function applySuggestionAndSearch(value) {
+  // Fill input with picked suggestion
+  const bm = splitBrandModelFromPicked(value);
+  if (bm.brand && bm.model) qInput.value = `${bm.brand} ${bm.model}`.trim();
+  else qInput.value = String(value || "").trim();
+
+  // Close dropdown + enable fetch
+  closeSuggestions();
+  updateFetchReady();
+  if (fetchBtn) fetchBtn.disabled = false;
+
+  // Trigger the same submit handler as clicking Fetch
+  setTimeout(() => {
+    if (form && typeof form.requestSubmit === "function") {
+      form.requestSubmit();
+    } else if (form) {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    }
+  }, 0);
+}
+      
       // Input handlers
       if (qInput) {
         qInput.addEventListener("input", () => {
