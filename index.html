@@ -102,14 +102,15 @@
               <option value="mens">Mens</option>
               <option value="womens">Womens</option>
             </select>
-
-            <label class="ribbon-label" for="ribbonType">Shoe Type</label>
-            <select id="ribbonType" class="ribbon-select" aria-label="Filter by shoe type">
-              <option value="" selected>Off</option>
-              <option value="road">Road</option>
-              <option value="trail">Trail</option>
-              <option value="track">Track</option>
-            </select>
+<!--
+<label class="ribbon-label" for="ribbonType">Shoe Type</label>
+<select id="ribbonType" class="ribbon-select" aria-label="Filter by shoe type">
+  <option value="" selected>Off</option>
+  <option value="road">Road</option>
+  <option value="trail">Trail</option>
+  <option value="track">Track</option>
+</select>
+-->
 
             <label class="ribbon-label" for="ribbonSort">Sort</label>
             <select id="ribbonSort" class="ribbon-select" aria-label="Sort results">
@@ -204,7 +205,7 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
 
       // Ribbon dropdowns
       const ribbonGender = document.getElementById("ribbonGender");
-      const ribbonType = document.getElementById("ribbonType");
+// const ribbonType = document.getElementById("ribbonType"); // 🔒 disabled
       const ribbonSort = document.getElementById("ribbonSort");
 
       const PAGE_SIZE = 12;
@@ -244,7 +245,7 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
 
       // Unified state (ribbon dropdowns update these)
       let selectedGender = "";    // "" | "mens" | "womens"
-      let selectedShoeType = "";  // "" | "road" | "trail" | "track"
+  // let selectedShoeType = "";  // 🔒 disabled
       let currentSort = "";       // "" | "price-asc" | ...
 
       if (footerYear) footerYear.textContent = new Date().getFullYear();
@@ -810,7 +811,7 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
 
       function syncRibbonFromState() {
         if (ribbonGender) ribbonGender.value = selectedGender || "";
-        if (ribbonType) ribbonType.value = selectedShoeType || "";
+    // if (ribbonType) ribbonType.value = selectedShoeType || "";
         if (ribbonSort) ribbonSort.value = currentSort || "";
       }
 
@@ -1008,13 +1009,15 @@ function applyFilters(items) {
         });
       }
 
-      if (ribbonType) {
-        ribbonType.addEventListener("change", () => {
-          selectedShoeType = norm(ribbonType.value);
-          renderDailyDealsNow();
-          renderFilteredResults({ resetPage: true, append: false });
-        });
-      }
+/*
+if (ribbonType) {
+  ribbonType.addEventListener("change", () => {
+    selectedShoeType = norm(ribbonType.value);
+    renderDailyDealsNow();
+    renderFilteredResults({ resetPage: true, append: false });
+  });
+}
+*/
 
       if (ribbonSort) {
         ribbonSort.addEventListener("change", () => {
@@ -1333,7 +1336,7 @@ if (t) {
 
         // Reset filters + sort on new search
         selectedGender = "";
-        selectedShoeType = "";
+        // selectedShoeType = "";
         currentSort = "";
         syncRibbonFromState();
 
