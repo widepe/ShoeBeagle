@@ -910,20 +910,20 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
       }
 
       // ===== Filters =====
-      function applyFilters(items) {
-        const gSel = norm(selectedGender);
-        const tSel = norm(selectedShoeType);
+function applyFilters(items) {
+  const gSel = norm(selectedGender);
+  // const tSel = norm(selectedShoeType);  // 🔒 disabled for now. This displays shoeType like road or track on the image.
 
-        return (items || []).filter((item) => {
-          const g = norm(item.gender);
-          const t = norm(item.shoeType);
+  return (items || []).filter((item) => {
+    const g = norm(item.gender);
+    // const t = norm(item.shoeType);      // 🔒 disabled
 
-          const genderOk = !gSel || g === gSel || g === "unisex" || g === "unknown" || g === "";
-          const typeOk = !tSel || t === tSel || t === "unknown" || t === "";
+    const genderOk = !gSel || g === gSel || g === "unisex" || g === "unknown" || g === "";
+    // const typeOk = !tSel || t === tSel || t === "unknown" || t === ""; // 🔒 disabled
 
-          return genderOk && typeOk;
-        });
-      }
+    return genderOk; // 🔒 removed type filter
+  });
+}
 
       function getFilteredAndSorted(items) {
         const filtered = applyFilters(items);
@@ -1098,10 +1098,10 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
           imgWrapper.appendChild(badge);
         }
 
-        const gRaw = norm(item.gender);
-        const tRaw = norm(item.shoeType);
-        const g = gRaw && gRaw !== "unknown" ? gRaw : "";
-        const t = tRaw && tRaw !== "unknown" ? tRaw : "";
+const gRaw = norm(item.gender);
+// const tRaw = norm(item.shoeType);  // 🔒 disabled
+const g = gRaw && gRaw !== "unknown" ? gRaw : "";
+// const t = tRaw && tRaw !== "unknown" ? tRaw : ""; // 🔒 disabled
 
         const tagWrap = document.createElement("div");
         tagWrap.className = "card-tags";
@@ -1116,17 +1116,19 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
           hasAnyTag = true;
         }
 
-        if (t) {
-          const typeTag = document.createElement("span");
-          typeTag.className = "card-tag";
-          typeTag.textContent =
-            t === "road" ? "Road" :
-            t === "trail" ? "Trail" :
-            t === "track" ? "Spikes" :
-            (item.shoeType || "");
-          tagWrap.appendChild(typeTag);
-          hasAnyTag = true;
-        }
+  /*
+if (t) {
+  const typeTag = document.createElement("span");
+  typeTag.className = "card-tag";
+  typeTag.textContent =
+    t === "road" ? "Road" :
+    t === "trail" ? "Trail" :
+    t === "track" ? "Spikes" :
+    (item.shoeType || "");
+  tagWrap.appendChild(typeTag);
+  hasAnyTag = true;
+}
+*/
 
         if (hasAnyTag) imgWrapper.appendChild(tagWrap);
 
