@@ -279,15 +279,15 @@ module.exports = async function handler(req, res) {
   // ---------------------------------
   // CRON SECRET PROTECTION (commented out)
   // ---------------------------------
-  // const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
-  // if (CRON_SECRET) {
-  //   const provided =
-  //     String(req.headers["x-cron-secret"] || "").trim() ||
-  //     String(req.query?.cron_secret || "").trim();
-  //   if (provided !== CRON_SECRET) {
-  //     return res.status(401).json({ ok: false, error: "Unauthorized: Invalid CRON_SECRET" });
-  //   }
-  // }
+   const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
+   if (CRON_SECRET) {
+     const provided =
+       String(req.headers["x-cron-secret"] || "").trim() ||
+       String(req.query?.cron_secret || "").trim();
+     if (provided !== CRON_SECRET) {
+       return res.status(401).json({ ok: false, error: "Unauthorized: Invalid CRON_SECRET" });
+     }
+   }
 
   const t0 = Date.now();
 
