@@ -623,10 +623,11 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
           div.textContent = value;
           div.dataset.index = String(idx);
 
-          div.addEventListener("mousedown", (e) => {
-            e.preventDefault();
-            onPick(value);
-          });
+   div.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  onPick(value);
+});
 
           qSuggestions.appendChild(div);
         });
