@@ -16,8 +16,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <title>Shoe Beagle--The Running Shoe Deal Finder</title>
-<link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
-<link rel="icon" type="image/png" href="/images/favicon.png">  <!-- CSS -->
+
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
+  <link rel="icon" type="image/png" href="/images/favicon.png">
+
+  <!-- CSS -->
   <link rel="stylesheet" href="/pages/index.css?v=128" />
 
   <!-- IMPORTANT:
@@ -51,7 +54,7 @@
               <input
                 id="q"
                 type="text"
-                placeholder="Brand and/or model"
+                placeholder="Search brand or model"
                 autocomplete="off"
               />
               <button type="button" class="input-clear" aria-label="Clear search">
@@ -91,9 +94,9 @@
           <a class="links-ribbon-link" href="#" data-open-alert>Set Alert</a>
         </div>
 
-        <!-- CENTER: Filter + Sort -->
+        <!-- CENTER: Filter (Sort removed) -->
         <div class="links-ribbon-center">
-          <div class="ribbon-controls" role="group" aria-label="Filter and sort">
+          <div class="ribbon-controls" role="group" aria-label="Filter">
             <label class="ribbon-label" for="ribbonGender">Gender</label>
             <select id="ribbonGender" class="ribbon-select" aria-label="Filter by gender">
               <option value="" selected>Off</option>
@@ -101,6 +104,8 @@
               <option value="womens">Womens</option>
             </select>
 
+            <!-- SORT REMOVED (commented out) -->
+            <!--
             <label class="ribbon-label" for="ribbonSort">Sort</label>
             <select id="ribbonSort" class="ribbon-select" aria-label="Sort results">
               <option value="" selected>Off</option>
@@ -111,6 +116,7 @@
               <option value="save-asc">Savings: Lo → Hi</option>
               <option value="save-desc">Savings: Hi → Lo</option>
             </select>
+            -->
           </div>
         </div>
 
@@ -192,7 +198,7 @@
 
       // Ribbon dropdowns
       const ribbonGender = document.getElementById("ribbonGender");
-      const ribbonSort = document.getElementById("ribbonSort");
+      // const ribbonSort = document.getElementById("ribbonSort"); // 🔒 disabled
 
       const PAGE_SIZE = 12;
       let pageIndex = 0;
@@ -231,7 +237,7 @@
 
       // Unified state (ribbon dropdowns update these)
       let selectedGender = "";    // "" | "mens" | "womens"
-      let currentSort = "";       // "" | "price-asc" | ...
+      // let currentSort = "";     // 🔒 disabled
 
       if (footerYear) footerYear.textContent = new Date().getFullYear();
       if (logoLink) logoLink.addEventListener("click", () => location.reload());
@@ -574,7 +580,7 @@
 
       // ---------- Suggestions UI ----------
       const suggestionState = { open: false, items: [], activeIndex: -1, mode: "model" };
-      let pickingSuggestion = false; // ✅ important: correct scope
+      let pickingSuggestion = false; // ✅ correct scope
 
       function closeSuggestions() {
         if (!qSuggestions) return;
@@ -584,6 +590,21 @@
         suggestionState.items = [];
         suggestionState.activeIndex = -1;
         suggestionState.mode = "model";
+      }
+
+      // ✅ DISPLAY-ONLY DE-DUPE (does not change suggestion logic)
+      // Removes visually-duplicate strings that differ by punctuation/spacing/unicode.
+      function dedupeSuggestionItems(items) {
+        const out = [];
+        const seen = new Set();
+        for (const v of (items || [])) {
+          const key = squashStr(String(v || ""));
+          if (!key) continue;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push(v);
+        }
+        return out;
       }
 
       function renderSuggestions(items, onPick) {
@@ -609,7 +630,6 @@
           div.textContent = value;
           div.dataset.index = String(idx);
 
-          // ✅ pointerdown fixes iOS Safari blur-before-click issue
           div.addEventListener("pointerdown", (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -618,7 +638,6 @@
             onPick(value);
           });
 
-          // ✅ fallback for environments without pointer events behaving well
           div.addEventListener("click", (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -734,7 +753,6 @@
         if (!s) return { brand: "", model: "" };
         if (!dealsSuggest.ready) return { brand: "", model: s };
 
-        // longest brand match
         let bestBrand = "";
         for (const b of dealsSuggest.brands) {
           const bNorm = normalizeStr(b);
@@ -753,17 +771,14 @@
       }
 
       function applySuggestionAndSearch(value) {
-        // Fill input with picked suggestion
         const bm = splitBrandModelFromPicked(value);
         if (bm.brand && bm.model) qInput.value = `${bm.brand} ${bm.model}`.trim();
         else qInput.value = String(value || "").trim();
 
-        // Close dropdown + enable fetch
         closeSuggestions();
         updateFetchReady();
         if (fetchBtn) fetchBtn.disabled = false;
 
-        // Trigger the same submit handler as clicking Fetch
         setTimeout(() => {
           if (form && typeof form.requestSubmit === "function") {
             form.requestSubmit();
@@ -793,7 +808,10 @@
           const built = buildUnifiedSuggestions(typed);
           suggestionState.mode = built.mode;
 
-          renderSuggestions(built.items, (value) => applySuggestionAndSearch(value));
+          // ✅ de-dupe display list ONLY (no algorithm changes)
+          const deduped = dedupeSuggestionItems(built.items);
+
+          renderSuggestions(deduped, (value) => applySuggestionAndSearch(value));
           updateFetchReady();
         });
 
@@ -801,11 +819,10 @@
           handleSuggestionKeys(e, (value) => applySuggestionAndSearch(value));
         });
 
-        // ✅ ONE blur handler: don’t close suggestions if a suggestion is being picked
         qInput.addEventListener("blur", () => {
           setTimeout(() => {
             if (!pickingSuggestion) closeSuggestions();
-            shrinkInputs(); // keeps your mobile shrink behavior
+            shrinkInputs();
           }, 140);
         });
 
@@ -822,7 +839,7 @@
 
       function syncRibbonFromState() {
         if (ribbonGender) ribbonGender.value = selectedGender || "";
-        if (ribbonSort) ribbonSort.value = currentSort || "";
+        // if (ribbonSort) ribbonSort.value = currentSort || ""; // 🔒 disabled
       }
 
       function totalPagesCount(total) {
@@ -851,76 +868,7 @@
         if (pager) pager.style.display = pages > 1 ? "flex" : "none";
       }
 
-      // ===== Sort math helpers =====
-      function toNum(x) {
-        const n = Number(x);
-        return Number.isFinite(n) ? n : null;
-      }
-
-      function computePercentOff(item) {
-        const sale = toNum(item.salePrice);
-        const orig = toNum(item.originalPrice);
-        if (sale != null && orig != null && orig > 0 && sale < orig) {
-          return ((orig - sale) / orig) * 100;
-        }
-        const pct = toNum(item.discountPercent);
-        if (pct != null && pct > 0 && pct < 100) return pct;
-        return null;
-      }
-
-      function computeSavings(item) {
-        const sale = toNum(item.salePrice);
-        const orig = toNum(item.originalPrice);
-        if (sale != null && orig != null && orig > sale) return orig - sale;
-        return null;
-      }
-
-      function computePrice(item) {
-        return toNum(item.salePrice);
-      }
-
-      function cmpNullsLast(a, b) {
-        if (a == null && b == null) return 0;
-        if (a == null) return 1;
-        if (b == null) return -1;
-        return 0;
-      }
-
-      function applySort(items) {
-        const mode = String(currentSort || "").trim();
-        if (!mode) return (items || []).slice();
-
-        const arr = (items || []).slice();
-
-        arr.sort((A, B) => {
-          if (mode === "price-asc" || mode === "price-desc") {
-            const a = computePrice(A), b = computePrice(B);
-            const nl = cmpNullsLast(a, b);
-            if (nl) return nl;
-            return mode === "price-asc" ? a - b : b - a;
-          }
-
-          if (mode === "pct-asc" || mode === "pct-desc") {
-            const a = computePercentOff(A), b = computePercentOff(B);
-            const nl = cmpNullsLast(a, b);
-            if (nl) return nl;
-            return mode === "pct-asc" ? a - b : b - a;
-          }
-
-          if (mode === "save-asc" || mode === "save-desc") {
-            const a = computeSavings(A), b = computeSavings(B);
-            const nl = cmpNullsLast(a, b);
-            if (nl) return nl;
-            return mode === "save-asc" ? a - b : b - a;
-          }
-
-          return 0;
-        });
-
-        return arr;
-      }
-
-      // ===== Filters =====
+      // ===== Filters ONLY (sorting removed) =====
       function applyFilters(items) {
         const gSel = norm(selectedGender);
 
@@ -932,8 +880,8 @@
       }
 
       function getFilteredAndSorted(items) {
-        const filtered = applyFilters(items);
-        return applySort(filtered);
+        // 🔒 sorting removed
+        return applyFilters(items);
       }
 
       // ===== Discount badge helper =====
@@ -969,12 +917,12 @@
       }
 
       function renderFilteredResults({ resetPage = true, append = false } = {}) {
-        const sorted = getFilteredAndSorted(lastSearchResults);
+        const filtered = getFilteredAndSorted(lastSearchResults);
 
         if (resetPage) pageIndex = 0;
 
         const start = pageIndex * PAGE_SIZE;
-        const slice = sorted.slice(start, start + PAGE_SIZE);
+        const slice = filtered.slice(start, start + PAGE_SIZE);
 
         if (!append) resultsEl.innerHTML = "";
         slice.forEach((item) => resultsEl.appendChild(createDealCard(item)));
@@ -983,26 +931,26 @@
           [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() ||
           (qInput && qInput.value.trim() ? qInput.value.trim() : "all shoes");
 
-        if (!sorted.length) {
+        if (!filtered.length) {
           statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
           updateNavUI(0);
           return;
         }
 
-        statusMessageEl.textContent = `We found ${sorted.length} deal${sorted.length === 1 ? "" : "s"} on ${displayQuery} shoes.`;
-        updateNavUI(sorted.length);
+        statusMessageEl.textContent = `We found ${filtered.length} deal${filtered.length === 1 ? "" : "s"} on ${displayQuery} shoes.`;
+        updateNavUI(filtered.length);
       }
 
       function renderDailyDealsNow() {
         if (!dailyDealsGrid) return;
         if (!lastDailyDeals || !lastDailyDeals.length) return;
 
-        const sorted = getFilteredAndSorted(lastDailyDeals);
+        const filtered = getFilteredAndSorted(lastDailyDeals);
 
         dailyDealsGrid.innerHTML = "";
-        sorted.forEach((item) => dailyDealsGrid.appendChild(createDealCard(item)));
+        filtered.forEach((item) => dailyDealsGrid.appendChild(createDealCard(item)));
 
-        if (dailyDeals) dailyDeals.style.display = sorted.length ? "block" : "none";
+        if (dailyDeals) dailyDeals.style.display = filtered.length ? "block" : "none";
       }
 
       // ===== Ribbon listeners =====
@@ -1014,6 +962,8 @@
         });
       }
 
+      // Sorting listener removed
+      /*
       if (ribbonSort) {
         ribbonSort.addEventListener("change", () => {
           currentSort = String(ribbonSort.value || "").trim();
@@ -1021,12 +971,13 @@
           renderFilteredResults({ resetPage: true, append: false });
         });
       }
+      */
 
       // ===== Paging / load more =====
       if (loadMoreBtn) {
         loadMoreBtn.addEventListener("click", () => {
-          const sorted = getFilteredAndSorted(lastSearchResults);
-          const total = sorted.length;
+          const filtered = getFilteredAndSorted(lastSearchResults);
+          const total = filtered.length;
           const hasMore = (pageIndex + 1) * PAGE_SIZE < total;
           if (!hasMore) return;
 
@@ -1049,8 +1000,8 @@
 
       if (nextPageBtn) {
         nextPageBtn.addEventListener("click", () => {
-          const sorted = getFilteredAndSorted(lastSearchResults);
-          const pages = totalPagesCount(sorted.length);
+          const filtered = getFilteredAndSorted(lastSearchResults);
+          const pages = totalPagesCount(filtered.length);
           if (pageIndex >= pages - 1) return;
 
           runPagerTransitionThen(() => {
@@ -1268,17 +1219,14 @@
           return;
         }
 
-        // Parse typed into brand/model if possible
         let { brand, model } = splitBrandModelFromPicked(typedRaw);
 
-        // If brand missing, try infer from model
         if (!brand && model && dealsSuggest.ready) {
           const exactBrand = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(model)) || "";
           const inferred = exactBrand || inferDefinitiveBrandFromPartialModel(model);
           if (inferred) brand = inferred;
         }
 
-        // Canonicalize brand spelling
         if (brand) brand = resolveClosestBrand(brand);
 
         const displayQuery = [brand, model].filter(Boolean).join(" ").trim();
@@ -1310,9 +1258,8 @@
         const results = data && data.results ? data.results : [];
         lastSearchResults = results;
 
-        // Reset filters + sort on new search
+        // Reset filters only (sort removed)
         selectedGender = "";
-        currentSort = "";
         syncRibbonFromState();
 
         if (!results.length) {
