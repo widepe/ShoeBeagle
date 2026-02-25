@@ -617,23 +617,27 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
         suggestionState.items = items.slice();
         suggestionState.activeIndex = -1;
 
-        items.forEach((value, idx) => {
-          const div = document.createElement("div");
-          div.className = "suggestion-item";
-          div.textContent = value;
-          div.dataset.index = String(idx);
+ items.forEach((value, idx) => {
+  const div = document.createElement("div");
+  div.className = "suggestion-item";
+  div.textContent = value;
+  div.dataset.index = String(idx);
 
-   div.addEventListener("pointerdown", (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  onPick(value);
+  div.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onPick(value);
+  });
+
+  // fallback
+  div.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onPick(value);
+  });
+
+  qSuggestions.appendChild(div);
 });
-
-          qSuggestions.appendChild(div);
-        });
-
-        qSuggestions.style.display = "block";
-      }
 
       function highlightActive() {
         if (!qSuggestions) return;
