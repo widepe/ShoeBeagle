@@ -171,8 +171,12 @@
     <button class="to-top" id="toTopBtn" type="button" aria-label="Back to top">↑</button>
   </div>
 
-  <!-- Load brand/models once (root) -->
-  <script src="/brandModels.js"></script>
+<!-- Load canonical brand/models for Set Alert modal (replaces /brandModels.js) -->
+<script>
+  // Expose canonical brand-model map to the modal script.
+  // This fetch happens once on page load.
+  window.__SB_CANONICAL_BRAND_MODELS_URL__ = "/lib/canonical-brands-models.json";
+</script>
 
   <!-- ===== Main Page Script ===== -->
   <script>
@@ -1460,12 +1464,56 @@ if (qInput) qInput.addEventListener("input", updateFetchReady);
 
       const API_ALERTS = "/api/alerts";
 
-      const brandModels = window.brandModels || {};
-      const brands = Object.keys(brandModels).sort((a, b) => a.localeCompare(b));
+// ------------------------------
+// Canonical brand/models (NEW)
+// ------------------------------
+let brandModels = {};     // { "ASICS": ["GT-2000 12", ...], ... }
+let brands = [];          // ["ASICS", "Brooks", ...]
+let BRAND_CANON = new Map(); // norm -> canonical display key
+
+function normKey(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[\u00AE\u2122\u2120]/g, "") // ® ™ ℠
+    .replace(/[^a-z0-9]/g, "");          // remove spaces/punct
+}
+
+async function loadCanonicalBrandModels() {
+  const url = window.__SB_CANONICAL_BRAND_MODELS_URL__ || "/lib/canonical-brands-models.json";
+
+  const res = await fetch(`${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load canonical brands/models: ${res.status}`);
+
+  const data = await res.json();
+
+  brandModels = (data && typeof data === "object") ? data : {};
+  brands = Object.keys(brandModels).sort((a, b) => a.localeCompare(b));
+
+  BRAND_CANON = new Map();
+  for (const b of brands) {
+    BRAND_CANON.set(normKey(b), b);
+  }
+}
+
+// Canonicalize brand display casing regardless of user-typed case.
+function resolveBrandKey(input) {
+  const key = normKey(input);
+  return BRAND_CANON.get(key) || "";
+}
 
       if (!backdrop || !closeBtn || !form || !emailEl || !brandEl || !modelEl || !priceEl || !genderWrap || !btn) return;
-
-      let lastFocus = null;
+// Load canonical brand/models before enabling suggestions/validation.
+(async () => {
+  try {
+    await loadCanonicalBrandModels();
+  } catch (e) {
+    console.error("[Set Alert] Failed loading canonical brand/models:", e?.message || String(e));
+    // Keep modal functional but with no suggestions.
+    brandModels = {};
+    brands = [];
+    BRAND_CANON = new Map();
+  }
+})();      let lastFocus = null;
       let busy = false;
       let selectedGender = "";
 
@@ -1515,10 +1563,7 @@ if (qInput) qInput.addEventListener("input", updateFetchReady);
         return s.slice(0, 4);
       }
 
-      function resolveBrandKey(input) {
-        const n = String(input || "").trim().toLowerCase();
-        return brands.find((b) => String(b).trim().toLowerCase() === n) || "";
-      }
+// resolveBrandKey is now defined above (canonical + case-insensitive)
 
       function toggleClear(input) {
         const wrap = input.closest(".sb-input-wrap");
