@@ -7,16 +7,30 @@
 // - Keeps your: rate limiting, requestId, caching, blob loading
 // - ✅ RETURNS CANONICAL 11-FIELD SCHEMA (matches merge-deals + UI)
 //
-// ✅ CLEAN FRESHNESS FIX (daily data, users all day):
+// ✅ FRESHNESS FIX:
 // 1) Cache deals.json in-memory for 5 minutes (reduces Blob reads).
 // 2) Version search-result cache by dealsData.lastUpdated.
 //    When merge-deals overwrites deals.json, lastUpdated changes,
 //    and cached search results automatically flip to the new dataset.
+//
+// ✅ BRAND INPUT CANONICALIZATION (NEW):
+// - Load canonical brand display keys from /lib/canonical-brands-models.json
+// - If user types "asics" or "Asics" or "ASICS", we normalize the input to "ASICS"
+// - This makes suggestions + filters case-insensitive but returns consistent display casing.
 
 const { list } = require("@vercel/blob");
 
+// Load your canonical brand->models dictionary (keys are canonical display names)
+let canonicalBrandModels = {};
+try {
+  canonicalBrandModels = require("../lib/canonical-brands-models.json");
+} catch (e) {
+  canonicalBrandModels = {};
+}
+
 /* ----------------------------- Normalization ----------------------------- */
 
+// Lowercase, strip accents, punctuation -> spaces, collapse whitespace
 function normalizeSpaces(s) {
   return String(s || "")
     .toLowerCase()
@@ -27,8 +41,9 @@ function normalizeSpaces(s) {
     .trim();
 }
 
+// Remove spaces too (for gt2000 style matching)
 function squash(s) {
-  return normalizeSpaces(s).replace(/\s+/g, ""); // remove spaces too
+  return normalizeSpaces(s).replace(/\s+/g, "");
 }
 
 function tokenize(s) {
@@ -43,7 +58,7 @@ function isMeaningfulToken(t) {
   return t.length >= 2;
 }
 
-// For "query=" mode: if user types one glued chunk (gt2000) we also try to infer tokens.
+// If user types one glued chunk (gt2000) also try to infer tokens.
 function queryTokensFromRaw(rawQuery) {
   const ns = normalizeSpaces(rawQuery);
   const tokens = tokenize(ns).filter(isMeaningfulToken);
@@ -60,6 +75,38 @@ function queryTokensFromRaw(rawQuery) {
   }
 
   return tokens;
+}
+
+/* ---------------------- Canonical brand normalization --------------------- */
+
+// We build a lookup table from canonicalBrandModels keys.
+// Keys in canonicalBrandModels are your canonical display casing, e.g. "ASICS", "HOKA", "adidas".
+function squashBrandKey(str) {
+  return String(str || "")
+    .toLowerCase()
+    .replace(/[\u00AE\u2122\u2120]/g, "") // ® ™ ℠
+    .replace(/[^a-z0-9]/g, "");          // remove spaces/punct entirely
+}
+
+// Map: squashedKey -> canonical display brand (the JSON key)
+const CANONICAL_BRAND_MAP = (() => {
+  const map = new Map();
+  for (const displayBrand of Object.keys(canonicalBrandModels || {})) {
+    map.set(squashBrandKey(displayBrand), displayBrand);
+  }
+  return map;
+})();
+
+// If user typed brand matches a known canonical key, return that canonical display version.
+// Otherwise return the cleaned input as-is (so search still works for unknown brands).
+function normalizeBrandDisplay(rawBrand) {
+  const cleaned = String(rawBrand || "")
+    .replace(/[\u00AE\u2122\u2120]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return "";
+  return CANONICAL_BRAND_MAP.get(squashBrandKey(cleaned)) || cleaned;
 }
 
 /* ------------------------------ Scoring --------------------------------- */
@@ -94,6 +141,7 @@ function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
       if (hasPrefix(t)) { score += 12; brandHits++; continue; }
     }
 
+    // If user specified brand, require at least one brand hit
     if (brandHits === 0) return 0;
 
     score += Math.floor((brandHits / brandTokens.length) * 10);
@@ -123,6 +171,7 @@ function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
       }
     }
 
+    // If user specified model, require at least one model hit
     if (modelHits === 0) return 0;
 
     score += Math.floor((modelHits / modelTokens.length) * 10);
@@ -143,6 +192,7 @@ function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
       if (hasPrefix(t)) { score += 6; hits++; continue; }
     }
 
+    // If this is a "query only" search (no brand/model), require some minimum hits
     if (!brandTokens.length && !modelTokens.length) {
       const required = queryTokens.length === 1 ? 1 : Math.ceil(queryTokens.length * 0.6);
       if (hits < required) return 0;
@@ -151,6 +201,7 @@ function scoreDeal({ brandTokens, modelTokens, queryTokens }, idx) {
     score += Math.floor((hits / queryTokens.length) * 12);
   }
 
+  // Small bonus if model exists
   if (idx.model && idx.model.trim()) score += 2;
 
   return score;
@@ -284,9 +335,14 @@ module.exports = async (req, res) => {
       return res.status(429).json({ error: "Too many requests", requestId });
     }
 
-    const rawBrand = req.query && req.query.brand ? req.query.brand : "";
+    // Raw query params
+    const rawBrandInput = req.query && req.query.brand ? req.query.brand : "";
     const rawModel = req.query && req.query.model ? req.query.model : "";
     const rawQuery = req.query && req.query.query ? req.query.query : "";
+
+    // ✅ NEW: Canonicalize brand *input* so casing doesn't matter,
+    // and "asics" always becomes "ASICS" (assuming your JSON uses "ASICS" as the key).
+    const rawBrand = normalizeBrandDisplay(rawBrandInput);
 
     const brandTokens = tokenize(rawBrand).filter(isMeaningfulToken);
     const modelTokens = tokenize(rawModel).filter(isMeaningfulToken);
@@ -315,7 +371,9 @@ module.exports = async (req, res) => {
     }
 
     const dealsVersion = dealsData?.lastUpdated ? String(dealsData.lastUpdated) : "unknown";
-    const cacheKey = `search:v5:${dealsVersion}:${brandTokens.join(".")}:${modelTokens.join(".")}:${queryTokens.join(".")}`;
+
+    // Include canonicalized brand in the cache key so asics/ASICS share cache
+    const cacheKey = `search:v6:${dealsVersion}:${brandTokens.join(".")}:${modelTokens.join(".")}:${queryTokens.join(".")}`;
 
     const cached = getCached(cacheKey);
     if (cached) {
@@ -343,6 +401,7 @@ module.exports = async (req, res) => {
 
     scored.sort((a, b) => b.score - a.score);
 
+    // Cap results (keep your existing cap)
     const results = scored.slice(0, 480).map(({ deal }) => ({
       listingName: deal.listingName || deal.title || deal.name || "Running Shoe Deal",
       brand: deal.brand || "Unknown",
@@ -373,7 +432,7 @@ module.exports = async (req, res) => {
       ms: Date.now() - startedAt,
       count: results.length,
       dealsVersion,
-      query: { brandTokens, modelTokens, queryTokens },
+      query: { brandInput: rawBrandInput, brandCanonical: rawBrand, brandTokens, modelTokens, queryTokens },
     });
 
     return res.status(200).json({
