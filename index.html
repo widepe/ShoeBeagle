@@ -48,7 +48,7 @@
       <div class="top-left">
         <form id="search-form" method="POST" autocomplete="off">
           <!-- unified row -->
-          <div class="row">
+          <div class="row" id="mobileSearchRow">
             <div class="input-wrapper">
               <img class="input-icon" src="/images/shoe.svg" alt="" aria-hidden="true" />
               <input
@@ -1274,6 +1274,31 @@
       });
 
       if (qInput) qInput.addEventListener("input", updateFetchReady);
+// ===== Mobile portrait: scroll SEARCH ROW to top on focus =====
+(() => {
+  const rowEl = document.getElementById("mobileSearchRow");
+  if (!qInput || !rowEl) return;
+
+  function isMobilePortrait() {
+    return window.matchMedia("(max-width: 560px) and (orientation: portrait)").matches;
+  }
+
+  function scrollRowToTop() {
+    if (!isMobilePortrait()) return;
+
+    setTimeout(() => {
+      rowEl.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }, 250);
+  }
+
+  qInput.addEventListener("focus", scrollRowToTop);
+})();
+
+
+if (qInput) qInput.addEventListener("input", updateFetchReady);      
     })();
   </script>
 
