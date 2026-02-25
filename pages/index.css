@@ -18,10 +18,10 @@ html{ -webkit-text-size-adjust:100%; }
   --sb-blue:#214478ff;
 
   --bg:#f4ede3ff;   
- --card-bg: #e2e5ec;
-   --sb-blue-rgb: 33 68 120;
-   
---maxw:1600px;
+  --card-bg: #e2e5ec;
+  --sb-blue-rgb: 33 68 120;
+
+  --maxw:1600px;
   --pad:12px;
 
   --top-scale:0.70;
@@ -44,8 +44,8 @@ html{ -webkit-text-size-adjust:100%; }
   --top-rows:1;
 
   --cols:6;
---card-brand-color:#214478ff;   
-   --card-w:calc(260px * var(--grid-scale));
+  --card-brand-color:#214478ff;
+  --card-w:calc(260px * var(--grid-scale));
   --grid-gap:calc(1.25rem * var(--grid-scale));
 
   --grid-w:calc(
@@ -72,6 +72,20 @@ html{ -webkit-text-size-adjust:100%; }
   --card-border:calc(2px * var(--grid-scale));
   --img-border:calc(1px * var(--grid-scale));
   --card-radius:calc(0.75rem * var(--grid-scale));
+
+  /* =========================================================
+     ✅ SET ALERT MODAL TOKENS (matches main search box)
+     - modal panel color: #ff660045 (RGBA)
+     - same input shape + background + highlight as main page
+     - completed inputs turn same light blue as "completed" email
+  ========================================================= */
+  --sb-modal-bg: #ff660045;               /* requested RGBA hex */
+  --sb-input-bg: #f8f8f8;                 /* same as main input */
+  --sb-input-radius: calc(0.5rem * var(--top-scale));
+  --sb-input-shadow: 0px 0px 7px rgb(33 68 121 / 28%);
+  --sb-focus-border: #1a3661;             /* same as .sb-input:focus currently uses */
+  --sb-focus-ring: 0 0 0 3px rgba(33,68,120,0.10); /* same focus ring */
+  --sb-done-bg: rgba(232,240,255,1);      /* light blue “done” fill */
 }
 
 /* =========================================================
@@ -156,38 +170,37 @@ body{
   z-index:2000;
 }
 
-
 /* =========================================================
    TOPBAR (inputs + logo)
 ========================================================= */
 .topbar{
   width:100%;
   display:flex;
-  align-items:center;         /* keep logo centered with input */
+  align-items:center;
   justify-content:center;
   gap:var(--gap);
   margin-top:2px;
 
-  flex-wrap:nowrap;           /* ✅ KEY: prevents logo dropping below */
+  flex-wrap:nowrap;
   padding:0 var(--pad);
 }
 
 .top-left{
-  flex:1 1 0;                 /* ✅ was 1 1 520px */
+  flex:1 1 0;
   width:min(600px, 100%);
   min-width:0;
   display:flex;
   flex-direction:column;
   align-items:flex-start;
-  order:1;                    /* optional: keep inputs to the right */
+  order:1;
 }
 
 .top-right{
   flex:0 0 auto;
   display:flex;
-  align-items:center;         /* nicer vertical alignment */
+  align-items:center;
   justify-content:center;
-  order:0;                    /* ✅ logo on the left */
+  order:0;
   margin-right:calc(36px * var(--top-scale));
   min-width:0;
 }
@@ -255,8 +268,8 @@ input[type="text"], input[type="search"]{
   border-radius:calc(0.5rem * var(--top-scale));
   border:1px solid var(--sb-blue);
   background:#f8f8f8;
- box-shadow: 0px 0px 7px rgb(33 68 121 / 28%);
-   font-size:var(--input-font);
+  box-shadow: 0px 0px 7px rgb(33 68 121 / 28%);
+  font-size:var(--input-font);
   font-weight:500;
   color:#444;
   transition:border-color 0.2s ease, background-color 0.2s ease;
@@ -873,12 +886,12 @@ button{
   }
 
   /* row: keep single line + animate gap so motion feels unified */
-.row{
-  flex-wrap:nowrap;
-  align-items:center;
-  width:100%;
-  transition:gap 0.40s ease;
-}
+  .row{
+    flex-wrap:nowrap;
+    align-items:center;
+    width:100%;
+    transition:gap 0.40s ease;
+  }
 
   .input-wrapper{
     flex:1 1 auto;
@@ -891,32 +904,30 @@ button{
     height:calc(32px * var(--top-scale));
   }
 
-/* X centers against the input height, even when expanded */
-.input-clear{
-  position:absolute;
-  right:calc(0.55rem * var(--top-scale));
-  top:0;
-  bottom:0;
-  margin:auto 0;
+  /* X centers against the input height, even when expanded */
+  .input-clear{
+    position:absolute;
+    right:calc(0.55rem * var(--top-scale));
+    top:0;
+    bottom:0;
+    margin:auto 0;
 
-  display:none;           /* keep your show/hide logic */
-  align-items:center;
-  justify-content:center;
+    display:none;
+    align-items:center;
+    justify-content:center;
 
-  height:1em;             /* keeps the glyph centered nicely */
-  line-height:1;
-}
-
+    height:1em;
+    line-height:1;
+  }
 
   /* typing expansion behavior */
   .app{ --typing-scale:1; }
   .app.inputs-expanded{ --typing-scale:1.4; }
 
-
-/* input: sync height change to same timing */
-input[type="text"], input[type="search"]{
-  transition:height 0.40s ease, font-size 0.40s ease;
-}
+  /* input: sync height change to same timing */
+  input[type="text"], input[type="search"]{
+    transition:height 0.40s ease, font-size 0.40s ease;
+  }
 
   .app.inputs-expanded input[type="text"],
   .app.inputs-expanded input[type="search"]{
@@ -929,94 +940,75 @@ input[type="text"], input[type="search"]{
     height:calc(22px * var(--top-scale) * var(--typing-scale));
   }
 
-/* ============================
-   Buttons (FLEX, single-source, moves as a unit)
-   - Menu collapses space (so input grows)
-   - Fetch does NOT translate (so it can’t overshoot)
-   - Menu slides only one slot (so it doesn’t “fly”)
-============================ */
+  /* ============================
+     Buttons (FLEX, single-source, moves as a unit)
+  ============================ */
 
-/* ensure row is flex and has the same gap */
-.row{
-  display:flex;
-  align-items:center;
-  gap:var(--gap);
-}
+  .row{
+    display:flex;
+    align-items:center;
+    gap:var(--gap);
+  }
 
-/* keep input able to grow */
-.input-wrapper{
-  flex:1 1 auto;
-  min-width:0;
+  .input-wrapper{
+    flex:1 1 auto;
+    min-width:0;
 
-  display:flex;           /* NEW */
-  align-items:stretch;    /* NEW */
-}
+    display:flex;
+    align-items:stretch;
+  }
 
+  .input-wrapper input[type="text"],
+  .input-wrapper input[type="search"]{
+    flex:1 1 auto;
+  }   
 
-.input-wrapper input[type="text"],
-.input-wrapper input[type="search"]{
-  flex:1 1 auto;
-}   
+  #menuBtn,
+  #fetchBtn{
+    flex:0 0 var(--btn-eq-w);
+    width:var(--btn-eq-w);
+    min-width:var(--btn-eq-w);
+    height:var(--btn-h);
 
-/* size the two buttons consistently */
-#menuBtn,
-#fetchBtn{
-  flex:0 0 var(--btn-eq-w);
-  width:var(--btn-eq-w);
-  min-width:var(--btn-eq-w);
-  height:var(--btn-h);
+    transition:
+      transform 0.40s ease,
+      opacity   0.40s ease,
+      height    0.40s ease,
+      width     0.40s ease,
+      flex-basis 0.40s ease,
+      margin    0.40s ease,
+      border-width 0.40s ease;
 
-  transition:
-    transform 0.40s ease,
-    opacity   0.40s ease,
-    height    0.40s ease,
-    width     0.40s ease,
-    flex-basis 0.40s ease,
-    margin    0.40s ease,
-    border-width 0.40s ease;
+    will-change:transform, opacity, width, flex-basis, margin, height;
+  }
 
-  will-change:transform, opacity, width, flex-basis, margin, height;
-}
+  .app.inputs-expanded #menuBtn,
+  .app.inputs-expanded #fetchBtn{
+    height:calc(var(--btn-h) * var(--typing-scale));
+  }
 
-/* both grow taller with the input */
-.app.inputs-expanded #menuBtn,
-.app.inputs-expanded #fetchBtn{
-  height:calc(var(--btn-h) * var(--typing-scale));
-}
+  #menuBtn{ overflow:hidden; }
 
-/* MENU: slide out ONE slot (not 120vw), and collapse space */
-#menuBtn{ overflow:hidden; }
+  .app.inputs-expanded #menuBtn{
+    transform:translateX(calc(var(--btn-eq-w) + var(--gap)));
+    opacity:0;
+    pointer-events:none;
 
-.app.inputs-expanded #menuBtn{
-  transform:translateX(calc(var(--btn-eq-w) + var(--gap)));
-  opacity:0;
-  pointer-events:none;
+    width:0;
+    flex-basis:0;
+    min-width:0;
 
-  width:0;
-  flex-basis:0;
-  min-width:0;
+    margin-right:calc(-1 * var(--gap));
 
-  /* remove the leftover gap so fetch reaches the right padding */
-  margin-right:calc(-1 * var(--gap));
+    border-width:0;
+  }
 
-  border-width:0;
-}
+  #fetchBtn{ transform:translateX(0); }
 
-/* FETCH: never translate (prevents overshoot + wrong-way issues) */
-#fetchBtn{ transform:translateX(0); }
+  .app.inputs-expanded #fetchBtn{
+    transform:translateX(calc(1 * (var(--gap) / 2)));
+  }
 
-.app.inputs-expanded #fetchBtn{
-  /* tiny nudge to compensate for internal padding */
-  transform:translateX(calc(1 * (var(--gap) / 2)));
-}
-
-
-
-
-
-
-
-   
   .input-controls{
     position:absolute;
     right:calc(8px + (42px * var(--top-scale)));
@@ -1140,7 +1132,6 @@ input[type="text"], input[type="search"]{
   #mainContent{ padding-bottom:0; }
 }
 
-
 /* =========================================================
    RESULTS TRANSITION (disabled on mobile portrait)
 ========================================================= */
@@ -1158,39 +1149,39 @@ input[type="text"], input[type="search"]{
     transform:none !important;
   }
 }
-  /* ==============================
-     LOAD MORE (mobile portrait)
-  ============================== */
 
-  .load-more-wrap{
-    width:100%;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    padding:10px 0 16px;   /* small breathing room */
-  }
+/* ==============================
+   LOAD MORE (mobile portrait)
+============================== */
+.load-more-wrap{
+  width:100%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:10px 0 16px;
+}
 
-  .load-more-btn{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
+.load-more-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
 
-    padding:6px 14px;     /* just light padding around text */
-    height:auto;           /* remove forced tall height */
-    min-width:auto;
+  padding:6px 14px;
+  height:auto;
+  min-width:auto;
 
-    border-radius:8px;
-    border:1.5px solid var(--sb-blue);
-    background:var(--sb-blue);
-    color:#fff;
+  border-radius:8px;
+  border:1.5px solid var(--sb-blue);
+  background:var(--sb-blue);
+  color:#fff;
 
-    font-size:0.95rem;  
-    font-weight:800;
-  }
+  font-size:0.95rem;  
+  font-weight:800;
+}
 
-  .load-more-btn:active{
-    transform:translateY(1px);
-  }
+.load-more-btn:active{
+  transform:translateY(1px);
+}
 
 /* =========================================================
    DESKTOP VIEW (align top cluster to grid outer width)
@@ -1229,16 +1220,16 @@ input[type="text"], input[type="search"]{
 }
 
 /* =========================================================
-   SET ALERT MODAL  (includes the edits you requested)
+   SET ALERT MODAL (UPDATED to match main search inputs)
 ========================================================= */
 
-/* Alert modal: highlight the next field to fill */
+/* Alert modal: highlight the next field to fill (KEEP – but match main input radius) */
 .sb-next .sb-input,
 .sb-gender.sb-next,
 .sb-price-wrap.sb-next{
   outline: 3px solid rgba(33,68,120,0.35);
   box-shadow: 0 0 0 6px rgba(33,68,120,0.10);
-  border-radius: 14px;
+  border-radius: var(--sb-input-radius);
 }
 
 /* Disable gender block until it's time */
@@ -1263,12 +1254,13 @@ input[type="text"], input[type="search"]{
 }
 .sb-alert-backdrop.open{ display:flex; }
 
-/* modal box */
+/* modal box (requested color) */
 .sb-alert-modal{
   width:min(420px, calc(100vw - 28px));
   max-height:min(92vh, 720px);
   overflow:auto;
-  background:#ffffffee;
+
+  background: var(--sb-modal-bg);             /* ✅ #ff660045 */
   border:2px solid var(--sb-blue);
   border-radius:14px;
 
@@ -1300,7 +1292,7 @@ input[type="text"], input[type="search"]{
 }
 .sb-alert-close:hover{ color:#555; opacity:1; }
 
-/* title: higher + light padding */
+/* title */
 .sb-alert-title{
   text-align:center;
   color:var(--sb-blue);
@@ -1318,37 +1310,49 @@ input[type="text"], input[type="search"]{
   gap:14px;
 }
 
-/* spacing between inputs + button inside the form view */
 #sbAlertFormView{
   display:flex;
   flex-direction:column;
   gap:12px;
 }
 
-/* remove extra top margin so spacing comes from gap */
 .sb-submit{ margin-top:0; }
 .sb-note{ margin-top:0; }
 .sb-confirm{ margin-top:0; }
 
+/* ✅ Inputs: EXACTLY like main search box (shape, bg, shadow, focus ring)
+   Also: prevent “shape changing” by keeping border width constant everywhere */
 .sb-input{
   width:100%;
-  height:42px;
-  border-radius:5px;
+  height:var(--input-h);                      /* match main input height */
+  border-radius: var(--sb-input-radius);      /* match main input radius */
   border:1px solid var(--sb-blue);
-  background:#fafdf4;
+  background: var(--sb-input-bg);
+  box-shadow: var(--sb-input-shadow);
   padding:0 17px;
-  font-size:1rem;
+  font-size:16px;                             /* stable in modal */
+  font-weight:500;
+  color:#444;
+  transition:border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
   box-sizing:border-box;
 }
 
 .sb-input::placeholder{ color:#999; opacity:1; }
 
+/* ✅ Same highlight as main page (no shape change) */
 .sb-input:focus{
   outline:none;
-  border-color:#1a3661;
-  box-shadow:0 0 0 3px rgba(33,68,120,0.10);
+  border-color: var(--sb-focus-border);
+  box-shadow: var(--sb-focus-ring), var(--sb-input-shadow);
 }
 
+/* ✅ Completed inputs turn light blue (same behavior you described)
+   (JS already controls when fields are “ok”; we hook into built-in validity) */
+.sb-input:not(:placeholder-shown):not(:focus){
+  background: var(--sb-done-bg);
+}
+
+/* Keep wrapper */
 .sb-input-wrap{ position:relative; }
 
 .sb-clear{
@@ -1363,7 +1367,7 @@ input[type="text"], input[type="search"]{
   margin:0;
 
   cursor:pointer;
-  display:none; /* JS controls this */
+  display:none;
 
   font-size:26px;
   line-height:1;
@@ -1372,20 +1376,17 @@ input[type="text"], input[type="search"]{
   color:#888;
   opacity:0.9;
 }
+.sb-clear:hover{ color:#555; opacity:1; }
 
-.sb-clear:hover{
-  color:#555;
-  opacity:1;
-}
-
+/* suggestions */
 .sb-sug{
   position:absolute;
-  top:46px;
+  top:calc(var(--input-h) + 4px);
   left:0;
   right:0;
   background:#fff;
   border:1px solid var(--sb-blue);
-  border-radius:10px;
+  border-radius: var(--sb-input-radius);
   box-shadow:0 6px 12px rgba(0,0,0,0.08);
   max-height:180px;
   overflow:auto;
@@ -1444,12 +1445,13 @@ input[type="text"], input[type="search"]{
 .sb-gender-option.active .sb-gender-check{ display:block; }
 .sb-gender-label{ font-size:0.95rem; }
 
+/* price wrap: match height and keep shape stable */
 .sb-price-wrap{
   position:relative;
-  height:42px;
+  height:var(--input-h);
 }
-
 .sb-price{
+  height:var(--input-h);
   padding-left:22px;
   padding-right:40px;
   text-align:left;
@@ -1466,6 +1468,7 @@ input[type="text"], input[type="search"]{
 }
 .sb-clear-price{ right:10px; }
 
+/* buttons */
 .sb-submit{
   width:100%;
   height:46px;
