@@ -838,8 +838,11 @@ button{
   /* prevent iOS zoom */
   input[type="text"], input[type="search"]{ font-size:16px; }
   .suggestion-item{ font-size:19px; }
-
-  /* --- Top layout: logo row, then inputs row --- */
+  /* ✅ Mobile portrait: show up to ~5 suggestions */
+  .suggestions{
+    max-height: 220px;      /* ~5 rows */
+    overflow-y: auto;
+  }  /* --- Top layout: logo row, then inputs row --- */
   .topbar{
     flex-direction:column;
     align-items:center;
