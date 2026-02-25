@@ -626,6 +626,8 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
   div.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     e.stopPropagation();
+    pickingSuggestion = true;
+setTimeout(() => { pickingSuggestion = false; }, 0);
     onPick(value);
   });
 
@@ -808,7 +810,14 @@ renderSuggestions(built.items, (value) => applySuggestionAndSearch(value));
 handleSuggestionKeys(e, (value) => applySuggestionAndSearch(value));
         });
 
-        qInput.addEventListener("blur", () => setTimeout(() => closeSuggestions(), 140));
+   let pickingSuggestion = false;
+
+qInput.addEventListener("blur", () => {
+  setTimeout(() => {
+    if (pickingSuggestion) return;
+    closeSuggestions();
+  }, 140);
+});
         qInput.addEventListener("click", () => qInput.select());
       }
 
