@@ -717,40 +717,83 @@
         });
       }
 
-      function buildUnifiedSuggestions(typed) {
-        if (!dealsSuggest.ready) return { items: [], mode: "model", brand: "" };
+ function buildUnifiedSuggestions(typed) {
+  if (!dealsSuggest.ready) return { items: [], mode: "model", brand: "" };
 
-        const t = String(typed || "").trim();
-        if (!t) return { items: [], mode: "model", brand: "" };
+  const t = String(typed || "").trim();
+  if (!t) return { items: [], mode: "model", brand: "" };
 
-        const { brand, rest } = detectBrandPrefix(t);
+  // -----------------------------------------
+  // 1) BRAND-FIRST when user is typing ONE TOKEN
+  //    (no spaces yet). If brands match, show them first.
+  //    Then (optionally) fill remaining slots with models.
+  // -----------------------------------------
+  const hasSpace = /\s/.test(t);
+  if (!hasSpace) {
+    const brandHits = filterSuggestions(dealsSuggest.brands, t, 12);
 
-        if (brand) {
-          const pool = dealsSuggest.brandToModels.has(brand)
-            ? Array.from(dealsSuggest.brandToModels.get(brand).values())
-            : [];
+    if (brandHits.length) {
+      // Fill leftover slots with model matches (fallback),
+      // but do not duplicate visually-same strings.
+      const modelHits = filterSuggestions(dealsSuggest.allModels, t, 12);
 
-          if (!rest) {
-            const modelsShort = sortShortFirst(pool).slice(0, 11);
-            return {
-              items: [brand, ...modelsShort.map((m) => `${brand} ${m}`)],
-              mode: "brandmodel",
-              brand,
-            };
-          }
+      const out = [];
+      const seen = new Set();
 
-          const matches = filterSuggestions(pool, rest, 12);
-          const ordered = sortShortFirst(matches);
-          return {
-            items: ordered.map((m) => `${brand} ${m}`),
-            mode: "brandmodel",
-            brand,
-          };
-        }
+      const add = (v) => {
+        const key = squashStr(String(v || ""));
+        if (!key) return;
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(v);
+      };
 
-        const matches = filterSuggestions(dealsSuggest.allModels, t, 12);
-        return { items: matches, mode: "model", brand: "" };
+      brandHits.forEach(add);
+
+      // only fill if we still have room
+      for (const m of modelHits) {
+        if (out.length >= 12) break;
+        add(m);
       }
+
+      return { items: out.slice(0, 12), mode: "brandFirst", brand: "" };
+    }
+  }
+
+  // -----------------------------------------
+  // 2) Existing behavior for "brand + rest" typing
+  // -----------------------------------------
+  const { brand, rest } = detectBrandPrefix(t);
+
+  if (brand) {
+    const pool = dealsSuggest.brandToModels.has(brand)
+      ? Array.from(dealsSuggest.brandToModels.get(brand).values())
+      : [];
+
+    if (!rest) {
+      const modelsShort = sortShortFirst(pool).slice(0, 11);
+      return {
+        items: [brand, ...modelsShort.map((m) => `${brand} ${m}`)],
+        mode: "brandmodel",
+        brand,
+      };
+    }
+
+    const matches = filterSuggestions(pool, rest, 12);
+    const ordered = sortShortFirst(matches);
+    return {
+      items: ordered.map((m) => `${brand} ${m}`),
+      mode: "brandmodel",
+      brand,
+    };
+  }
+
+  // -----------------------------------------
+  // 3) Final fallback: models only
+  // -----------------------------------------
+  const matches = filterSuggestions(dealsSuggest.allModels, t, 12);
+  return { items: matches, mode: "model", brand: "" };
+}
 
       function splitBrandModelFromPicked(picked) {
         const s = String(picked || "").trim();
