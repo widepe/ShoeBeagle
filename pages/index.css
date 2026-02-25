@@ -1260,7 +1260,7 @@ button{
   max-height:min(92vh, 720px);
   overflow:auto;
 
-  background:#ff6600;       
+  background:#ffd5baff;       
   border:2px solid var(--sb-blue);
   border-radius:14px;
 
