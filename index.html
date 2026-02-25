@@ -16,8 +16,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <title>Shoe Beagle--The Running Shoe Deal Finder</title>
-
-  <!-- CSS -->
+<link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
+<link rel="icon" type="image/png" href="/images/favicon.png">  <!-- CSS -->
   <link rel="stylesheet" href="/pages/index.css?v=128" />
 
   <!-- IMPORTANT:
@@ -29,8 +29,6 @@
 
 <body>
   <div class="app">
-    <!-- <img class="mobile-top-banner" src="/images/logo_heading.svg" alt=""> -->
-
     <!-- TOP AREA -->
     <div class="topbar">
       <!-- LOGO -->
@@ -102,15 +100,6 @@
               <option value="mens">Mens</option>
               <option value="womens">Womens</option>
             </select>
-<!--
-<label class="ribbon-label" for="ribbonType">Shoe Type</label>
-<select id="ribbonType" class="ribbon-select" aria-label="Filter by shoe type">
-  <option value="" selected>Off</option>
-  <option value="road">Road</option>
-  <option value="trail">Trail</option>
-  <option value="track">Track</option>
-</select>
--->
 
             <label class="ribbon-label" for="ribbonSort">Sort</label>
             <select id="ribbonSort" class="ribbon-select" aria-label="Sort results">
@@ -156,8 +145,7 @@
       </div>
 
       <p class="disclaimer">
-Shoe Beagle may earn a small commission when you purchase through our links — at no extra cost to you. Prices and availability are set by the retailer, and may change. Always confirm final details on the retailer’s site before buying.
-        
+        Shoe Beagle may earn a small commission when you purchase through our links — at no extra cost to you. Prices and availability are set by the retailer, and may change. Always confirm final details on the retailer’s site before buying.
       </p>
     </div>
 
@@ -178,7 +166,6 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
   </div>
 
   <!-- Load brand/models once (root) -->
-  <!-- NOTE: main page no longer uses brandModels.js for suggestions. Modal still uses it (by design). -->
   <script src="/brandModels.js"></script>
 
   <!-- ===== Main Page Script ===== -->
@@ -205,7 +192,6 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
 
       // Ribbon dropdowns
       const ribbonGender = document.getElementById("ribbonGender");
-// const ribbonType = document.getElementById("ribbonType"); // 🔒 disabled
       const ribbonSort = document.getElementById("ribbonSort");
 
       const PAGE_SIZE = 12;
@@ -245,7 +231,6 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
 
       // Unified state (ribbon dropdowns update these)
       let selectedGender = "";    // "" | "mens" | "womens"
-  // let selectedShoeType = "";  // 🔒 disabled
       let currentSort = "";       // "" | "price-asc" | ...
 
       if (footerYear) footerYear.textContent = new Date().getFullYear();
@@ -589,6 +574,7 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
 
       // ---------- Suggestions UI ----------
       const suggestionState = { open: false, items: [], activeIndex: -1, mode: "model" };
+      let pickingSuggestion = false; // ✅ important: correct scope
 
       function closeSuggestions() {
         if (!qSuggestions) return;
@@ -617,29 +603,35 @@ Shoe Beagle may earn a small commission when you purchase through our links — 
         suggestionState.items = items.slice();
         suggestionState.activeIndex = -1;
 
- items.forEach((value, idx) => {
-  const div = document.createElement("div");
-  div.className = "suggestion-item";
-  div.textContent = value;
-  div.dataset.index = String(idx);
+        items.forEach((value, idx) => {
+          const div = document.createElement("div");
+          div.className = "suggestion-item";
+          div.textContent = value;
+          div.dataset.index = String(idx);
 
-  div.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    pickingSuggestion = true;
-setTimeout(() => { pickingSuggestion = false; }, 0);
-    onPick(value);
-  });
+          // ✅ pointerdown fixes iOS Safari blur-before-click issue
+          div.addEventListener("pointerdown", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            pickingSuggestion = true;
+            setTimeout(() => { pickingSuggestion = false; }, 0);
+            onPick(value);
+          });
 
-  // fallback
-  div.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onPick(value);
-  });
+          // ✅ fallback for environments without pointer events behaving well
+          div.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            pickingSuggestion = true;
+            setTimeout(() => { pickingSuggestion = false; }, 0);
+            onPick(value);
+          });
 
-  qSuggestions.appendChild(div);
-});
+          qSuggestions.appendChild(div);
+        });
+
+        qSuggestions.style.display = "block";
+      }
 
       function highlightActive() {
         if (!qSuggestions) return;
@@ -760,27 +752,27 @@ setTimeout(() => { pickingSuggestion = false; }, 0);
         return { brand: "", model: s };
       }
 
-function applySuggestionAndSearch(value) {
-  // Fill input with picked suggestion
-  const bm = splitBrandModelFromPicked(value);
-  if (bm.brand && bm.model) qInput.value = `${bm.brand} ${bm.model}`.trim();
-  else qInput.value = String(value || "").trim();
+      function applySuggestionAndSearch(value) {
+        // Fill input with picked suggestion
+        const bm = splitBrandModelFromPicked(value);
+        if (bm.brand && bm.model) qInput.value = `${bm.brand} ${bm.model}`.trim();
+        else qInput.value = String(value || "").trim();
 
-  // Close dropdown + enable fetch
-  closeSuggestions();
-  updateFetchReady();
-  if (fetchBtn) fetchBtn.disabled = false;
+        // Close dropdown + enable fetch
+        closeSuggestions();
+        updateFetchReady();
+        if (fetchBtn) fetchBtn.disabled = false;
 
-  // Trigger the same submit handler as clicking Fetch
-  setTimeout(() => {
-    if (form && typeof form.requestSubmit === "function") {
-      form.requestSubmit();
-    } else if (form) {
-      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    }
-  }, 0);
-}
-      
+        // Trigger the same submit handler as clicking Fetch
+        setTimeout(() => {
+          if (form && typeof form.requestSubmit === "function") {
+            form.requestSubmit();
+          } else if (form) {
+            form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+          }
+        }, 0);
+      }
+
       // Input handlers
       if (qInput) {
         qInput.addEventListener("input", () => {
@@ -801,23 +793,23 @@ function applySuggestionAndSearch(value) {
           const built = buildUnifiedSuggestions(typed);
           suggestionState.mode = built.mode;
 
-renderSuggestions(built.items, (value) => applySuggestionAndSearch(value));
-
+          renderSuggestions(built.items, (value) => applySuggestionAndSearch(value));
           updateFetchReady();
         });
 
         qInput.addEventListener("keydown", (e) => {
-handleSuggestionKeys(e, (value) => applySuggestionAndSearch(value));
+          handleSuggestionKeys(e, (value) => applySuggestionAndSearch(value));
         });
 
-   let pickingSuggestion = false;
+        // ✅ ONE blur handler: don’t close suggestions if a suggestion is being picked
+        qInput.addEventListener("blur", () => {
+          setTimeout(() => {
+            if (!pickingSuggestion) closeSuggestions();
+            shrinkInputs(); // keeps your mobile shrink behavior
+          }, 140);
+        });
 
-qInput.addEventListener("blur", () => {
-  setTimeout(() => {
-    if (pickingSuggestion) return;
-    closeSuggestions();
-  }, 140);
-});
+        qInput.addEventListener("focus", expandInputs);
         qInput.addEventListener("click", () => qInput.select());
       }
 
@@ -830,7 +822,6 @@ qInput.addEventListener("blur", () => {
 
       function syncRibbonFromState() {
         if (ribbonGender) ribbonGender.value = selectedGender || "";
-    // if (ribbonType) ribbonType.value = selectedShoeType || "";
         if (ribbonSort) ribbonSort.value = currentSort || "";
       }
 
@@ -930,20 +921,15 @@ qInput.addEventListener("blur", () => {
       }
 
       // ===== Filters =====
-function applyFilters(items) {
-  const gSel = norm(selectedGender);
-  // const tSel = norm(selectedShoeType);  // 🔒 disabled for now. This displays shoeType like road or track on the image.
+      function applyFilters(items) {
+        const gSel = norm(selectedGender);
 
-  return (items || []).filter((item) => {
-    const g = norm(item.gender);
-    // const t = norm(item.shoeType);      // 🔒 disabled
-
-    const genderOk = !gSel || g === gSel || g === "unisex" || g === "unknown" || g === "";
-    // const typeOk = !tSel || t === tSel || t === "unknown" || t === ""; // 🔒 disabled
-
-    return genderOk; // 🔒 removed type filter
-  });
-}
+        return (items || []).filter((item) => {
+          const g = norm(item.gender);
+          const genderOk = !gSel || g === gSel || g === "unisex" || g === "unknown" || g === "";
+          return genderOk;
+        });
+      }
 
       function getFilteredAndSorted(items) {
         const filtered = applyFilters(items);
@@ -1028,16 +1014,6 @@ function applyFilters(items) {
         });
       }
 
-/*
-if (ribbonType) {
-  ribbonType.addEventListener("change", () => {
-    selectedShoeType = norm(ribbonType.value);
-    renderDailyDealsNow();
-    renderFilteredResults({ resetPage: true, append: false });
-  });
-}
-*/
-
       if (ribbonSort) {
         ribbonSort.addEventListener("change", () => {
           currentSort = String(ribbonSort.value || "").trim();
@@ -1120,10 +1096,8 @@ if (ribbonType) {
           imgWrapper.appendChild(badge);
         }
 
-const gRaw = norm(item.gender);
-// const tRaw = norm(item.shoeType);  // 🔒 disabled
-const g = gRaw && gRaw !== "unknown" ? gRaw : "";
-// const t = tRaw && tRaw !== "unknown" ? tRaw : ""; // 🔒 disabled
+        const gRaw = norm(item.gender);
+        const g = gRaw && gRaw !== "unknown" ? gRaw : "";
 
         const tagWrap = document.createElement("div");
         tagWrap.className = "card-tags";
@@ -1137,20 +1111,6 @@ const g = gRaw && gRaw !== "unknown" ? gRaw : "";
           tagWrap.appendChild(genderTag);
           hasAnyTag = true;
         }
-
-  /*
-if (t) {
-  const typeTag = document.createElement("span");
-  typeTag.className = "card-tag";
-  typeTag.textContent =
-    t === "road" ? "Road" :
-    t === "trail" ? "Trail" :
-    t === "track" ? "Spikes" :
-    (item.shoeType || "");
-  tagWrap.appendChild(typeTag);
-  hasAnyTag = true;
-}
-*/
 
         if (hasAnyTag) imgWrapper.appendChild(tagWrap);
 
@@ -1288,9 +1248,6 @@ if (t) {
         }, 0);
       }
 
-      if (qInput) qInput.addEventListener("focus", expandInputs);
-      if (qInput) qInput.addEventListener("blur", shrinkInputs);
-
       document.addEventListener("focusin", () => {
         if (!isMobilePortrait()) return;
         const active = document.activeElement;
@@ -1355,7 +1312,6 @@ if (t) {
 
         // Reset filters + sort on new search
         selectedGender = "";
-        // selectedShoeType = "";
         currentSort = "";
         syncRibbonFromState();
 
@@ -1504,7 +1460,7 @@ if (t) {
     </div>
   </div>
 
-  <!-- ===== Modal controller (ORDER ENFORCED) ===== -->
+  <!-- ===== Modal controller (UNCHANGED) ===== -->
   <script>
     (() => {
       const openers = document.querySelectorAll("[data-open-alert]");
@@ -1541,7 +1497,6 @@ if (t) {
       let busy = false;
       let selectedGender = "";
 
-      // ---------- tiny helpers ----------
       function setBusy(v) {
         busy = v;
         btn.disabled = v;
@@ -1762,7 +1717,6 @@ if (t) {
         const genderOk = isGenderOk();
         const priceOk = isPriceOk();
 
-        // Enable/disable downstream fields
         setEnabled(brandEl, emailOk);
 
         if (!emailOk) {
@@ -1793,10 +1747,8 @@ if (t) {
           toggleClear(priceEl);
         }
 
-        // Button only when complete
         btn.disabled = busy || !(emailOk && brandOk && modelOk && genderOk && priceOk);
 
-        // Highlight the NEXT required step
         if (!emailOk) markNext("email");
         else if (!brandOk) markNext("brand");
         else if (!modelOk) markNext("model");
@@ -1813,7 +1765,6 @@ if (t) {
         }
       }
 
-      // ---------- modal open/close ----------
       function openModal(prefillEmail) {
         lastFocus = document.activeElement;
 
@@ -1862,7 +1813,6 @@ if (t) {
       closeBtn.addEventListener("click", closeModal);
       if (maxedClose) maxedClose.addEventListener("click", closeModal);
 
-      // ---------- clear buttons ----------
       document.addEventListener("click", (e) => {
         if (!backdrop.classList.contains("open")) return;
 
@@ -1883,7 +1833,6 @@ if (t) {
         syncStepUI({ focusNext: true });
       });
 
-      // ---------- inputs enforce order ----------
       emailEl.addEventListener("input", () => {
         toggleClear(emailEl);
         hideStatus();
@@ -1896,7 +1845,6 @@ if (t) {
         toggleClear(brandEl);
         hideStatus();
 
-        // if brand becomes invalid, clear downstream
         const bk = resolveBrandKey(brandEl.value);
         if (!bk) {
           modelEl.value = "";
@@ -1975,7 +1923,6 @@ if (t) {
         if (e.key && !/[0-9]/.test(e.key)) e.preventDefault();
       });
 
-      // ---------- gender selection ----------
       genderWrap.addEventListener("click", (e) => {
         if (genderWrap.classList.contains("sb-disabled")) {
           showStatus("Fill out the fields above first.", false);
@@ -2005,7 +1952,6 @@ if (t) {
         }
       });
 
-      // ---------- submit ----------
       async function postJson(url, payload) {
         const res = await fetch(url, {
           method: "POST",
@@ -2046,7 +1992,6 @@ if (t) {
         if (maxedBox) maxedBox.hidden = true;
         if (confirmBox) confirmBox.hidden = false;
 
-        // reset for next run (keep email)
         brandEl.value = "";
         modelEl.value = "";
         priceEl.value = "";
