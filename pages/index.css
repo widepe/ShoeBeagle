@@ -1492,7 +1492,7 @@ button{
 
 .sb-note{
   padding:10px 12px;
-  background:rgba(33,68,120,0.06);
+  background:#f8f8f8;
   border:1px solid var(--sb-blue);
   border-radius:10px;
   color:#334;
