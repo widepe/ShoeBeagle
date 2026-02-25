@@ -34,6 +34,10 @@ const axios = require("axios");
 const { put } = require("@vercel/blob");
 const { assertDealSchema } = require("../lib/dealSchema");
 
+// ✅ Canonical Brand + Models dictionary (single source of truth)
+// You saved this as: /lib/canonical-brands-models.json
+const canonicalBrandModels = require("../lib/canonical-brands-models.json");
+
 /** ------------ Utilities ------------ **/
 
 function safeArray(x) {
@@ -84,6 +88,51 @@ function parseDurationMs(dur) {
 
   const n = parseFloat(s);
   return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+/** ------------ Brand canonicalization (KEY FIX) ------------ **/
+
+/**
+ * squashBrandKey()
+ * - Turns "ASICS®", "Asics", "asics " into the SAME key "asics"
+ * - Removes trademark symbols + punctuation/spaces
+ * - This is what prevents "asi" -> missing suggestions due to casing variants
+ */
+function squashBrandKey(str) {
+  return String(str || "")
+    .toLowerCase()
+    .replace(/[\u00AE\u2122\u2120]/g, "") // ® ™ ℠
+    .replace(/[^a-z0-9]/g, ""); // kill spaces/punct
+}
+
+/**
+ * CANONICAL_BRAND_MAP
+ * - O(1) lookup of normalized key -> canonical display brand (correct casing)
+ * - Built once at module load (fast)
+ */
+const CANONICAL_BRAND_MAP = (() => {
+  const map = new Map();
+  for (const displayBrand of Object.keys(canonicalBrandModels || {})) {
+    map.set(squashBrandKey(displayBrand), displayBrand);
+  }
+  return map;
+})();
+
+/**
+ * normalizeBrand()
+ * - Applies canonical casing if brand exists in your JSON dictionary
+ * - Otherwise returns cleaned original brand (no forced casing)
+ */
+function normalizeBrand(rawBrand) {
+  const cleaned = String(rawBrand || "")
+    .replace(/[\u00AE\u2122\u2120]/g, "") // ® ™ ℠
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return "Unknown";
+
+  const key = squashBrandKey(cleaned);
+  return CANONICAL_BRAND_MAP.get(key) || cleaned;
 }
 
 /** ------------ Freshness helpers ------------ **/
@@ -309,7 +358,7 @@ function storeBaseUrl(store) {
   if (s.includes("nike")) return "https://www.nike.com";
   if (s.includes("puma")) return "https://us.puma.com";
   if (s === "rei") return "https://www.rei.com";
-  if (s.includes("rei outlet")) return "https://www.rei.com/rei-garage";   // not sure what is going on here, two rei
+  if (s.includes("rei outlet")) return "https://www.rei.com/rei-garage";
   if (s.includes("rei")) return "https://www.rei.com";
   if (s.includes("road runner")) return "https://www.roadrunnersports.com";
   if (s.includes("rnj")) return "https://www.rnjsports.com";
@@ -331,7 +380,12 @@ function sanitizeDeal(raw) {
   const modelRaw = raw.model ?? "";
 
   const listingName = cleanTitleText(listingNameRaw);
-  const brand = cleanLooseText(brandRaw) || "Unknown";
+
+  // ✅ KEY FIX: normalize brand casing using /lib/canonical-brands-models.json
+  // This prevents "ASICS"/"Asics"/"asics®" from becoming multiple distinct brands.
+  // Your suggestions dropdown will stop missing prefixes like "asi".
+  const brand = normalizeBrand(cleanLooseText(brandRaw));
+
   const model = cleanLooseText(modelRaw) || "";
 
   let listingURL = String(raw.listingURL ?? raw.listingUrl ?? raw.url ?? raw.href ?? "").trim();
@@ -421,59 +475,72 @@ function isValidRunningShoe(deal) {
   const title = listingName.toLowerCase();
 
   const excludePatterns = [
-"accessories",
-"accessory",
-"apparel",
-"arm warmer",
-"backpack",
-"bag", "bags",
-"beanie",
-"bottle",
-"bra", "bras",
-"brief",
-"cap",
-"compression sleeve",
-"crew neck",
-"earwarmer", "ear warmer",
-"equipment",
-"eyewear",
-"flask",
-"gear",
-"gloves",
-"hat",
-"headband",
-"headwarmer", "head warmer",
-"hoodie",
-"hydration",
-"insole", "insoles",
-"jacket", "jackets",
-"junior", "juniors",
-"kid", "kids",
-"lace", "laces",
-"leg warmer",
-"leggings",
-"mitt",
-"out of stock",
-"pack",
-"pants",
-"pullover",
-"shirt",
-"shorts",
-"sleeve",
-"sleeves",
-"sock",
-"socks",
-"sunglasses",
-"tank top", "tank-top", "tanktop",
-"throw", "throws",
-"tights",
-"underwear",
-"vest",
-"watch",
-"windbreaker",
-"wristband",
-"yaktrax",
-"youth", "youths",
+    "accessories",
+    "accessory",
+    "apparel",
+    "arm warmer",
+    "backpack",
+    "bag",
+    "bags",
+    "beanie",
+    "bottle",
+    "bra",
+    "bras",
+    "brief",
+    "cap",
+    "compression sleeve",
+    "crew neck",
+    "earwarmer",
+    "ear warmer",
+    "equipment",
+    "eyewear",
+    "flask",
+    "gear",
+    "gloves",
+    "hat",
+    "headband",
+    "headwarmer",
+    "head warmer",
+    "hoodie",
+    "hydration",
+    "insole",
+    "insoles",
+    "jacket",
+    "jackets",
+    "junior",
+    "juniors",
+    "kid",
+    "kids",
+    "lace",
+    "laces",
+    "leg warmer",
+    "leggings",
+    "mitt",
+    "out of stock",
+    "pack",
+    "pants",
+    "pullover",
+    "shirt",
+    "shorts",
+    "sleeve",
+    "sleeves",
+    "sock",
+    "socks",
+    "sunglasses",
+    "tank top",
+    "tank-top",
+    "tanktop",
+    "throw",
+    "throws",
+    "tights",
+    "underwear",
+    "vest",
+    "watch",
+    "windbreaker",
+    "wristband",
+    "yaktrax",
+    "youth",
+    "youths",
   ];
 
   for (const pattern of excludePatterns) {
@@ -1279,7 +1346,7 @@ module.exports = async (req, res) => {
       { id: "zappos", name: "Zappos", blobUrl: ZAPPOS_DEALS_BLOB_URL },
     ];
 
-    // ✅ Correct loader call
+    // Load all blobs in parallel (this does NOT scrape; it only fetches JSON)
     const settled = await Promise.allSettled(sources.map((s) => loadDealsFromBlobOnly(s)));
 
     const perSource = {};
@@ -1289,7 +1356,7 @@ module.exports = async (req, res) => {
 
     for (let i = 0; i < settled.length; i++) {
       const src = sources[i];
-      const key = src.id || src.name; // id is the real key
+      const key = src.id || src.name; // id is the stable key
       const name = src.name; // display name only
 
       if (settled[i].status === "fulfilled") {
@@ -1305,7 +1372,7 @@ module.exports = async (req, res) => {
         const isTooOld = isOlderThanDays(timestamp, MAX_STORE_DATA_AGE_DAYS, nowMs);
         const ageDays = formatAgeDays(timestamp, nowMs);
 
-        // NOTE: Holabird shares an id across 3 blobs; accumulate counts and take the newest timestamp.
+        // Holabird shares an id across 3 blobs; accumulate counts and keep the newest timestamp.
         const prev = storeMetadata[key] || {};
         const prevCount = Number.isFinite(prev.count) ? prev.count : 0;
 
@@ -1330,6 +1397,7 @@ module.exports = async (req, res) => {
 
         perSourceMeta[key] = { name, source, deals, blobUrl, timestamp, duration, payloadMeta };
 
+        // Enforce staleness exclusion per-store
         if (isTooOld) {
           perSource[key] = {
             ok: true,
@@ -1360,6 +1428,7 @@ module.exports = async (req, res) => {
     console.log("[MERGE] Source counts:", perSource);
     console.log("[MERGE] Total raw deals (after staleness exclusion):", allDealsRaw.length);
 
+    // Keep a copy of raw deals (for debugging / validation)
     const unalteredPayload = {
       lastUpdated: new Date().toISOString(),
       totalDealsRaw: allDealsRaw.length,
@@ -1368,10 +1437,12 @@ module.exports = async (req, res) => {
       deals: allDealsRaw,
     };
 
+    // Normalize -> filter -> dedupe
     const normalized = allDealsRaw.map(normalizeDeal).filter(Boolean);
     const filtered = normalized.filter(isValidRunningShoe);
     const unique = dedupeDeals(filtered);
 
+    // Schema validation warnings (do not fail build; only log)
     let schemaWarnings = 0;
     for (const d of unique) {
       const errs = assertDealSchema(d);
@@ -1382,6 +1453,7 @@ module.exports = async (req, res) => {
     }
     console.log(`[SCHEMA] warnings: ${schemaWarnings}`);
 
+    // Sort: random shuffle then by discount descending (keeps variety)
     const discountForSort = (d) => {
       const exact = toNumber(d.discountPercent);
       const upTo = toNumber(d.discountPercentUpTo);
@@ -1391,12 +1463,14 @@ module.exports = async (req, res) => {
     unique.sort(() => Math.random() - 0.5);
     unique.sort((a, b) => discountForSort(b) - discountForSort(a));
 
+    // Count by store (for site UI)
     const dealsByStore = {};
     for (const d of unique) {
       const s = d.store || "Unknown";
       dealsByStore[s] = (dealsByStore[s] || 0) + 1;
     }
 
+    // Attach freshness flags per store id
     const sourceFreshness = Object.keys(storeMetadata)
       .sort((a, b) => String(a).localeCompare(String(b)))
       .map((storeId) => {
@@ -1421,6 +1495,7 @@ module.exports = async (req, res) => {
       deals: unique,
     };
 
+    // Derived payloads
     const stats = computeStats(unique, storeMetadata);
     stats.lastUpdated = output.lastUpdated;
 
@@ -1434,6 +1509,7 @@ module.exports = async (req, res) => {
       deals: twelveDailyDeals,
     };
 
+    // scraper-data: rolling 30-day history
     const todayDayUTC = toIsoDayUTC(output.lastUpdated);
 
     const todayRecords = [];
@@ -1456,6 +1532,7 @@ module.exports = async (req, res) => {
 
     const scraperData = mergeRollingScraperHistory(existingScraperData, todayDayUTC, todayRecords, 30);
 
+    // Write blobs (public, stable filenames)
     const [dealsBlob, unalteredBlob, statsBlob, dailyDealsBlob, scraperDataBlob] = await Promise.all([
       put("deals.json", JSON.stringify(output, null, 2), { access: "public", addRandomSuffix: false }),
       put("unaltered-deals.json", JSON.stringify(unalteredPayload, null, 2), { access: "public", addRandomSuffix: false }),
