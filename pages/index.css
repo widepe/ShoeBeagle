@@ -308,7 +308,7 @@ input::placeholder{ color:#999; opacity:1; }
   border:1px solid var(--sb-blue);
   border-radius:calc(0.5rem * var(--top-scale));
   margin-top:calc(0.15rem * var(--top-scale));
-  max-height:calc(180px * var(--top-scale));
+  max-height:calc(165px * var(--top-scale));
   overflow-y:auto;
   box-shadow:0 6px 12px rgba(0,0,0,0.08);
   z-index:30;
