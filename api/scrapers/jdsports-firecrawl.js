@@ -401,13 +401,10 @@ export default async function handler(req, res) {
   // -----------------------------
   // CRON SECRET (optional)
   // -----------------------------
-  const isCron = String(urlObj.searchParams.get("cron") || "") === "1";
-  if (isCron) {
-    const expected = String(process.env.CRON_SECRET || "").trim();
-    const got = String(urlObj.searchParams.get("secret") || req.headers["x-cron-secret"] || "").trim();
-    if (!expected) return res.status(500).json({ ok: false, error: "Missing CRON_SECRET env var" });
-    if (!got || got !== expected) return res.status(401).json({ ok: false, error: "Unauthorized" });
-  }
+const secret = process.env.CRON_SECRET;
+if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
+  return res.status(401).json({ ok: false, error: "Unauthorized" });
+}
 
   const startUrl =
     String(urlObj.searchParams.get("url") || "").trim() ||
