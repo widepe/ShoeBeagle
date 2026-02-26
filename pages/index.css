@@ -568,7 +568,7 @@ button{
 
   border:var(--card-border) solid #eef4ff;
   border-radius:var(--card-radius);
-  box-shadow: 0px 0px 2px rgb(26 30 38);
+  box-shadow: 0px 0px 1px rgb(98 98 98);
   padding:var(--card-pad);
   display:flex;
   flex-direction:column;
@@ -600,7 +600,7 @@ button{
   height:100%;
   object-fit:cover;
   background:#fff;
-  border:var(--img-border) solid #a6b0ba;
+  border:var(--img-border) solid #b6b6b6;
   border-radius:var(--img-radius);
   display:block;
 }
