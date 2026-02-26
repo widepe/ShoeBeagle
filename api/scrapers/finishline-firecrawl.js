@@ -223,11 +223,10 @@ export default async function handler(req, res) {
 
   // ✅ Cron Secret (commented out for testing)
   
-  const expected = String(process.env.CRON_SECRET || "").trim();
-  const got = String(req.headers["x-cron-secret"] || "").trim();
-  if (!expected || got !== expected) {
-    return res.status(401).json({ ok: false, error: "Unauthorized" });
-  }
+const secret = process.env.CRON_SECRET;
+if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
+  return res.status(401).json({ ok: false, error: "Unauthorized" });
+}
   
 
   let pagesFetched = 0;
