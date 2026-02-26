@@ -566,8 +566,9 @@ button{
 .card{
   background:var(--card-bg);
 
-  border:var(--card-border) solid #b4bbc3;
+  border:var(--card-border) solid #eef4ff;
   border-radius:var(--card-radius);
+  box-shadow: 0px 0px 2px rgb(26 30 38);
   padding:var(--card-pad);
   display:flex;
   flex-direction:column;
@@ -599,7 +600,7 @@ button{
   height:100%;
   object-fit:cover;
   background:#fff;
-  /* border:var(--img-border) solid #b4bbc3; */
+  border:var(--img-border) solid #a6b0ba;
   border-radius:var(--img-radius);
   display:block;
 }
