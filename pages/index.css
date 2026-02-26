@@ -17,7 +17,7 @@ html{ -webkit-text-size-adjust:100%; }
 :root{
   --sb-blue:#214478ff;
 
-  --bg: url("/images/paperBG.jpg");             /* #f4ede3ff;  */  
+  --bg: url("/images/paperBG.webp");             /* #f4ede3ff;  */  
   --card-bg:#f4ede3ff;                         /* #e2e5ec; */
   --sb-blue-rgb: 33 68 120;
 
