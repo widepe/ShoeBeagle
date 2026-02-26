@@ -841,7 +841,7 @@ button{
   .suggestion-item{ font-size:19px; }
   /* ✅ Mobile portrait: show up to ~5 suggestions */
   .suggestions{
-    max-height: 220px;      /* ~5 rows */
+    max-height: 200px;      /* ~5 rows */
     overflow-y: auto;
   }  /* --- Top layout: logo row, then inputs row --- */
   .topbar{
