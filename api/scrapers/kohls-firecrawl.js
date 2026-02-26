@@ -407,15 +407,10 @@ module.exports = async function handler(req, res) {
   const t0 = Date.now();
 
   // ✅ REQUIRE CRON SECRET (same pattern as your other scrapers)
-  const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
-  if (!CRON_SECRET) {
-    return res.status(500).json({ ok: false, error: "CRON_SECRET not configured" });
-  }
-
-  const provided = String(req.headers["x-cron-secret"] || req.query?.key || "").trim();
-  if (provided !== CRON_SECRET) {
-    return res.status(401).json({ ok: false, error: "Unauthorized" });
-  }
+const secret = process.env.CRON_SECRET;
+if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
+  return res.status(401).json({ ok: false, error: "Unauthorized" });
+}
 
   console.log(`[${runId}] KOHLS handler start ${nowIso()}`);
   console.log(`[${runId}] method=${req.method} path=${req.url || ""}`);
