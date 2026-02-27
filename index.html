@@ -1313,7 +1313,7 @@ if (!results.length) {
   if (brand && model && dealsSuggest.ready) {
     const modelNorm = normalizeStr(model);
     const actualBrand = dealsSuggest.modelNormToBrandDisplay.get(modelNorm) || "";
-
+console.log("DEBUG mismatch:", { modelNorm, actualBrand, brand });
     if (actualBrand && normalizeStr(actualBrand) !== normalizeStr(brand)) {
       // High confidence mismatch: model exists but under a different brand
       // Auto-search the corrected combination
