@@ -20,13 +20,6 @@
 
 const { list } = require("@vercel/blob");
 
-// Load your canonical brand->models dictionary (keys are canonical display names)
-let canonicalBrandModels = {};
-try {
-  canonicalBrandModels = require("../lib/canonical-brands-models.json");
-} catch (e) {
-  canonicalBrandModels = {};
-}
 
 /* ----------------------------- Normalization ----------------------------- */
 
@@ -77,37 +70,6 @@ function queryTokensFromRaw(rawQuery) {
   return tokens;
 }
 
-/* ---------------------- Canonical brand normalization --------------------- */
-
-// We build a lookup table from canonicalBrandModels keys.
-// Keys in canonicalBrandModels are your canonical display casing, e.g. "ASICS", "HOKA", "adidas".
-function squashBrandKey(str) {
-  return String(str || "")
-    .toLowerCase()
-    .replace(/[\u00AE\u2122\u2120]/g, "") // ® ™ ℠
-    .replace(/[^a-z0-9]/g, "");          // remove spaces/punct entirely
-}
-
-// Map: squashedKey -> canonical display brand (the JSON key)
-const CANONICAL_BRAND_MAP = (() => {
-  const map = new Map();
-  for (const displayBrand of Object.keys(canonicalBrandModels || {})) {
-    map.set(squashBrandKey(displayBrand), displayBrand);
-  }
-  return map;
-})();
-
-// If user typed brand matches a known canonical key, return that canonical display version.
-// Otherwise return the cleaned input as-is (so search still works for unknown brands).
-function normalizeBrandDisplay(rawBrand) {
-  const cleaned = String(rawBrand || "")
-    .replace(/[\u00AE\u2122\u2120]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!cleaned) return "";
-  return CANONICAL_BRAND_MAP.get(squashBrandKey(cleaned)) || cleaned;
-}
 
 /* ------------------------------ Scoring --------------------------------- */
 
@@ -342,7 +304,7 @@ module.exports = async (req, res) => {
 
     // ✅ NEW: Canonicalize brand *input* so casing doesn't matter,
     // and "asics" always becomes "ASICS" (assuming your JSON uses "ASICS" as the key).
-    const rawBrand = normalizeBrandDisplay(rawBrandInput);
+    const rawBrand = rawBrandInput;
 
     const brandTokens = tokenize(rawBrand).filter(isMeaningfulToken);
     const modelTokens = tokenize(rawModel).filter(isMeaningfulToken);
@@ -402,7 +364,7 @@ module.exports = async (req, res) => {
     scored.sort((a, b) => b.score - a.score);
 
     // Cap results (keep your existing cap)
-    const results = scored.slice(0, 480).map(({ deal }) => ({
+   const results = scored.map(({ deal }) => ({
       listingName: deal.listingName || deal.title || deal.name || "Running Shoe Deal",
       brand: deal.brand || "Unknown",
       model: deal.model || "",
@@ -432,7 +394,7 @@ module.exports = async (req, res) => {
       ms: Date.now() - startedAt,
       count: results.length,
       dealsVersion,
-      query: { brandInput: rawBrandInput, brandCanonical: rawBrand, brandTokens, modelTokens, queryTokens },
+      query: { brand: rawBrandInput, brandTokens, modelTokens, queryTokens },
     });
 
     return res.status(200).json({
