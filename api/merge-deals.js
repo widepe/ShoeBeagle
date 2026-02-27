@@ -382,10 +382,7 @@ function sanitizeDeal(raw) {
   const listingName = cleanTitleText(listingNameRaw);
 
   // ✅ KEY FIX: normalize brand casing using /lib/canonical-brands-models.json
-  // This prevents "ASICS"/"Asics"/"asics®" from becoming multiple distinct brands.
-  // Your suggestions dropdown will stop missing prefixes like "asi".
   const brand = normalizeBrand(cleanLooseText(brandRaw));
-
   const model = cleanLooseText(modelRaw) || "";
 
   let listingURL = String(raw.listingURL ?? raw.listingUrl ?? raw.url ?? raw.href ?? "").trim();
@@ -1232,6 +1229,61 @@ function mergeRollingScraperHistory(existing, todayDayUTC, todayRecords, maxDays
   };
 }
 
+/** ------------ Store-id mapping helpers (NEW) ------------ **/
+
+function stripParensSuffix(name) {
+  const s = String(name || "").trim();
+  if (!s) return "";
+  return s.replace(/\s*\([^)]*\)\s*$/, "").trim();
+}
+
+function storeKey(str) {
+  // aggressive key: lower + alnum only
+  return String(str || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function buildStoreNameKeyToIdMap(sources) {
+  const map = new Map();
+  for (const s of safeArray(sources)) {
+    const id = s.id || s.name;
+    const name = String(s.name || "").trim();
+    const base = stripParensSuffix(name);
+
+    // map a few variants to the same id
+    const keys = new Set([name, base, id].filter(Boolean).map(storeKey));
+    for (const k of keys) map.set(k, id);
+
+    // extra convenience aliases
+    if (storeKey(base) === storeKey("Holabird Sports")) map.set(storeKey("Holabird"), id);
+    if (storeKey(base) === storeKey("Brooks Running")) map.set(storeKey("Brooks"), id);
+  }
+  return map;
+}
+
+function buildSourceGroupsById(sources) {
+  const groups = new Map();
+  for (const s of safeArray(sources)) {
+    const id = s.id || s.name;
+    if (!groups.has(id)) {
+      groups.set(id, {
+        id,
+        names: new Set(),
+        blobUrls: new Set(),
+        displayName: stripParensSuffix(s.name || id) || id,
+      });
+    }
+    const g = groups.get(id);
+    if (s.name) g.names.add(String(s.name));
+    if (s.blobUrl) g.blobUrls.add(String(s.blobUrl));
+    // Prefer a clean base display name if we can
+    const candidate = stripParensSuffix(s.name || "") || "";
+    if (candidate && candidate.length < (g.displayName || "").length) g.displayName = candidate;
+  }
+  return groups;
+}
+
 /** ------------ Handler ------------ **/
 
 module.exports = async (req, res) => {
@@ -1292,29 +1344,6 @@ module.exports = async (req, res) => {
     console.log("[MERGE] Starting merge:", new Date().toISOString());
     console.log("[MERGE] Blob-only mode: endpoints disabled.");
 
-    console.log("[MERGE] ALS_SALE_BLOB_URL set?", !!ALS_SALE_BLOB_URL);
-    console.log("[MERGE] ASICS_SALE_BLOB_URL set?", !!ASICS_SALE_BLOB_URL);
-    console.log("[MERGE] BACKCOUNTRY_DEALS_BLOB_URL set?", !!BACKCOUNTRY_DEALS_BLOB_URL);
-    console.log("[MERGE] BIGPEACH_DEALS_BLOB_URL set?", !!BIGPEACH_DEALS_BLOB_URL);
-    console.log("[MERGE] BROOKS_DEALS_BLOB_URL set?", !!BROOKS_DEALS_BLOB_URL);
-    console.log("[MERGE] FINISHLINE_DEALS_BLOB_URL set?", !!FINISHLINE_DEALS_BLOB_URL);
-    console.log("[MERGE] FLEET_FEET_CHEERIO_BLOB_URL set?", !!FLEET_FEET_CHEERIO_BLOB_URL);
-    console.log("[MERGE] FOOTLOCKER_DEALS_BLOB_URL set?", !!FOOTLOCKER_DEALS_BLOB_URL);
-    console.log("[MERGE] GAZELLESPORTS_DEALS_BLOB_URL set?", !!GAZELLESPORTS_DEALS_BLOB_URL);
-    console.log("[MERGE] HOKA_DEALS_BLOB_URL set?", !!HOKA_DEALS_BLOB_URL);
-    console.log("[MERGE] JDSPORTS_DEALS_BLOB_URL set?", !!JDSPORTS_DEALS_BLOB_URL);
-    console.log("[MERGE] KOHLS_DEALS_BLOB_URL set?", !!KOHLS_DEALS_BLOB_URL);
-    console.log("[MERGE] LUKES_LOCKER_CHEERIO_BLOB_URL set?", !!LUKES_LOCKER_CHEERIO_BLOB_URL);
-    console.log("[MERGE] MARATHON_SPORTS_CHEERIO_BLOB_URL set?", !!MARATHON_SPORTS_CHEERIO_BLOB_URL);
-    console.log("[MERGE] MIZUNO_DEALS_BLOB_URL set?", !!MIZUNO_DEALS_BLOB_URL);
-    console.log("[MERGE] NIKE_DEALS_BLOB_URL set?", !!NIKE_DEALS_BLOB_URL);
-    console.log("[MERGE] PUMA_DEALS_BLOB_URL set?", !!PUMA_DEALS_BLOB_URL);
-    console.log("[MERGE] REI_DEALS_BLOB_URL set?", !!REI_DEALS_BLOB_URL);
-    console.log("[MERGE] RNJSPORTS_DEALS_BLOB_URL set?", !!RNJSPORTS_DEALS_BLOB_URL);
-    console.log("[MERGE] ROADRUNNER_DEALS_BLOB_URL set?", !!ROADRUNNER_DEALS_BLOB_URL);
-    console.log("[MERGE] RUNNING_WAREHOUSE_CHEERIO_BLOB_URL set?", !!RUNNING_WAREHOUSE_CHEERIO_BLOB_URL);
-    console.log("[MERGE] ZAPPOS_DEALS_BLOB_URL set?", !!ZAPPOS_DEALS_BLOB_URL);
-
     const sources = [
       { id: "als", name: "ALS", blobUrl: ALS_SALE_BLOB_URL },
       { id: "asics", name: "ASICS", blobUrl: ASICS_SALE_BLOB_URL },
@@ -1346,6 +1375,16 @@ module.exports = async (req, res) => {
       { id: "zappos", name: "Zappos", blobUrl: ZAPPOS_DEALS_BLOB_URL },
     ];
 
+    // NEW: maps used to make "0 shoes" explicit in deals.json
+    const rawCountsById = {};
+    const keptCountsById = {};
+
+    // NEW: stable mapping from various store strings -> source id
+    const STORE_NAME_KEY_TO_ID = buildStoreNameKeyToIdMap(sources);
+
+    // NEW: groups (handles holabird triple-blob cleanly in storeCoverage)
+    const SOURCE_GROUPS = buildSourceGroupsById(sources);
+
     // Load all blobs in parallel (this does NOT scrape; it only fetches JSON)
     const settled = await Promise.allSettled(sources.map((s) => loadDealsFromBlobOnly(s)));
 
@@ -1361,6 +1400,9 @@ module.exports = async (req, res) => {
 
       if (settled[i].status === "fulfilled") {
         const { source, deals, blobUrl, timestamp, duration, payloadMeta, error } = settled[i].value;
+
+        // Always record raw counts by store id (even if later filtered to 0 shoes)
+        rawCountsById[key] = (rawCountsById[key] || 0) + safeArray(deals).length;
 
         if (source === "error") {
           perSource[key] = { ok: false, error: error || "Unknown error" };
@@ -1421,6 +1463,10 @@ module.exports = async (req, res) => {
         const msg = settled[i].reason?.message || String(settled[i].reason);
         perSource[key] = { ok: false, error: msg };
         storeMetadata[key] = { ...(storeMetadata[key] || {}), error: msg };
+
+        // record raw counts as 0 if fetch failed
+        rawCountsById[key] = rawCountsById[key] || 0;
+
         perSourceMeta[key] = { name, error: msg, source: "error", deals: [], blobUrl: src.blobUrl || null };
       }
     }
@@ -1441,6 +1487,14 @@ module.exports = async (req, res) => {
     const normalized = allDealsRaw.map(normalizeDeal).filter(Boolean);
     const filtered = normalized.filter(isValidRunningShoe);
     const unique = dedupeDeals(filtered);
+
+    // NEW: compute keptCountsById (how many valid shoes made it into deals.json per store id)
+    for (const d of unique) {
+      const storeName = String(d?.store || "").trim();
+      const id = STORE_NAME_KEY_TO_ID.get(storeKey(storeName)) || null;
+      const key = id || storeName || "unknown";
+      keptCountsById[key] = (keptCountsById[key] || 0) + 1;
+    }
 
     // Schema validation warnings (do not fail build; only log)
     let schemaWarnings = 0;
@@ -1463,7 +1517,7 @@ module.exports = async (req, res) => {
     unique.sort(() => Math.random() - 0.5);
     unique.sort((a, b) => discountForSort(b) - discountForSort(a));
 
-    // Count by store (for site UI)
+    // Count by store (for site UI) — NOTE: this is POST-FILTER (valid shoes only)
     const dealsByStore = {};
     for (const d of unique) {
       const s = d.store || "Unknown";
@@ -1483,14 +1537,49 @@ module.exports = async (req, res) => {
         };
       });
 
+    // NEW: Store coverage summary (ALWAYS includes every store id, even when keptCount is 0)
+    const storeCoverage = Array.from(SOURCE_GROUPS.values())
+      .map((g) => {
+        const id = g.id;
+        const meta = storeMetadata[id] || {};
+        const status = perSource[id] || {};
+        const rawCount = rawCountsById[id] || 0;
+        const keptCount = keptCountsById[id] || 0;
+
+        return {
+          id,
+          name: g.displayName || id,
+          names: Array.from(g.names.values()),
+          blobUrls: Array.from(g.blobUrls.values()),
+
+          ok: !!status.ok,
+          error: status.ok ? null : status.error || meta.error || null,
+
+          staleExcluded: !!meta.staleExcluded,
+          staleThresholdDays: meta.staleThresholdDays ?? MAX_STORE_DATA_AGE_DAYS,
+
+          rawCount,  // how many items came from the blob(s)
+          keptCount, // how many survived as "valid running shoes" in deals.json
+
+          sourceLastUpdated: meta.timestamp || null,
+          ageDays: meta.ageDays ?? null,
+        };
+      })
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+
     const output = {
       lastUpdated: new Date().toISOString(),
       totalDeals: unique.length,
+
+      // existing
       dealsByStore,
       scraperResults: perSource,
 
       // written into deals.json
       sourceFreshness,
+
+      // NEW: explicit “ran but 0 shoes” reporting per store id
+      storeCoverage,
 
       deals: unique,
     };
@@ -1551,6 +1640,7 @@ module.exports = async (req, res) => {
       scraperResults: perSource,
       storeMetadata,
       sourceFreshness,
+      storeCoverage,
 
       dealsBlobUrl: dealsBlob.url,
       unalteredBlobUrl: unalteredBlob.url,
