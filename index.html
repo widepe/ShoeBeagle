@@ -730,12 +730,12 @@
   // -----------------------------------------
   const hasSpace = /\s/.test(t);
   if (!hasSpace) {
-    const brandHits = filterSuggestions(dealsSuggest.brands, t, 12);
+    const brandHits = filterSuggestions(dealsSuggest.brands, t, 6);
 
     if (brandHits.length) {
       // Fill leftover slots with model matches (fallback),
       // but do not duplicate visually-same strings.
-      const modelHits = filterSuggestions(dealsSuggest.allModels, t, 12);
+      const modelHits = filterSuggestions(dealsSuggest.allModels, t, 6);
 
       const out = [];
       const seen = new Set();
@@ -752,11 +752,11 @@
 
       // only fill if we still have room
       for (const m of modelHits) {
-        if (out.length >= 12) break;
+        if (out.length >= 6) break;
         add(m);
       }
 
-      return { items: out.slice(0, 12), mode: "brandFirst", brand: "" };
+      return { items: out.slice(0, 6), mode: "brandFirst", brand: "" };
     }
   }
 
@@ -779,7 +779,7 @@
       };
     }
 
-    const matches = filterSuggestions(pool, rest, 12);
+    const matches = filterSuggestions(pool, rest, 6);
     const ordered = sortShortFirst(matches);
     return {
       items: ordered.map((m) => `${brand} ${m}`),
@@ -791,7 +791,7 @@
   // -----------------------------------------
   // 3) Final fallback: models only
   // -----------------------------------------
-  const matches = filterSuggestions(dealsSuggest.allModels, t, 12);
+  const matches = filterSuggestions(dealsSuggest.allModels, t, 6);
   return { items: matches, mode: "model", brand: "" };
 }
 
