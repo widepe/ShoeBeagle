@@ -24,8 +24,8 @@ html{ -webkit-text-size-adjust:100%; }
   --maxw:1600px;
   --pad:12px;
 
-  --top-scale:0.70;
-  --grid-scale:0.70;
+  --top-scale:0.75;
+  --grid-scale:0.75;
 
   --gap:calc(16px * var(--top-scale));
 
@@ -648,7 +648,7 @@ button{
 }
 
 .card-title{
-  font-weight:600;
+  /* font-weight:600; */
   font-size:var(--card-title-size);
   line-height:1.25;
   display:-webkit-box;
