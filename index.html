@@ -1351,9 +1351,10 @@ console.log("DEBUG mismatch:", { modelNorm, actualBrand, brand });
         syncRibbonFromState();
 
         // Show mismatch message above results
-        statusMessageEl.innerHTML = `No results for <strong>${displayQuery}</strong> — showing ${correctedResults.length} ${actualBrand} ${model} result${correctedResults.length === 1 ? "" : "s"} instead.`;
 
         renderFilteredResults({ resetPage: true, append: false });
+        statusMessageEl.innerHTML = `No results for <strong>${displayQuery}</strong> — showing ${correctedResults.length} ${actualBrand} ${model} result${correctedResults.length === 1 ? "" : "s"} instead.`;
+        
         return;
       }
     }
