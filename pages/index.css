@@ -17,8 +17,8 @@ html{ -webkit-text-size-adjust:100%; }
 :root{
   --sb-blue:#214478ff;
 
-  --bg: url("/images/paperBG.webp");             /* #f4ede3ff;  */  
-  --card-bg:#f4ede3ff;                         /* #e2e5ec; */
+  --bg:#f4ede3ff;  
+  --card-bg:#e2e5ec;
   --sb-blue-rgb: 33 68 120;
 
   --maxw:1600px;
@@ -85,7 +85,7 @@ html{ -webkit-text-size-adjust:100%; }
   --sb-input-shadow: 0px 0px 7px rgb(33 68 121 / 28%);
   --sb-focus-border: #1a3661;             /* same as .sb-input:focus currently uses */
   --sb-focus-ring: 0 0 0 3px rgba(33,68,120,0.10); /* same focus ring */
-  --sb-done-bg: rgba(232,240,255,1);      /* light blue “done” fill */
+  --sb-done-bg: rgba(232,240,255,1);      /* light blue "done" fill */
 }
 
 /* =========================================================
@@ -308,7 +308,6 @@ input::placeholder{ color:#999; opacity:1; }
   border:1px solid var(--sb-blue);
   border-radius:calc(0.5rem * var(--top-scale));
   margin-top:calc(0.15rem * var(--top-scale));
-  max-height:calc(165px * var(--top-scale));
   overflow-y:auto;
   box-shadow:0 6px 12px rgba(0,0,0,0.08);
   z-index:30;
@@ -839,11 +838,8 @@ button{
   /* prevent iOS zoom */
   input[type="text"], input[type="search"]{ font-size:16px; }
   .suggestion-item{ font-size:19px; }
-  /* ✅ Mobile portrait: show up to ~5 suggestions */
-  .suggestions{
-    max-height: 180px;      /* ~5 rows */
-    overflow-y: auto;
-  }  /* --- Top layout: logo row, then inputs row --- */
+
+  /* --- Top layout: logo row, then inputs row --- */
   .topbar{
     flex-direction:column;
     align-items:center;
@@ -1325,7 +1321,7 @@ button{
 .sb-confirm{ margin-top:0; }
 
 /* ✅ Inputs: EXACTLY like main search box (shape, bg, shadow, focus ring)
-   Also: prevent “shape changing” by keeping border width constant everywhere */
+   Also: prevent "shape changing" by keeping border width constant everywhere */
 .sb-input{
   width:100%;
   height:var(--input-h);                      /* match main input height */
@@ -1351,7 +1347,7 @@ button{
 }
 
 /* ✅ Completed inputs turn light blue (same behavior you described)
-   (JS already controls when fields are “ok”; we hook into built-in validity) */
+   (JS already controls when fields are "ok"; we hook into built-in validity) */
 .sb-input:not(:placeholder-shown):not(:focus){
   background: var(--sb-done-bg);
 }
@@ -1392,7 +1388,6 @@ button{
   border:1px solid var(--sb-blue);
   border-radius: var(--sb-input-radius);
   box-shadow:0 6px 12px rgba(0,0,0,0.08);
-  max-height:180px;
   overflow:auto;
   padding:4px 0;
   z-index:5;
