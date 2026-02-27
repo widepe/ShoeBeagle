@@ -1301,15 +1301,15 @@
       `;
       el.style.display = "block";
 
-      if (staleBanner) {
-        const staleThresholdMs = 6 * 60 * 60 * 1000;
-        if (lastUpdatedInfo.ageMs && lastUpdatedInfo.ageMs > staleThresholdMs) {
-          staleBanner.innerHTML = `⚠️ Data is stale. Last updated <strong>${formatAge(lastUpdatedInfo.ageMs)}</strong> ago.`;
-          staleBanner.style.display = "flex";
-        } else {
-          staleBanner.style.display = "none";
-        }
-      }
+  if (staleBanner) {
+  const STALE_THRESHOLD_MS = 26 * 60 * 60 * 1000; // ✅ 26 hours
+  if (Number.isFinite(lastUpdatedInfo.ageMs) && lastUpdatedInfo.ageMs > STALE_THRESHOLD_MS) {
+    staleBanner.innerHTML = `⚠️ Data is stale. Last updated <strong>${formatAge(lastUpdatedInfo.ageMs)}</strong> ago.`;
+    staleBanner.style.display = "flex";
+  } else {
+    staleBanner.style.display = "none";
+  }
+}
     }
 
     // ------------------------------------------------------------
