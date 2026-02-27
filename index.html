@@ -1309,13 +1309,54 @@
         selectedGender = "";
         syncRibbonFromState();
 
-        if (!results.length) {
-          statusMessageEl.textContent = `No results found for ${displayQuery}.`;
-          if (pager) pager.style.display = "none";
-          if (loadMoreWrap) loadMoreWrap.style.display = "none";
-          if (dailyDeals) dailyDeals.style.display = "block";
-          return;
-        }
+if (!results.length) {
+  // --- Brand/model mismatch detection and auto search for model.  Ex. Brooks Alphafly would return no results found for Brooks Alphafly, but there are Nike Alphafly results 
+  if (brand && model && dealsSuggest.ready) {
+    const modelNorm = normalizeStr(model);
+    const actualBrand = dealsSuggest.modelNormToBrandDisplay.get(modelNorm) || "";
+
+    if (actualBrand && normalizeStr(actualBrand) !== normalizeStr(brand)) {
+      // High confidence mismatch: model exists but under a different brand
+      // Auto-search the corrected combination
+      const correctedQuery = `${actualBrand} ${model}`;
+
+      let correctedData;
+      try {
+        const correctedRes = await fetch("/api/search?" + new URLSearchParams({ query: correctedQuery }));
+        correctedData = await correctedRes.json();
+      } catch (err) {
+        console.error("Corrected search error:", err);
+        statusMessageEl.textContent = `No results found for ${displayQuery}.`;
+        if (dailyDeals) dailyDeals.style.display = "block";
+        return;
+      }
+
+      const correctedResults = correctedData && correctedData.results ? correctedData.results : [];
+
+      if (correctedResults.length) {
+        // Update state to reflect corrected search
+        currentSearch = { brand: actualBrand, model };
+        lastSearchResults = correctedResults;
+
+        selectedGender = "";
+        syncRibbonFromState();
+
+        // Show mismatch message above results
+        statusMessageEl.innerHTML = `No results for <strong>${displayQuery}</strong> — showing ${correctedResults.length} ${actualBrand} ${model} result${correctedResults.length === 1 ? "" : "s"} instead.`;
+
+        renderFilteredResults({ resetPage: true, append: false });
+        return;
+      }
+    }
+  }
+
+  // Default zero results
+  statusMessageEl.textContent = `No results found for ${displayQuery}.`;
+  if (pager) pager.style.display = "none";
+  if (loadMoreWrap) loadMoreWrap.style.display = "none";
+  if (dailyDeals) dailyDeals.style.display = "block";
+  return;
+}
 
         renderFilteredResults({ resetPage: true, append: false });
       });
