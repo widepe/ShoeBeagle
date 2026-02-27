@@ -286,7 +286,7 @@ function generateMatchEmail(alert, matches, daysLeft) {
       </h1>
 
       <p style="font-size:16px; line-height:1.6; margin:0 0 18px;">
-        We found <strong>${matches.length}</strong> deal${matches.length === 1 ? "" : "s"} for
+        We have <strong>${matches.length}</strong> deal${matches.length === 1 ? "" : "s"} for
         <strong>${alertBrand} ${alertModel}</strong> at or below your target price.
       </p>
 
