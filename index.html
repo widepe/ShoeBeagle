@@ -1311,8 +1311,18 @@ console.log("DEBUG parsed:", { typedRaw, brand, model });        if (!brand && m
 if (!results.length) {
   // --- Brand/model mismatch detection and auto search for model.  Ex. Brooks Alphafly would return no results found for Brooks Alphafly, but there are Nike Alphafly results 
   if (brand && model && dealsSuggest.ready) {
-    const modelNorm = normalizeStr(model);
-    const actualBrand = dealsSuggest.modelNormToBrandDisplay.get(modelNorm) || "";
+const modelNorm = normalizeStr(model);
+let actualBrand = dealsSuggest.modelNormToBrandDisplay.get(modelNorm) || "";
+
+// Fallback: partial match if exact not found
+if (!actualBrand) {
+  for (const [key, val] of dealsSuggest.modelNormToBrandDisplay.entries()) {
+    if (key.includes(modelNorm) && modelNorm.length >= 4) {
+      actualBrand = val;
+      break;
+    }
+  }
+}
 console.log("DEBUG mismatch:", { modelNorm, actualBrand, brand });
     if (actualBrand && normalizeStr(actualBrand) !== normalizeStr(brand)) {
       // High confidence mismatch: model exists but under a different brand
