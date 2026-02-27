@@ -565,9 +565,9 @@ button{
 .card{
   background:var(--card-bg);
 
-  border:var(--card-border) solid #ffffff;
+  border:var(--card-border) solid #a6adb8;
   border-radius:var(--card-radius);
-  box-shadow: 0px 0px 2px 1px rgb(190 190 190);
+  /* box-shadow: 0px 0px 2px 1px rgb(190 190 190); */
   padding:var(--card-pad);
   display:flex;
   flex-direction:column;
@@ -599,7 +599,7 @@ button{
   height:100%;
   object-fit:cover;
   background:#fff;
-  border:var(--img-border) solid #e0dad2; 
+  border:var(--img-border) solid #a6adb8; 
   border-radius:var(--img-radius);
   display:block;
 }
@@ -612,7 +612,7 @@ button{
   border-radius:999px;
   font-weight:700;
   font-size:var(--badge-font);
-  background:rgba(220,53,69,0.9);
+  background:#ff6701;
   color:#fff;
   z-index:3;
 }
