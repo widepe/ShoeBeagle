@@ -1962,7 +1962,7 @@ function resolveBrandKey(input) {
           return;
         }
 
-        renderSug(modelSug, topMatches(pool, t, 12), "model", (v) => {
+        renderSug(modelSug, topMatches(pool, t, 6), "model", (v) => {
           modelEl.value = v;
           toggleClear(modelEl);
           closeSuggestions("model");
