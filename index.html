@@ -1267,8 +1267,7 @@
         }
 
         let { brand, model } = splitBrandModelFromPicked(typedRaw);
-
-        if (!brand && model && dealsSuggest.ready) {
+console.log("DEBUG parsed:", { typedRaw, brand, model });        if (!brand && model && dealsSuggest.ready) {
           const exactBrand = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(model)) || "";
           const inferred = exactBrand || inferDefinitiveBrandFromPartialModel(model);
           if (inferred) brand = inferred;
