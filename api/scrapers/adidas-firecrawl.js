@@ -9,20 +9,13 @@
 // - Stop when page returns < 48 cards OR when a page adds 0 new unique deals.
 // - Hard cap: MAX_PAGES_PER_BASE.
 //
-// Robustness:
-// - Firecrawl proxy/tunnel errors happen (ERR_TUNNEL_CONNECTION_FAILED).
-// - We retry each page with exponential backoff + jitter.
-// - If page 0 fails after retries, we fail the run (ok:false).
-// - If a later page fails after retries, we stop pagination for that base (keep what we got).
-//
-// SECURITY (your exact pattern):
+// SECURITY (Backcountry style):
 // - Requires CRON_SECRET via header:
 //     Authorization: Bearer <CRON_SECRET>
 //
 // ENV REQUIRED:
 // - FIRECRAWL_API_KEY
 // - BLOB_READ_WRITE_TOKEN
-// - CRON_SECRET (optional but recommended)
 
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
@@ -39,9 +32,9 @@ const BASE_URLS = [
 const PAGE_SIZE = 48;
 const MAX_PAGES_PER_BASE = 10;
 
-// Firecrawl retry tuning
-const FIRECRAWL_MAX_RETRIES = 4;     // total attempts = 1 + retries
-const FIRECRAWL_BASE_DELAY_MS = 900; // backoff base
+// Firecrawl retry tuning (handles tunnel hiccups)
+const FIRECRAWL_MAX_RETRIES = 4;
+const FIRECRAWL_BASE_DELAY_MS = 900;
 const FIRECRAWL_TIMEOUT_MS = 60000;
 const FIRECRAWL_WAITFOR_MS = 1500;
 
@@ -65,10 +58,20 @@ function toAbsUrl(href) {
   return `https://www.adidas.com/${s.replace(/^\/+/, "")}`;
 }
 
-function parseMoney(text) {
+function parseMoneyList(text) {
+  // returns numeric values found in "$123.45" / "123.45" contexts
   const s = String(text || "").replace(/,/g, "");
-  const m = s.match(/(\d+(\.\d+)?)/);
-  return m ? Number(m[1]) : null;
+  const matches = [...s.matchAll(/\$?\s*(\d{1,4}(?:\.\d{2})?)/g)];
+  const nums = matches
+    .map((m) => Number(m[1]))
+    .filter((n) => Number.isFinite(n) && n > 0);
+
+  // de-dupe near-identical values
+  const uniq = [];
+  for (const n of nums) {
+    if (!uniq.some((x) => Math.abs(x - n) < 0.001)) uniq.push(n);
+  }
+  return uniq;
 }
 
 function computeDiscountPercent(sale, orig) {
@@ -129,7 +132,6 @@ async function firecrawlScrapeHtmlOnce(url, apiKey) {
 
   if (!resp.ok) {
     const msg = json?.error || json?.message || `Firecrawl scrape failed (${resp.status})`;
-    // include the body if Firecrawl returned one (helps debugging)
     const body = json ? JSON.stringify(json) : "";
     throw new Error(`${msg}${body ? `: ${body}` : ""}`);
   }
@@ -157,7 +159,6 @@ async function firecrawlScrapeHtmlWithRetry(url) {
 
       if (!transient || isLast) break;
 
-      // exponential backoff + jitter
       const backoff = FIRECRAWL_BASE_DELAY_MS * Math.pow(2, attempt);
       const jitter = Math.floor(Math.random() * 450);
       await sleep(backoff + jitter);
@@ -168,7 +169,7 @@ async function firecrawlScrapeHtmlWithRetry(url) {
 }
 
 // --------------------------
-// parse deals from Adidas PLP HTML
+// parse deals from Adidas PLP HTML (ROBUST PRICE PARSING)
 // --------------------------
 function parseDealsFromHtml(html) {
   const $ = cheerio.load(html);
@@ -177,27 +178,47 @@ function parseDealsFromHtml(html) {
   const dealsFound = cards.length;
 
   const deals = [];
+  const dropCounts = {
+    totalCards: dealsFound,
+    dropped_missingTitle: 0,
+    dropped_missingUrl: 0,
+    dropped_priceCouldNotParse: 0,
+    dropped_notADeal: 0,
+    kept: 0,
+  };
 
-  cards.each((_, el) => {
+  let debugFirstCard = null;
+
+  cards.each((i, el) => {
     const $card = $(el);
 
     const title = normalizeWhitespace(
       $card.find("p[data-testid='product-card-title']").first().text()
     );
-    if (!title) return;
+
+    if (!title) {
+      dropCounts.dropped_missingTitle += 1;
+      return;
+    }
 
     const subtitle = normalizeWhitespace(
       $card.find("p[data-testid='product-card-subtitle']").first().text()
     );
 
+    // URL: try multiple anchors
     const href =
       $card.find("a[data-testid='product-card-image-link']").first().attr("href") ||
       $card.find("a[data-testid='product-card-description-link']").first().attr("href") ||
+      $card.find("a").first().attr("href") ||
       "";
 
     const listingURL = toAbsUrl(href);
-    if (!listingURL) return;
+    if (!listingURL) {
+      dropCounts.dropped_missingUrl += 1;
+      return;
+    }
 
+    // Image: best effort
     const imgSrc =
       ($card.find("img[data-testid='product-card-primary-image']").first().attr("src") || "").trim() ||
       ($card.find("img").first().attr("src") || "").trim() ||
@@ -205,23 +226,54 @@ function parseDealsFromHtml(html) {
 
     const imageURL = imgSrc ? imgSrc : null;
 
-    // Price text
-    const saleText =
-      normalizeWhitespace(
-        $card.find("[data-testid='main-price'] ._sale-color_1dnvn_101").first().text()
-      ) ||
+    // PRICE: pull text from likely price containers, then regex out numbers.
+    const priceBlockText =
       normalizeWhitespace($card.find("[data-testid='main-price']").first().text()) ||
-      "";
+      normalizeWhitespace($card.find("[data-testid='price']").first().text()) ||
+      normalizeWhitespace($card.text()); // last resort (heavier but robust)
 
-    const originalText = normalizeWhitespace(
-      $card.find("[data-testid='original-price']").first().text()
-    );
+    const nums = parseMoneyList(priceBlockText);
 
-    const salePrice = parseMoney(saleText);
-    const originalPrice = parseMoney(originalText);
+    // We need at least 2 distinct prices to satisfy honesty rule
+    if (nums.length < 2) {
+      dropCounts.dropped_priceCouldNotParse += 1;
 
-    // HONESTY RULE: must have both
-    if (!(salePrice > 0) || !(originalPrice > 0)) return;
+      // Capture debug from the first card we fail on
+      if (!debugFirstCard) {
+        debugFirstCard = {
+          title,
+          subtitle,
+          listingURL,
+          priceBlockText: priceBlockText.slice(0, 500),
+          moneyParsed: nums,
+          cardHtmlSnippet: String($card.html() || "").slice(0, 1200),
+        };
+      }
+      return;
+    }
+
+    const salePrice = Math.min(...nums);
+    const originalPrice = Math.max(...nums);
+
+    if (!(salePrice > 0) || !(originalPrice > 0) || salePrice >= originalPrice) {
+      dropCounts.dropped_notADeal += 1;
+
+      if (!debugFirstCard) {
+        debugFirstCard = {
+          title,
+          subtitle,
+          listingURL,
+          priceBlockText: priceBlockText.slice(0, 500),
+          moneyParsed: nums,
+          salePrice,
+          originalPrice,
+          cardHtmlSnippet: String($card.html() || "").slice(0, 1200),
+        };
+      }
+      return;
+    }
+
+    const discountPercent = computeDiscountPercent(salePrice, originalPrice);
 
     deals.push({
       listingName: title,
@@ -230,7 +282,7 @@ function parseDealsFromHtml(html) {
 
       salePrice,
       originalPrice,
-      discountPercent: computeDiscountPercent(salePrice, originalPrice),
+      discountPercent,
 
       salePriceLow: null,
       salePriceHigh: null,
@@ -246,9 +298,30 @@ function parseDealsFromHtml(html) {
       gender: inferGenderFromSubtitle(subtitle),
       shoeType: "unknown",
     });
+
+    dropCounts.kept += 1;
+
+    // Keep one “good” debug example too (optional)
+    if (i === 0) {
+      debugFirstCard = debugFirstCard || {
+        title,
+        subtitle,
+        listingURL,
+        priceBlockText: priceBlockText.slice(0, 500),
+        moneyParsed: nums,
+        salePrice,
+        originalPrice,
+      };
+    }
   });
 
-  return { dealsFound, dealsExtracted: deals.length, deals };
+  return {
+    dealsFound,
+    dealsExtracted: deals.length,
+    deals,
+    dropCounts,
+    __debug_firstCard: debugFirstCard,
+  };
 }
 
 // --------------------------
@@ -268,8 +341,17 @@ async function scrapeAll(runId) {
   let pagesFetched = 0;
   let dealsFound = 0;
 
-  // debug-ish counters you’ll see in blob payload (handy)
   const pageNotes = [];
+  const totalDropCounts = {
+    totalCards: 0,
+    dropped_missingTitle: 0,
+    dropped_missingUrl: 0,
+    dropped_priceCouldNotParse: 0,
+    dropped_notADeal: 0,
+    kept: 0,
+  };
+
+  let debugFirstCard = null;
 
   try {
     for (const baseUrl of BASE_URLS) {
@@ -277,7 +359,6 @@ async function scrapeAll(runId) {
         const startOffset = pageIndex * PAGE_SIZE;
         const url = buildPagedUrl(baseUrl, startOffset);
 
-        // polite pacing between pages
         if (pageIndex > 0) await sleep(650 + Math.floor(Math.random() * 650));
 
         let html = null;
@@ -285,11 +366,7 @@ async function scrapeAll(runId) {
           html = await firecrawlScrapeHtmlWithRetry(url);
         } catch (e) {
           const msg = e?.message || String(e);
-
-          // If base page failed, fail the whole run.
-          if (pageIndex === 0) throw e;
-
-          // Otherwise, stop pagination for this base but keep what we already got.
+          if (pageIndex === 0) throw e; // base page failing should fail run
           pageNotes.push({ url, note: `Stopping pagination for this base due to error: ${msg}` });
           break;
         }
@@ -299,6 +376,12 @@ async function scrapeAll(runId) {
 
         const parsed = parseDealsFromHtml(html);
         dealsFound += parsed.dealsFound;
+
+        // accumulate drop counts + capture debug once
+        for (const k of Object.keys(totalDropCounts)) {
+          totalDropCounts[k] += Number(parsed.dropCounts?.[k] || 0);
+        }
+        if (!debugFirstCard && parsed.__debug_firstCard) debugFirstCard = parsed.__debug_firstCard;
 
         const before = deals.length;
         for (const d of parsed.deals) {
@@ -312,10 +395,11 @@ async function scrapeAll(runId) {
         pageNotes.push({
           url,
           cards: parsed.dealsFound,
-          added: newDealsThisPage,
+          keptByParser: parsed.dealsExtracted,
+          addedUnique: newDealsThisPage,
         });
 
-        // ✅ Stop if not full OR no new unique deals
+        // Stop if not full OR no new unique deals
         if (parsed.dealsFound < PAGE_SIZE || newDealsThisPage === 0) break;
       }
     }
@@ -345,8 +429,9 @@ async function scrapeAll(runId) {
     deals,
     runId,
 
-    // useful to see whether pagination tried page 2/3/etc
     pageNotes,
+    dropCounts: totalDropCounts,
+    __debug_firstCard: debugFirstCard,
   };
 }
 
@@ -356,13 +441,13 @@ async function scrapeAll(runId) {
 module.exports = async function handler(req, res) {
   const runId = `adidas-${Date.now().toString(36)}`;
   const t0 = Date.now();
-/*
+
   // REQUIRE CRON SECRET (exact pattern you wanted)
   const secret = process.env.CRON_SECRET;
   if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
-*/
+
   let payload = null;
 
   try {
@@ -373,7 +458,6 @@ module.exports = async function handler(req, res) {
 
     payload = await scrapeAll(runId);
 
-    // Always write payload (even if ok:false) so dashboard sees metadata
     const blobRes = await put(OUT_BLOB_NAME, JSON.stringify(payload, null, 2), {
       access: "public",
       addRandomSuffix: false,
@@ -397,7 +481,6 @@ module.exports = async function handler(req, res) {
     const lastUpdated = nowIso();
     const fallbackError = err?.message || String(err);
 
-    // Attempt to write a failure payload so dashboard can see it
     const failPayload = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
