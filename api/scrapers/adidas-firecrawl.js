@@ -4,22 +4,18 @@
 // Saves to Blob as: adidas.json
 //
 // Pagination rule (safe):
-// - Each page shows ~48 cards.
-// - If a page returns 48 cards, try the next page by adding ?start=+48.
-// - Stop when a page returns < 48 cards OR when a page adds 0 new unique deals.
-// - Hard safety cap: MAX_PAGES_PER_BASE
+// - Page size ~48 cards.
+// - If a page returns >= 48 cards, try next page (?start=+48).
+// - Stop when page returns < 48 cards OR when a page adds 0 new unique deals.
+// - Hard cap: MAX_PAGES_PER_BASE.
 //
-// Output deal schema (per-deal):
-//   listingName, brand, model,
-//   salePrice, originalPrice, discountPercent,
-//   salePriceLow, salePriceHigh, originalPriceLow, originalPriceHigh, discountPercentUpTo,
-//   store, listingURL, imageURL, gender, shoeType
+// Robustness:
+// - Firecrawl proxy/tunnel errors happen (ERR_TUNNEL_CONNECTION_FAILED).
+// - We retry each page with exponential backoff + jitter.
+// - If page 0 fails after retries, we fail the run (ok:false).
+// - If a later page fails after retries, we stop pagination for that base (keep what we got).
 //
-// Top-level structure:
-//   store, schemaVersion, lastUpdated, via, sourceUrls, pagesFetched,
-//   dealsFound, dealsExtracted, scrapeDurationMs, ok, error, deals[]
-//
-// SECURITY:
+// SECURITY (your exact pattern):
 // - Requires CRON_SECRET via header:
 //     Authorization: Bearer <CRON_SECRET>
 //
@@ -40,8 +36,14 @@ const BASE_URLS = [
   "https://www.adidas.com/us/men-running-shoes-sale",
 ];
 
-const PAGE_SIZE = 48;            // Adidas page size (observed)
-const MAX_PAGES_PER_BASE = 10;   // safety cap per base URL
+const PAGE_SIZE = 48;
+const MAX_PAGES_PER_BASE = 10;
+
+// Firecrawl retry tuning
+const FIRECRAWL_MAX_RETRIES = 4;     // total attempts = 1 + retries
+const FIRECRAWL_BASE_DELAY_MS = 900; // backoff base
+const FIRECRAWL_TIMEOUT_MS = 60000;
+const FIRECRAWL_WAITFOR_MS = 1500;
 
 // --------------------------
 // helpers
@@ -90,13 +92,25 @@ function buildPagedUrl(baseUrl, start) {
   return u.toString();
 }
 
-// --------------------------
-// Firecrawl (REST)
-// --------------------------
-async function firecrawlScrapeHtml(url) {
-  const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
-  if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY env var");
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
+function looksTransientFirecrawlError(message) {
+  const s = String(message || "");
+  return (
+    /ERR_TUNNEL_CONNECTION_FAILED/i.test(s) ||
+    /SCRAPE_SITE_ERROR/i.test(s) ||
+    /internal proxy error/i.test(s) ||
+    /timed out/i.test(s) ||
+    /ECONNRESET|ETIMEDOUT|EAI_AGAIN/i.test(s)
+  );
+}
+
+// --------------------------
+// Firecrawl (REST) with retries
+// --------------------------
+async function firecrawlScrapeHtmlOnce(url, apiKey) {
   const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
     headers: {
@@ -106,20 +120,51 @@ async function firecrawlScrapeHtml(url) {
     body: JSON.stringify({
       url,
       formats: ["html"],
-      waitFor: 1500,
-      timeout: 60000,
+      waitFor: FIRECRAWL_WAITFOR_MS,
+      timeout: FIRECRAWL_TIMEOUT_MS,
     }),
   });
 
+  const json = await resp.json().catch(() => null);
+
   if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`Firecrawl scrape failed (${resp.status}): ${text || resp.statusText}`);
+    const msg = json?.error || json?.message || `Firecrawl scrape failed (${resp.status})`;
+    // include the body if Firecrawl returned one (helps debugging)
+    const body = json ? JSON.stringify(json) : "";
+    throw new Error(`${msg}${body ? `: ${body}` : ""}`);
   }
 
-  const json = await resp.json();
   const html = json?.data?.html || json?.html || null;
   if (!html) throw new Error("Firecrawl response missing HTML (expected data.html)");
   return html;
+}
+
+async function firecrawlScrapeHtmlWithRetry(url) {
+  const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
+  if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY env var");
+
+  let lastErr = null;
+
+  for (let attempt = 0; attempt <= FIRECRAWL_MAX_RETRIES; attempt++) {
+    try {
+      return await firecrawlScrapeHtmlOnce(url, apiKey);
+    } catch (e) {
+      lastErr = e;
+      const msg = e?.message || String(e);
+
+      const transient = looksTransientFirecrawlError(msg);
+      const isLast = attempt === FIRECRAWL_MAX_RETRIES;
+
+      if (!transient || isLast) break;
+
+      // exponential backoff + jitter
+      const backoff = FIRECRAWL_BASE_DELAY_MS * Math.pow(2, attempt);
+      const jitter = Math.floor(Math.random() * 450);
+      await sleep(backoff + jitter);
+    }
+  }
+
+  throw lastErr || new Error("Firecrawl scrape failed (unknown error)");
 }
 
 // --------------------------
@@ -162,7 +207,9 @@ function parseDealsFromHtml(html) {
 
     // Price text
     const saleText =
-      normalizeWhitespace($card.find("[data-testid='main-price'] ._sale-color_1dnvn_101").first().text()) ||
+      normalizeWhitespace(
+        $card.find("[data-testid='main-price'] ._sale-color_1dnvn_101").first().text()
+      ) ||
       normalizeWhitespace($card.find("[data-testid='main-price']").first().text()) ||
       "";
 
@@ -221,18 +268,32 @@ async function scrapeAll(runId) {
   let pagesFetched = 0;
   let dealsFound = 0;
 
+  // debug-ish counters you’ll see in blob payload (handy)
+  const pageNotes = [];
+
   try {
     for (const baseUrl of BASE_URLS) {
       for (let pageIndex = 0; pageIndex < MAX_PAGES_PER_BASE; pageIndex++) {
         const startOffset = pageIndex * PAGE_SIZE;
         const url = buildPagedUrl(baseUrl, startOffset);
 
-        // polite pacing between pages (helps stability)
-        if (pageIndex > 0) {
-          await new Promise((r) => setTimeout(r, 650 + Math.floor(Math.random() * 650)));
+        // polite pacing between pages
+        if (pageIndex > 0) await sleep(650 + Math.floor(Math.random() * 650));
+
+        let html = null;
+        try {
+          html = await firecrawlScrapeHtmlWithRetry(url);
+        } catch (e) {
+          const msg = e?.message || String(e);
+
+          // If base page failed, fail the whole run.
+          if (pageIndex === 0) throw e;
+
+          // Otherwise, stop pagination for this base but keep what we already got.
+          pageNotes.push({ url, note: `Stopping pagination for this base due to error: ${msg}` });
+          break;
         }
 
-        const html = await firecrawlScrapeHtml(url);
         pagesFetched += 1;
         sourceUrls.push(url);
 
@@ -240,17 +301,21 @@ async function scrapeAll(runId) {
         dealsFound += parsed.dealsFound;
 
         const before = deals.length;
-
         for (const d of parsed.deals) {
           const key = d.listingURL || `${d.listingName}::${d.salePrice}::${d.originalPrice}`;
           if (seen.has(key)) continue;
           seen.add(key);
           deals.push(d);
         }
-
         const newDealsThisPage = deals.length - before;
 
-        // ✅ stop if page isn't full OR we got no new unique deals
+        pageNotes.push({
+          url,
+          cards: parsed.dealsFound,
+          added: newDealsThisPage,
+        });
+
+        // ✅ Stop if not full OR no new unique deals
         if (parsed.dealsFound < PAGE_SIZE || newDealsThisPage === 0) break;
       }
     }
@@ -279,32 +344,36 @@ async function scrapeAll(runId) {
 
     deals,
     runId,
+
+    // useful to see whether pagination tried page 2/3/etc
+    pageNotes,
   };
 }
 
 // --------------------------
-// handler (matches Backcountry style)
+// handler (Backcountry-style response)
 // --------------------------
 module.exports = async function handler(req, res) {
   const runId = `adidas-${Date.now().toString(36)}`;
   const t0 = Date.now();
-
-  /*
+/*
   // REQUIRE CRON SECRET (exact pattern you wanted)
   const secret = process.env.CRON_SECRET;
   if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 */
+  let payload = null;
+
   try {
     const blobToken = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
     if (!blobToken) {
       return res.status(500).json({ ok: false, error: "Missing BLOB_READ_WRITE_TOKEN" });
     }
 
-    const payload = await scrapeAll(runId);
+    payload = await scrapeAll(runId);
 
-    // Always write payload (even if ok:false) so dashboards see metadata
+    // Always write payload (even if ok:false) so dashboard sees metadata
     const blobRes = await put(OUT_BLOB_NAME, JSON.stringify(payload, null, 2), {
       access: "public",
       addRandomSuffix: false,
@@ -334,10 +403,10 @@ module.exports = async function handler(req, res) {
       schemaVersion: SCHEMA_VERSION,
       lastUpdated,
       via: "firecrawl",
-      sourceUrls: [],
-      pagesFetched: 0,
-      dealsFound: 0,
-      dealsExtracted: 0,
+      sourceUrls: payload?.sourceUrls || [],
+      pagesFetched: payload?.pagesFetched || 0,
+      dealsFound: payload?.dealsFound || 0,
+      dealsExtracted: payload?.dealsExtracted || 0,
       scrapeDurationMs: Date.now() - t0,
       ok: false,
       error: fallbackError,
