@@ -22,8 +22,10 @@ const VIA = "firecrawl";
 const BLOB_PATHNAME = "finishline.json"; // ✅ stable blob name -> .../finishline.json
 
 // Your running-sale URL (shoe deals)
-const BASE_URL =
-  "https://www.finishline.com/plp/all-sale/category=shoes+activity=running";
+const BASE_URLS = [
+  "https://www.finishline.com/plp/all-sale/gender=men+category=shoes+activity=running",
+  "https://www.finishline.com/plp/all-sale/gender=women+category=shoes+activity=running",
+];
 
 const FIRECRAWL_ENDPOINT = "https://api.firecrawl.dev/v1/scrape";
 
@@ -189,9 +191,29 @@ async function firecrawlScrape(url) {
     },
     body: JSON.stringify({
       url,
-      formats: ["html"],
-      // render: true, // ❌ Firecrawl v2 rejects this key
-      waitFor: 3000,
+
+      // ✅ get the real HTML (processed html can lose structure)
+      formats: ["rawHtml"],
+
+      // ✅ don't strip to "main content" (can delete grids)
+      onlyMainContent: false,
+
+      // ✅ give the page time (in addition to smart-wait)
+      waitFor: 6000,
+
+      // ✅ explicitly wait for product links to exist
+      actions: [
+        { type: "wait", selector: 'a[href*="/pdp/"]' },
+        // optional: scroll once to trigger lazy content
+        { type: "scroll", direction: "down" },
+        { type: "wait", milliseconds: 1000 },
+      ],
+
+      // ✅ Finish Line can be slow; raise Firecrawl timeout
+      timeout: 120000,
+
+      // (optional) if Finish Line is flaky/blocked sometimes:
+      // proxy: "auto",
     }),
   });
 
@@ -203,14 +225,14 @@ async function firecrawlScrape(url) {
   const data = await res.json();
 
   const html =
-    data?.data?.html ||
-    data?.data?.[0]?.html ||
-    data?.html ||
+    data?.data?.rawHtml ||
+    data?.data?.[0]?.rawHtml ||
+    data?.rawHtml ||
     "";
 
   if (!html) {
     const keys = Object.keys(data || {});
-    throw new Error(`Firecrawl returned no html. Top-level keys: ${keys.join(", ")}`);
+    throw new Error(`Firecrawl returned no rawHtml. Top-level keys: ${keys.join(", ")}`);
   }
 
   return html;
@@ -245,7 +267,20 @@ if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
     const html = await firecrawlScrape(pageUrl);
     pagesFetched = 1;
 
-    const $ = cheerio.load(html);
+ const $ = cheerio.load(html);
+
+// Debug: do we see ANY PDP links?
+const pdpLinks = $('a[href*="/pdp/"]').length;
+console.log(`[${runId}] FINISHLINE debug: pdpLinks=${pdpLinks}`);
+
+const cards = $('div[data-testid="product-item"]');
+console.log(`[${runId}] FINISHLINE debug: cards(data-testid=product-item)=${cards.length}`);
+
+// If cards are 0, dump a tiny sample so we can adjust selectors fast
+if (!cards.length) {
+  const sample = $.html().slice(0, 2000);
+  console.log(`[${runId}] FINISHLINE debug: htmlHead=${sample.replace(/\s+/g, " ")}`);
+}
 
     const cards = $('div[data-testid="product-item"]');
     dealsFound = cards.length;
