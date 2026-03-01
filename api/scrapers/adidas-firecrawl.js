@@ -289,12 +289,13 @@ module.exports = async function handler(req, res) {
   const runId = `adidas-${Date.now().toString(36)}`;
   const t0 = Date.now();
 
+  /*
   // REQUIRE CRON SECRET (exact pattern you wanted)
   const secret = process.env.CRON_SECRET;
   if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
-
+*/
   try {
     const blobToken = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
     if (!blobToken) {
