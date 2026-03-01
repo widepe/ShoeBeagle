@@ -2,7 +2,7 @@
 //
 // Finish Line (Firecrawl -> Cheerio parse) -> writes blob /finishline.json
 //
-// NOTE (per your instruction): This scraper fetches ONLY ONE PAGE (page 1).
+// NOTE (per your instruction): This scraper fetches ONLY ONE PAGE per URL (page 1).
 // It does NOT paginate and does not attempt ?page=2+.
 //
 // Rules (per your spec):
@@ -19,9 +19,8 @@ const STORE = "Finish Line";
 const SCHEMA_VERSION = 1;
 const VIA = "firecrawl";
 
-const BLOB_PATHNAME = "finishline.json"; // ✅ stable blob name -> .../finishline.json
+const BLOB_PATHNAME = "finishline.json"; // ✅ stable blob name
 
-// Your running-sale URL (shoe deals)
 const BASE_URLS = [
   "https://www.finishline.com/plp/all-sale/gender=men+category=shoes+activity=running",
   "https://www.finishline.com/plp/all-sale/gender=women+category=shoes+activity=running",
@@ -60,22 +59,18 @@ function computeDiscountPercent(sale, original) {
 
 function detectGender(listingName) {
   const s = String(listingName || "").toLowerCase();
-
   if (s.startsWith("men's") || s.startsWith("mens")) return "mens";
   if (s.startsWith("women's") || s.startsWith("womens")) return "womens";
   if (s.startsWith("unisex")) return "unisex";
-
   return "unknown";
 }
 
 function detectShoeType(listingName) {
   const s = String(listingName || "").toLowerCase();
-
   if (/\btrail\b/.test(s)) return "trail";
   if (/\btrack\b/.test(s)) return "track";
   if (/\bspikes?\b/.test(s)) return "track";
   if (/\broad\b/.test(s)) return "road";
-
   return "unknown";
 }
 
@@ -94,13 +89,7 @@ function stripLeadingGender(listingName) {
 function parseBrandModel(listingName) {
   const s = stripLeadingGender(listingName);
 
-  const multiWordBrands = [
-    "New Balance",
-    "Under Armour",
-    "On Running",
-    "HOKA ONE ONE",
-    "Hoka One One",
-  ];
+  const multiWordBrands = ["New Balance", "Under Armour", "On Running", "HOKA ONE ONE", "Hoka One One"];
 
   for (const b of multiWordBrands) {
     if (s.toLowerCase().startsWith(b.toLowerCase() + " ")) {
@@ -149,7 +138,6 @@ function extractImageUrlFromCard(card) {
   if (!imageURL) {
     const source = card.find("picture source").first();
     const sourceSrcset = source.attr("srcset") || source.attr("data-srcset") || null;
-
     if (sourceSrcset) {
       imageURL = String(sourceSrcset).split(",")[0].trim().split(/\s+/)[0] || null;
     }
@@ -173,6 +161,7 @@ function extractImageUrlFromCard(card) {
   // 5) Decode &amp; and normalize
   if (imageURL) {
     imageURL = String(imageURL).replace(/&amp;/g, "&").trim();
+    // NOTE: media.finishline.com is already absolute, normalizeUrl() is fine either way
     imageURL = normalizeUrl(imageURL);
   }
 
@@ -183,59 +172,61 @@ async function firecrawlScrape(url) {
   const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
 
-  const res = await fetch(FIRECRAWL_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      url,
+  // ✅ hard timeout so Vercel never hangs / returns ---
+  const controller = new AbortController();
+  const timeoutMs = 90_000;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-      // ✅ get the real HTML (processed html can lose structure)
-      formats: ["rawHtml"],
+  try {
+    const res = await fetch(FIRECRAWL_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        url,
+        formats: ["rawHtml"],
+        onlyMainContent: false,
+        waitFor: 6000,
+        actions: [
+          { type: "wait", selector: 'a[href*="/pdp/"]' },
+          { type: "scroll", direction: "down" },
+          { type: "wait", milliseconds: 1000 },
+        ],
+        timeout: 120000,
+        // proxy: "auto", // optional if you see bot/geo blocks
+      }),
+    });
 
-      // ✅ don't strip to "main content" (can delete grids)
-      onlyMainContent: false,
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`Firecrawl scrape failed (${res.status}): ${txt.slice(0, 500)}`);
+    }
 
-      // ✅ give the page time (in addition to smart-wait)
-      waitFor: 6000,
+    const data = await res.json();
 
-      // ✅ explicitly wait for product links to exist
-      actions: [
-        { type: "wait", selector: 'a[href*="/pdp/"]' },
-        // optional: scroll once to trigger lazy content
-        { type: "scroll", direction: "down" },
-        { type: "wait", milliseconds: 1000 },
-      ],
+    const html =
+      data?.data?.rawHtml ||
+      data?.data?.[0]?.rawHtml ||
+      data?.rawHtml ||
+      "";
 
-      // ✅ Finish Line can be slow; raise Firecrawl timeout
-      timeout: 120000,
+    if (!html) {
+      const keys = Object.keys(data || {});
+      throw new Error(`Firecrawl returned no rawHtml. Top-level keys: ${keys.join(", ")}`);
+    }
 
-      // (optional) if Finish Line is flaky/blocked sometimes:
-      // proxy: "auto",
-    }),
-  });
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Firecrawl scrape failed (${res.status}): ${txt.slice(0, 500)}`);
+    return html;
+  } catch (e) {
+    if (e?.name === "AbortError") {
+      throw new Error(`Firecrawl fetch aborted after ${timeoutMs}ms`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-
-  const data = await res.json();
-
-  const html =
-    data?.data?.rawHtml ||
-    data?.data?.[0]?.rawHtml ||
-    data?.rawHtml ||
-    "";
-
-  if (!html) {
-    const keys = Object.keys(data || {});
-    throw new Error(`Firecrawl returned no rawHtml. Top-level keys: ${keys.join(", ")}`);
-  }
-
-  return html;
 }
 
 // ---------- handler ----------
@@ -245,10 +236,10 @@ export default async function handler(req, res) {
 
   // ✅ Cron Secret (commented out for testing)
   /*
-const secret = process.env.CRON_SECRET;
-if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
-  return res.status(401).json({ ok: false, error: "Unauthorized" });
-}
+  const secret = process.env.CRON_SECRET;
+  if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
+    return res.status(401).json({ ok: false, error: "Unauthorized" });
+  }
   */
 
   let pagesFetched = 0;
@@ -260,94 +251,97 @@ if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
     const allDeals = [];
     const sourceUrls = [];
 
-    // ✅ Per your instruction: scrape ONE page only (page 1)
-    const pageUrl = BASE_URL;
-    sourceUrls.push(pageUrl);
+    // ✅ Dedup URLs (in case the same link is pasted twice)
+    const uniqueUrls = Array.from(new Set(BASE_URLS.map((s) => String(s || "").trim()).filter(Boolean)));
 
-    const html = await firecrawlScrape(pageUrl);
-    pagesFetched = 1;
+    for (const pageUrl of uniqueUrls) {
+      sourceUrls.push(pageUrl);
 
- const $ = cheerio.load(html);
+      console.log(`[${runId}] FINISHLINE start url=${pageUrl}`);
 
-// Debug: do we see ANY PDP links?
-const pdpLinks = $('a[href*="/pdp/"]').length;
-console.log(`[${runId}] FINISHLINE debug: pdpLinks=${pdpLinks}`);
+      const html = await firecrawlScrape(pageUrl);
+      pagesFetched += 1;
 
-const cards = $('div[data-testid="product-item"]');
-console.log(`[${runId}] FINISHLINE debug: cards(data-testid=product-item)=${cards.length}`);
+      console.log(`[${runId}] FINISHLINE got html chars=${html.length}`);
 
-// If cards are 0, dump a tiny sample so we can adjust selectors fast
-if (!cards.length) {
-  const sample = $.html().slice(0, 2000);
-  console.log(`[${runId}] FINISHLINE debug: htmlHead=${sample.replace(/\s+/g, " ")}`);
-}
+      const $ = cheerio.load(html);
 
-    const cards = $('div[data-testid="product-item"]');
-    dealsFound = cards.length;
+      // Debug: do we see ANY PDP links?
+      const pdpLinks = $('a[href*="/pdp/"]').length;
+      console.log(`[${runId}] FINISHLINE debug: pdpLinks=${pdpLinks}`);
 
-    cards.each((_, el) => {
-      const card = $(el);
+      const cards = $('div[data-testid="product-item"]');
+      console.log(`[${runId}] FINISHLINE debug: cards(data-testid=product-item)=${cards.length}`);
 
-      // Price-in-bag detection (selector-based, stable)
-      const saleNode = card.find("h4.text-default-onSale").first();
-      const saleTextRaw = asText(saleNode);
-
-      if (saleNode.length && !/\$\s*\d/.test(saleTextRaw)) {
-        priceInBagSkipped += 1;
-        return;
+      // If cards are 0, dump a tiny sample so we can adjust selectors fast
+      if (!cards.length) {
+        const sample = $.html().slice(0, 2000);
+        console.log(`[${runId}] FINISHLINE debug: htmlHead=${sample.replace(/\s+/g, " ")}`);
       }
 
-      const href = card.find('a[href*="/pdp/"]').first().attr("href");
-      const listingURL = normalizeUrl(href);
-      if (!listingURL) return;
+      dealsFound += cards.length;
 
-      // ✅ imageURL extraction (now includes SKU fallback)
-      const imageURL = extractImageUrlFromCard(card);
+      cards.each((_, el) => {
+        const card = $(el);
 
-      const listingName = asText(card.find("h4").first());
-      if (!listingName) return;
+        // Price-in-bag detection
+        const saleNode = card.find("h4.text-default-onSale").first();
+        const saleTextRaw = asText(saleNode);
 
-      const gender = detectGender(listingName);
-      const shoeType = detectShoeType(listingName);
+        if (saleNode.length && !/\$\s*\d/.test(saleTextRaw)) {
+          priceInBagSkipped += 1;
+          return;
+        }
 
-      const saleText = asText(card.find("h4.text-default-onSale").first());
-      const originalText = asText(card.find("p.line-through").first());
+        const href = card.find('a[href*="/pdp/"]').first().attr("href");
+        const listingURL = normalizeUrl(href);
+        if (!listingURL) return;
 
-      const salePrice = parseMoney(saleText);
-      const originalPrice = parseMoney(originalText);
+        const imageURL = extractImageUrlFromCard(card);
 
-      if (typeof salePrice !== "number" || typeof originalPrice !== "number") return;
+        const listingName = asText(card.find("h4").first());
+        if (!listingName) return;
 
-      const discountPercent = computeDiscountPercent(salePrice, originalPrice);
-      const { brand, model } = parseBrandModel(listingName);
+        const gender = detectGender(listingName);
+        const shoeType = detectShoeType(listingName);
 
-      allDeals.push({
-        schemaVersion: SCHEMA_VERSION,
+        const saleText = asText(card.find("h4.text-default-onSale").first());
+        const originalText = asText(card.find("p.line-through").first());
 
-        listingName,
+        const salePrice = parseMoney(saleText);
+        const originalPrice = parseMoney(originalText);
 
-        brand,
-        model,
+        if (typeof salePrice !== "number" || typeof originalPrice !== "number") return;
 
-        salePrice,
-        originalPrice,
-        discountPercent,
+        const discountPercent = computeDiscountPercent(salePrice, originalPrice);
+        const { brand, model } = parseBrandModel(listingName);
 
-        salePriceLow: null,
-        salePriceHigh: null,
-        originalPriceLow: null,
-        originalPriceHigh: null,
-        discountPercentUpTo: null,
+        allDeals.push({
+          schemaVersion: SCHEMA_VERSION,
 
-        store: STORE,
+          listingName,
+          brand,
+          model,
 
-        listingURL,
-        imageURL,
+          salePrice,
+          originalPrice,
+          discountPercent,
 
-        gender,
-        shoeType,
+          salePriceLow: null,
+          salePriceHigh: null,
+          originalPriceLow: null,
+          originalPriceHigh: null,
+          discountPercentUpTo: null,
+
+          store: STORE,
+          listingURL,
+          imageURL,
+
+          gender,
+          shoeType,
+        });
       });
-    });
+    }
 
     dealsExtracted = allDeals.length;
 
@@ -359,7 +353,6 @@ if (!cards.length) {
       via: VIA,
 
       sourceUrls,
-
       pagesFetched,
 
       dealsFound,
@@ -375,7 +368,6 @@ if (!cards.length) {
       deals: allDeals,
     };
 
-    // ✅ Blob write (HOKA-style logging)
     console.log(
       `[${runId}] FINISHLINE blob write start: ${BLOB_PATHNAME} dealsExtracted=${payload.dealsExtracted}`
     );
@@ -386,12 +378,8 @@ if (!cards.length) {
       contentType: "application/json",
     });
 
-    console.log(
-      `[${runId}] FINISHLINE blob write done: url=${blobRes.url} time=${Date.now() - t0}ms`
-    );
-    console.log(
-      `[${runId}] FINISHLINE expected env url: ${process.env.FINISHLINE_DEALS_BLOB_URL || "not set"}`
-    );
+    console.log(`[${runId}] FINISHLINE blob write done: url=${blobRes.url} time=${Date.now() - t0}ms`);
+    console.log(`[${runId}] FINISHLINE expected env url: ${process.env.FINISHLINE_DEALS_BLOB_URL || "not set"}`);
 
     return res.status(200).json({
       ok: true,
@@ -406,7 +394,7 @@ if (!cards.length) {
     });
   } catch (err) {
     const msg = err?.message ? String(err.message) : String(err);
-
+    console.log(`[${runId}] FINISHLINE error: ${msg}`);
     return res.status(500).json({ ok: false, runId, error: msg, elapsedMs: Date.now() - t0 });
   }
 }
