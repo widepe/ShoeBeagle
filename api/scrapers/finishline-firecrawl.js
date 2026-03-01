@@ -11,6 +11,14 @@
 // - if on-sale text is not a $ price (e.g. "See price in bag"), skip and count skips
 // - output your deal schema + your top-level structure
 // - Cron Secret check included, but commented out for testing
+//
+// IMPORTANT FIXES IN THIS VERSION:
+// - Uses proxy:"auto" to reduce Finish Line blocking
+// - Removes Firecrawl actions (wait/scroll) to reduce engine failures
+// - Uses formats:["html"] for maximum compatibility
+// - Scrapes both men + women URLs (deduped), still NO pagination
+// - Adds debug logs that won’t crash the function
+// - Hard timeout around Firecrawl fetch so Vercel never returns "---"
 
 import * as cheerio from "cheerio";
 import { put } from "@vercel/blob";
@@ -89,7 +97,13 @@ function stripLeadingGender(listingName) {
 function parseBrandModel(listingName) {
   const s = stripLeadingGender(listingName);
 
-  const multiWordBrands = ["New Balance", "Under Armour", "On Running", "HOKA ONE ONE", "Hoka One One"];
+  const multiWordBrands = [
+    "New Balance",
+    "Under Armour",
+    "On Running",
+    "HOKA ONE ONE",
+    "Hoka One One",
+  ];
 
   for (const b of multiWordBrands) {
     if (s.toLowerCase().startsWith(b.toLowerCase() + " ")) {
@@ -109,9 +123,8 @@ function parseBrandModel(listingName) {
 function extractImageUrlFromCard(card) {
   let imageURL = null;
 
-  // 1) Prefer the product image inside the square wrapper
-  let img = card.find('div.aspect-square img').first();
-  if (!img || !img.length) img = card.find("img").first();
+  // 1) Try any img first (Firecrawl often keeps at least one)
+  let img = card.find("img").first();
 
   if (img && img.length) {
     imageURL =
@@ -134,7 +147,7 @@ function extractImageUrlFromCard(card) {
     }
   }
 
-  // 2) Try <picture><source>
+  // 2) <picture><source>
   if (!imageURL) {
     const source = card.find("picture source").first();
     const sourceSrcset = source.attr("srcset") || source.attr("data-srcset") || null;
@@ -143,7 +156,7 @@ function extractImageUrlFromCard(card) {
     }
   }
 
-  // 3) Regex pull from the card HTML
+  // 3) Regex pull from HTML
   if (!imageURL) {
     const frag = card.html() || "";
     const m = frag.match(/https:\/\/media\.finishline\.com\/[^"'\s<>]+/i);
@@ -161,7 +174,7 @@ function extractImageUrlFromCard(card) {
   // 5) Decode &amp; and normalize
   if (imageURL) {
     imageURL = String(imageURL).replace(/&amp;/g, "&").trim();
-    // NOTE: media.finishline.com is already absolute, normalizeUrl() is fine either way
+    // media.finishline.com is already absolute; normalizeUrl handles both cases
     imageURL = normalizeUrl(imageURL);
   }
 
@@ -172,7 +185,7 @@ async function firecrawlScrape(url) {
   const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
 
-  // ✅ hard timeout so Vercel never hangs / returns ---
+  // ✅ Hard timeout so Vercel never hangs / shows ---
   const controller = new AbortController();
   const timeoutMs = 90_000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -187,35 +200,40 @@ async function firecrawlScrape(url) {
       signal: controller.signal,
       body: JSON.stringify({
         url,
-        formats: ["rawHtml"],
-        onlyMainContent: false,
+
+        // ✅ Most compatible (and what previously returned ok:true)
+        formats: ["html"],
+
+        // ✅ Let Firecrawl handle "main content" normally
+        // onlyMainContent: true,
+
+        // ✅ Give Finish Line time
         waitFor: 6000,
-        actions: [
-          { type: "wait", selector: 'a[href*="/pdp/"]' },
-          { type: "scroll", direction: "down" },
-          { type: "wait", milliseconds: 1000 },
-        ],
+
+        // ✅ Best first lever against blocking
+        proxy: "auto",
+
+        // ✅ Firecrawl-side timeout
         timeout: 120000,
-        // proxy: "auto", // optional if you see bot/geo blocks
       }),
     });
 
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
-      throw new Error(`Firecrawl scrape failed (${res.status}): ${txt.slice(0, 500)}`);
+      throw new Error(`Firecrawl scrape failed (${res.status}): ${txt.slice(0, 800)}`);
     }
 
     const data = await res.json();
 
     const html =
-      data?.data?.rawHtml ||
-      data?.data?.[0]?.rawHtml ||
-      data?.rawHtml ||
+      data?.data?.html ||
+      data?.data?.[0]?.html ||
+      data?.html ||
       "";
 
     if (!html) {
       const keys = Object.keys(data || {});
-      throw new Error(`Firecrawl returned no rawHtml. Top-level keys: ${keys.join(", ")}`);
+      throw new Error(`Firecrawl returned no html. Top-level keys: ${keys.join(", ")}`);
     }
 
     return html;
@@ -251,8 +269,9 @@ export default async function handler(req, res) {
     const allDeals = [];
     const sourceUrls = [];
 
-    // ✅ Dedup URLs (in case the same link is pasted twice)
-    const uniqueUrls = Array.from(new Set(BASE_URLS.map((s) => String(s || "").trim()).filter(Boolean)));
+    const uniqueUrls = Array.from(
+      new Set(BASE_URLS.map((s) => String(s || "").trim()).filter(Boolean))
+    );
 
     for (const pageUrl of uniqueUrls) {
       sourceUrls.push(pageUrl);
@@ -266,55 +285,96 @@ export default async function handler(req, res) {
 
       const $ = cheerio.load(html);
 
-      // Debug: do we see ANY PDP links?
-      const pdpLinks = $('a[href*="/pdp/"]').length;
-      console.log(`[${runId}] FINISHLINE debug: pdpLinks=${pdpLinks}`);
+      // ✅ Debug: do we see PDP links at all?
+      const pdpLinksCount = $('a[href*="/pdp/"]').length;
+      console.log(`[${runId}] FINISHLINE debug: pdpLinks=${pdpLinksCount}`);
 
-      const cards = $('div[data-testid="product-item"]');
-      console.log(`[${runId}] FINISHLINE debug: cards(data-testid=product-item)=${cards.length}`);
+      // ✅ Primary selector (your original)
+      let cards = $('div[data-testid="product-item"]');
 
-      // If cards are 0, dump a tiny sample so we can adjust selectors fast
+      // ✅ Fallback: if Firecrawl stripped testids, use PDP links and walk up
+      if (!cards.length && pdpLinksCount) {
+        // Try common card-like containers around PDP links
+        cards = $('a[href*="/pdp/"]')
+          .map((_, a) => $(a).closest("div").get(0))
+          .get();
+        // Dedup nodes by reference
+        const seen = new Set();
+        const uniqueNodes = [];
+        for (const node of cards) {
+          if (node && !seen.has(node)) {
+            seen.add(node);
+            uniqueNodes.push(node);
+          }
+        }
+        // Wrap in cheerio collection
+        cards = $(uniqueNodes);
+      }
+
+      console.log(`[${runId}] FINISHLINE debug: cards=${cards.length}`);
+
+      dealsFound += cards.length;
+
+      // If still nothing, dump tiny head snippet for selector tuning
       if (!cards.length) {
         const sample = $.html().slice(0, 2000);
         console.log(`[${runId}] FINISHLINE debug: htmlHead=${sample.replace(/\s+/g, " ")}`);
+        continue;
       }
-
-      dealsFound += cards.length;
 
       cards.each((_, el) => {
         const card = $(el);
 
-        // Price-in-bag detection
-        const saleNode = card.find("h4.text-default-onSale").first();
-        const saleTextRaw = asText(saleNode);
-
-        if (saleNode.length && !/\$\s*\d/.test(saleTextRaw)) {
-          priceInBagSkipped += 1;
-          return;
-        }
-
+        // Listing URL
         const href = card.find('a[href*="/pdp/"]').first().attr("href");
         const listingURL = normalizeUrl(href);
         if (!listingURL) return;
 
-        const imageURL = extractImageUrlFromCard(card);
+        // Listing name (Finish Line sometimes uses h3/h4/p; try a few)
+        const nameNode =
+          card.find("h4").first().length
+            ? card.find("h4").first()
+            : card.find("h3").first().length
+              ? card.find("h3").first()
+              : card.find('[data-testid*="product-name"]').first().length
+                ? card.find('[data-testid*="product-name"]').first()
+                : card.find("a").first();
 
-        const listingName = asText(card.find("h4").first());
+        const listingName = asText(nameNode);
         if (!listingName) return;
 
-        const gender = detectGender(listingName);
-        const shoeType = detectShoeType(listingName);
+        // Price-in-bag detection
+        const saleNode = card.find("h4.text-default-onSale, [class*='onSale'], [data-testid*='sale']").first();
+        const saleTextRaw = asText(saleNode);
 
-        const saleText = asText(card.find("h4.text-default-onSale").first());
-        const originalText = asText(card.find("p.line-through").first());
+        if (saleNode.length && !/\$\s*\d/.test(saleTextRaw)) {
+          // Example: "See price in bag"
+          priceInBagSkipped += 1;
+          return;
+        }
+
+        // Sale + original price (try multiple patterns)
+        const saleText =
+          saleTextRaw ||
+          asText(card.find("[class*='onSale']").first()) ||
+          asText(card.find("[data-testid*='sale']").first());
+
+        const originalText =
+          asText(card.find("p.line-through, [class*='line-through'], [data-testid*='original']").first());
 
         const salePrice = parseMoney(saleText);
         const originalPrice = parseMoney(originalText);
 
+        // Keep your honesty rule: must have both
         if (typeof salePrice !== "number" || typeof originalPrice !== "number") return;
 
         const discountPercent = computeDiscountPercent(salePrice, originalPrice);
         const { brand, model } = parseBrandModel(listingName);
+
+        const gender = detectGender(listingName);
+        const shoeType = detectShoeType(listingName);
+
+        const imageURL = extractImageUrlFromCard(card);
 
         allDeals.push({
           schemaVersion: SCHEMA_VERSION,
