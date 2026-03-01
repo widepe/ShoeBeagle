@@ -244,12 +244,12 @@ export default async function handler(req, res) {
   const runId = `finishline-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
   // ✅ Cron Secret (commented out for testing)
-  
+  /*
 const secret = process.env.CRON_SECRET;
 if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
   return res.status(401).json({ ok: false, error: "Unauthorized" });
 }
-  
+  */
 
   let pagesFetched = 0;
   let dealsFound = 0;
