@@ -160,57 +160,49 @@ function getCardSubtitle($card) {
 // --------------------------
 // Firecrawl (REST) with retries
 // --------------------------
-async function firecrawlScrapeHtmlOnce(url, apiKey) {
+async function firecrawlScrapeHtmlOnce(url, apiKey, opts = {}) {
+  const mode = opts.mode || "fast";
+
+  const isHeavy = mode === "heavy";
+
+  const body = {
+    url,
+    formats: ["rawHtml"],
+    onlyMainContent: false,
+    maxAge: 0,
+
+    // FAST: short and cheap
+    // HEAVY: longer + wait for hydration + enhanced proxy
+    timeout: isHeavy ? 90000 : 25000,
+    waitFor: isHeavy ? 0 : 1200,
+
+    proxy: isHeavy ? "enhanced" : "basic",
+
+    actions: isHeavy
+      ? [
+          { type: "wait", selector: "div[data-testid='price-component']" },
+          { type: "scrape" },
+        ]
+      : undefined,
+  };
+
   const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      url,
-
-      // IMPORTANT: get the actual DOM
-      formats: ["rawHtml"],
-
-      // IMPORTANT: don't "main-content" strip (default true)
-      onlyMainContent: false,
-
-      // avoid cached bad/skeleton responses
-      maxAge: 0,
-
-      // give it time + wait for hydrated elements
-      timeout: 120000,
-      waitFor: 0,
-
-      actions: [
-        // wait until product-card title exists (hydration complete)
-        { type: "wait", selector: "p[data-testid='product-card-title']" },
-        // then grab the HTML at that point
-        { type: "scrape" },
-      ],
-
-      // Adidas often needs stronger proxying
-      proxy: "enhanced",
-
-      // optional: helps some retail sites
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "accept-language": "en-US,en;q=0.9",
-      },
-    }),
+    body: JSON.stringify(body),
   });
 
   const json = await resp.json().catch(() => null);
 
   if (!resp.ok) {
     const msg = json?.error || json?.message || `Firecrawl scrape failed (${resp.status})`;
-    const body = json ? JSON.stringify(json) : "";
-    throw new Error(`${msg}${body ? `: ${body}` : ""}`);
+    const bodyText = json ? JSON.stringify(json) : "";
+    throw new Error(`${msg}${bodyText ? `: ${bodyText}` : ""}`);
   }
 
-  // NOTE: rawHtml lives here when you request formats:["rawHtml"]
   const html = json?.data?.rawHtml || json?.rawHtml || null;
   if (!html) throw new Error("Firecrawl response missing rawHtml (expected data.rawHtml)");
   return html;
@@ -220,11 +212,19 @@ async function firecrawlScrapeHtmlWithRetry(url) {
   const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY env var");
 
+  // 1) FAST attempt
+  try {
+    return await firecrawlScrapeHtmlOnce(url, apiKey, { mode: "fast" });
+  } catch (e) {
+    // fall through to heavy attempts
+  }
+
+  // 2) HEAVY attempts with retry/backoff
   let lastErr = null;
 
   for (let attempt = 0; attempt <= FIRECRAWL_MAX_RETRIES; attempt++) {
     try {
-      return await firecrawlScrapeHtmlOnce(url, apiKey);
+      return await firecrawlScrapeHtmlOnce(url, apiKey, { mode: "heavy" });
     } catch (e) {
       lastErr = e;
       const msg = e?.message || String(e);
@@ -509,7 +509,9 @@ async function scrapeAll(runId) {
         });
 
         // Stop if not full OR no new unique deals
-        if (parsed.dealsFound < PAGE_SIZE || newDealsThisPage === 0) break;
+// Stop if page is not full.
+// Also stop on "0 new unique" ONLY after we've already paged at least once.
+if (parsed.dealsFound < PAGE_SIZE || (pageIndex > 0 && newDealsThisPage === 0)) break;
       }
     }
   } catch (e) {
