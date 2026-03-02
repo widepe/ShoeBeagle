@@ -170,27 +170,35 @@ async function firecrawlScrapeHtmlOnce(url, apiKey) {
     body: JSON.stringify({
       url,
 
-      // CRITICAL: do NOT strip the page down to "main content"
-      // or you'll lose the product card internals (title/img/price).
-      onlyMainContent: false, // Firecrawl v1 default is true
+      // IMPORTANT: get the actual DOM
+      formats: ["rawHtml"],
 
-      // Avoid reusing a cached "stripped" response.
+      // IMPORTANT: don't "main-content" strip (default true)
+      onlyMainContent: false,
+
+      // avoid cached bad/skeleton responses
       maxAge: 0,
 
-      // Ask for HTML
-      formats: ["html"],
+      // give it time + wait for hydrated elements
+      timeout: 120000,
+      waitFor: 0,
 
-      // Give Adidas time to hydrate
-      waitFor: FIRECRAWL_WAITFOR_MS,
-      timeout: FIRECRAWL_TIMEOUT_MS,
-
-      // Optional but helpful on dynamic retail pages:
-      // actions can improve consistency when content hydrates after load.
       actions: [
-        { type: "wait", milliseconds: 1200 },
-        { type: "scroll", direction: "down", amount: 3000 },
-        { type: "wait", milliseconds: 900 },
+        // wait until product-card title exists (hydration complete)
+        { type: "wait", selector: "p[data-testid='product-card-title']" },
+        // then grab the HTML at that point
+        { type: "scrape" },
       ],
+
+      // Adidas often needs stronger proxying
+      proxy: "enhanced",
+
+      // optional: helps some retail sites
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "accept-language": "en-US,en;q=0.9",
+      },
     }),
   });
 
@@ -202,8 +210,9 @@ async function firecrawlScrapeHtmlOnce(url, apiKey) {
     throw new Error(`${msg}${body ? `: ${body}` : ""}`);
   }
 
-  const html = json?.data?.html || json?.html || null;
-  if (!html) throw new Error("Firecrawl response missing HTML (expected data.html)");
+  // NOTE: rawHtml lives here when you request formats:["rawHtml"]
+  const html = json?.data?.rawHtml || json?.rawHtml || null;
+  if (!html) throw new Error("Firecrawl response missing rawHtml (expected data.rawHtml)");
   return html;
 }
 
