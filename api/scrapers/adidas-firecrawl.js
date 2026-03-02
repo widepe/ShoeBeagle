@@ -9,6 +9,9 @@
 // - Stop when page returns < 48 cards OR when a page adds 0 new unique deals AFTER page 1.
 // - Hard cap: MAX_PAGES_PER_BASE.
 //
+// IMPORTANT (Vercel stability):
+// - This route MUST NOT run forever. We hard-bail to avoid 504 FUNCTION_INVOCATION_TIMEOUT.
+//
 // SECURITY (Backcountry style):
 // - Requires CRON_SECRET via header:
 //     Authorization: Bearer <CRON_SECRET>
@@ -30,17 +33,24 @@ const BASE_URLS = [
 ];
 
 const PAGE_SIZE = 48;
-const MAX_PAGES_PER_BASE = 10;
 
-// Firecrawl retry tuning (handles tunnel hiccups / transient blocks)
-const FIRECRAWL_MAX_RETRIES = 4;
+// ✅ Keep this low so Vercel doesn’t time out.
+// women: start=0,48 and men: start=0,48 => max 4 pages total
+const MAX_PAGES_PER_BASE = 2;
+
+// ✅ Keep retries low (Adidas + Firecrawl can be bursty; retries can push you into Vercel timeouts)
+const FIRECRAWL_MAX_RETRIES = 1;
 const FIRECRAWL_BASE_DELAY_MS = 900;
 
-// FAST vs HEAVY tuning
-const FIRECRAWL_FAST_TIMEOUT_MS = 25000;
+// Firecrawl timing
+const FIRECRAWL_FAST_TIMEOUT_MS = 20000;
 const FIRECRAWL_FAST_WAITFOR_MS = 1200;
 
-const FIRECRAWL_HEAVY_TIMEOUT_MS = 60000;
+const FIRECRAWL_HEAVY_TIMEOUT_MS = 45000;
+
+// ✅ Hard bail to avoid Vercel 504.
+// If your runtime allows more, you can raise this, but keep headroom.
+const HARD_BAIL_MS = 55_000;
 
 // --------------------------
 // helpers
@@ -79,8 +89,6 @@ function parseMoneyList(text) {
   // Adidas shows prices with "$". If we allow bare numbers,
   // we accidentally capture "-10%" and other non-price values.
   const s = String(text || "").replace(/,/g, "");
-
-  // REQUIRE a dollar sign
   const matches = [...s.matchAll(/\$\s*(\d{1,4}(?:\.\d{2})?)/g)];
 
   const nums = matches
@@ -165,7 +173,7 @@ function getCardSubtitle($card) {
 }
 
 // --------------------------
-// Firecrawl (REST) with retries
+// Firecrawl (REST)
 // --------------------------
 async function firecrawlScrapeHtmlOnce(url, apiKey, opts = {}) {
   const mode = opts.mode || "fast";
@@ -183,14 +191,15 @@ async function firecrawlScrapeHtmlOnce(url, apiKey, opts = {}) {
     timeout: isHeavy ? FIRECRAWL_HEAVY_TIMEOUT_MS : FIRECRAWL_FAST_TIMEOUT_MS,
     waitFor: isHeavy ? 0 : FIRECRAWL_FAST_WAITFOR_MS,
 
-    // Best reliability tradeoff for Adidas
+    // "auto" is the best reliability tradeoff here; it may cost more than basic
     proxy: "auto",
 
+    // Heavy mode: tolerant “wait + scroll + scrape” (less brittle than waiting for a selector)
     actions: isHeavy
       ? [
-          { type: "wait", milliseconds: 1200 },
-          { type: "scroll", direction: "down", amount: 3500 },
-          { type: "wait", milliseconds: 900 },
+          { type: "wait", milliseconds: 1000 },
+          { type: "scroll", direction: "down", amount: 3200 },
+          { type: "wait", milliseconds: 800 },
           { type: "scrape" },
         ]
       : undefined,
@@ -227,12 +236,11 @@ async function firecrawlScrapeHtmlWithRetry(url) {
     return await firecrawlScrapeHtmlOnce(url, apiKey, { mode: "fast" });
   } catch (e) {
     const msg = e?.message || String(e);
-    // If it's NOT transient, fail immediately (don't waste time).
     if (!looksTransientFirecrawlError(msg)) throw e;
-    // transient -> fall through to heavy retry loop
+    // transient -> fall through to heavy attempts
   }
 
-  // 2) HEAVY attempts with retry/backoff
+  // 2) HEAVY attempts with small retry/backoff (kept low to avoid Vercel timeouts)
   let lastErr = null;
 
   for (let attempt = 0; attempt <= FIRECRAWL_MAX_RETRIES; attempt++) {
@@ -282,7 +290,6 @@ function parseDealsFromHtml(html, opts = {}) {
     const $card = $(el);
 
     const title = getCardTitle($card);
-
     if (!title) {
       dropCounts.dropped_missingTitle += 1;
 
@@ -331,7 +338,10 @@ function parseDealsFromHtml(html, opts = {}) {
       $card.find("[data-testid='price-component']").first().text()
     );
 
-    const mainPriceText = normalizeWhitespace($card.find("[data-testid='main-price']").first().text());
+    const mainPriceText = normalizeWhitespace(
+      $card.find("[data-testid='main-price']").first().text()
+    );
+
     const origPriceText = normalizeWhitespace(
       $card.find("[data-testid='original-price']").first().text()
     );
@@ -428,7 +438,6 @@ function parseDealsFromHtml(html, opts = {}) {
 
     dropCounts.kept += 1;
 
-    // Keep one “good” debug example too (optional)
     if (i === 0 && !debugFirstCard) {
       debugFirstCard = {
         why: "firstCardOk",
@@ -458,6 +467,8 @@ function parseDealsFromHtml(html, opts = {}) {
 async function scrapeAll(runId) {
   const start = Date.now();
   const lastUpdated = nowIso();
+
+  const shouldBail = () => Date.now() - start > HARD_BAIL_MS;
 
   let ok = true;
   let error = null;
@@ -493,7 +504,12 @@ async function scrapeAll(runId) {
         const startOffset = pageIndex * PAGE_SIZE;
         const url = buildPagedUrl(baseUrl, startOffset);
 
-        if (pageIndex > 0) await sleep(650 + Math.floor(Math.random() * 650));
+        if (shouldBail()) {
+          pageNotes.push({ url, note: "Bailing early to avoid Vercel timeout" });
+          break;
+        }
+
+        if (pageIndex > 0) await sleep(450 + Math.floor(Math.random() * 450));
 
         let html = null;
         try {
@@ -511,7 +527,6 @@ async function scrapeAll(runId) {
         const parsed = parseDealsFromHtml(html, { defaultGender });
         dealsFound += parsed.dealsFound;
 
-        // accumulate drop counts + capture debug once
         for (const k of Object.keys(totalDropCounts)) {
           totalDropCounts[k] += Number(parsed.dropCounts?.[k] || 0);
         }
