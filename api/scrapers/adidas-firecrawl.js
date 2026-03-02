@@ -72,9 +72,13 @@ function toAbsUrl(href) {
 }
 
 function parseMoneyList(text) {
-  // returns numeric values found in "$123.45" / "123.45" contexts
+  // Adidas shows prices with "$". If we allow bare numbers,
+  // we accidentally capture "-10%" and other non-price values.
   const s = String(text || "").replace(/,/g, "");
-  const matches = [...s.matchAll(/\$?\s*(\d{1,4}(?:\.\d{2})?)/g)];
+
+  // REQUIRE a dollar sign
+  const matches = [...s.matchAll(/\$\s*(\d{1,4}(?:\.\d{2})?)/g)];
+
   const nums = matches
     .map((m) => Number(m[1]))
     .filter((n) => Number.isFinite(n) && n > 0);
@@ -84,6 +88,9 @@ function parseMoneyList(text) {
   for (const n of nums) {
     if (!uniq.some((x) => Math.abs(x - n) < 0.001)) uniq.push(n);
   }
+
+  // If Adidas ever omits "$" in some weird case, you can add a fallback later,
+  // but for these PLPs, "$" is the correct constraint.
   return uniq;
 }
 
@@ -324,12 +331,11 @@ function parseDealsFromHtml(html, opts = {}) {
       $card.find("[data-testid='original-price']").first().text()
     );
 
-    const priceBlockText =
-      pickFirstNonEmpty(
-        priceComponentText,
-        [mainPriceText, origPriceText].filter(Boolean).join(" "),
-        normalizeWhitespace($card.find("[data-testid='main-price']").closest("footer").text())
-      ) || normalizeWhitespace($card.text()); // last resort
+const priceBlockText = pickFirstNonEmpty(
+  priceComponentText,
+  [mainPriceText, origPriceText].filter(Boolean).join(" "),
+  normalizeWhitespace($card.find("[data-testid='main-price']").closest("footer").text())
+);
 
     const nums = parseMoneyList(priceBlockText);
 
