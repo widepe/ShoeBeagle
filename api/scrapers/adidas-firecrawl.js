@@ -45,8 +45,21 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+// strips invisible chars + normalizes whitespace
 function normalizeWhitespace(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
+  return String(s || "")
+    .replace(/[\u00AD\u200B-\u200D\uFEFF]/g, "") // soft hyphen + zero-width
+    .replace(/\u00A0/g, " ") // nbsp
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function pickFirstNonEmpty(...vals) {
+  for (const v of vals) {
+    const s = normalizeWhitespace(v);
+    if (s) return s;
+  }
+  return "";
 }
 
 function toAbsUrl(href) {
@@ -110,6 +123,40 @@ function looksTransientFirecrawlError(message) {
   );
 }
 
+// Title/subtitle extractors (ROBUST vs client-rendered footer)
+function getCardTitle($card) {
+  // 1) Expected node (sometimes missing in Firecrawl HTML)
+  const pTitle = $card.find("p[data-testid='product-card-title']").first().text();
+
+  // 2) Reliable fallback from image alt/title (present in your snippet)
+  const primaryAlt = $card
+    .find("img[data-testid='product-card-primary-image']")
+    .first()
+    .attr("alt");
+
+  const hoverAlt = $card.find("img[data-testid='product-card-hover-image']").first().attr("alt");
+
+  // 3) Carousel images often contain title/alt too
+  const carouselTitle = $card
+    .find("img[data-testid='carousel-product-image']")
+    .first()
+    .attr("title");
+
+  const carouselAlt = $card.find("img[data-testid='carousel-product-image']").first().attr("alt");
+
+  // 4) As a last resort, aria-labels
+  const aria = $card.find("a[aria-label]").first().attr("aria-label");
+
+  return pickFirstNonEmpty(pTitle, primaryAlt, hoverAlt, carouselTitle, carouselAlt, aria);
+}
+
+function getCardSubtitle($card) {
+  return pickFirstNonEmpty(
+    $card.find("p[data-testid='product-card-subtitle']").first().text(),
+    $card.find("p[data-testid*='subtitle']").first().text()
+  );
+}
+
 // --------------------------
 // Firecrawl (REST) with retries
 // --------------------------
@@ -169,10 +216,11 @@ async function firecrawlScrapeHtmlWithRetry(url) {
 }
 
 // --------------------------
-// parse deals from Adidas PLP HTML (ROBUST PRICE PARSING)
+// parse deals from Adidas PLP HTML
 // --------------------------
-function parseDealsFromHtml(html) {
+function parseDealsFromHtml(html, opts = {}) {
   const $ = cheerio.load(html);
+  const defaultGender = opts.defaultGender || "unknown";
 
   const cards = $("article[data-testid='plp-product-card']");
   const dealsFound = cards.length;
@@ -192,18 +240,28 @@ function parseDealsFromHtml(html) {
   cards.each((i, el) => {
     const $card = $(el);
 
-    const title = normalizeWhitespace(
-      $card.find("p[data-testid='product-card-title']").first().text()
-    );
+    const title = getCardTitle($card);
 
     if (!title) {
       dropCounts.dropped_missingTitle += 1;
+
+      if (!debugFirstCard) {
+        debugFirstCard = {
+          why: "missingTitle",
+          primaryImgAlt:
+            $card.find("img[data-testid='product-card-primary-image']").first().attr("alt") ||
+            null,
+          firstImgAlt: $card.find("img[alt]").first().attr("alt") || null,
+          pTitleText: normalizeWhitespace(
+            $card.find("p[data-testid='product-card-title']").first().text()
+          ),
+          cardHtmlSnippet: String($card.html() || "").slice(0, 1600),
+        };
+      }
       return;
     }
 
-    const subtitle = normalizeWhitespace(
-      $card.find("p[data-testid='product-card-subtitle']").first().text()
-    );
+    const subtitle = getCardSubtitle($card);
 
     // URL: try multiple anchors
     const href =
@@ -220,17 +278,30 @@ function parseDealsFromHtml(html) {
 
     // Image: best effort
     const imgSrc =
-      ($card.find("img[data-testid='product-card-primary-image']").first().attr("src") || "").trim() ||
+      ($card.find("img[data-testid='product-card-primary-image']").first().attr("src") || "")
+        .trim() ||
       ($card.find("img").first().attr("src") || "").trim() ||
       "";
 
     const imageURL = imgSrc ? imgSrc : null;
 
-    // PRICE: pull text from likely price containers, then regex out numbers.
+    // PRICE:
+    // Prefer explicit price containers; fall back to footer; only then full card text.
+    const priceComponentText = normalizeWhitespace(
+      $card.find("[data-testid='price-component']").first().text()
+    );
+
+    const mainPriceText = normalizeWhitespace($card.find("[data-testid='main-price']").first().text());
+    const origPriceText = normalizeWhitespace(
+      $card.find("[data-testid='original-price']").first().text()
+    );
+
     const priceBlockText =
-      normalizeWhitespace($card.find("[data-testid='main-price']").first().text()) ||
-      normalizeWhitespace($card.find("[data-testid='price']").first().text()) ||
-      normalizeWhitespace($card.text()); // last resort (heavier but robust)
+      pickFirstNonEmpty(
+        priceComponentText,
+        [mainPriceText, origPriceText].filter(Boolean).join(" "),
+        normalizeWhitespace($card.find("[data-testid='main-price']").closest("footer").text())
+      ) || normalizeWhitespace($card.text()); // last resort
 
     const nums = parseMoneyList(priceBlockText);
 
@@ -238,15 +309,15 @@ function parseDealsFromHtml(html) {
     if (nums.length < 2) {
       dropCounts.dropped_priceCouldNotParse += 1;
 
-      // Capture debug from the first card we fail on
       if (!debugFirstCard) {
         debugFirstCard = {
+          why: "priceCouldNotParse",
           title,
           subtitle,
           listingURL,
           priceBlockText: priceBlockText.slice(0, 500),
           moneyParsed: nums,
-          cardHtmlSnippet: String($card.html() || "").slice(0, 1200),
+          cardHtmlSnippet: String($card.html() || "").slice(0, 1600),
         };
       }
       return;
@@ -260,6 +331,7 @@ function parseDealsFromHtml(html) {
 
       if (!debugFirstCard) {
         debugFirstCard = {
+          why: "notADeal",
           title,
           subtitle,
           listingURL,
@@ -267,13 +339,15 @@ function parseDealsFromHtml(html) {
           moneyParsed: nums,
           salePrice,
           originalPrice,
-          cardHtmlSnippet: String($card.html() || "").slice(0, 1200),
+          cardHtmlSnippet: String($card.html() || "").slice(0, 1600),
         };
       }
       return;
     }
 
     const discountPercent = computeDiscountPercent(salePrice, originalPrice);
+
+    const gender = subtitle ? inferGenderFromSubtitle(subtitle) : defaultGender;
 
     deals.push({
       listingName: title,
@@ -295,15 +369,16 @@ function parseDealsFromHtml(html) {
       listingURL,
       imageURL,
 
-      gender: inferGenderFromSubtitle(subtitle),
+      gender,
       shoeType: "unknown",
     });
 
     dropCounts.kept += 1;
 
     // Keep one “good” debug example too (optional)
-    if (i === 0) {
-      debugFirstCard = debugFirstCard || {
+    if (i === 0 && !debugFirstCard) {
+      debugFirstCard = {
+        why: "firstCardOk",
         title,
         subtitle,
         listingURL,
@@ -355,6 +430,12 @@ async function scrapeAll(runId) {
 
   try {
     for (const baseUrl of BASE_URLS) {
+      const defaultGender = baseUrl.includes("/women-")
+        ? "womens"
+        : baseUrl.includes("/men-")
+        ? "mens"
+        : "unknown";
+
       for (let pageIndex = 0; pageIndex < MAX_PAGES_PER_BASE; pageIndex++) {
         const startOffset = pageIndex * PAGE_SIZE;
         const url = buildPagedUrl(baseUrl, startOffset);
@@ -374,7 +455,7 @@ async function scrapeAll(runId) {
         pagesFetched += 1;
         sourceUrls.push(url);
 
-        const parsed = parseDealsFromHtml(html);
+        const parsed = parseDealsFromHtml(html, { defaultGender });
         dealsFound += parsed.dealsFound;
 
         // accumulate drop counts + capture debug once
