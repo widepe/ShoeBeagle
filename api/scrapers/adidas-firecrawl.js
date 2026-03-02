@@ -169,9 +169,28 @@ async function firecrawlScrapeHtmlOnce(url, apiKey) {
     },
     body: JSON.stringify({
       url,
+
+      // CRITICAL: do NOT strip the page down to "main content"
+      // or you'll lose the product card internals (title/img/price).
+      onlyMainContent: false, // Firecrawl v1 default is true
+
+      // Avoid reusing a cached "stripped" response.
+      maxAge: 0,
+
+      // Ask for HTML
       formats: ["html"],
+
+      // Give Adidas time to hydrate
       waitFor: FIRECRAWL_WAITFOR_MS,
       timeout: FIRECRAWL_TIMEOUT_MS,
+
+      // Optional but helpful on dynamic retail pages:
+      // actions can improve consistency when content hydrates after load.
+      actions: [
+        { type: "wait", milliseconds: 1200 },
+        { type: "scroll", direction: "down", amount: 3000 },
+        { type: "wait", milliseconds: 900 },
+      ],
     }),
   });
 
