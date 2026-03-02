@@ -6,7 +6,7 @@
 // Pagination rule (safe):
 // - Page size ~48 cards.
 // - If a page returns >= 48 cards, try next page (?start=+48).
-// - Stop when page returns < 48 cards OR when a page adds 0 new unique deals.
+// - Stop when page returns < 48 cards OR when a page adds 0 new unique deals AFTER page 1.
 // - Hard cap: MAX_PAGES_PER_BASE.
 //
 // SECURITY (Backcountry style):
@@ -32,11 +32,15 @@ const BASE_URLS = [
 const PAGE_SIZE = 48;
 const MAX_PAGES_PER_BASE = 10;
 
-// Firecrawl retry tuning (handles tunnel hiccups)
+// Firecrawl retry tuning (handles tunnel hiccups / transient blocks)
 const FIRECRAWL_MAX_RETRIES = 4;
 const FIRECRAWL_BASE_DELAY_MS = 900;
-const FIRECRAWL_TIMEOUT_MS = 60000;
-const FIRECRAWL_WAITFOR_MS = 1500;
+
+// FAST vs HEAVY tuning
+const FIRECRAWL_FAST_TIMEOUT_MS = 25000;
+const FIRECRAWL_FAST_WAITFOR_MS = 1200;
+
+const FIRECRAWL_HEAVY_TIMEOUT_MS = 60000;
 
 // --------------------------
 // helpers
@@ -89,8 +93,6 @@ function parseMoneyList(text) {
     if (!uniq.some((x) => Math.abs(x - n) < 0.001)) uniq.push(n);
   }
 
-  // If Adidas ever omits "$" in some weird case, you can add a fallback later,
-  // but for these PLPs, "$" is the correct constraint.
   return uniq;
 }
 
@@ -121,7 +123,6 @@ function sleep(ms) {
 
 function looksTransientFirecrawlError(message) {
   const s = String(message || "");
-
   return (
     /SCRAPE_ALL_ENGINES_FAILED/i.test(s) ||
     /All scraping engines failed/i.test(s) ||
@@ -135,10 +136,8 @@ function looksTransientFirecrawlError(message) {
 
 // Title/subtitle extractors (ROBUST vs client-rendered footer)
 function getCardTitle($card) {
-  // 1) Expected node (sometimes missing in Firecrawl HTML)
   const pTitle = $card.find("p[data-testid='product-card-title']").first().text();
 
-  // 2) Reliable fallback from image alt/title (present in your snippet)
   const primaryAlt = $card
     .find("img[data-testid='product-card-primary-image']")
     .first()
@@ -146,7 +145,6 @@ function getCardTitle($card) {
 
   const hoverAlt = $card.find("img[data-testid='product-card-hover-image']").first().attr("alt");
 
-  // 3) Carousel images often contain title/alt too
   const carouselTitle = $card
     .find("img[data-testid='carousel-product-image']")
     .first()
@@ -154,7 +152,6 @@ function getCardTitle($card) {
 
   const carouselAlt = $card.find("img[data-testid='carousel-product-image']").first().attr("alt");
 
-  // 4) As a last resort, aria-labels
   const aria = $card.find("a[aria-label]").first().attr("aria-label");
 
   return pickFirstNonEmpty(pTitle, primaryAlt, hoverAlt, carouselTitle, carouselAlt, aria);
@@ -172,30 +169,31 @@ function getCardSubtitle($card) {
 // --------------------------
 async function firecrawlScrapeHtmlOnce(url, apiKey, opts = {}) {
   const mode = opts.mode || "fast";
-
   const isHeavy = mode === "heavy";
 
   const body = {
     url,
+    // IMPORTANT: raw DOM (not stripped “main content”)
     formats: ["rawHtml"],
     onlyMainContent: false,
+
+    // avoid cached skeleton responses
     maxAge: 0,
 
-    // FAST: short and cheap
-    // HEAVY: longer + wait for hydration + enhanced proxy
-    timeout: isHeavy ? 60000 : 25000,
-    waitFor: isHeavy ? 0 : 1200,
+    timeout: isHeavy ? FIRECRAWL_HEAVY_TIMEOUT_MS : FIRECRAWL_FAST_TIMEOUT_MS,
+    waitFor: isHeavy ? 0 : FIRECRAWL_FAST_WAITFOR_MS,
 
+    // Best reliability tradeoff for Adidas
     proxy: "auto",
 
- actions: isHeavy
-  ? [
-      { type: "wait", milliseconds: 1200 },
-      { type: "scroll", direction: "down", amount: 3500 },
-      { type: "wait", milliseconds: 900 },
-      { type: "scrape" },
-    ]
-  : undefined,
+    actions: isHeavy
+      ? [
+          { type: "wait", milliseconds: 1200 },
+          { type: "scroll", direction: "down", amount: 3500 },
+          { type: "wait", milliseconds: 900 },
+          { type: "scrape" },
+        ]
+      : undefined,
   };
 
   const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
@@ -228,7 +226,10 @@ async function firecrawlScrapeHtmlWithRetry(url) {
   try {
     return await firecrawlScrapeHtmlOnce(url, apiKey, { mode: "fast" });
   } catch (e) {
-    // fall through to heavy attempts
+    const msg = e?.message || String(e);
+    // If it's NOT transient, fail immediately (don't waste time).
+    if (!looksTransientFirecrawlError(msg)) throw e;
+    // transient -> fall through to heavy retry loop
   }
 
   // 2) HEAVY attempts with retry/backoff
@@ -325,8 +326,7 @@ function parseDealsFromHtml(html, opts = {}) {
 
     const imageURL = imgSrc ? imgSrc : null;
 
-    // PRICE:
-    // Prefer explicit price containers; fall back to footer; only then full card text.
+    // PRICE: parse ONLY from price-related containers (avoid junk numbers like -10%)
     const priceComponentText = normalizeWhitespace(
       $card.find("[data-testid='price-component']").first().text()
     );
@@ -336,24 +336,28 @@ function parseDealsFromHtml(html, opts = {}) {
       $card.find("[data-testid='original-price']").first().text()
     );
 
-const priceBlockText = pickFirstNonEmpty(
-  priceComponentText,
-  [mainPriceText, origPriceText].filter(Boolean).join(" "),
-  normalizeWhitespace($card.find("[data-testid='main-price']").closest("footer").text())
-);
-if (!priceBlockText) {
-  dropCounts.dropped_priceCouldNotParse += 1;
-  if (!debugFirstCard) {
-    debugFirstCard = {
-      why: "priceBlockEmpty",
-      title,
-      subtitle,
-      listingURL,
-      cardHtmlSnippet: String($card.html() || "").slice(0, 1600),
-    };
-  }
-  return;
-}    const nums = parseMoneyList(priceBlockText);
+    const priceBlockText = pickFirstNonEmpty(
+      priceComponentText,
+      [mainPriceText, origPriceText].filter(Boolean).join(" "),
+      normalizeWhitespace($card.find("[data-testid='main-price']").closest("footer").text())
+    );
+
+    if (!priceBlockText) {
+      dropCounts.dropped_priceCouldNotParse += 1;
+
+      if (!debugFirstCard) {
+        debugFirstCard = {
+          why: "priceBlockEmpty",
+          title,
+          subtitle,
+          listingURL,
+          cardHtmlSnippet: String($card.html() || "").slice(0, 1600),
+        };
+      }
+      return;
+    }
+
+    const nums = parseMoneyList(priceBlockText);
 
     // We need at least 2 distinct prices to satisfy honesty rule
     if (nums.length < 2) {
@@ -396,7 +400,6 @@ if (!priceBlockText) {
     }
 
     const discountPercent = computeDiscountPercent(salePrice, originalPrice);
-
     const gender = subtitle ? inferGenderFromSubtitle(subtitle) : defaultGender;
 
     deals.push({
@@ -530,10 +533,9 @@ async function scrapeAll(runId) {
           addedUnique: newDealsThisPage,
         });
 
-        // Stop if not full OR no new unique deals
-// Stop if page is not full.
-// Also stop on "0 new unique" ONLY after we've already paged at least once.
-if (parsed.dealsFound < PAGE_SIZE || (pageIndex > 0 && newDealsThisPage === 0)) break;
+        // Stop if page is not full.
+        // Also stop on "0 new unique" ONLY after we've already paged at least once.
+        if (parsed.dealsFound < PAGE_SIZE || (pageIndex > 0 && newDealsThisPage === 0)) break;
       }
     }
   } catch (e) {
@@ -574,13 +576,13 @@ if (parsed.dealsFound < PAGE_SIZE || (pageIndex > 0 && newDealsThisPage === 0)) 
 module.exports = async function handler(req, res) {
   const runId = `adidas-${Date.now().toString(36)}`;
   const t0 = Date.now();
-/*
+
   // REQUIRE CRON SECRET (exact pattern you wanted)
   const secret = process.env.CRON_SECRET;
   if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
-*/
+
   let payload = null;
 
   try {
