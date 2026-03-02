@@ -121,7 +121,10 @@ function sleep(ms) {
 
 function looksTransientFirecrawlError(message) {
   const s = String(message || "");
+
   return (
+    /SCRAPE_ALL_ENGINES_FAILED/i.test(s) ||
+    /All scraping engines failed/i.test(s) ||
     /ERR_TUNNEL_CONNECTION_FAILED/i.test(s) ||
     /SCRAPE_SITE_ERROR/i.test(s) ||
     /internal proxy error/i.test(s) ||
@@ -180,17 +183,19 @@ async function firecrawlScrapeHtmlOnce(url, apiKey, opts = {}) {
 
     // FAST: short and cheap
     // HEAVY: longer + wait for hydration + enhanced proxy
-    timeout: isHeavy ? 90000 : 25000,
+    timeout: isHeavy ? 60000 : 25000,
     waitFor: isHeavy ? 0 : 1200,
 
-    proxy: isHeavy ? "enhanced" : "basic",
+    proxy: "auto",
 
-    actions: isHeavy
-      ? [
-          { type: "wait", selector: "div[data-testid='price-component']" },
-          { type: "scrape" },
-        ]
-      : undefined,
+ actions: isHeavy
+  ? [
+      { type: "wait", milliseconds: 1200 },
+      { type: "scroll", direction: "down", amount: 3500 },
+      { type: "wait", milliseconds: 900 },
+      { type: "scrape" },
+    ]
+  : undefined,
   };
 
   const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
@@ -336,8 +341,19 @@ const priceBlockText = pickFirstNonEmpty(
   [mainPriceText, origPriceText].filter(Boolean).join(" "),
   normalizeWhitespace($card.find("[data-testid='main-price']").closest("footer").text())
 );
-
-    const nums = parseMoneyList(priceBlockText);
+if (!priceBlockText) {
+  dropCounts.dropped_priceCouldNotParse += 1;
+  if (!debugFirstCard) {
+    debugFirstCard = {
+      why: "priceBlockEmpty",
+      title,
+      subtitle,
+      listingURL,
+      cardHtmlSnippet: String($card.html() || "").slice(0, 1600),
+    };
+  }
+  return;
+}    const nums = parseMoneyList(priceBlockText);
 
     // We need at least 2 distinct prices to satisfy honesty rule
     if (nums.length < 2) {
