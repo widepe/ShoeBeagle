@@ -106,17 +106,26 @@ const body = {
   url,
   formats: ["html"],
   onlyMainContent: false,
-
-  // Force fresh + avoid weird caching while testing
-  maxAge: 0,
-
-  // ✅ Wait for Searchanise tiles to appear (selector is allowed here)
-  actions: [
-    { type: "wait", selector: ".snize-product", milliseconds: 15000 }
-  ],
-
-  // Keep this normal
+  maxAge: 0,          // avoid cached partial renders while testing
   timeout: 45000,
+
+  // Searchanise loads products via JS; default view often shows ~20,
+  // then a "Show more" button loads more.
+  actions: [
+    // Wait for initial products
+    { type: "wait", selector: "li.snize-product", milliseconds: 20000 },
+
+    // Click "Show more" and wait for more tiles
+    // (Searchanise commonly uses a "snize-show-more" class in this mode)
+    { type: "click", selector: ".snize-show-more" },
+    { type: "wait", milliseconds: 2000 },
+    { type: "wait", selector: "li.snize-product:nth-of-type(30)", milliseconds: 20000 },
+
+    // Optional: click a second time if needed
+    { type: "click", selector: ".snize-show-more" },
+    { type: "wait", milliseconds: 2000 },
+    { type: "wait", selector: "li.snize-product:nth-of-type(40)", milliseconds: 20000 },
+  ],
 };
 console.log("Firecrawl body.waitFor type:", typeof body.waitFor, body.waitFor);  const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
@@ -225,8 +234,8 @@ function parseDealsFromHtml(html) {
     dealsExtracted: deals.length,
   };
 }
-
-export default async function handler(req, res) {
+const { deals, dealsFound, dealsExtracted } = parseDealsFromHtml(html);
+console.log("RUNUNITED tiles after actions:", dealsFound, "dealsExtracted:", dealsExtracted);export default async function handler(req, res) {
   const t0 = Date.now();
 
   try {
