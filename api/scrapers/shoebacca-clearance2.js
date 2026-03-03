@@ -1,7 +1,8 @@
 // api/scrapers/shoebacca-clearance.js
 // Scrapes Shoebacca clearance athletic running shoes using Searchspring JSON API (API-first)
-// Schema: canonical 11 fields
-// IMPORTANT: never edit listingName (use source name as-is)
+// ✅ Canonical 11-field deals schema
+// ✅ Top-level structure matches your Zappos-style metadata
+// ✅ CRON secret auth is COMMENTED OUT for testing (per request)
 
 const { put } = require("@vercel/blob");
 
@@ -42,7 +43,7 @@ function safeParseNumber(x) {
 }
 
 // ss_size_options is a STRING that often contains &quot; entity escapes.
-// We decode minimal entities then JSON.parse.
+// Decode minimal entities then JSON.parse.
 function decodeHtmlEntities(str) {
   if (!str) return str;
   return String(str)
@@ -56,7 +57,6 @@ function decodeHtmlEntities(str) {
 
 function parseSizeOptions(ssSizeOptions) {
   if (!ssSizeOptions) return [];
-  // Many responses already have \u0026quot; which becomes "&quot;" after JSON parse.
   const decoded = decodeHtmlEntities(String(ssSizeOptions).trim());
   try {
     const arr = JSON.parse(decoded);
@@ -66,27 +66,24 @@ function parseSizeOptions(ssSizeOptions) {
   }
 }
 
-// Choose best prices using your rule:
+// Choose prices using your rule:
 // - prefer compare_at_price if available (variant-level), else msrp
 // - sale price from variant price if available, else product price
-// - choose a variant that is available AND on sale when possible
+// - prefer available + actually-on-sale variants
 function pickPricesFromResult(result) {
   const productPrice = safeParseNumber(result?.price);
   const productMsrp = safeParseNumber(result?.msrp);
 
   const opts = parseSizeOptions(result?.ss_size_options);
 
-  // Filter to "available" variants if that flag exists
   const available = opts.filter((o) => {
     const avail = o?.available;
-    // some feeds use 1/0
     if (avail === 1 || avail === "1" || avail === true) return true;
     if (avail === 0 || avail === "0" || avail === false) return false;
-    // if missing, keep it
-    return true;
+    return true; // missing -> keep
   });
 
-  const candidates = (available.length ? available : opts).map((o) => {
+  const list = (available.length ? available : opts).map((o) => {
     const sale = safeParseNumber(o?.price);
     const compareAt = safeParseNumber(o?.compare_at_price);
     const onSaleFlag = o?.ss_on_sale === 1 || o?.ss_on_sale === "1" || o?.ss_on_sale === true;
@@ -97,32 +94,23 @@ function pickPricesFromResult(result) {
       compareAt > 0 &&
       sale < compareAt;
 
-    return {
-      salePrice: sale,
-      compareAtPrice: compareAt,
-      onSaleFlag,
-      isActuallyOnSale,
-    };
+    return { salePrice: sale, compareAtPrice: compareAt, onSaleFlag, isActuallyOnSale };
   });
 
-  // Prefer variants that are actually on sale (sale < compare_at)
-  candidates.sort((a, b) => {
-    // true first
+  list.sort((a, b) => {
     if (a.isActuallyOnSale !== b.isActuallyOnSale) return a.isActuallyOnSale ? -1 : 1;
     if (a.onSaleFlag !== b.onSaleFlag) return a.onSaleFlag ? -1 : 1;
 
-    // higher compare_at first (more stable original)
     const ac = a.compareAtPrice || -1;
     const bc = b.compareAtPrice || -1;
     if (ac !== bc) return bc - ac;
 
-    // lower sale first
     const as = a.salePrice || Number.POSITIVE_INFINITY;
     const bs = b.salePrice || Number.POSITIVE_INFINITY;
     return as - bs;
   });
 
-  const best = candidates[0] || {};
+  const best = list[0] || {};
 
   let salePrice = round2(best.salePrice ?? productPrice);
   let originalPrice = round2(best.compareAtPrice ?? productMsrp);
@@ -135,9 +123,8 @@ function pickPricesFromResult(result) {
     [salePrice, originalPrice] = [originalPrice, salePrice];
   }
 
-  // If original exists, require true discount
+  // If original exists, require true discount; otherwise keep original as null
   if (Number.isFinite(originalPrice) && originalPrice > 0 && salePrice >= originalPrice) {
-    // not a deal
     return { salePrice, originalPrice: null };
   }
 
@@ -146,13 +133,18 @@ function pickPricesFromResult(result) {
 
 /** -------------------- Searchspring fetch -------------------- **/
 
-const SEARCHSPRING_BASE = "https://x6dfgt.a.searchspring.io/api/search/search.json";
+const SEARCHSPRING_SITE_ID = "x6dfgt";
+const SEARCHSPRING_BASE = `https://${SEARCHSPRING_SITE_ID}.a.searchspring.io/api/search/search.json`;
+
+// Human-facing page (good to keep in sourceUrls)
+const SOURCE_COLLECTION_URL =
+  "https://www.shoebacca.com/collections/clearance-athletic?tab=products#/productsFilter:mfield_acu_in_class:Shoes/productsFilter:product_type:Athletic/productsFilter:mfield_acu_in_sport:Running/productsFilter:mfield_acu_in_gender:Mens/productsFilter:mfield_acu_in_gender:Womens";
 
 function buildBaseParams() {
   const p = new URLSearchParams();
 
-  // Required
-  p.set("siteId", "x6dfgt");
+  // Required-ish
+  p.set("siteId", SEARCHSPRING_SITE_ID);
   p.set("resultsFormat", "native");
   p.set("ajaxCatalog", "Snap");
   p.set("noBeacon", "true");
@@ -166,7 +158,7 @@ function buildBaseParams() {
   p.append("bgfilter.collection_handle", "clearance-athletic");
 
   // Efficiency
-  p.set("resultsPerPage", "100"); // Searchspring max is typically 100
+  p.set("resultsPerPage", "100"); // typical max
   return p;
 }
 
@@ -177,28 +169,22 @@ async function fetchSearchspringPage(page) {
   const url = `${SEARCHSPRING_BASE}?${params.toString()}`;
   const startedAt = Date.now();
 
-  const res = await fetch(url, {
-    headers: { accept: "application/json" },
-  });
+  try {
+    const res = await fetch(url, { headers: { accept: "application/json" } });
+    const durationMs = Date.now() - startedAt;
 
-  const durationMs = Date.now() - startedAt;
+    if (!res.ok) {
+      return { ok: false, status: res.status, url, durationMs, json: null, error: `HTTP ${res.status}` };
+    }
 
-  if (!res.ok) {
-    return {
-      ok: false,
-      status: res.status,
-      url,
-      durationMs,
-      json: null,
-      error: `HTTP ${res.status}`,
-    };
+    const json = await res.json();
+    return { ok: true, status: res.status, url, durationMs, json, error: null };
+  } catch (e) {
+    const durationMs = Date.now() - startedAt;
+    return { ok: false, status: null, url, durationMs, json: null, error: e?.message || "Fetch error" };
   }
-
-  const json = await res.json();
-  return { ok: true, status: res.status, url, durationMs, json, error: null };
 }
 
-// simple concurrency pool
 async function mapWithConcurrency(items, concurrency, fn) {
   const results = new Array(items.length);
   let idx = 0;
@@ -217,85 +203,97 @@ async function mapWithConcurrency(items, concurrency, fn) {
 }
 
 async function scrapeAllPagesSearchspring() {
-  // First page to learn totalPages
+  const pageResults = [];
+  const all = [];
+
+  // First page (learn totalPages)
   const first = await fetchSearchspringPage(1);
-
-  const pageResults = [
-    {
-      page: "searchspring page=1",
-      success: first.ok,
-      count: Array.isArray(first.json?.results) ? first.json.results.length : 0,
-      error: first.error,
-      url: first.url,
-      duration: `${first.durationMs}ms`,
-      status: first.status,
-    },
-  ];
-
-  if (!first.ok) return { results: [], pageResults };
-
-  const totalPages = first.json?.pagination?.totalPages ?? 1;
-  const all = Array.isArray(first.json?.results) ? [...first.json.results] : [];
-
-  if (totalPages <= 1) return { results: all, pageResults };
-
-  const pages = [];
-  for (let p = 2; p <= totalPages; p++) pages.push(p);
-
-  // Concurrency: 3 is usually plenty and avoids hammering
-  const fetched = await mapWithConcurrency(pages, 3, async (p) => {
-    const r = await fetchSearchspringPage(p);
-    pageResults.push({
-      page: `searchspring page=${p}`,
-      success: r.ok,
-      count: Array.isArray(r.json?.results) ? r.json.results.length : 0,
-      error: r.error,
-      url: r.url,
-      duration: `${r.durationMs}ms`,
-      status: r.status,
-    });
-    return r;
+  pageResults.push({
+    page: "searchspring page=1",
+    success: first.ok,
+    count: Array.isArray(first.json?.results) ? first.json.results.length : 0,
+    error: first.error,
+    url: first.url,
+    duration: `${first.durationMs}ms`,
+    status: first.status,
   });
 
-  for (const r of fetched) {
-    if (r?.ok && Array.isArray(r.json?.results)) all.push(...r.json.results);
+  if (!first.ok) {
+    return { results: [], rawResultsCount: 0, pagesFetched: 1, pageResults, ok: false, error: first.error };
   }
 
-  return { results: all, pageResults };
+  const totalPages = first.json?.pagination?.totalPages ?? 1;
+  if (Array.isArray(first.json?.results)) all.push(...first.json.results);
+
+  if (totalPages > 1) {
+    const pages = [];
+    for (let p = 2; p <= totalPages; p++) pages.push(p);
+
+    // Concurrency: safe and fast
+    const fetched = await mapWithConcurrency(pages, 3, async (p) => {
+      const r = await fetchSearchspringPage(p);
+      pageResults.push({
+        page: `searchspring page=${p}`,
+        success: r.ok,
+        count: Array.isArray(r.json?.results) ? r.json.results.length : 0,
+        error: r.error,
+        url: r.url,
+        duration: `${r.durationMs}ms`,
+        status: r.status,
+      });
+      return r;
+    });
+
+    for (const r of fetched) {
+      if (r?.ok && Array.isArray(r.json?.results)) all.push(...r.json.results);
+    }
+  }
+
+  return {
+    results: all,
+    rawResultsCount: all.length,
+    pagesFetched: pageResults.length,
+    pageResults,
+    ok: true,
+    error: null,
+  };
 }
 
-/** -------------------- Transform to 11-field schema -------------------- **/
+/** -------------------- Transform to canonical 11-field schema -------------------- **/
 
 function filterAndTransformResults(results) {
   const deals = [];
 
   for (const r of results) {
-    // Because our API query already filters to running + athletic + shoes + mens/womens + clearance,
-    // we only apply deal/price validation here.
-
     const { salePrice, originalPrice } = pickPricesFromResult(r);
+
+    // Must have sale and original (your honesty rule expectation)
     if (!Number.isFinite(salePrice) || salePrice <= 0) continue;
-
-    // must have original (your “honesty rule” expectation in the pipeline)
     if (!Number.isFinite(originalPrice) || originalPrice <= 0) continue;
-
-    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
     const listingURL = r?.url ? `https://www.shoebacca.com${r.url}` : null;
     if (!listingURL) continue;
 
-    // IMPORTANT: never edit listingName
+    // IMPORTANT: never edit listingName (use source name as-is)
     const listingName = String(r?.name || "").trim();
     if (!listingName) continue;
 
     const brand = String(r?.brand || r?.vendor || "Unknown").trim();
-    const model = ""; // optional: you can derive later in merge-deals if desired, but not required here
+
+    // Optional: leave model blank; merge-deals can parse listingName if desired
+    const model = "";
 
     const imageURL = r?.imageUrl || r?.thumbnailImageUrl || null;
+
+    // Since we query Mens+Womens only, this should usually be mens/womens
     const gender = normalizeGender(r?.mfield_acu_in_gender);
+
+    // We are filtering sport=Running, but we still categorize road/trail/track if keywords exist
     const shoeType = detectShoeTypeFromText(
       `${r?.name || ""} ${(r?.tags || []).join(" ")} ${(r?.collection_handle || []).join(" ")}`
     );
+
+    const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
     deals.push({
       listingName,
@@ -312,7 +310,7 @@ function filterAndTransformResults(results) {
     });
   }
 
-  // Dedupe by listingURL (cleanest)
+  // Dedupe by listingURL
   const seen = new Set();
   const deduped = [];
   for (const d of deals) {
@@ -329,10 +327,10 @@ function filterAndTransformResults(results) {
 async function scrapeShoebaccaClearance() {
   console.log("[Shoebacca] Starting Searchspring clearance scrape...");
 
-  const { results, pageResults } = await scrapeAllPagesSearchspring();
-  console.log(`[Shoebacca] Raw Searchspring results: ${results.length}`);
+  const fetched = await scrapeAllPagesSearchspring();
 
-  const deals = filterAndTransformResults(results);
+  console.log(`[Shoebacca] Raw Searchspring results: ${fetched.rawResultsCount}`);
+  const deals = filterAndTransformResults(fetched.results);
   console.log(`[Shoebacca] Deals after price filtering: ${deals.length}`);
 
   const dealsByGender = {
@@ -359,10 +357,11 @@ async function scrapeShoebaccaClearance() {
     deals,
     dealsByGender,
     dealsByShoeType,
-    pageResults,
-    sourceApi: SEARCHSPRING_BASE,
-    segment:
-      "clearance-athletic + class:Shoes + type:Athletic + sport:Running + gender:Mens/Womens",
+    pageResults: fetched.pageResults,
+    pagesFetched: fetched.pagesFetched,
+    dealsFound: fetched.rawResultsCount,
+    ok: fetched.ok,
+    error: fetched.error,
   };
 }
 
@@ -372,7 +371,9 @@ module.exports = async (req, res) => {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
-/*
+
+  // ✅ COMMENTED OUT FOR TESTING (per request)
+  /*
   const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
   if (CRON_SECRET) {
     const auth = String(req.headers.authorization || "").trim();
@@ -383,22 +384,39 @@ module.exports = async (req, res) => {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
   }
-*/
+  */
+
   const start = Date.now();
 
   try {
-    const { deals, dealsByGender, dealsByShoeType, pageResults, sourceApi, segment } =
+    const { deals, dealsByGender, dealsByShoeType, pageResults, pagesFetched, dealsFound, ok, error } =
       await scrapeShoebaccaClearance();
 
+    const scrapeDurationMs = Date.now() - start;
+
     const output = {
-      lastUpdated: new Date().toISOString(),
       store: "Shoebacca",
-      segments: [segment],
-      sourceApi,
-      totalDeals: deals.length,
-      dealsByGender,
-      dealsByShoeType,
-      pageResults,
+      schemaVersion: 1,
+      lastUpdated: new Date().toISOString(),
+      via: "searchspring",
+
+      sourceUrls: [
+        SOURCE_COLLECTION_URL,
+        SEARCHSPRING_BASE, // base endpoint (params are in pageNotes URLs)
+      ],
+
+      pagesFetched,
+      dealsFound,
+      dealsExtracted: deals.length,
+
+      scrapeDurationMs,
+
+      ok: Boolean(ok),
+      error: error || null,
+
+      // Optional debug detail (safe; remove if you want slimmer blobs)
+      pageNotes: pageResults,
+
       deals,
     };
 
@@ -407,28 +425,25 @@ module.exports = async (req, res) => {
       addRandomSuffix: false,
     });
 
-    const duration = Date.now() - start;
-
-    console.log(`[Shoebacca] ✓ Complete! ${deals.length} deals in ${duration}ms`);
+    console.log(`[Shoebacca] ✓ Complete! ${deals.length} deals in ${scrapeDurationMs}ms`);
     console.log(`[Shoebacca] Blob URL: ${blob.url}`);
 
     return res.status(200).json({
-      success: true,
-      totalDeals: deals.length,
-      dealsByGender,
-      dealsByShoeType,
-      pageResults,
-      sourceApi,
+      ok: true,
+      store: output.store,
+      dealsExtracted: output.dealsExtracted,
+      pagesFetched: output.pagesFetched,
+      dealsFound: output.dealsFound,
+      scrapeDurationMs: output.scrapeDurationMs,
       blobUrl: blob.url,
-      duration: `${duration}ms`,
-      timestamp: output.lastUpdated,
+      lastUpdated: output.lastUpdated,
     });
-  } catch (error) {
-    console.error("[Shoebacca] Fatal error:", error);
+  } catch (e) {
+    console.error("[Shoebacca] Fatal error:", e);
     return res.status(500).json({
-      success: false,
-      error: error?.message || "Unknown error",
-      duration: `${Date.now() - start}ms`,
+      ok: false,
+      error: e?.message || "Unknown error",
+      scrapeDurationMs: Date.now() - start,
     });
   }
 };
