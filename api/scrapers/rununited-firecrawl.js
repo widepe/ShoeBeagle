@@ -102,16 +102,13 @@ async function firecrawlGetRenderedHtml(url) {
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
 
-  const body = {
-    url,
-    // Ask for HTML so we can Cheerio it
-    formats: ["html"],
-    // We need the product tiles (not just “main content”)
-    onlyMainContent: false,
-    // Encourage JS render to finish
-    waitFor: ".snize-product",
-    timeout: 45000,
-  };
+const body = {
+  url,
+  formats: ["html"],
+  onlyMainContent: false,
+  waitFor: 10000,   // ✅ number, milliseconds
+  timeout: 45000,
+};
 
   const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
