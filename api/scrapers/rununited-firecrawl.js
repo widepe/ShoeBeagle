@@ -15,7 +15,7 @@
 // Notes:
 // - shoeType is forced to "road" for this URL.
 // - This version scrapes ONLY the single URL you gave.
-// - Searchanise typically shows 20 items, then "Show more" loads more. We click it twice.
+// - Searchanise often shows ~20 items then "Show more" loads more.
 //
 // CRON auth (install CRON_SECRET, but comment it out for testing):
 // const auth = req.headers.authorization;
@@ -71,7 +71,6 @@ function parseDiscountPercent(labelText, salePrice, originalPrice) {
 
 function parseTitleForBrandGenderModel(listingName) {
   // Example: "HOKA Men's Skyflow Frost/Solar Flare Running Shoes"
-  // Brand may be multi-word. Capture lazily up to gender token.
   const s = cleanText(listingName);
 
   const m = s.match(/^(.*?)\s+(Men's|Women's|Unisex|Kids')\s+(.*)$/i);
@@ -81,7 +80,6 @@ function parseTitleForBrandGenderModel(listingName) {
   const genderRaw = cleanText(m[2]);
   let rest = cleanText(m[3]);
 
-  // Strip trailing descriptors conservatively
   rest = rest.replace(/\s+Running Shoes\s*$/i, "").trim();
   rest = rest.replace(/\s+Shoes\s*$/i, "").trim();
 
@@ -99,33 +97,53 @@ async function firecrawlGetRenderedHtml(url) {
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
 
+  // IMPORTANT: avoid selector-based actions that hard-fail with "Element not found".
+  // We'll do fixed waits + safe JS clicks.
   const body = {
     url,
     formats: ["html"],
     onlyMainContent: false,
-    maxAge: 0, // avoid cached partial renders while testing
-    timeout: 45000,
+    maxAge: 0,
+    timeout: 60000,
 
-    // Firecrawl wait rule: each wait action must have ONLY selector OR milliseconds.
-actions: [
-  // Let page boot
-  { type: "wait", milliseconds: 2000 },
+    actions: [
+      // Let Searchanise initialize and inject first batch
+      { type: "wait", milliseconds: 12000 },
 
-  // Wait for first batch of tiles
-  { type: "wait", selector: "li.snize-product" },
+      // Scroll down a bit (sometimes needed for lazy UI pieces)
+      { type: "scroll", direction: "down" },
+      { type: "wait", milliseconds: 1500 },
 
-  // Scroll to ensure button is visible
-  { type: "scroll", direction: "down" },
-  { type: "wait", milliseconds: 1000 },
+      // Safe click by class (does nothing if not present)
+      {
+        type: "executeJavascript",
+        script: `
+          (() => {
+            const btn = document.querySelector('a.snize-pagination-load-more');
+            if (btn) { btn.click(); return {clicked: true, step: 1}; }
+            return {clicked: false, step: 1};
+          })()
+        `,
+      },
+      { type: "wait", milliseconds: 3000 },
 
-  // Click Show More (1)
-  { type: "click", selector: "a.snize-pagination-load-more" },
-  { type: "wait", milliseconds: 2500 },
+      // Try a second click to get ~40
+      {
+        type: "executeJavascript",
+        script: `
+          (() => {
+            const btn = document.querySelector('a.snize-pagination-load-more');
+            if (btn) { btn.click(); return {clicked: true, step: 2}; }
+            return {clicked: false, step: 2};
+          })()
+        `,
+      },
+      { type: "wait", milliseconds: 3000 },
 
-  // Click Show More (2) — safe even if already fully loaded
-  { type: "click", selector: "a.snize-pagination-load-more" },
-  { type: "wait", milliseconds: 2500 },
-],
+      // Scroll again (some widgets keep the button low)
+      { type: "scroll", direction: "down" },
+      { type: "wait", milliseconds: 1500 },
+    ],
   };
 
   console.log("Firecrawl actions:", body.actions);
