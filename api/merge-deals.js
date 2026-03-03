@@ -363,6 +363,7 @@ function storeBaseUrl(store) {
   if (s.includes("road runner")) return "https://www.roadrunnersports.com";
   if (s.includes("rnj")) return "https://www.rnjsports.com";
   if (s.includes("running warehouse")) return "https://www.runningwarehouse.com";
+  if (s.includes("run united") || s.includes("rununited")) return "https://rununited.com";
   if (s.includes("shoebacca")) return "https://www.shoebacca.com";
   if (s.includes("track shack") || s.includes("trackshack")) return "https://shop.trackshack.com";
   if (s.includes("zappos")) return "https://www.zappos.com";
@@ -1327,6 +1328,7 @@ module.exports = async (req, res) => {
   const RNJSPORTS_DEALS_BLOB_URL = String(process.env.RNJSPORTS_DEALS_BLOB_URL || "").trim();
   const ROADRUNNER_DEALS_BLOB_URL = String(process.env.ROADRUNNER_DEALS_BLOB_URL || "").trim();
   const RUNNING_WAREHOUSE_CHEERIO_BLOB_URL = String(process.env.RUNNING_WAREHOUSE_CHEERIO_BLOB_URL || "").trim();
+  const RUNUNITED_DEALS_BLOB_URL = String(process.env.RUNUNITED_DEALS_BLOB_URL || "").trim();
   const SHOEBACCA_CLEARANCE_BLOB_URL = String(process.env.SHOEBACCA_CLEARANCE_BLOB_URL || "").trim();
   const TRACKSHACK_CLEARANCE_BLOB_URL = String(process.env.TRACKSHACK_CLEARANCE_BLOB_URL || "").trim();
   const ZAPPOS_DEALS_BLOB_URL = String(process.env.ZAPPOS_DEALS_BLOB_URL || "").trim();
@@ -1370,6 +1372,7 @@ module.exports = async (req, res) => {
       { id: "rnj-sports", name: "RNJ Sports", blobUrl: RNJSPORTS_DEALS_BLOB_URL },
       { id: "road-runner-sports", name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
       { id: "running-warehouse", name: "Running Warehouse", blobUrl: RUNNING_WAREHOUSE_CHEERIO_BLOB_URL },
+      { id: "run-united", name: "Run United", blobUrl: RUNUNITED_DEALS_BLOB_URL },
       { id: "shoebacca", name: "Shoebacca", blobUrl: SHOEBACCA_CLEARANCE_BLOB_URL },
       { id: "track-shack", name: "Track Shack", blobUrl: TRACKSHACK_CLEARANCE_BLOB_URL },
       { id: "zappos", name: "Zappos", blobUrl: ZAPPOS_DEALS_BLOB_URL },
