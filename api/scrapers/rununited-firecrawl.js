@@ -106,28 +106,36 @@ const body = {
   url,
   formats: ["html"],
   onlyMainContent: false,
-  maxAge: 0,          // avoid cached partial renders while testing
+  maxAge: 0,
   timeout: 45000,
 
-  // Searchanise loads products via JS; default view often shows ~20,
-  // then a "Show more" button loads more.
   actions: [
-    // Wait for initial products
-    { type: "wait", selector: "li.snize-product", milliseconds: 20000 },
-
-    // Click "Show more" and wait for more tiles
-    // (Searchanise commonly uses a "snize-show-more" class in this mode)
-    { type: "click", selector: ".snize-show-more" },
+    // Let the page boot
     { type: "wait", milliseconds: 2000 },
-    { type: "wait", selector: "li.snize-product:nth-of-type(30)", milliseconds: 20000 },
 
-    // Optional: click a second time if needed
+    // Wait until first batch of tiles exists
+    { type: "wait", selector: "li.snize-product" },
+
+    // Click "Show more" once
     { type: "click", selector: ".snize-show-more" },
-    { type: "wait", milliseconds: 2000 },
-    { type: "wait", selector: "li.snize-product:nth-of-type(40)", milliseconds: 20000 },
+
+    // Give it time to fetch + render more
+    { type: "wait", milliseconds: 2500 },
+
+    // Wait until we have at least ~30 tiles (if it loads to ~40, great)
+    { type: "wait", selector: "li.snize-product:nth-of-type(30)" },
+
+    // Click "Show more" a second time (harmless if already loaded all)
+    { type: "click", selector: ".snize-show-more" },
+
+    { type: "wait", milliseconds: 2500 },
+
+    // Wait until we have at least ~40
+    { type: "wait", selector: "li.snize-product:nth-of-type(40)" },
   ],
 };
-console.log("Firecrawl body.waitFor type:", typeof body.waitFor, body.waitFor);  const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
+  console.log("Firecrawl actions:", body.actions);
+  console.log("Firecrawl body.waitFor type:", typeof body.waitFor, body.waitFor);  const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -234,7 +242,7 @@ function parseDealsFromHtml(html) {
     dealsExtracted: deals.length,
   };
 }
-const { deals, dealsFound, dealsExtracted } = parseDealsFromHtml(html);
+console.log("RUNUNITED tiles:", dealsFound, "extracted:", dealsExtracted);const { deals, dealsFound, dealsExtracted } = parseDealsFromHtml(html);
 console.log("RUNUNITED tiles after actions:", dealsFound, "dealsExtracted:", dealsExtracted);export default async function handler(req, res) {
   const t0 = Date.now();
 
