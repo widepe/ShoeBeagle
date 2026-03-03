@@ -372,7 +372,7 @@ module.exports = async (req, res) => {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
-
+/*
   const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
   if (CRON_SECRET) {
     const auth = String(req.headers.authorization || "").trim();
@@ -383,7 +383,7 @@ module.exports = async (req, res) => {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
   }
-
+*/
   const start = Date.now();
 
   try {
