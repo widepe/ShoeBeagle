@@ -378,6 +378,31 @@
     "scraperType": "cheerio",
     "notes": "Per-store Cheerio blob (env: RUNNING_WAREHOUSE_CHEERIO_BLOB_URL)."
   },
+{
+  "id": "run-united",
+  "displayName": "Run United",
+  "addedAt": "2026-03-03",
+  "lastUpdated": "2026-03-03",
+  "scrapedUrls": [
+    "https://rununited.com/mens/footwear/road-running-shoes/?page=1&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale",
+    "https://rununited.com/womens/footwear/road-running-shoes/?page=1&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale",
+
+    "https://rununited.com/mens/footwear/trail-running-shoes/?page=1&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale&rb_custom_field_69a256025f66e4ce5d15c9dd7225d357=Running",
+    "https://rununited.com/womens/footwear/trail-running-shoes/?page=1&rb_custom_field_69a256025f66e4ce5d15c9dd7225d357=Running&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale",
+
+    "https://rununited.com/mens/footwear/track-running-shoes/?page=1&rb_custom_field_69a256025f66e4ce5d15c9dd7225d357=Running&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale",
+    "https://rununited.com/womens/footwear/track-running-shoes/?page=1&rb_custom_field_69a256025f66e4ce5d15c9dd7225d357=Running&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/run-united.json"
+  ],
+  "aliases": ["run united", "rununited"],
+  "enabled": true,
+  "scraperType": "vercel",
+  "notes": "Searchanise (searchserverapi*/getresults) direct JSON/JSONP pagination. Drops all out-of-stock. shoeType forced per source URL: road/trail/track."
+}
+
+  
   {
     "id": "shoebacca",
     "displayName": "Shoebacca",
