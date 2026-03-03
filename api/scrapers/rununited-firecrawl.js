@@ -106,11 +106,19 @@ const body = {
   url,
   formats: ["html"],
   onlyMainContent: false,
-  waitFor: 10000,   // ✅ number, milliseconds
+
+  // Force fresh + avoid weird caching while testing
+  maxAge: 0,
+
+  // ✅ Wait for Searchanise tiles to appear (selector is allowed here)
+  actions: [
+    { type: "wait", selector: ".snize-product", milliseconds: 15000 }
+  ],
+
+  // Keep this normal
   timeout: 45000,
 };
-
-  const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
+console.log("Firecrawl body.waitFor type:", typeof body.waitFor, body.waitFor);  const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
