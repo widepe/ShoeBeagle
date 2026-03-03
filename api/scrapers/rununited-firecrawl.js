@@ -107,23 +107,25 @@ async function firecrawlGetRenderedHtml(url) {
     timeout: 45000,
 
     // Firecrawl wait rule: each wait action must have ONLY selector OR milliseconds.
-    actions: [
-      // let scripts boot
-      { type: "wait", milliseconds: 2000 },
+actions: [
+  // Let page boot
+  { type: "wait", milliseconds: 2000 },
 
-      // initial tiles present
-      { type: "wait", selector: "li.snize-product" },
+  // Wait for first batch of tiles
+  { type: "wait", selector: "li.snize-product" },
 
-      // click show more once
-      { type: "click", selector: ".snize-show-more" },
-      { type: "wait", milliseconds: 2500 },
-      { type: "wait", selector: "li.snize-product:nth-of-type(30)" },
+  // Scroll to ensure button is visible
+  { type: "scroll", direction: "down" },
+  { type: "wait", milliseconds: 1000 },
 
-      // click show more again (harmless if already loaded all)
-      { type: "click", selector: ".snize-show-more" },
-      { type: "wait", milliseconds: 2500 },
-      { type: "wait", selector: "li.snize-product:nth-of-type(40)" },
-    ],
+  // Click Show More (1)
+  { type: "click", selector: "a.snize-pagination-load-more" },
+  { type: "wait", milliseconds: 2500 },
+
+  // Click Show More (2) — safe even if already fully loaded
+  { type: "click", selector: "a.snize-pagination-load-more" },
+  { type: "wait", milliseconds: 2500 },
+],
   };
 
   console.log("Firecrawl actions:", body.actions);
