@@ -3,6 +3,8 @@
 // ✅ Canonical 11-field deals schema
 // ✅ Top-level structure matches your Zappos-style metadata
 // ✅ CRON secret auth is COMMENTED OUT for testing (per request)
+// ✅ FIXED: model now derived from listingName (no listingName edits)
+// ✅ FIXED: gender normalization (womens contains "men")
 
 const { put } = require("@vercel/blob");
 
@@ -29,10 +31,46 @@ function detectShoeTypeFromText(text) {
 }
 
 function normalizeGender(val) {
-  const s = String(val || "").toLowerCase();
-  if (s.includes("men")) return "mens";
+  const s = String(val || "").toLowerCase().trim();
+  // IMPORTANT: "womens" includes "men" -> check women first
   if (s.includes("women")) return "womens";
+  if (s.includes("men")) return "mens";
   return "unisex";
+}
+
+/** -------------------- Brand/model helpers -------------------- **/
+
+function escapeRegExp(str) {
+  return String(str || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Derive model from listingName and brand WITHOUT modifying listingName itself.
+ * This is needed because Searchspring doesn't provide a clean "model" field.
+ */
+function extractModelFromListingName(listingName, brand) {
+  if (!listingName) return "";
+
+  let model = String(listingName);
+
+  const b = String(brand || "").trim();
+  if (b && b !== "Unknown") {
+    const brandRegex = new RegExp(`^${escapeRegExp(b)}\\s+`, "i");
+    model = model.replace(brandRegex, "");
+  }
+
+  // Remove common trailing marketing terms
+  model = model
+    .replace(/\s+\((mens|women|womens|men's|women's|unisex)\)\s*$/i, "")
+    .replace(/\s+men'?s\s*$/i, "")
+    .replace(/\s+women'?s\s*$/i, "")
+    .replace(/\s+unisex\s*$/i, "")
+    .replace(/\s+trail\s+running\s+shoe(s)?\s*$/i, "")
+    .replace(/\s+running\s+shoe(s)?\s*$/i, "")
+    .replace(/\s+shoe(s)?\s*$/i, "")
+    .trim();
+
+  return model;
 }
 
 /** -------------------- Searchspring parsing helpers -------------------- **/
@@ -280,15 +318,13 @@ function filterAndTransformResults(results) {
 
     const brand = String(r?.brand || r?.vendor || "Unknown").trim();
 
-    // Optional: leave model blank; merge-deals can parse listingName if desired
-    const model = "";
+    // FIX: derive model from listingName + brand
+    const model = extractModelFromListingName(listingName, brand);
 
     const imageURL = r?.imageUrl || r?.thumbnailImageUrl || null;
 
-    // Since we query Mens+Womens only, this should usually be mens/womens
     const gender = normalizeGender(r?.mfield_acu_in_gender);
 
-    // We are filtering sport=Running, but we still categorize road/trail/track if keywords exist
     const shoeType = detectShoeTypeFromText(
       `${r?.name || ""} ${(r?.tags || []).join(" ")} ${(r?.collection_handle || []).join(" ")}`
     );
@@ -400,10 +436,7 @@ module.exports = async (req, res) => {
       lastUpdated: new Date().toISOString(),
       via: "searchspring",
 
-      sourceUrls: [
-        SOURCE_COLLECTION_URL,
-        SEARCHSPRING_BASE, // base endpoint (params are in pageNotes URLs)
-      ],
+      sourceUrls: [SOURCE_COLLECTION_URL, SEARCHSPRING_BASE],
 
       pagesFetched,
       dealsFound,
