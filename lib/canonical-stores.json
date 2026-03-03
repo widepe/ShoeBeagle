@@ -400,8 +400,7 @@
   "enabled": true,
   "scraperType": "vercel",
   "notes": "Searchanise (searchserverapi*/getresults) direct JSON/JSONP pagination. Drops all out-of-stock. shoeType forced per source URL: road/trail/track."
-}
-
+},
   
   {
     "id": "shoebacca",
