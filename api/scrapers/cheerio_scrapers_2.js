@@ -1,5 +1,9 @@
 // /api/scrapers/cheerio_scrapers_2.js  (CommonJS)
-// Runner to trigger a small set of Cheerio scrapers.
+// Runner to trigger a small set of scrapers.
+// Mostly Cheerio-based scrapers, plus one API-based scraper:
+//
+// - Run United uses the Searchanise product search API
+//   (searchserverapi*/getresults) instead of HTML scraping.
 // Triggers (in order):
 // - /api/scrapers/gazelle-sports
 // - /api/scrapers/trackshack-clearance
@@ -66,12 +70,17 @@ module.exports = async function handler(req, res) {
   const RUN_CONCURRENTLY = false;
 
   // IMPORTANT: URL paths typically do NOT include ".js"
-  const TARGETS = [
-    "/api/scrapers/gazelle-sports",
-    "/api/scrapers/trackshack-clearance",
-    "/api/scrapers/als-sale",
-    "/api/scrapers/shoebacca-clearance",
-  ];
+const TARGETS = [
+  "/api/scrapers/gazelle-sports",
+  "/api/scrapers/trackshack-clearance",
+  "/api/scrapers/als-sale",
+  "/api/scrapers/shoebacca-clearance",
+
+  // Run United — NOT Cheerio
+  // Uses Searchanise API (searchserverapi*/getresults) to fetch products directly.
+  // Much faster than HTML scraping.
+  "/api/scrapers/rununited-searchanise",
+];
 
   try {
     const results = [];
