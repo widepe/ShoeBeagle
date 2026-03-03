@@ -231,11 +231,11 @@ export default async function handler(req, res) {
   const t0 = Date.now();
 
   try {
-    // CRON auth (commented out for testing)
-    // const auth = req.headers.authorization;
-    // if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-    //   return res.status(401).json({ success: false, error: "Unauthorized" });
-    // }
+    // CRON SECRET
+     const auth = req.headers.authorization;
+     if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+       return res.status(401).json({ success: false, error: "Unauthorized" });
+     }
 
     let dealsFound = 0;
     let droppedOutOfStock = 0;
