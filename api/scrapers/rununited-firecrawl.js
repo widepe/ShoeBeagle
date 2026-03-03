@@ -1,8 +1,8 @@
 // /api/scrapers/rununited-firecrawl.js
 //
 // RunUnited (BigCommerce + Searchanise) "On Sale" road-running shoes (MEN) — single URL for now.
-// Uses Firecrawl to render JS + click "Show more", then Cheerio to parse tiles,
-// then writes run-united.json to Vercel Blob.
+// Uses Firecrawl to render JS + click "Show more" repeatedly,
+// then Cheerio to parse tiles, then writes run-united.json to Vercel Blob.
 //
 // Env vars you need:
 // - FIRECRAWL_API_KEY
@@ -14,8 +14,7 @@
 //
 // Notes:
 // - shoeType is forced to "road" for this URL.
-// - This version scrapes ONLY the single URL you gave.
-// - Searchanise often shows ~20 items then "Show more" loads more.
+// - Drops ALL out-of-stock tiles (by class + badge + text fallback).
 //
 // CRON auth (install CRON_SECRET, but comment it out for testing):
 // const auth = req.headers.authorization;
@@ -27,7 +26,7 @@ import * as cheerio from "cheerio";
 import { put } from "@vercel/blob";
 
 export const config = {
-  maxDuration: 60, // seconds
+  maxDuration: 60,
 };
 
 const STORE = "Run United";
@@ -97,8 +96,9 @@ async function firecrawlGetRenderedHtml(url) {
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
 
-  // IMPORTANT: avoid selector-based actions that hard-fail with "Element not found".
-  // We'll do fixed waits + safe JS clicks.
+  // Avoid selector-based actions that can hard-fail with "Element not found".
+  // Use fixed waits + safe JS that clicks "Show more" up to MAX_CLICKS times.
+  const MAX_CLICKS = 10; // bump if you ever need more than 200 items
   const body = {
     url,
     formats: ["html"],
@@ -107,46 +107,46 @@ async function firecrawlGetRenderedHtml(url) {
     timeout: 60000,
 
     actions: [
-      // Let Searchanise initialize and inject first batch
       { type: "wait", milliseconds: 12000 },
-
-      // Scroll down a bit (sometimes needed for lazy UI pieces)
       { type: "scroll", direction: "down" },
       { type: "wait", milliseconds: 1500 },
 
-      // Safe click by class (does nothing if not present)
       {
         type: "executeJavascript",
         script: `
-          (() => {
-            const btn = document.querySelector('a.snize-pagination-load-more');
-            if (btn) { btn.click(); return {clicked: true, step: 1}; }
-            return {clicked: false, step: 1};
-          })()
+          (async () => {
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+            let clicks = 0;
+            for (let i = 0; i < ${MAX_CLICKS}; i++) {
+              // Find the Searchanise "Show more" link
+              const btn = document.querySelector('a.snize-pagination-load-more');
+              if (!btn) break;
+
+              btn.click();
+              clicks++;
+
+              // wait for new tiles to render
+              await sleep(1400);
+
+              // nudge scroll so the button stays reachable
+              window.scrollTo(0, document.body.scrollHeight);
+              await sleep(300);
+            }
+
+            return { clicksAttempted: ${MAX_CLICKS}, clicksDone: clicks };
+          })();
         `,
       },
-      { type: "wait", milliseconds: 3000 },
 
-      // Try a second click to get ~40
-      {
-        type: "executeJavascript",
-        script: `
-          (() => {
-            const btn = document.querySelector('a.snize-pagination-load-more');
-            if (btn) { btn.click(); return {clicked: true, step: 2}; }
-            return {clicked: false, step: 2};
-          })()
-        `,
-      },
-      { type: "wait", milliseconds: 3000 },
-
-      // Scroll again (some widgets keep the button low)
+      // Extra time for final batch to render
+      { type: "wait", milliseconds: 6000 },
       { type: "scroll", direction: "down" },
       { type: "wait", milliseconds: 1500 },
     ],
   };
 
-  console.log("Firecrawl actions:", body.actions);
+  console.log("Firecrawl: will try show-more clicks:", MAX_CLICKS);
 
   const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
@@ -181,8 +181,23 @@ function parseDealsFromHtml(html) {
   const tiles = $("li.snize-product");
   const deals = [];
 
+  let droppedOutOfStock = 0;
+  let droppedMissingPrices = 0;
+
   tiles.each((_, el) => {
     const $tile = $(el);
+
+    // Drop ALL out of stock, no matter where text is included
+    const tileText = $tile.text();
+    const isOutOfStock =
+      $tile.hasClass("snize-product-out-of-stock") ||
+      $tile.find(".snize-out-of-stock").length > 0 ||
+      /out\s*of\s*stock/i.test(tileText);
+
+    if (isOutOfStock) {
+      droppedOutOfStock++;
+      return;
+    }
 
     const a = $tile.find("a.snize-view-link").first();
     const listingURL = cleanText(a.attr("href"));
@@ -204,12 +219,14 @@ function parseDealsFromHtml(html) {
     );
 
     const discountPercent = parseDiscountPercent(discountLabelText, salePrice, originalPrice);
-
     const { brand, gender, model } = parseTitleForBrandGenderModel(listingName);
 
     // Honesty rule: must have both prices + url + title
     if (!listingURL || !listingName) return;
-    if (typeof salePrice !== "number" || typeof originalPrice !== "number") return;
+    if (typeof salePrice !== "number" || typeof originalPrice !== "number") {
+      droppedMissingPrices++;
+      return;
+    }
 
     deals.push({
       schemaVersion: 1,
@@ -223,7 +240,6 @@ function parseDealsFromHtml(html) {
       originalPrice,
       discountPercent: typeof discountPercent === "number" ? discountPercent : null,
 
-      // No ranges expected here
       salePriceLow: null,
       salePriceHigh: null,
       originalPriceLow: null,
@@ -244,6 +260,8 @@ function parseDealsFromHtml(html) {
     deals,
     dealsFound: tiles.length,
     dealsExtracted: deals.length,
+    droppedOutOfStock,
+    droppedMissingPrices,
   };
 }
 
@@ -258,9 +276,16 @@ export default async function handler(req, res) {
     // }
 
     const { html } = await firecrawlGetRenderedHtml(SOURCE_URL);
-    const { deals, dealsFound, dealsExtracted } = parseDealsFromHtml(html);
+    const {
+      deals,
+      dealsFound,
+      dealsExtracted,
+      droppedOutOfStock,
+      droppedMissingPrices,
+    } = parseDealsFromHtml(html);
 
     console.log("RUNUNITED tiles:", dealsFound, "extracted:", dealsExtracted);
+    console.log("RUNUNITED droppedOutOfStock:", droppedOutOfStock, "droppedMissingPrices:", droppedMissingPrices);
 
     const payload = {
       store: STORE,
@@ -281,6 +306,10 @@ export default async function handler(req, res) {
       ok: true,
       error: null,
 
+      // Optional diagnostics (helpful for validating hand-counts)
+      droppedOutOfStock,
+      droppedMissingPrices,
+
       deals,
     };
 
@@ -298,6 +327,8 @@ export default async function handler(req, res) {
       pagesFetched: 1,
       dealsFound,
       dealsExtracted,
+      droppedOutOfStock,
+      droppedMissingPrices,
       blobUrl: blob.url,
       expectedBlobUrl: process.env.RUNUNITED_DEALS_BLOB_URL || null,
       elapsedMs: Date.now() - t0,
