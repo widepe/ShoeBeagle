@@ -1,21 +1,23 @@
 // /api/scrapers/rununited-firecrawl.js
 //
-// RunUnited (BigCommerce + Searchanise) "On Sale" road-running shoes (MEN) — single page only.
-// Uses Firecrawl to render JS, then Cheerio to parse the product tiles, then writes run-united.json to Vercel Blob.
+// RunUnited (BigCommerce + Searchanise) "On Sale" road-running shoes (MEN) — single URL for now.
+// Uses Firecrawl to render JS + click "Show more", then Cheerio to parse tiles,
+// then writes run-united.json to Vercel Blob.
 //
 // Env vars you need:
 // - FIRECRAWL_API_KEY
 // - BLOB_READ_WRITE_TOKEN
-// - RUNUNITED_DEALS_BLOB_URL (optional; used only for reporting/consistency)
+// - RUNUNITED_DEALS_BLOB_URL (optional; only for reporting/consistency)
 //
 // Test in browser:
 //   /api/scrapers/rununited-firecrawl
 //
 // Notes:
-// - shoeType is forced to "road"
-// - This version scrapes ONLY the single URL you gave (page=1)
+// - shoeType is forced to "road" for this URL.
+// - This version scrapes ONLY the single URL you gave.
+// - Searchanise typically shows 20 items, then "Show more" loads more. We click it twice.
 //
-// CRON auth (install CRON_SECRET, but commented out for testing)
+// CRON auth (install CRON_SECRET, but comment it out for testing):
 // const auth = req.headers.authorization;
 // if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
 //   return res.status(401).json({ success: false, error: "Unauthorized" });
@@ -25,7 +27,7 @@ import * as cheerio from "cheerio";
 import { put } from "@vercel/blob";
 
 export const config = {
-  maxDuration: 60, // seconds (raise if needed on Pro)
+  maxDuration: 60, // seconds
 };
 
 const STORE = "Run United";
@@ -38,24 +40,23 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function cleanText(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
 function toNumberFromMoney(text) {
   if (!text) return null;
-  const cleaned = String(text)
-    .replace(/\s+/g, " ")
-    .replace(/[^\d.]/g, "")
-    .trim();
+  const cleaned = String(text).replace(/[^\d.]/g, "").trim();
   if (!cleaned) return null;
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : null;
 }
 
 function parseDiscountPercent(labelText, salePrice, originalPrice) {
-  // Prefer label like "20% off"
-  if (labelText) {
-    const m = String(labelText).match(/(\d+)\s*%/);
-    if (m) return Number(m[1]);
-  }
-  // Fallback compute
+  const t = cleanText(labelText);
+  const m = t.match(/(\d+)\s*%/);
+  if (m) return Number(m[1]);
+
   if (
     typeof salePrice === "number" &&
     typeof originalPrice === "number" &&
@@ -69,21 +70,18 @@ function parseDiscountPercent(labelText, salePrice, originalPrice) {
 }
 
 function parseTitleForBrandGenderModel(listingName) {
-  // Expected: "HOKA Men's Skyflow Frost/Solar Flare Running Shoes"
-  // Brand may be multi-word ("New Balance"), so capture lazily up to gender token.
-  const s = String(listingName || "").trim();
+  // Example: "HOKA Men's Skyflow Frost/Solar Flare Running Shoes"
+  // Brand may be multi-word. Capture lazily up to gender token.
+  const s = cleanText(listingName);
 
   const m = s.match(/^(.*?)\s+(Men's|Women's|Unisex|Kids')\s+(.*)$/i);
-  if (!m) {
-    return { brand: null, gender: null, model: null };
-  }
+  if (!m) return { brand: null, gender: null, model: null };
 
-  const brand = m[1].trim();
-  const genderRaw = m[2].trim();
-  let rest = m[3].trim();
+  const brand = cleanText(m[1]);
+  const genderRaw = cleanText(m[2]);
+  let rest = cleanText(m[3]);
 
-  // Strip common trailing descriptors to get model
-  // (keep it conservative; don’t over-trim)
+  // Strip trailing descriptors conservatively
   rest = rest.replace(/\s+Running Shoes\s*$/i, "").trim();
   rest = rest.replace(/\s+Shoes\s*$/i, "").trim();
 
@@ -94,48 +92,43 @@ function parseTitleForBrandGenderModel(listingName) {
     /^unisex/i.test(genderRaw) ? "unisex" :
     null;
 
-  const model = rest || null;
-  return { brand: brand || null, gender, model };
+  return { brand: brand || null, gender, model: rest || null };
 }
 
 async function firecrawlGetRenderedHtml(url) {
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
 
-const body = {
-  url,
-  formats: ["html"],
-  onlyMainContent: false,
-  maxAge: 0,
-  timeout: 45000,
+  const body = {
+    url,
+    formats: ["html"],
+    onlyMainContent: false,
+    maxAge: 0, // avoid cached partial renders while testing
+    timeout: 45000,
 
-  actions: [
-    // Let the page boot
-    { type: "wait", milliseconds: 2000 },
+    // Firecrawl wait rule: each wait action must have ONLY selector OR milliseconds.
+    actions: [
+      // let scripts boot
+      { type: "wait", milliseconds: 2000 },
 
-    // Wait until first batch of tiles exists
-    { type: "wait", selector: "li.snize-product" },
+      // initial tiles present
+      { type: "wait", selector: "li.snize-product" },
 
-    // Click "Show more" once
-    { type: "click", selector: ".snize-show-more" },
+      // click show more once
+      { type: "click", selector: ".snize-show-more" },
+      { type: "wait", milliseconds: 2500 },
+      { type: "wait", selector: "li.snize-product:nth-of-type(30)" },
 
-    // Give it time to fetch + render more
-    { type: "wait", milliseconds: 2500 },
+      // click show more again (harmless if already loaded all)
+      { type: "click", selector: ".snize-show-more" },
+      { type: "wait", milliseconds: 2500 },
+      { type: "wait", selector: "li.snize-product:nth-of-type(40)" },
+    ],
+  };
 
-    // Wait until we have at least ~30 tiles (if it loads to ~40, great)
-    { type: "wait", selector: "li.snize-product:nth-of-type(30)" },
-
-    // Click "Show more" a second time (harmless if already loaded all)
-    { type: "click", selector: ".snize-show-more" },
-
-    { type: "wait", milliseconds: 2500 },
-
-    // Wait until we have at least ~40
-    { type: "wait", selector: "li.snize-product:nth-of-type(40)" },
-  ],
-};
   console.log("Firecrawl actions:", body.actions);
-  console.log("Firecrawl body.waitFor type:", typeof body.waitFor, body.waitFor);  const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
+
+  const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -172,39 +165,31 @@ function parseDealsFromHtml(html) {
     const $tile = $(el);
 
     const a = $tile.find("a.snize-view-link").first();
-    const listingURL = a.attr("href")?.trim() || null;
+    const listingURL = cleanText(a.attr("href"));
 
-    const listingName =
-      $tile.find(".snize-title").first().text().replace(/\s+/g, " ").trim() || null;
+    const listingName = cleanText($tile.find(".snize-title").first().text());
 
-    const imageURL =
-      $tile.find(".snize-thumbnail img.snize-item-image").first().attr("src")?.trim() || null;
+    const imageURL = cleanText(
+      $tile.find(".snize-thumbnail img.snize-item-image").first().attr("src")
+    );
 
-    // In your sample:
-    // - .snize-price-with-discount is the SALE price ($128)
-    // - .snize-discounted-price is the OLD/original price ($160)
     const salePriceText = $tile.find(".snize-price-with-discount").first().text();
     const originalPriceText = $tile.find(".snize-discounted-price").first().text();
 
     const salePrice = toNumberFromMoney(salePriceText);
     const originalPrice = toNumberFromMoney(originalPriceText);
 
-    const discountLabelText =
-      $tile.find(".snize-product-discount-label").first().text().replace(/\s+/g, " ").trim() || "";
+    const discountLabelText = cleanText(
+      $tile.find(".snize-product-discount-label").first().text()
+    );
 
     const discountPercent = parseDiscountPercent(discountLabelText, salePrice, originalPrice);
 
     const { brand, gender, model } = parseTitleForBrandGenderModel(listingName);
 
-    // Honesty rule alignment: keep only deals with both prices
-    if (
-      !listingURL ||
-      !listingName ||
-      typeof salePrice !== "number" ||
-      typeof originalPrice !== "number"
-    ) {
-      return;
-    }
+    // Honesty rule: must have both prices + url + title
+    if (!listingURL || !listingName) return;
+    if (typeof salePrice !== "number" || typeof originalPrice !== "number") return;
 
     deals.push({
       schemaVersion: 1,
@@ -218,7 +203,7 @@ function parseDealsFromHtml(html) {
       originalPrice,
       discountPercent: typeof discountPercent === "number" ? discountPercent : null,
 
-      // No ranges expected on these tiles; keep fields but null them
+      // No ranges expected here
       salePriceLow: null,
       salePriceHigh: null,
       originalPriceLow: null,
@@ -231,7 +216,6 @@ function parseDealsFromHtml(html) {
       imageURL: imageURL || "",
 
       gender: gender || "",
-
       shoeType: "road",
     });
   });
@@ -242,8 +226,8 @@ function parseDealsFromHtml(html) {
     dealsExtracted: deals.length,
   };
 }
-console.log("RUNUNITED tiles:", dealsFound, "extracted:", dealsExtracted);const { deals, dealsFound, dealsExtracted } = parseDealsFromHtml(html);
-console.log("RUNUNITED tiles after actions:", dealsFound, "dealsExtracted:", dealsExtracted);export default async function handler(req, res) {
+
+export default async function handler(req, res) {
   const t0 = Date.now();
 
   try {
@@ -255,6 +239,8 @@ console.log("RUNUNITED tiles after actions:", dealsFound, "dealsExtracted:", dea
 
     const { html } = await firecrawlGetRenderedHtml(SOURCE_URL);
     const { deals, dealsFound, dealsExtracted } = parseDealsFromHtml(html);
+
+    console.log("RUNUNITED tiles:", dealsFound, "extracted:", dealsExtracted);
 
     const payload = {
       store: STORE,
@@ -278,7 +264,6 @@ console.log("RUNUNITED tiles after actions:", dealsFound, "dealsExtracted:", dea
       deals,
     };
 
-    // Write to blob path run-united.json (stable URL if addRandomSuffix: false)
     const blob = await put("run-united.json", JSON.stringify(payload, null, 2), {
       access: "public",
       addRandomSuffix: false,
