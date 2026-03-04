@@ -356,22 +356,27 @@ module.exports = async function handler(req, res) {
     }
     if (!blobPath) throw new Error("Invalid GAZELLESPORTS_DEALS_BLOB_URL (missing pathname)");
 
-    const putRes = await put(blobPath, JSON.stringify(out, null, 2), {
-      access: "public",
-      contentType: "application/json",
-      addRandomSuffix: false,
-    });
+// ✅ mark success BEFORE blob write
+out.ok = true;
+out.error = null;
 
-    out.blobUrl = putRes?.url || blobUrl;
+// ✅ set duration BEFORE blob write so blob gets it
+out.scrapeDurationMs = Date.now() - t0;
 
-    out.ok = true;
-    out.error = null;
+// (optional but nice: set lastUpdated right before writing)
+out.lastUpdated = nowIso();
+
+const putRes = await put(blobPath, JSON.stringify(out, null, 2), {
+  access: "public",
+  contentType: "application/json",
+  addRandomSuffix: false,
+});
+
+out.blobUrl = putRes?.url || blobUrl;
   } catch (e) {
     out.ok = false;
     out.error = e?.stack || e?.message || String(e) || "Unknown error";
-  } finally {
-    out.scrapeDurationMs = Date.now() - t0;
-  }
+}
 
   // Return a summary response (no deals array), but deals ARE still in the blob.
   const responseOut = { ...out };
