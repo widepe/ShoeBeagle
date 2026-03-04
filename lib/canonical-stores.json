@@ -316,22 +316,22 @@
 },
   
   
-  {
-    "id": "rei-outlet",
-    "displayName": "REI Outlet",
-    "addedAt": "2026-02-09",
-    "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-      "https://www.rei.com/rei-garage"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/rei/deals.json"
-    ],
-    "aliases": ["rei", "rei outlet", "rei-outlet"],
-    "enabled": true,
-    "scraperType": "cheerio",
-    "notes": "no notes"
-  },
+{
+  "id": "rei",
+  "displayName": "REI",
+  "addedAt": "2026-02-09",
+  "lastUpdated": "2026-03-04",
+  "scrapedUrls": [
+    "https://www.rei.com/c/running-shoes/f/scd-deals"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/rei/deals.json"
+  ],
+  "aliases": ["rei", "rei.com"],
+  "enabled": true,
+  "scraperType": "playwright",
+  "notes": "Uses REI JSON endpoint via Playwright to bypass 403 and paginate deals"
+}
   {
     "id": "rnj-sports",
     "displayName": "RNJ Sports",
