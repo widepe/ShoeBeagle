@@ -1,14 +1,20 @@
 // /api/scrapers/cheerio_scrapers_2.js  (CommonJS)
+//
 // Runner to trigger a small set of scrapers.
-// Mostly Cheerio-based scrapers, plus one API-based scraper:
+// Mostly Cheerio-based scrapers, plus API-based scrapers:
 //
 // - Run United uses the Searchanise product search API
 //   (searchserverapi*/getresults) instead of HTML scraping.
+// - JD Sports uses the Algolia search API (*/1/indexes/*/queries)
+//   instead of HTML scraping. (FAST)
+//
 // Triggers (in order):
 // - /api/scrapers/gazelle-sports
 // - /api/scrapers/trackshack-clearance
 // - /api/scrapers/als-sale
 // - /api/scrapers/shoebacca-clearance
+// - /api/scrapers/rununited-searchanise
+// - /api/scrapers/jdsports-algolia
 //
 // Notes:
 // - This runner only TRIGGERS internal endpoints; each endpoint does its own scrape + blob write.
@@ -36,20 +42,25 @@ async function callInternal(req, path) {
   const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
 
   const t0 = Date.now();
+
+  // Support passing cron auth through either:
+  // - x-cron-secret header (preferred for this runner)
+  // - Authorization: Bearer <secret>
   const cronSecret =
-  String(req.headers["x-cron-secret"] || "").trim() ||
-  (String(req.headers.authorization || "").trim().startsWith("Bearer ")
-    ? String(req.headers.authorization).trim().slice("Bearer ".length).trim()
-    : "");
+    String(req.headers["x-cron-secret"] || "").trim() ||
+    (String(req.headers.authorization || "")
+      .trim()
+      .startsWith("Bearer ")
+      ? String(req.headers.authorization).trim().slice("Bearer ".length).trim()
+      : "");
 
-const headers = {};
-if (cronSecret) headers["x-cron-secret"] = cronSecret;
+  const headers = {};
+  if (cronSecret) headers["x-cron-secret"] = cronSecret;
 
-const res = await fetch(url, { method: "GET", headers });
+  const res = await fetch(url, { method: "GET", headers });
   const text = await res.text();
   const elapsedMs = Date.now() - t0;
 
-  // Try to parse JSON but don't require it.
   const json = safeJsonParse(text);
 
   return {
@@ -70,17 +81,22 @@ module.exports = async function handler(req, res) {
   const RUN_CONCURRENTLY = false;
 
   // IMPORTANT: URL paths typically do NOT include ".js"
-const TARGETS = [
-  "/api/scrapers/gazelle-sports",
-  "/api/scrapers/trackshack-clearance",
-  "/api/scrapers/als-sale",
-  "/api/scrapers/shoebacca-clearance",
+  const TARGETS = [
+    "/api/scrapers/gazelle-sports",
+    "/api/scrapers/trackshack-clearance",
+    "/api/scrapers/als-sale",
+    "/api/scrapers/shoebacca-clearance",
 
-  // Run United — NOT Cheerio
-  // Uses Searchanise API (searchserverapi*/getresults) to fetch products directly.
-  // Much faster than HTML scraping.
-  "/api/scrapers/rununited-searchanise",
-];
+    // Run United — NOT Cheerio
+    // Uses Searchanise API (searchserverapi*/getresults) to fetch products directly.
+    // Much faster than HTML scraping.
+    "/api/scrapers/rununited-searchanise",
+
+    // JD Sports — NOT Cheerio
+    // Uses Algolia Search API (*/1/indexes/*/queries) to fetch products directly.
+    // Much faster than HTML scraping.
+    "/api/scrapers/jdsports-algolia",
+  ];
 
   try {
     const results = [];
