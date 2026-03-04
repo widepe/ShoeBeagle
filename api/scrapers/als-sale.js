@@ -111,7 +111,7 @@ function detectShoeType(listingName) {
 function extractDeals(html, gender) {
   const $ = cheerio.load(html);
   const deals = [];
-
+const scrapeDurationMs = Date.now() - start;
   // ALS commonly links product cards with href ending in "/p"
   const links = $('a[href$="/p"]').filter((_, a) => {
     const text = cleanTitle($(a).text());
@@ -228,18 +228,21 @@ if (CRON_SECRET) {
 
     const deals = [...mens, ...womens];
 
-    const output = {
-      lastUpdated: new Date().toISOString(),
-      store: STORE,
-      segments: ["Men's Running Shoes", "Women's Running Shoes"],
-      totalDeals: deals.length,
-      dealsByGender: {
-        mens: mens.length,
-        womens: womens.length,
-        unisex: 0,
-      },
-      deals,
-    };
+const output = {
+  lastUpdated: new Date().toISOString(),
+  via: "cheerio",
+  scrapeDurationMs,
+
+  store: STORE,
+  segments: ["Men's Running Shoes", "Women's Running Shoes"],
+  totalDeals: deals.length,
+  dealsByGender: {
+    mens: mens.length,
+    womens: womens.length,
+    unisex: 0,
+  },
+  deals,
+};
 
     const blob = await put("als-sale.json", JSON.stringify(output, null, 2), {
       access: "public",
