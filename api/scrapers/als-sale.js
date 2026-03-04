@@ -1,7 +1,7 @@
 // api/scrapers/als-sale.js
 // Scrapes ALS Men's + Women's running shoes (all pages)
 //
-// Output schema (canonical 11 fields):
+// Output schema (canonical 11 fields in deals[]):
 // { listingName, brand, model, salePrice, originalPrice, discountPercent,
 //   store, listingURL, imageURL, gender, shoeType }
 //
@@ -30,6 +30,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** -------------------- helpers -------------------- **/
 
+function nowIso() {
+  return new Date().toISOString();
+}
+
 function absolutize(url) {
   if (!url || typeof url !== "string") return null;
   url = url.replace(/&amp;/g, "&").trim();
@@ -42,7 +46,6 @@ function absolutize(url) {
 
 function parsePrice(text) {
   if (!text) return null;
-  // ranges excluded elsewhere; keep parse simple
   const m = String(text).replace(/,/g, "").match(/\$([\d]+(?:\.\d{2})?)/);
   return m ? parseFloat(m[1]) : null;
 }
@@ -92,11 +95,13 @@ function splitBrandModel(listingName) {
   if (!t) return { brand: "Unknown", model: "" };
 
   // Simple heuristic (ALS titles are usually "Brand Model ...")
-  const brand = t.split(" ")[0];
-  let model = t.replace(new RegExp("^" + brand + "\\s+", "i"), "").trim();
+  const brand = t.split(" ")[0] || "Unknown";
+  let model = t.replace(new RegExp("^" + brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+", "i"), "").trim();
+
+  // strip trailing gender markers in title if any
   model = model.replace(/\s+-\s+(men's|women's)\s*$/i, "").trim();
 
-  return { brand: brand || "Unknown", model: model || "" };
+  return { brand, model: model || "" };
 }
 
 function detectShoeType(listingName) {
@@ -111,7 +116,7 @@ function detectShoeType(listingName) {
 function extractDeals(html, gender) {
   const $ = cheerio.load(html);
   const deals = [];
-const scrapeDurationMs = Date.now() - start;
+
   // ALS commonly links product cards with href ending in "/p"
   const links = $('a[href$="/p"]').filter((_, a) => {
     const text = cleanTitle($(a).text());
@@ -133,8 +138,7 @@ const scrapeDurationMs = Date.now() - start;
     if (!priceData) return;
 
     const imageURL = absolutize(
-      $card.find("img").first().attr("src") ||
-        $card.find("img").first().attr("data-src")
+      $card.find("img").first().attr("src") || $card.find("img").first().attr("data-src")
     );
 
     const { brand, model } = splitBrandModel(listingName);
@@ -157,16 +161,17 @@ const scrapeDurationMs = Date.now() - start;
     });
   });
 
-  // Dedupe by listingURL
+  // Dedupe by listingURL within this page
   const seen = new Set();
   return deals.filter((d) => {
+    if (!d.listingURL) return false;
     if (seen.has(d.listingURL)) return false;
     seen.add(d.listingURL);
     return true;
   });
 }
 
-async function fetch(url) {
+async function fetchHtml(url) {
   const { data } = await axios.get(url, {
     headers: { "User-Agent": "Mozilla/5.0" },
     timeout: 45000,
@@ -178,15 +183,24 @@ async function scrapeCategory(baseUrl, gender) {
   const all = [];
   const seen = new Set();
 
+  let pagesFetched = 0;
+  let tilesFound = 0; // “dealsFound” equivalent: product links/cards encountered
+
   for (let page = 1; page <= 50; page++) {
     const url = `${baseUrl}&page=${page}`;
-    const html = await fetch(url);
+    const html = await fetchHtml(url);
+    pagesFetched += 1;
+
+    // count “tiles” as number of product links that look like products
+    const $ = cheerio.load(html);
+    const linkCount = $('a[href$="/p"]').filter((_, a) => cleanTitle($(a).text()).length >= 5).length;
+    tilesFound += linkCount;
 
     const pageDeals = extractDeals(html, gender);
 
     let added = 0;
     for (const d of pageDeals) {
-      if (!seen.has(d.listingURL)) {
+      if (d.listingURL && !seen.has(d.listingURL)) {
         seen.add(d.listingURL);
         all.push(d);
         added++;
@@ -197,72 +211,118 @@ async function scrapeCategory(baseUrl, gender) {
     await sleep(800);
   }
 
-  return all;
+  return { deals: all, pagesFetched, tilesFound };
+}
+
+/** -------------------- auth (cron secret) -------------------- **/
+
+function isAuthorized(req) {
+  const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
+  if (!CRON_SECRET) return true; // no secret set => open
+
+  // Allow:
+  // 1) Authorization: Bearer <secret>
+  // 2) x-cron-secret: <secret>
+  // 3) ?cron_secret=<secret>   ✅ browser-friendly (matches your Gazelle approach)
+  const auth = String(req.headers.authorization || "").trim();
+  const xCron = String(req.headers["x-cron-secret"] || "").trim();
+
+  let qs = "";
+  try {
+    const urlObj = new URL(req.url, "http://localhost");
+    qs = String(urlObj.searchParams.get("cron_secret") || "").trim();
+  } catch {
+    qs = "";
+  }
+
+  return auth === `Bearer ${CRON_SECRET}` || xCron === CRON_SECRET || qs === CRON_SECRET;
 }
 
 /** -------------------- handler -------------------- **/
 
 module.exports = async (req, res) => {
   if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
-  
-const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
-if (CRON_SECRET) {
-  const auth = String(req.headers.authorization || "").trim();
-  const xCron = String(req.headers["x-cron-secret"] || "").trim();
-  const ok = auth === `Bearer ${CRON_SECRET}` || xCron === CRON_SECRET;
 
-  if (!ok) {
-    return res.status(401).json({ success: false, error: "Unauthorized" });
+  if (!isAuthorized(req)) {
+    return res.status(401).json({ ok: false, error: "Unauthorized: Invalid CRON_SECRET" });
   }
-}
 
+  const t0 = Date.now();
 
-  const start = Date.now();
+  // canonical output scaffold
+  const out = {
+    store: STORE,
+    schemaVersion: 1,
+
+    lastUpdated: nowIso(),
+    via: "cheerio",
+
+    sourceUrls: [MEN_URL, WOMEN_URL],
+    pagesFetched: 0,
+
+    dealsFound: 0,      // tiles/cards encountered
+    dealsExtracted: 0,  // deals kept
+
+    scrapeDurationMs: 0,
+
+    ok: false,
+    error: null,
+
+    deals: [],
+  };
 
   try {
     const mens = await scrapeCategory(MEN_URL, "mens");
     await sleep(1200);
     const womens = await scrapeCategory(WOMEN_URL, "womens");
 
-    const deals = [...mens, ...womens];
+    const deals = [...mens.deals, ...womens.deals];
 
-const output = {
-  lastUpdated: new Date().toISOString(),
-  via: "cheerio",
-  scrapeDurationMs,
+    out.pagesFetched = (mens.pagesFetched || 0) + (womens.pagesFetched || 0);
+    out.dealsFound = (mens.tilesFound || 0) + (womens.tilesFound || 0);
+    out.dealsExtracted = deals.length;
 
-  store: STORE,
-  segments: ["Men's Running Shoes", "Women's Running Shoes"],
-  totalDeals: deals.length,
-  dealsByGender: {
-    mens: mens.length,
-    womens: womens.length,
-    unisex: 0,
-  },
-  deals,
-};
+    out.deals = deals;
 
-    const blob = await put("als-sale.json", JSON.stringify(output, null, 2), {
+    out.ok = true;
+    out.error = null;
+
+    // duration + lastUpdated right before write (so blob includes final values)
+    out.scrapeDurationMs = Date.now() - t0;
+    out.lastUpdated = nowIso();
+
+    const blob = await put("als-sale.json", JSON.stringify(out, null, 2), {
       access: "public",
+      contentType: "application/json",
       addRandomSuffix: false,
     });
 
+    res.setHeader("Cache-Control", "no-store, max-age=0");
     return res.status(200).json({
-      success: true,
-      totalDeals: output.totalDeals,
-      dealsByGender: output.dealsByGender,
+      ok: true,
+      store: out.store,
+      pagesFetched: out.pagesFetched,
+      dealsFound: out.dealsFound,
+      dealsExtracted: out.dealsExtracted,
+      scrapeDurationMs: out.scrapeDurationMs,
       blobUrl: blob.url,
-      duration: `${Date.now() - start}ms`,
-      timestamp: output.lastUpdated,
+      lastUpdated: out.lastUpdated,
     });
   } catch (err) {
+    out.ok = false;
+    out.error = err?.stack || err?.message || String(err) || "Unknown error";
+    out.scrapeDurationMs = Date.now() - t0;
+    out.lastUpdated = nowIso();
+
+    // On failure, we DO NOT write a blob (matches your general pattern).
+    res.setHeader("Cache-Control", "no-store, max-age=0");
     return res.status(500).json({
-      success: false,
-      error: err?.message || "Unknown error",
-      duration: `${Date.now() - start}ms`,
-      stack: process.env.NODE_ENV === "development" ? err?.stack : undefined,
+      ok: false,
+      error: out.error,
+      scrapeDurationMs: out.scrapeDurationMs,
+      lastUpdated: out.lastUpdated,
     });
   }
 };
