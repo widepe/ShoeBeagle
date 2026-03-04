@@ -1,12 +1,12 @@
 // /api/scrapers/holabird-mens-road.js
 // Holabird Sports — Mens Road Running Shoe Deals via Searchanise (RunUnited-style)
-// ✅ Uses Searchanise JSON (items[], totalItems, startIndex, itemsPerPage)
-// ✅ Filters using Holabird tag tokens like: Gender_Mens, Type_Running-Shoes, ALLDEALS
+// ✅ Top-level structure matches your Zappos-style metadata
 // ✅ Canonical 11-field deals schema
-// ✅ Your top-level structure (store/schemaVersion/lastUpdated/via/sourceUrls/pagesFetched/dealsFound/dealsExtracted/scrapeDurationMs/ok/error)
+// ✅ Uses Holabird Searchanise JSON: { totalItems, startIndex, itemsPerPage, items: [...] }
+// ✅ IMPORTANT: sends Origin/Referer headers (Holabird appears referrer-gated)
 // ✅ Model extracted from listingName
 // ✅ Dedupe by listingURL
-// ✅ CRON secret auth is COMMENTED OUT for testing (you can re-enable later)
+// ✅ CRON secret auth COMMENTED OUT for testing
 
 const { put } = require("@vercel/blob");
 
@@ -19,8 +19,19 @@ const SOURCE_URL =
 const SEARCHANISE_BASE = "https://searchserverapi.com/getresults";
 const API_KEY = "1T0U8M9s3R";
 
-const PAGE_SIZE = 100;     // try 100; if Holabird caps lower, it’ll just return fewer
-const MAX_PAGES = 80;      // safety cap
+const PAGE_SIZE = 100;
+const MAX_PAGES = 80;
+
+// These headers are the big difference vs your 0-item runs.
+// Holabird/Searchanise commonly returns empty unless Origin/Referer match the site.
+const BROWSERISH_HEADERS = {
+  accept: "*/*",
+  "accept-language": "en-US,en;q=0.9",
+  origin: "https://www.holabirdsports.com",
+  referer: "https://www.holabirdsports.com/",
+  "user-agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+};
 
 /** -------------------- helpers -------------------- **/
 
@@ -44,7 +55,6 @@ function escapeRegExp(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Keep this conservative: remove brand prefix + common suffixes, don’t over-strip
 function extractModel(listingName, brand) {
   if (!listingName) return "";
 
@@ -56,7 +66,6 @@ function extractModel(listingName, brand) {
     m = m.replace(re, "");
   }
 
-  // remove common trailing category words
   m = m
     .replace(/\s+running\s+shoe(s)?$/i, "")
     .replace(/\s+men'?s$/i, "")
@@ -94,10 +103,8 @@ function dedupeByUrl(deals) {
 }
 
 /**
- * Holabird Searchanise "tags" field is a single string like:
+ * Holabird Searchanise tags look like:
  * "ALLDEALS[:ATTR:]bis-hidden[:ATTR:]Brand_HEAD[:ATTR:]...[:ATTR:]Gender_Unisex..."
- *
- * We’ll split on "[:ATTR:]" and match tokens exactly.
  */
 function splitTagTokens(tagsString) {
   if (!tagsString) return [];
@@ -107,135 +114,112 @@ function splitTagTokens(tagsString) {
     .filter(Boolean);
 }
 
-function hasToken(tokens, wantedPrefixOrExact) {
-  // allow exact match or "Prefix_" patterns
-  // e.g. "Gender_Mens" exact, or "Brand_" prefix
-  if (!wantedPrefixOrExact) return false;
-  const w = String(wantedPrefixOrExact);
-
-  if (w.endsWith("_")) {
-    return tokens.some((t) => t.startsWith(w));
-  }
-  return tokens.includes(w);
+function hasToken(tokens, exactToken) {
+  return tokens.includes(exactToken);
 }
 
 /** -------------------- Searchanise fetch -------------------- **/
 
-function buildSearchaniseUrl(startIndex) {
+function buildUrl(startIndex) {
   const p = new URLSearchParams();
+
+  // Holabird uses api_key (per your curl). Keep it exactly.
   p.set("api_key", API_KEY);
 
-  // these exist in many Searchanise setups; harmless if ignored
-  p.set("output", "json");
-  p.set("items", "true");
+  // These params are commonly present on Holabird’s calls; harmless if ignored.
   p.set("facets", "true");
   p.set("facetsShowUnavailableOptions", "false");
 
-  // pagination
+  // Your earlier 0-item runs used output/items/q. Some setups don’t like them.
+  // We keep it minimal + pagination only.
   p.set("startIndex", String(startIndex));
   p.set("maxResults", String(PAGE_SIZE));
-
-  // IMPORTANT: force “deals” collection behavior by restricting to shoe-deals collection tag
-  // Holabird encodes collection in tags as "COLLECTION-..."
-  // We don't know the exact Searchanise restrictBy keys, so we instead filter client-side,
-  // but we still include q=* to get items back.
-  p.set("q", "*");
 
   return `${SEARCHANISE_BASE}?${p.toString()}`;
 }
 
 async function fetchPage(startIndex) {
-  const url = buildSearchaniseUrl(startIndex);
+  const url = buildUrl(startIndex);
   const startedAt = Date.now();
 
-  const res = await fetch(url, { headers: { accept: "application/json" } });
+  const res = await fetch(url, { headers: BROWSERISH_HEADERS });
   const durationMs = Date.now() - startedAt;
 
   if (!res.ok) {
-    return { ok: false, status: res.status, url, durationMs, json: null, error: `HTTP ${res.status}` };
+    return { ok: false, status: res.status, url, durationMs, json: null, items: [], error: `HTTP ${res.status}` };
   }
 
   let json;
   try {
     json = await res.json();
-  } catch {
-    return { ok: false, status: res.status, url, durationMs, json: null, error: "JSON parse failed" };
+  } catch (e) {
+    return { ok: false, status: res.status, url, durationMs, json: null, items: [], error: "JSON parse failed" };
   }
 
+  // Holabird format (from your paste): json.items
   const items = Array.isArray(json?.items) ? json.items : [];
-  const totalItems = safeNum(json?.totalItems) ?? null;
 
-  return { ok: true, status: res.status, url, durationMs, json, items, totalItems, error: null };
+  return { ok: true, status: res.status, url, durationMs, json, items, error: null };
 }
 
-/** -------------------- scrape all pages -------------------- **/
+/** -------------------- scrape -------------------- **/
 
 async function scrapeAll() {
   const pageNotes = [];
   const allItems = [];
 
   let startIndex = 0;
-  let pagesFetched = 0;
 
-  while (pagesFetched < MAX_PAGES) {
+  for (let page = 0; page < MAX_PAGES; page++) {
     const r = await fetchPage(startIndex);
 
     pageNotes.push({
       page: `searchanise startIndex=${startIndex}`,
       success: r.ok,
-      count: r.items?.length || 0,
+      count: r.items.length,
       error: r.error,
       url: r.url,
       duration: `${r.durationMs}ms`,
       status: r.status,
     });
 
-    pagesFetched++;
-
     if (!r.ok) break;
     if (!r.items.length) break;
 
     allItems.push(...r.items);
 
-    // last page detection: fewer than PAGE_SIZE usually means end
+    // End condition: if fewer than PAGE_SIZE returned, it’s likely the last page
     if (r.items.length < PAGE_SIZE) break;
 
     startIndex += PAGE_SIZE;
   }
 
-  return { allItems, pageNotes, pagesFetched };
+  return { allItems, pageNotes, pagesFetched: pageNotes.length };
 }
 
-/** -------------------- transform -------------------- **/
+/** -------------------- filter + transform -------------------- **/
 
 function isMensRunningDeal(item) {
   const tokens = splitTagTokens(item?.tags);
 
-  // Must be a deal
-  const isDeal = hasToken(tokens, "ALLDEALS");
+  // Must be a deal (your sample has ALLDEALS)
+  if (!hasToken(tokens, "ALLDEALS")) return false;
 
-  // Must be mens running shoes (Holabird uses Type_Running-Shoes and Gender_Mens in URL)
-  // BUT tokens may sometimes vary, so we accept either:
-  // - exact Gender_Mens token
-  // - or title contains "Men" (fallback)
-  const genderTokenMens = hasToken(tokens, "Gender_Mens");
+  // Must be mens + running shoes — these are consistent with the collection URL
+  // (If Holabird uses slightly different token spelling, we can add alternates.)
+  const isMens = hasToken(tokens, "Gender_Mens");
+  const isRunningShoes = hasToken(tokens, "Type_Running-Shoes");
 
-  // Running shoes type token (exact in URL: Type_Running-Shoes)
-  const runningType = hasToken(tokens, "Type_Running-Shoes") || hasToken(tokens, "Type_Running Shoes");
+  // Some items might not have Gender_Mens token but have Gender_Unisex etc.
+  // For THIS scraper, we strictly want mens.
+  if (!isMens) return false;
 
-  // Must be shoe-ish: sometimes "COLLECTION-Type-Running-Shoes" exists too
-  const hasShoeHint =
-    runningType ||
-    hasToken(tokens, "COLLECTION-Type-Running-Shoes") ||
-    hasToken(tokens, "COLLECTION-Type-Running Shoes");
+  if (!isRunningShoes) return false;
 
-  const title = String(item?.title || "").toLowerCase();
-  const titleMens = /\bmen\b|\bmen's\b/.test(title);
-
-  return isDeal && hasShoeHint && (genderTokenMens || titleMens);
+  return true;
 }
 
-function transformItems(items) {
+function transformItemsToDeals(items) {
   const deals = [];
 
   for (const it of items) {
@@ -244,20 +228,20 @@ function transformItems(items) {
     const listingName = String(it?.title || "").trim();
     if (!listingName) continue;
 
-    const brand = String(it?.vendor || it?.brand || "Unknown").trim();
+    const brand = String(it?.vendor || "Unknown").trim() || "Unknown";
 
-    // Holabird format in your sample:
-    // price = sale (string "11.0000")
-    // list_price = original (string "20.0000")
+    // Holabird fields from your sample:
+    // - price (sale)
+    // - list_price (original)
     let salePrice = round2(safeNum(it?.price));
     let originalPrice = round2(safeNum(it?.list_price));
 
-    // fallback: choose from first variant if present (often more reliable)
+    // Fallback to first variant if missing
     const v0 = Array.isArray(it?.shopify_variants) ? it.shopify_variants[0] : null;
     if ((!Number.isFinite(salePrice) || salePrice <= 0) && v0) salePrice = round2(safeNum(v0?.price));
     if ((!Number.isFinite(originalPrice) || originalPrice <= 0) && v0) originalPrice = round2(safeNum(v0?.list_price));
 
-    // honesty rule: must have both, must be a real deal
+    // honesty rule: must have both + real deal
     if (!Number.isFinite(salePrice) || salePrice <= 0) continue;
     if (!Number.isFinite(originalPrice) || originalPrice <= 0) continue;
 
@@ -271,14 +255,15 @@ function transformItems(items) {
 
     const imageURL = it?.image_link || null;
 
-    // classify
+    // shoeType is road for this scraper, but we still validate by keywords
+    // (you can relax this if you want *everything* from that collection forced to road)
     const shoeType = detectShoeType(listingName);
     if (shoeType !== "road") continue;
 
     const model = extractModel(listingName, brand);
 
     deals.push({
-      listingName,               // NEVER EDIT
+      listingName, // NEVER EDIT
       brand,
       model,
       salePrice,
@@ -302,7 +287,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
 
-  // ✅ COMMENT OUT FOR TESTING if you want
+  // ✅ COMMENTED OUT FOR TESTING
   /*
   const auth = String(req.headers.authorization || "").trim();
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -314,7 +299,7 @@ module.exports = async (req, res) => {
 
   try {
     const { allItems, pageNotes, pagesFetched } = await scrapeAll();
-    const deals = transformItems(allItems);
+    const deals = transformItemsToDeals(allItems);
 
     const scrapeDurationMs = Date.now() - startedAt;
 
