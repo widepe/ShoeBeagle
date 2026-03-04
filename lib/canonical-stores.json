@@ -32,7 +32,7 @@
   "enabled": true,
   "scraperType": "firecrawl-cheerio",
   "notes": "Scrapes 3 ASICS running clearance categories (mens, womens, last chance). Shoe type inferred from model name."
-}
+},
 
 {
   "id": "backcountry",
