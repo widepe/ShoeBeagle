@@ -1314,9 +1314,7 @@ module.exports = async (req, res) => {
   const FOOTLOCKER_DEALS_BLOB_URL = String(process.env.FOOTLOCKER_DEALS_BLOB_URL || "").trim();
   const GAZELLESPORTS_DEALS_BLOB_URL = String(process.env.GAZELLESPORTS_DEALS_BLOB_URL || "").trim();
   const HOKA_DEALS_BLOB_URL = String(process.env.HOKA_DEALS_BLOB_URL || "").trim();
-  const HOLABIRD_MENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_MENS_ROAD_BLOB_URL || "").trim();
-  const HOLABIRD_TRAIL_UNISEX_BLOB_URL = String(process.env.HOLABIRD_TRAIL_UNISEX_BLOB_URL || "").trim();
-  const HOLABIRD_WOMENS_ROAD_BLOB_URL = String(process.env.HOLABIRD_WOMENS_ROAD_BLOB_URL || "").trim();
+  const HOLABIRD_DEALS_BLOB_URL = String(process.env.HOLABIRD_DEALS_BLOB_URL || "").trim();  
   const JDSPORTS_DEALS_BLOB_URL = String(process.env.JDSPORTS_DEALS_BLOB_URL || "").trim();
   const KOHLS_DEALS_BLOB_URL = String(process.env.KOHLS_DEALS_BLOB_URL || "").trim();
   const LUKES_LOCKER_CHEERIO_BLOB_URL = String(process.env.LUKES_LOCKER_CHEERIO_BLOB_URL || "").trim();
@@ -1357,10 +1355,7 @@ module.exports = async (req, res) => {
       { id: "foot-locker", name: "Foot Locker", blobUrl: FOOTLOCKER_DEALS_BLOB_URL },
       { id: "gazelle-sports", name: "Gazelle Sports", blobUrl: GAZELLESPORTS_DEALS_BLOB_URL },
       { id: "hoka", name: "HOKA", blobUrl: HOKA_DEALS_BLOB_URL },
-      // Holabird split across 3 blobs but shares 1 id
-      { id: "holabird-sports", name: "Holabird Sports (Mens Road)", blobUrl: HOLABIRD_MENS_ROAD_BLOB_URL },
-      { id: "holabird-sports", name: "Holabird Sports (Womens Road)", blobUrl: HOLABIRD_WOMENS_ROAD_BLOB_URL },
-      { id: "holabird-sports", name: "Holabird Sports (Trail + Unisex)", blobUrl: HOLABIRD_TRAIL_UNISEX_BLOB_URL },
+      { id: "holabird-sports", name: "Holabird Sports", blobUrl: HOLABIRD_DEALS_BLOB_URL },
       { id: "jd-sports", name: "JD Sports", blobUrl: JDSPORTS_DEALS_BLOB_URL },
       { id: "kohls", name: "Kohls", blobUrl: KOHLS_DEALS_BLOB_URL },
       { id: "lukes-locker", name: "Luke's Locker", blobUrl: LUKES_LOCKER_CHEERIO_BLOB_URL },
