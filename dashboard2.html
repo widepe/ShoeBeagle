@@ -1645,7 +1645,10 @@
 
         const lastUpdatedStr = Number.isFinite(ts) ? new Date(ts).toLocaleString() : "Not Available";
         const hoursAgoStr = Number.isFinite(ts) ? formatHoursAgo(Date.now() - ts) : "Not Available";
-        const durationStr = meta.duration != null ? String(meta.duration) : "Not Available";
+        const durationStr =
+  Number.isFinite(Number(meta.duration))
+    ? `${Math.round(Number(meta.duration))} ms`
+    : (meta.duration != null ? String(meta.duration) : "Not Available");
 
         const sourceBlobsAll = meta.blobUrl ? [meta.blobUrl] : health.expectedBlobs;
         const scrapedUrls = health.scrapedUrls;
