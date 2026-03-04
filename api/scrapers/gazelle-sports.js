@@ -68,20 +68,14 @@ function extractModelFromTitle(title) {
   let t = normalizeWs(title);
 
   // Strip leading gender phrase
-  t = t
-    .replace(/^Men's\s+/i, "")
-    .replace(/^Women's\s+/i, "")
-    .replace(/^All\s*Gender\s+/i, "");
+  t = t.replace(/^Men's\s+/i, "").replace(/^Women's\s+/i, "").replace(/^All\s*Gender\s+/i, "");
 
   // Cut at " - " (colors/width usually follow)
   const dashIdx = t.indexOf(" - ");
   if (dashIdx !== -1) t = t.slice(0, dashIdx);
 
   // Cut at common descriptors
-  const cutPhrases = [
-    " Running Shoe",
-    " Running Shoes",
-  ];
+  const cutPhrases = [" Running Shoe", " Running Shoes"];
 
   const lower = t.toLowerCase();
   for (const phrase of cutPhrases) {
@@ -181,7 +175,6 @@ function buildDealFromProduct(product, baseSiteUrl, defaultGender) {
     discountPercentUpTo: null,
 
     store: "Gazelle Sports",
-
     listingURL,
     imageURL,
 
@@ -222,7 +215,6 @@ async function scrapeCollectionProductsJson(baseSiteUrl, collectionUrl, opts = {
     const products = Array.isArray(data?.products) ? data.products : [];
 
     pagesFetched += 1;
-
     if (products.length === 0) break;
 
     // Track whether this page introduced any new products
@@ -277,7 +269,7 @@ async function scrapeCollectionProductsJson(baseSiteUrl, collectionUrl, opts = {
 // -----------------------------
 module.exports = async function handler(req, res) {
   // ---------------------------------
-  // CRON SECRET PROTECTION (commented out)
+  // CRON SECRET PROTECTION
   // ---------------------------------
   const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
   if (CRON_SECRET) {
@@ -332,11 +324,12 @@ module.exports = async function handler(req, res) {
       total: {
         tilesFound: (mens.dropCounts.tilesFound || 0) + (womens.dropCounts.tilesFound || 0),
         dropped_bannedWord: (mens.dropCounts.dropped_bannedWord || 0) + (womens.dropCounts.dropped_bannedWord || 0),
-        dropped_missingCore: mens.dropCounts.dropped_missingCore + womens.dropCounts.dropped_missingCore,
-        dropped_missingPrices: mens.dropCounts.dropped_missingPrices + womens.dropCounts.dropped_missingPrices,
-        dropped_badPrices: mens.dropCounts.dropped_badPrices + womens.dropCounts.dropped_badPrices,
-        dropped_notADeal: mens.dropCounts.dropped_notADeal + womens.dropCounts.dropped_notADeal,
-        kept: mens.dropCounts.kept + womens.dropCounts.kept,
+        dropped_missingCore: (mens.dropCounts.dropped_missingCore || 0) + (womens.dropCounts.dropped_missingCore || 0),
+        dropped_missingPrices:
+          (mens.dropCounts.dropped_missingPrices || 0) + (womens.dropCounts.dropped_missingPrices || 0),
+        dropped_badPrices: (mens.dropCounts.dropped_badPrices || 0) + (womens.dropCounts.dropped_badPrices || 0),
+        dropped_notADeal: (mens.dropCounts.dropped_notADeal || 0) + (womens.dropCounts.dropped_notADeal || 0),
+        kept: (mens.dropCounts.kept || 0) + (womens.dropCounts.kept || 0),
       },
     };
 
@@ -356,27 +349,31 @@ module.exports = async function handler(req, res) {
     }
     if (!blobPath) throw new Error("Invalid GAZELLESPORTS_DEALS_BLOB_URL (missing pathname)");
 
-// ✅ mark success BEFORE blob write
-out.ok = true;
-out.error = null;
+    // ✅ set duration + lastUpdated BEFORE writing so the blob JSON includes them
+    out.scrapeDurationMs = Date.now() - t0;
+    out.lastUpdated = nowIso();
 
-// ✅ set duration BEFORE blob write so blob gets it
-out.scrapeDurationMs = Date.now() - t0;
+    // ✅ mark success BEFORE blob write (if put throws, catch will flip ok=false and no blob is written)
+    out.ok = true;
+    out.error = null;
 
-// (optional but nice: set lastUpdated right before writing)
-out.lastUpdated = nowIso();
+    const putRes = await put(blobPath, JSON.stringify(out, null, 2), {
+      access: "public",
+      contentType: "application/json",
+      addRandomSuffix: false,
+    });
 
-const putRes = await put(blobPath, JSON.stringify(out, null, 2), {
-  access: "public",
-  contentType: "application/json",
-  addRandomSuffix: false,
-});
-
-out.blobUrl = putRes?.url || blobUrl;
+    // Note: blob JSON cannot include its own final URL without a 2nd write; this is fine.
+    out.blobUrl = putRes?.url || blobUrl;
   } catch (e) {
     out.ok = false;
     out.error = e?.stack || e?.message || String(e) || "Unknown error";
-}
+  } finally {
+    // ✅ Always ensure the API response has a duration even on early throw
+    if (!Number.isFinite(out.scrapeDurationMs) || out.scrapeDurationMs <= 0) {
+      out.scrapeDurationMs = Date.now() - t0;
+    }
+  }
 
   // Return a summary response (no deals array), but deals ARE still in the blob.
   const responseOut = { ...out };
