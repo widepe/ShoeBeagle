@@ -25,7 +25,6 @@ const ENABLED = {
   bigpeach: true,
   finishline: true,
   hoka: true,
-  jdsports: true,
   kohls: true,
   nike: true,
 };
@@ -58,11 +57,6 @@ const TARGETS = [
     // internal route path (no domain needed)
     path: "/api/scrapers/hoka-firecrawl",
   },
-  {
-    key: "jdsports",
-    name: "JD Sports Firecrawl",
-    path: "/api/scrapers/jdsports-firecrawl",
-  },  
   {
     key: "kohls",
     name: "Kohl's Firecrawl",
