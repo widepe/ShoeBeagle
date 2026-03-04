@@ -1,9 +1,10 @@
 // /api/scrapers/jdsports-algolia.js
 //
 // ✅ JD Sports via Algolia (NO Firecrawl)
-// ✅ FAST mode + auto-fallback to WIDE mode if name/url fields are missing
-// ✅ Writes jdsports.json to Vercel Blob
-// ✅ Returns lightweight response
+// ✅ FAST: minimal attributesToRetrieve using JD's real hit keys
+// ✅ Applies your rules (honesty; dedupe by listingURL)
+// ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: jdsports.json
+// ✅ Returns LIGHTWEIGHT response (no deals array) + blobUrl
 //
 // ENV required:
 // - JDSPORTS_ALGOLIA_APP_ID
@@ -26,6 +27,7 @@ function cleanText(s) {
 function parseMoney(x) {
   if (x === null || x === undefined) return null;
   if (typeof x === "number") return Number.isFinite(x) ? x : null;
+
   const t = String(x).trim();
   if (!t) return null;
   const m = t.replace(/[^0-9.]/g, "");
@@ -41,7 +43,6 @@ function pickFirstTruthy(...vals) {
   }
   return null;
 }
-
 function normalizeListingUrl(u) {
   const url = cleanText(u);
   if (!url) return "";
@@ -54,7 +55,10 @@ function normalizeListingUrl(u) {
 function deriveBrandModel(listingName) {
   let s = cleanText(listingName);
 
+  // Remove gender prefix if present
   s = s.replace(/^(Women's|Men's|Unisex)\s+/i, "");
+
+  // Remove trailing "Running Shoes"
   s = s.replace(/\s+(Trail|Road)\s+Running\s+Shoes\s*$/i, "");
   s = s.replace(/\s+Running\s+Shoes\s*$/i, "");
   s = cleanText(s);
@@ -78,13 +82,14 @@ function deriveBrandModel(listingName) {
 }
 
 function inferGenderFromHit(hit, listingName) {
+  // JD keys often include facet_gender or sometimes gender/department
   const candidates = [hit?.facet_gender, hit?.gender, hit?.department].filter(Boolean);
   const joined = cleanText(candidates.join(" ")).toLowerCase();
   if (joined.includes("women")) return "womens";
   if (joined.includes("men")) return "mens";
   if (joined.includes("unisex")) return "unisex";
 
-  // fallback: prefix rule
+  // fallback: listingName prefix rule
   const n = (listingName || "").toLowerCase();
   if (n.startsWith("women's ")) return "womens";
   if (n.startsWith("men's ")) return "mens";
@@ -94,7 +99,7 @@ function inferGenderFromHit(hit, listingName) {
 
 function inferShoeType(listingName, hit) {
   const n = (listingName || "").toLowerCase();
-  const facets = [hit?.facet_surface, hit?.surface, hit?.facet_activity, hit?.activity]
+  const facets = [hit?.facet_surface, hit?.surface, hit?.facet_activity, hit?.facet_category]
     .flat()
     .filter(Boolean)
     .map((v) => String(v).toLowerCase());
@@ -104,55 +109,42 @@ function inferShoeType(listingName, hit) {
   return "unknown";
 }
 
-// --- Extraction (wide, defensive) ---
+// -----------------------
+// JD-SPECIFIC EXTRACTION
+// -----------------------
 function extractListingName(hit) {
-  // add lots of common variants; safe even if missing
+  // ✅ JD uses prod_name
   return cleanText(
     pickFirstTruthy(
-      hit?.listingName,
+      hit?.prod_name,
+      hit?.prodName,
       hit?.name,
-      hit?.title,
-      hit?.product_name,
-      hit?.productName,
-      hit?.product_title,
-      hit?.productTitle,
-      hit?.display_name,
-      hit?.displayName,
-      hit?.product_display_name,
-      hit?.seo_title,
-      hit?.h1,
-      hit?.sku_name
+      hit?.title
     ) || ""
   );
 }
 
 function extractListingURL(hit) {
+  // ✅ JD uses prod_url
   return normalizeListingUrl(
     pickFirstTruthy(
+      hit?.prod_url,
       hit?.url,
-      hit?.pdpUrl,
-      hit?.productUrl,
-      hit?.pdp_url,
-      hit?.product_url,
-      hit?.link,
-      hit?.path,
-      hit?.seo_url,
-      hit?.canonical_url
+      hit?.path
     ) || ""
   );
 }
 
 function extractImageURL(hit) {
+  // ✅ JD has prod_image_url + app_* image urls
   const raw = pickFirstTruthy(
-    hit?.imageURL,
-    hit?.imageUrl,
-    hit?.image,
-    hit?.image_url,
-    hit?.thumbnail,
-    hit?.thumbnail_url,
-    hit?.main_image,
-    hit?.mainImage
+    hit?.prod_image_url,
+    hit?.app_med_image_url,
+    hit?.app_lar_image_url,
+    hit?.app_badge_med_image_url,
+    hit?.app_lar_badge_image_url
   );
+
   const url = cleanText(raw || "");
   if (!url) return "";
   if (url.startsWith("//")) return `https:${url}`;
@@ -162,25 +154,21 @@ function extractImageURL(hit) {
 }
 
 function extractPrices(hit) {
-  // Your debug shows: final_price + price
-  // Often: final_price = sale, price = original
-  const saleCandidate = pickFirstTruthy(hit?.final_price, hit?.salePrice, hit?.sale_price, hit?.current_price);
-  const originalCandidate = pickFirstTruthy(hit?.price, hit?.originalPrice, hit?.original_price, hit?.regular_price, hit?.msrp);
+  // Your keys show:
+  // - final_price (likely sale)
+  // - price (could be numeric or string)
+  // - price_mask (display string; may be original when price is something else)
+  //
+  // We'll interpret:
+  // sale = final_price
+  // original = price (if exists), else try price_mask
 
-  // If "price" is an object, try common keys inside it
-  let original = originalCandidate;
-  if (original && typeof original === "object") {
-    original = pickFirstTruthy(
-      original?.original,
-      original?.regular,
-      original?.value,
-      original?.amount,
-      original?.current
-    );
-  }
+  const salePrice = parseMoney(hit?.final_price);
 
-  const salePrice = parseMoney(saleCandidate);
-  const originalPrice = parseMoney(original);
+  // Prefer numeric "price" if parseable; else use price_mask
+  const originalPrice =
+    parseMoney(hit?.price) ??
+    parseMoney(hit?.price_mask);
 
   return { salePrice, originalPrice };
 }
@@ -196,7 +184,7 @@ function makeDropTracker() {
     dropped_notADeal: 0,
     kept: 0,
     __debug_firstHit: null,
-    __debug_mode: null,
+    __debug_mode: "fast",
   };
 
   const bump = (key) => {
@@ -205,11 +193,11 @@ function makeDropTracker() {
 
   function toSummaryArray() {
     const rows = [
-      { reason: "dropped_missingListingName", count: counts.dropped_missingListingName, note: "No title/name field found" },
-      { reason: "dropped_missingUrl", count: counts.dropped_missingUrl, note: "No PDP link found" },
+      { reason: "dropped_missingListingName", count: counts.dropped_missingListingName, note: "No prod_name field found" },
+      { reason: "dropped_missingUrl", count: counts.dropped_missingUrl, note: "No prod_url field found" },
       { reason: "dropped_gender", count: counts.dropped_gender, note: "Could not infer mens/womens/unisex" },
-      { reason: "dropped_saleMissingOrZero", count: counts.dropped_saleMissingOrZero, note: "Sale price missing/invalid/0" },
-      { reason: "dropped_originalMissingOrZero", count: counts.dropped_originalMissingOrZero, note: "Original price missing/invalid/0" },
+      { reason: "dropped_saleMissingOrZero", count: counts.dropped_saleMissingOrZero, note: "final_price missing/invalid/0" },
+      { reason: "dropped_originalMissingOrZero", count: counts.dropped_originalMissingOrZero, note: "price/price_mask missing/invalid/0" },
       { reason: "dropped_notADeal", count: counts.dropped_notADeal, note: "originalPrice must be > salePrice" },
       { reason: "kept", count: counts.kept, note: "Included in deals[]" },
     ];
@@ -300,60 +288,59 @@ export default async function handler(req, res) {
     const deals = [];
     const seenUrl = new Set();
 
+    // Vercel-safe defaults
     const MAX_PAGES = 8;
     const HITS_PER_PAGE = 100;
 
-    // FAST: very small payload. (But we auto-fallback if it hides title/url fields.)
-    const FAST_ATTRS = [
+    // ✅ Fast + JD-specific: only request what we actually need
+    const ATTRS = [
       "objectID",
+
+      "prod_name",
+      "prod_url",
+
+      "prod_image_url",
+      "app_med_image_url",
+      "app_lar_image_url",
+
       "final_price",
       "price",
+      "price_mask",
+
       "facet_gender",
       "facet_activity",
       "facet_category",
+      "facet_surface",
 
-      // try some likely title/url/image fields (may be wrong on JD; that’s okay)
-      "name",
-      "title",
-      "product_name",
-      "productName",
-      "url",
-      "path",
-      "pdpUrl",
-      "productUrl",
-      "image",
-      "imageUrl",
-      "thumbnail",
-      "originalPrice",
-      "regular_price",
-      "msrp",
+      "brand",
+      "sales_text",
+      "app_sales_text",
     ];
 
-    let mode = "fast"; // "fast" or "wide"
-
     for (let page = 0; page < MAX_PAGES; page++) {
-      const request = {
-        indexName,
-        analytics: false,
-        clickAnalytics: false,
-        analyticsTags: ["jd-all-sale", "browse", "web"],
-        facetFilters: [["facet_activity:Running"], ["facet_category:Shoes"]],
-        filters: "",
-        hitsPerPage: HITS_PER_PAGE,
-        page,
-        query: "",
-        ruleContexts: ["jd-all-sale", "web"],
-        userToken: "anonymous",
-      };
+      const requests = [
+        {
+          indexName,
+          analytics: false,
+          clickAnalytics: false,
+          analyticsTags: ["jd-all-sale", "browse", "web"],
+          facetFilters: [["facet_activity:Running"], ["facet_category:Shoes"]],
+          filters: "",
+          hitsPerPage: HITS_PER_PAGE,
+          page,
+          query: "",
+          ruleContexts: ["jd-all-sale", "web"],
+          userToken: "anonymous",
 
-      if (mode === "fast") {
-        request.facets = [];
-        request.attributesToRetrieve = FAST_ATTRS;
-        request.attributesToHighlight = [];
-        request.attributesToSnippet = [];
-      }
+          // FAST: no facets/highlights/snippets payload
+          facets: [],
+          attributesToRetrieve: ATTRS,
+          attributesToHighlight: [],
+          attributesToSnippet: [],
+        },
+      ];
 
-      const json = await algoliaQueries({ host, appId, apiKey, requests: [request] });
+      const json = await algoliaQueries({ host, appId, apiKey, requests });
       const r0 = json?.results?.[0];
       const hits = Array.isArray(r0?.hits) ? r0.hits : [];
 
@@ -362,41 +349,10 @@ export default async function handler(req, res) {
           objectID: hits[0]?.objectID ?? null,
           keys: Object.keys(hits[0] || {}).slice(0, 80),
         };
-        drop.counts.__debug_mode = mode;
       }
 
       drop.counts.totalHits += hits.length;
-
       if (!hits.length) break;
-
-      // If FAST mode returns hits but ALL missingListingName, switch to WIDE and re-fetch page 0 once.
-      if (mode === "fast" && page === 0) {
-        let missingNameCount = 0;
-        for (const hit of hits) {
-          const nm = extractListingName(hit);
-          if (!nm) missingNameCount++;
-        }
-        if (missingNameCount === hits.length) {
-          mode = "wide";
-
-          // re-fetch page 0 in WIDE mode (no attributesToRetrieve)
-          const jsonWide = await algoliaQueries({ host, appId, apiKey, requests: [{ ...request, facets: [], attributesToRetrieve: undefined }] });
-          const r0w = jsonWide?.results?.[0];
-          const hitsW = Array.isArray(r0w?.hits) ? r0w.hits : [];
-
-          // reset the current loop’s hits to wide hits
-          hits.length = 0;
-          hits.push(...hitsW);
-
-          if (hitsW.length) {
-            drop.counts.__debug_firstHit = {
-              objectID: hitsW[0]?.objectID ?? null,
-              keys: Object.keys(hitsW[0] || {}).slice(0, 80),
-            };
-            drop.counts.__debug_mode = "wide";
-          }
-        }
-      }
 
       for (const hit of hits) {
         const listingName = extractListingName(hit);
@@ -439,7 +395,11 @@ export default async function handler(req, res) {
         const imageURL = extractImageURL(hit) || "";
 
         const discountPercent = roundInt(((originalPrice - salePrice) / originalPrice) * 100);
-        const { brand, model } = deriveBrandModel(listingName);
+
+        // Prefer brand from hit if present, else derive from listingName
+        const derived = deriveBrandModel(listingName);
+        const brand = cleanText(hit?.brand || "") || derived.brand;
+        const model = derived.model;
 
         deals.push({
           schemaVersion: 1,
