@@ -278,11 +278,11 @@ function toLightweightResponse(output) {
 }
 
 export default async function handler(req, res) {
-  // CRON_SECRET
+/*  // CRON_SECRET
   const auth = req.headers.authorization;
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
-  }
+  }  */
 
   const t0 = Date.now();
 
