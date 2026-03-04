@@ -327,11 +327,21 @@
   "expectedBlob": [
     "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/rei/deals.json"
   ],
-  "aliases": ["rei", "rei.com"],
+
+ "aliases": [
+    "REI",
+    "REI Co-op",
+    "REI Co-op Outlet",
+    "REI Outlet",
+    "REI Garage",
+    "REI-Garage",
+    "REI.com"
+  ],
+  
   "enabled": true,
   "scraperType": "playwright",
   "notes": "Uses REI JSON endpoint via Playwright to bypass 403 and paginate deals"
-}
+},
   {
     "id": "rnj-sports",
     "displayName": "RNJ Sports",
