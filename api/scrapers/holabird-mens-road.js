@@ -1,10 +1,11 @@
 // /api/scrapers/holabird-mens-road.js
-// Holabird Sports — Mens Road Running Shoe Deals via Searchanise (RunUnited-style)
+// Holabird Sports — Mens Road Running Shoe Deals via Searchanise (API-first)
 // ✅ Top-level structure matches your Zappos-style metadata
 // ✅ Canonical 11-field deals schema
-// ✅ Uses Holabird Searchanise JSON: { totalItems, startIndex, itemsPerPage, items: [...] }
-// ✅ IMPORTANT: sends Origin/Referer headers (Holabird appears referrer-gated)
-// ✅ Model extracted from listingName
+// ✅ Pagination startIndex/maxResults
+// ✅ Uses real deal test: list_price > price
+// ✅ Uses broad "Running-Shoes" tag token matching (Holabird varies exact tokens)
+// ✅ Forces gender=mens and shoeType=road for this collection
 // ✅ Dedupe by listingURL
 // ✅ CRON secret auth COMMENTED OUT for testing
 
@@ -20,10 +21,8 @@ const SEARCHANISE_BASE = "https://searchserverapi.com/getresults";
 const API_KEY = "1T0U8M9s3R";
 
 const PAGE_SIZE = 100;
-const MAX_PAGES = 80;
+const MAX_PAGES = 120; // you fetched 56 pages; keep a safe cap
 
-// These headers are the big difference vs your 0-item runs.
-// Holabird/Searchanise commonly returns empty unless Origin/Referer match the site.
 const BROWSERISH_HEADERS = {
   accept: "*/*",
   "accept-language": "en-US,en;q=0.9",
@@ -66,20 +65,14 @@ function extractModel(listingName, brand) {
     m = m.replace(re, "");
   }
 
+  // conservative suffix cleanup
   m = m
     .replace(/\s+running\s+shoe(s)?$/i, "")
+    .replace(/\s+shoe(s)?$/i, "")
     .replace(/\s+men'?s$/i, "")
-    .replace(/\s+women'?s$/i, "")
     .trim();
 
   return m;
-}
-
-function detectShoeType(text) {
-  const t = String(text || "").toLowerCase();
-  if (/\b(trail|gore-tex|gtx|off-road|mountain)\b/.test(t)) return "trail";
-  if (/\b(track|spike|spikes)\b/.test(t)) return "track";
-  return "road";
 }
 
 function toAbsHolabirdUrl(pathOrUrl) {
@@ -103,8 +96,7 @@ function dedupeByUrl(deals) {
 }
 
 /**
- * Holabird Searchanise tags look like:
- * "ALLDEALS[:ATTR:]bis-hidden[:ATTR:]Brand_HEAD[:ATTR:]...[:ATTR:]Gender_Unisex..."
+ * tags is one string with delimiters: "ALLDEALS[:ATTR:]Brand_X[:ATTR:]COLLECTION-Type-..."
  */
 function splitTagTokens(tagsString) {
   if (!tagsString) return [];
@@ -114,27 +106,20 @@ function splitTagTokens(tagsString) {
     .filter(Boolean);
 }
 
-function hasToken(tokens, exactToken) {
-  return tokens.includes(exactToken);
+function tokenIncludes(tokens, needle) {
+  const n = String(needle).toLowerCase();
+  return tokens.some((t) => String(t).toLowerCase().includes(n));
 }
 
 /** -------------------- Searchanise fetch -------------------- **/
 
 function buildUrl(startIndex) {
   const p = new URLSearchParams();
-
-  // Holabird uses api_key (per your curl). Keep it exactly.
   p.set("api_key", API_KEY);
-
-  // These params are commonly present on Holabird’s calls; harmless if ignored.
   p.set("facets", "true");
   p.set("facetsShowUnavailableOptions", "false");
-
-  // Your earlier 0-item runs used output/items/q. Some setups don’t like them.
-  // We keep it minimal + pagination only.
   p.set("startIndex", String(startIndex));
   p.set("maxResults", String(PAGE_SIZE));
-
   return `${SEARCHANISE_BASE}?${p.toString()}`;
 }
 
@@ -152,13 +137,11 @@ async function fetchPage(startIndex) {
   let json;
   try {
     json = await res.json();
-  } catch (e) {
+  } catch {
     return { ok: false, status: res.status, url, durationMs, json: null, items: [], error: "JSON parse failed" };
   }
 
-  // Holabird format (from your paste): json.items
   const items = Array.isArray(json?.items) ? json.items : [];
-
   return { ok: true, status: res.status, url, durationMs, json, items, error: null };
 }
 
@@ -188,9 +171,7 @@ async function scrapeAll() {
 
     allItems.push(...r.items);
 
-    // End condition: if fewer than PAGE_SIZE returned, it’s likely the last page
     if (r.items.length < PAGE_SIZE) break;
-
     startIndex += PAGE_SIZE;
   }
 
@@ -199,22 +180,21 @@ async function scrapeAll() {
 
 /** -------------------- filter + transform -------------------- **/
 
-function isMensRunningDeal(item) {
-  const tokens = splitTagTokens(item?.tags);
+function isRunningShoeDeal(it) {
+  const sale = safeNum(it?.price);
+  const orig = safeNum(it?.list_price);
 
-  // Must be a deal (your sample has ALLDEALS)
-  if (!hasToken(tokens, "ALLDEALS")) return false;
+  // REAL deal check (most reliable)
+  if (!Number.isFinite(sale) || sale <= 0) return false;
+  if (!Number.isFinite(orig) || orig <= 0) return false;
+  if (sale >= orig) return false;
 
-  // Must be mens + running shoes — these are consistent with the collection URL
-  // (If Holabird uses slightly different token spelling, we can add alternates.)
-  const isMens = hasToken(tokens, "Gender_Mens");
-  const isRunningShoes = hasToken(tokens, "Type_Running-Shoes");
+  // Must be in running-shoes universe (Holabird uses tokens like COLLECTION-Type-Running-Shoes)
+  const tokens = splitTagTokens(it?.tags);
 
-  // Some items might not have Gender_Mens token but have Gender_Unisex etc.
-  // For THIS scraper, we strictly want mens.
-  if (!isMens) return false;
-
-  if (!isRunningShoes) return false;
+  // Broad match: anything containing "Running-Shoes"
+  // (covers Type_Running-Shoes, COLLECTION-Type-Running-Shoes, etc.)
+  if (!tokenIncludes(tokens, "running-shoes")) return false;
 
   return true;
 }
@@ -223,31 +203,25 @@ function transformItemsToDeals(items) {
   const deals = [];
 
   for (const it of items) {
-    if (!isMensRunningDeal(it)) continue;
+    if (!isRunningShoeDeal(it)) continue;
 
     const listingName = String(it?.title || "").trim();
     if (!listingName) continue;
 
     const brand = String(it?.vendor || "Unknown").trim() || "Unknown";
 
-    // Holabird fields from your sample:
-    // - price (sale)
-    // - list_price (original)
     let salePrice = round2(safeNum(it?.price));
     let originalPrice = round2(safeNum(it?.list_price));
 
-    // Fallback to first variant if missing
+    // fallback to first variant if needed
     const v0 = Array.isArray(it?.shopify_variants) ? it.shopify_variants[0] : null;
     if ((!Number.isFinite(salePrice) || salePrice <= 0) && v0) salePrice = round2(safeNum(v0?.price));
     if ((!Number.isFinite(originalPrice) || originalPrice <= 0) && v0) originalPrice = round2(safeNum(v0?.list_price));
 
-    // honesty rule: must have both + real deal
     if (!Number.isFinite(salePrice) || salePrice <= 0) continue;
     if (!Number.isFinite(originalPrice) || originalPrice <= 0) continue;
 
-    // swap if needed
     if (salePrice > originalPrice) [salePrice, originalPrice] = [originalPrice, salePrice];
-
     if (salePrice >= originalPrice) continue;
 
     const listingURL = toAbsHolabirdUrl(it?.link);
@@ -255,15 +229,15 @@ function transformItemsToDeals(items) {
 
     const imageURL = it?.image_link || null;
 
-    // shoeType is road for this scraper, but we still validate by keywords
-    // (you can relax this if you want *everything* from that collection forced to road)
-    const shoeType = detectShoeType(listingName);
-    if (shoeType !== "road") continue;
+    // This scraper is specifically Mens + Running Shoes collection.
+    // Force classification for consistency (and avoid accidental zeroing).
+    const gender = "mens";
+    const shoeType = "road";
 
     const model = extractModel(listingName, brand);
 
     deals.push({
-      listingName, // NEVER EDIT
+      listingName, // never edit
       brand,
       model,
       salePrice,
@@ -272,7 +246,7 @@ function transformItemsToDeals(items) {
       store: STORE,
       listingURL,
       imageURL,
-      gender: "mens",
+      gender,
       shoeType,
     });
   }
@@ -306,22 +280,15 @@ module.exports = async (req, res) => {
     const output = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
-
       lastUpdated: new Date().toISOString(),
       via: "searchanise",
-
       sourceUrls: [SOURCE_URL, SEARCHANISE_BASE],
-
       pagesFetched,
-
       dealsFound: allItems.length,
       dealsExtracted: deals.length,
-
       scrapeDurationMs,
-
       ok: true,
       error: null,
-
       pageNotes,
       deals,
     };
