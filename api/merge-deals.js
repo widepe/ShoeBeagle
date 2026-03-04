@@ -1167,7 +1167,9 @@ function toIsoDayUTC(isoOrDate) {
 function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
   const payload = meta?.payloadMeta || null;
   const timestamp = meta?.timestamp || payload?.lastUpdated || payload?.timestamp || payload?.scrapedAt || null;
-  const durationMs = parseDurationMs(meta?.duration || payload?.scrapeDurationMs || payload?.duration || null);
+  const durationMs = parseDurationMs(
+  (meta?.duration != null ? meta.duration : (payload?.scrapeDurationMs ?? payload?.elapsedMs ?? payload?.duration ?? null))
+);
   const via = meta?.source || null;
   const blobUrl = meta?.blobUrl || null;
 
@@ -1457,15 +1459,15 @@ module.exports = async (req, res) => {
               : prev.timestamp
             : timestamp || prev.timestamp || null;
 
-        storeMetadata[key] = {
-          blobUrl: blobUrl || prev.blobUrl || null,
-          timestamp: newestTs,
-          duration: duration || prev.duration || null,
-          count: prevCount + safeArray(deals).length,
-          ageDays: ageDays != null ? ageDays : prev.ageDays ?? null,
-          staleExcluded: !!isTooOld,
-          staleThresholdDays: MAX_STORE_DATA_AGE_DAYS,
-        };
+storeMetadata[key] = {
+  blobUrl: blobUrl || prev.blobUrl || null,
+  timestamp: newestTs,
+  duration: (duration != null ? duration : (prev.duration ?? null)),
+  count: prevCount + safeArray(deals).length,
+  ageDays: ageDays != null ? ageDays : (prev.ageDays ?? null),
+  staleExcluded: !!isTooOld,
+  staleThresholdDays: (prev.staleThresholdDays ?? MAX_STORE_DATA_AGE_DAYS),
+};
 
         perSourceMeta[key] = { name, source, deals, blobUrl, timestamp, duration, payloadMeta };
 
