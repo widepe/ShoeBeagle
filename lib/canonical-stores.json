@@ -15,25 +15,24 @@
     "scraperType": "cheerio",
     "notes": "no notes"
   },
-  {
-    "id": "asics",
-    "displayName": "ASICS",
-    "addedAt": "2026-02-09",
-    "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-      "https://www.asics.com/us/en-us/womens-clearance/c/aa20106000/running/shoes/?prefn1=c_surface&prefv1=Road",
-      "https://www.asics.com/us/en-us/womens-clearance/c/aa20106000/running/shoes/?prefn1=c_surface&prefv1=Off-Road",
-      "https://www.asics.com/us/en-us/mens-clearance/c/aa10106000/running/shoes/?prefn1=c_surface&prefv1=Road",
-      "https://www.asics.com/us/en-us/mens-clearance/c/aa10106000/running/shoes/?prefn1=c_surface&prefv1=Off-Road"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/asics-sale.json"
-    ],
-    "aliases": ["asics"],
-    "enabled": true,
-    "scraperType": "cheerio",
-    "notes": "no notes"
-  },
+{
+  "id": "asics",
+  "displayName": "ASICS",
+  "addedAt": "2026-02-09",
+  "lastUpdated": "2026-03-04",
+  "scrapedUrls": [
+    "https://www.asics.com/us/en-us/mens-clearance/c/aa10106000/running/shoes/",
+    "https://www.asics.com/us/en-us/womens-clearance/c/aa20106000/running/shoes/",
+    "https://www.asics.com/us/en-us/styles-leaving-asics-com/c/aa60400001/running/shoes/?prefn1=c_productGender&prefv1=Women%7CMen"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/asics-sale.json"
+  ],
+  "aliases": ["asics"],
+  "enabled": true,
+  "scraperType": "firecrawl-cheerio",
+  "notes": "Scrapes 3 ASICS running clearance categories (mens, womens, last chance). Shoe type inferred from model name."
+}
 
 {
   "id": "backcountry",
