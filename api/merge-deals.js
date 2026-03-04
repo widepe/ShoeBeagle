@@ -665,8 +665,7 @@ async function loadDealsFromBlobOnly({ name, blobUrl }) {
     const payload = await fetchJson(u);
     const deals = extractDealsFromPayload(payload);
 
-    metadata.source = "blob";
-    metadata.deals = deals;
+metadata.source = payload.via || "blob";    metadata.deals = deals;
     metadata.blobUrl = u;
 
     // Support multiple timestamp field names
