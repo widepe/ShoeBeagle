@@ -1,4 +1,4 @@
-// /api/scrapers/holabird-mens-road.js
+// /api/scrapers/holabird-sports.js
 const { put } = require("@vercel/blob");
 const { scrapeHolabirdCollection, dedupeByUrl, buildTopLevel } = require("./_holabirdShared");
 
