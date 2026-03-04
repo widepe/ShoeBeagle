@@ -1,10 +1,9 @@
 // /api/scrapers/jdsports-algolia.js
 //
-// ✅ Scrapes JD Sports running shoes sale via Algolia (NO Firecrawl)
-// ✅ Fast mode: attributesToRetrieve + no facets + no highlights/snippets
-// ✅ Applies your rules (honesty; dedupe by listingURL)
-// ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: jdsports.json
-// ✅ Returns LIGHTWEIGHT response (no deals array) + blobUrl
+// ✅ JD Sports via Algolia (NO Firecrawl)
+// ✅ FAST mode + auto-fallback to WIDE mode if name/url fields are missing
+// ✅ Writes jdsports.json to Vercel Blob
+// ✅ Returns lightweight response
 //
 // ENV required:
 // - JDSPORTS_ALGOLIA_APP_ID
@@ -21,26 +20,21 @@ import { put } from "@vercel/blob";
 function nowIso() {
   return new Date().toISOString();
 }
-
 function cleanText(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
 }
-
 function parseMoney(x) {
   if (x === null || x === undefined) return null;
   if (typeof x === "number") return Number.isFinite(x) ? x : null;
-
   const t = String(x).trim();
   if (!t) return null;
   const m = t.replace(/[^0-9.]/g, "");
   const n = Number(m);
   return Number.isFinite(n) ? n : null;
 }
-
 function roundInt(n) {
   return Number.isFinite(n) ? Math.round(n) : null;
 }
-
 function pickFirstTruthy(...vals) {
   for (const v of vals) {
     if (v !== null && v !== undefined && String(v).trim() !== "") return v;
@@ -56,118 +50,11 @@ function normalizeListingUrl(u) {
   return url;
 }
 
-function extractListingName(hit) {
-  return cleanText(
-    pickFirstTruthy(
-      hit?.listingName,
-      hit?.name,
-      hit?.title,
-      hit?.product_name,
-      hit?.productName
-    ) || ""
-  );
-}
-
-function extractListingURL(hit) {
-  return normalizeListingUrl(
-    pickFirstTruthy(hit?.url, hit?.pdpUrl, hit?.productUrl, hit?.link, hit?.path) || ""
-  );
-}
-
-function extractImageURL(hit) {
-  const raw = pickFirstTruthy(
-    hit?.imageURL,
-    hit?.imageUrl,
-    hit?.image,
-    hit?.image_url,
-    hit?.thumbnail,
-    hit?.thumbnail_url
-  );
-
-  const url = cleanText(raw || "");
-  if (!url) return "";
-  if (url.startsWith("//")) return `https:${url}`;
-  if (url.startsWith("http")) return url;
-  if (url.startsWith("/")) return `https://www.jdsports.com${url}`;
-  return url;
-}
-
-function extractPrices(hit) {
-  const saleCandidate = pickFirstTruthy(
-    hit?.salePrice,
-    hit?.sale_price,
-    hit?.final_price,
-    hit?.current_price,
-    hit?.price?.sale,
-    hit?.price?.current,
-    hit?.price
-  );
-
-  const originalCandidate = pickFirstTruthy(
-    hit?.originalPrice,
-    hit?.original_price,
-    hit?.regular_price,
-    hit?.msrp,
-    hit?.compare_at_price,
-    hit?.was_price,
-    hit?.price?.original,
-    hit?.price?.regular
-  );
-
-  const salePrice = parseMoney(saleCandidate);
-  const originalPrice = parseMoney(originalCandidate);
-  return { salePrice, originalPrice };
-}
-
-function inferGenderFromHit(hit, listingName) {
-  const candidates = [
-    hit?.facet_gender,
-    hit?.gender,
-    hit?.product_gender,
-    hit?.department,
-  ].filter(Boolean);
-
-  const joined = cleanText(candidates.join(" ")).toLowerCase();
-  if (joined.includes("women")) return "womens";
-  if (joined.includes("men")) return "mens";
-  if (joined.includes("unisex")) return "unisex";
-
-  // Fallback: listingName prefix rule
-  const n = (listingName || "").toLowerCase();
-  if (n.startsWith("women's ")) return "womens";
-  if (n.startsWith("men's ")) return "mens";
-  if (n.startsWith("unisex ")) return "unisex";
-
-  return null; // drop
-}
-
-function inferShoeType(listingName, hit) {
-  const n = (listingName || "").toLowerCase();
-  const facets = [
-    hit?.facet_surface,
-    hit?.surface,
-    hit?.facet_activity,
-    hit?.activity,
-  ]
-    .flat()
-    .filter(Boolean)
-    .map((v) => String(v).toLowerCase());
-
-  const blob = [n, ...facets].join(" ");
-
-  if (blob.includes("trail")) return "trail";
-  if (blob.includes("road")) return "road";
-  return "unknown";
-}
-
 // IMPORTANT: Never edit listingName; only derive brand/model.
 function deriveBrandModel(listingName) {
   let s = cleanText(listingName);
 
-  // Remove gender prefix
   s = s.replace(/^(Women's|Men's|Unisex)\s+/i, "");
-
-  // Remove trailing "Running Shoes"
   s = s.replace(/\s+(Trail|Road)\s+Running\s+Shoes\s*$/i, "");
   s = s.replace(/\s+Running\s+Shoes\s*$/i, "");
   s = cleanText(s);
@@ -190,6 +77,114 @@ function deriveBrandModel(listingName) {
   return { brand, model };
 }
 
+function inferGenderFromHit(hit, listingName) {
+  const candidates = [hit?.facet_gender, hit?.gender, hit?.department].filter(Boolean);
+  const joined = cleanText(candidates.join(" ")).toLowerCase();
+  if (joined.includes("women")) return "womens";
+  if (joined.includes("men")) return "mens";
+  if (joined.includes("unisex")) return "unisex";
+
+  // fallback: prefix rule
+  const n = (listingName || "").toLowerCase();
+  if (n.startsWith("women's ")) return "womens";
+  if (n.startsWith("men's ")) return "mens";
+  if (n.startsWith("unisex ")) return "unisex";
+  return null;
+}
+
+function inferShoeType(listingName, hit) {
+  const n = (listingName || "").toLowerCase();
+  const facets = [hit?.facet_surface, hit?.surface, hit?.facet_activity, hit?.activity]
+    .flat()
+    .filter(Boolean)
+    .map((v) => String(v).toLowerCase());
+  const blob = [n, ...facets].join(" ");
+  if (blob.includes("trail")) return "trail";
+  if (blob.includes("road")) return "road";
+  return "unknown";
+}
+
+// --- Extraction (wide, defensive) ---
+function extractListingName(hit) {
+  // add lots of common variants; safe even if missing
+  return cleanText(
+    pickFirstTruthy(
+      hit?.listingName,
+      hit?.name,
+      hit?.title,
+      hit?.product_name,
+      hit?.productName,
+      hit?.product_title,
+      hit?.productTitle,
+      hit?.display_name,
+      hit?.displayName,
+      hit?.product_display_name,
+      hit?.seo_title,
+      hit?.h1,
+      hit?.sku_name
+    ) || ""
+  );
+}
+
+function extractListingURL(hit) {
+  return normalizeListingUrl(
+    pickFirstTruthy(
+      hit?.url,
+      hit?.pdpUrl,
+      hit?.productUrl,
+      hit?.pdp_url,
+      hit?.product_url,
+      hit?.link,
+      hit?.path,
+      hit?.seo_url,
+      hit?.canonical_url
+    ) || ""
+  );
+}
+
+function extractImageURL(hit) {
+  const raw = pickFirstTruthy(
+    hit?.imageURL,
+    hit?.imageUrl,
+    hit?.image,
+    hit?.image_url,
+    hit?.thumbnail,
+    hit?.thumbnail_url,
+    hit?.main_image,
+    hit?.mainImage
+  );
+  const url = cleanText(raw || "");
+  if (!url) return "";
+  if (url.startsWith("//")) return `https:${url}`;
+  if (url.startsWith("http")) return url;
+  if (url.startsWith("/")) return `https://www.jdsports.com${url}`;
+  return url;
+}
+
+function extractPrices(hit) {
+  // Your debug shows: final_price + price
+  // Often: final_price = sale, price = original
+  const saleCandidate = pickFirstTruthy(hit?.final_price, hit?.salePrice, hit?.sale_price, hit?.current_price);
+  const originalCandidate = pickFirstTruthy(hit?.price, hit?.originalPrice, hit?.original_price, hit?.regular_price, hit?.msrp);
+
+  // If "price" is an object, try common keys inside it
+  let original = originalCandidate;
+  if (original && typeof original === "object") {
+    original = pickFirstTruthy(
+      original?.original,
+      original?.regular,
+      original?.value,
+      original?.amount,
+      original?.current
+    );
+  }
+
+  const salePrice = parseMoney(saleCandidate);
+  const originalPrice = parseMoney(original);
+
+  return { salePrice, originalPrice };
+}
+
 function makeDropTracker() {
   const counts = {
     totalHits: 0,
@@ -201,6 +196,7 @@ function makeDropTracker() {
     dropped_notADeal: 0,
     kept: 0,
     __debug_firstHit: null,
+    __debug_mode: null,
   };
 
   const bump = (key) => {
@@ -278,11 +274,11 @@ function toLightweightResponse(output) {
 }
 
 export default async function handler(req, res) {
-/*  // CRON_SECRET
+  // CRON_SECRET
   const auth = req.headers.authorization;
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
-  }  */
+  }
 
   const t0 = Date.now();
 
@@ -304,97 +300,103 @@ export default async function handler(req, res) {
     const deals = [];
     const seenUrl = new Set();
 
-    // Keep conservative for Vercel. Adjust if needed.
     const MAX_PAGES = 8;
     const HITS_PER_PAGE = 100;
 
-    // FAST: only fetch fields we might use (huge payload reduction)
-    const ATTRS = [
-      // names
-      "listingName",
+    // FAST: very small payload. (But we auto-fallback if it hides title/url fields.)
+    const FAST_ATTRS = [
+      "objectID",
+      "final_price",
+      "price",
+      "facet_gender",
+      "facet_activity",
+      "facet_category",
+
+      // try some likely title/url/image fields (may be wrong on JD; that’s okay)
       "name",
       "title",
       "product_name",
       "productName",
-
-      // urls
       "url",
+      "path",
       "pdpUrl",
       "productUrl",
-      "link",
-      "path",
-
-      // images
-      "imageURL",
-      "imageUrl",
       "image",
-      "image_url",
+      "imageUrl",
       "thumbnail",
-      "thumbnail_url",
-
-      // prices
-      "salePrice",
-      "sale_price",
-      "final_price",
-      "current_price",
-      "price",
       "originalPrice",
-      "original_price",
       "regular_price",
       "msrp",
-      "compare_at_price",
-      "was_price",
-
-      // gender / facets (for infer)
-      "facet_gender",
-      "gender",
-      "product_gender",
-      "department",
-      "facet_activity",
-      "facet_category",
-      "facet_surface",
-      "surface",
-      "activity",
     ];
 
+    let mode = "fast"; // "fast" or "wide"
+
     for (let page = 0; page < MAX_PAGES; page++) {
-      const requests = [
-        {
-          indexName,
-          analytics: false,
-          clickAnalytics: false,
-          analyticsTags: ["jd-all-sale", "browse", "web"],
-          facetFilters: [["facet_activity:Running"], ["facet_category:Shoes"]],
+      const request = {
+        indexName,
+        analytics: false,
+        clickAnalytics: false,
+        analyticsTags: ["jd-all-sale", "browse", "web"],
+        facetFilters: [["facet_activity:Running"], ["facet_category:Shoes"]],
+        filters: "",
+        hitsPerPage: HITS_PER_PAGE,
+        page,
+        query: "",
+        ruleContexts: ["jd-all-sale", "web"],
+        userToken: "anonymous",
+      };
 
-          // FAST: no facets, no highlight/snippet payload
-          facets: [],
-          attributesToRetrieve: ATTRS,
-          attributesToHighlight: [],
-          attributesToSnippet: [],
+      if (mode === "fast") {
+        request.facets = [];
+        request.attributesToRetrieve = FAST_ATTRS;
+        request.attributesToHighlight = [];
+        request.attributesToSnippet = [];
+      }
 
-          filters: "",
-          hitsPerPage: HITS_PER_PAGE,
-          page,
-          query: "",
-          ruleContexts: ["jd-all-sale", "web"],
-          userToken: "anonymous",
-        },
-      ];
-
-      const json = await algoliaQueries({ host, appId, apiKey, requests });
+      const json = await algoliaQueries({ host, appId, apiKey, requests: [request] });
       const r0 = json?.results?.[0];
       const hits = Array.isArray(r0?.hits) ? r0.hits : [];
 
       if (page === 0 && hits.length) {
         drop.counts.__debug_firstHit = {
           objectID: hits[0]?.objectID ?? null,
-          keys: Object.keys(hits[0] || {}).slice(0, 60),
+          keys: Object.keys(hits[0] || {}).slice(0, 80),
         };
+        drop.counts.__debug_mode = mode;
       }
 
       drop.counts.totalHits += hits.length;
 
       if (!hits.length) break;
+
+      // If FAST mode returns hits but ALL missingListingName, switch to WIDE and re-fetch page 0 once.
+      if (mode === "fast" && page === 0) {
+        let missingNameCount = 0;
+        for (const hit of hits) {
+          const nm = extractListingName(hit);
+          if (!nm) missingNameCount++;
+        }
+        if (missingNameCount === hits.length) {
+          mode = "wide";
+
+          // re-fetch page 0 in WIDE mode (no attributesToRetrieve)
+          const jsonWide = await algoliaQueries({ host, appId, apiKey, requests: [{ ...request, facets: [], attributesToRetrieve: undefined }] });
+          const r0w = jsonWide?.results?.[0];
+          const hitsW = Array.isArray(r0w?.hits) ? r0w.hits : [];
+
+          // reset the current loop’s hits to wide hits
+          hits.length = 0;
+          hits.push(...hitsW);
+
+          if (hitsW.length) {
+            drop.counts.__debug_firstHit = {
+              objectID: hitsW[0]?.objectID ?? null,
+              keys: Object.keys(hitsW[0] || {}).slice(0, 80),
+            };
+            drop.counts.__debug_mode = "wide";
+          }
+        }
+      }
 
       for (const hit of hits) {
         const listingName = extractListingName(hit);
@@ -409,7 +411,6 @@ export default async function handler(req, res) {
           continue;
         }
 
-        // Dedup by PDP URL
         if (seenUrl.has(listingURL)) continue;
         seenUrl.add(listingURL);
 
@@ -489,7 +490,6 @@ export default async function handler(req, res) {
     };
 
     output.blobUrl = await writeBlobJson("jdsports.json", output);
-
     return res.status(200).json(toLightweightResponse(output));
   } catch (err) {
     const scrapeDurationMs = Date.now() - t0;
