@@ -172,23 +172,26 @@
 },
   
   {
-    "id": "holabird-sports",
-    "displayName": "Holabird Sports",
-    "addedAt": "2026-02-09",
-    "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-      "https://www.holabirdsports.com/"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/holabird-mens-road.json",
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/holabird-womens-road.json",
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/holabird-trail-unisex.json"
-    ],
-    "aliases": ["holabird", "holabird sports"],
-    "enabled": true,
-    "scraperType": "cheerio",
-    "notes": "Holabird is split into multiple blobs (mens, womens, trail/unisex)."
-  },
+  "id": "holabird-sports",
+  "displayName": "Holabird Sports",
+  "addedAt": "2026-02-09",
+  "lastUpdated": "2026-03-04",
+  "scrapedUrls": [
+    "https://www.holabirdsports.com/collections/shoe-deals/Gender_Mens+Type_Running-Shoes+",
+    "https://www.holabirdsports.com/collections/shoe-deals/Type_Running-Shoes+Gender_Womens+",
+    "https://www.holabirdsports.com/collections/shoe-deals/Type_Running-Shoes+Gender_Unisex+",
+    "https://www.holabirdsports.com/collections/shoe-deals/Gender_Mens+Type_Trail-Running-Shoes+",
+    "https://www.holabirdsports.com/collections/shoe-deals/Type_Trail-Running-Shoes+Gender_Womens+",
+    "https://www.holabirdsports.com/collections/shoe-deals/Type_Trail-Running-Shoes+Gender_Unisex+"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/holabird-shoe-deals.json"
+  ],
+  "aliases": ["holabird", "holabird sports"],
+  "enabled": true,
+  "scraperType": "cheerio",
+  "notes": "Holabird is combined into a single blob (road + trail, mens/womens/unisex)."
+}
 
 
 {
