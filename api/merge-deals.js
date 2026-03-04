@@ -1397,7 +1397,7 @@ module.exports = async (req, res) => {
       { id: "mizuno", name: "Mizuno", blobUrl: MIZUNO_DEALS_BLOB_URL },
       { id: "nike", name: "Nike", blobUrl: NIKE_DEALS_BLOB_URL },
       { id: "puma", name: "PUMA", blobUrl: PUMA_DEALS_BLOB_URL },
-      { id: "rei-outlet", name: "REI Outlet", blobUrl: REI_DEALS_BLOB_URL },
+      { id: "rei", name: "REI", blobUrl: REI_DEALS_BLOB_URL },
       { id: "rnj-sports", name: "RNJ Sports", blobUrl: RNJSPORTS_DEALS_BLOB_URL },
       { id: "road-runner-sports", name: "Road Runner Sports", blobUrl: ROADRUNNER_DEALS_BLOB_URL },
       { id: "running-warehouse", name: "Running Warehouse", blobUrl: RUNNING_WAREHOUSE_CHEERIO_BLOB_URL },
@@ -1443,8 +1443,6 @@ module.exports = async (req, res) => {
           continue;
         }
 
-const isTooOld = isOlderThanDays(newestTs, MAX_STORE_DATA_AGE_DAYS, nowMs);
-const ageDays = formatAgeDays(newestTs, nowMs);
 
         // Holabird shares an id across 3 blobs; accumulate counts and keep the newest timestamp.
         const prev = storeMetadata[key] || {};
@@ -1459,6 +1457,9 @@ const ageDays = formatAgeDays(newestTs, nowMs);
               : prev.timestamp
             : timestamp || prev.timestamp || null;
 
+        const isTooOld = isOlderThanDays(newestTs, MAX_STORE_DATA_AGE_DAYS, nowMs);
+const ageDays = formatAgeDays(newestTs, nowMs);
+        
 storeMetadata[key] = {
   blobUrl: blobUrl || prev.blobUrl || null,
   timestamp: newestTs,
