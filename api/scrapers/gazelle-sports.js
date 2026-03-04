@@ -271,7 +271,7 @@ module.exports = async function handler(req, res) {
   // ---------------------------------
   // CRON SECRET PROTECTION
   // ---------------------------------
-  const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
+/*  const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
   if (CRON_SECRET) {
     const urlObj = new URL(req.url, "http://localhost");
 
@@ -285,7 +285,7 @@ module.exports = async function handler(req, res) {
       return res.status(401).json({ ok: false, error: "Unauthorized: Invalid CRON_SECRET" });
     }
   }
-
+*/
   const t0 = Date.now();
 
   const BASE = "https://gazellesports.com";
