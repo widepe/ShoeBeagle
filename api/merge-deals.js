@@ -642,14 +642,42 @@ async function fetchJson(url) {
  * - ONE canonical field name: blobUrl (not Url)
  * - Return shape matches what the merge loop destructures.
  */
+
+function extractTopLevelMeta(payload) {
+  // Timestamp: support common top-level keys across your scrapers
+  const timestamp =
+    payload?.lastUpdated ||
+    payload?.timestamp ||
+    payload?.generatedAt ||
+    payload?.scrapedAt ||
+    payload?.runFinishedAt ||
+    null;
+
+  // Duration: support your current keys (and a few common alternates)
+  // Always normalize to a NUMBER (ms) for stats.json + health cards.
+  const durationMs =
+    parseDurationMs(
+      payload?.scrapeDurationMs ??
+      payload?.elapsedMs ??
+      payload?.durationMs ??
+      payload?.duration ??
+      payload?.scrapeDuration ??
+      null
+    );
+
+  // Via: your current structure typically has "via"
+  const via = payload?.via || payload?.source || null;
+
+  return { timestamp, durationMs, via };
+}
 async function loadDealsFromBlobOnly({ name, blobUrl }) {
   const metadata = {
     name,
-    source: null, // "blob" | "error"
+    source: null, // string: "apify" | "firecrawl" | "cheerio" | "shopify-products-json" | "blob" | "error"
     deals: [],
     blobUrl: null,
     timestamp: null,
-    duration: null,
+    duration: null,     // <-- keep field name "duration" for compatibility with rest of merge file
     payloadMeta: null,
     error: null,
   };
@@ -665,13 +693,18 @@ async function loadDealsFromBlobOnly({ name, blobUrl }) {
     const payload = await fetchJson(u);
     const deals = extractDealsFromPayload(payload);
 
-metadata.source = payload.via || "blob";    metadata.deals = deals;
+    const { timestamp, durationMs, via } = extractTopLevelMeta(payload);
+
+    metadata.source = via || payload?.via || "blob";
+    metadata.deals = deals;
     metadata.blobUrl = u;
 
-    // Support multiple timestamp field names
-    metadata.timestamp = payload.lastUpdated || payload.timestamp || payload.scrapedAt || null;
+    // ✅ Top-level structure only
+    metadata.timestamp = timestamp || null;
 
-    metadata.duration = payload.scrapeDurationMs ?? payload.duration ?? null;
+    // ✅ Always ms number (or null)
+    metadata.duration = durationMs != null ? durationMs : null;
+
     metadata.payloadMeta = payload;
 
     return metadata;
