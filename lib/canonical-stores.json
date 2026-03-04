@@ -197,7 +197,7 @@
   "id": "jd-sports",
   "displayName": "JD Sports",
   "addedAt": "2026-02-22",
-  "lastUpdated": "2026-02-22",
+  "lastUpdated": "2026-03-04",
   "scrapedUrls": [
     "https://www.jdsports.com/plp/all-sale/category=shoes+activity=running"
   ],
@@ -206,8 +206,8 @@
   ],
   "aliases": ["jd sports", "jdsports"],
   "enabled": true,
-  "scraperType": "firecrawl",
-  "notes": "JD Sports running shoes sale page via Firecrawl. Scrapes ONE page only. Drops $0 prices and items without original strikethrough price. Writes to jdsports.json via JDSPORTS_DEALS_BLOB_URL / BLOB_READ_WRITE_TOKEN."
+  "scraperType": "algolia",
+  "notes": "JD Sports running shoes sale via Algolia product search API (jd_products_prod index). Much faster than HTML scraping. Filters facet_activity=Running and facet_category=Shoes. Writes to jdsports.json."
 },
 
 
