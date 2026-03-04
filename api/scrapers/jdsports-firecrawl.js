@@ -1,53 +1,162 @@
-// /api/scrapers/jdsports-firecrawl.js
+// /api/scrapers/jdsports-algolia.js
 //
-// ✅ Scrapes 1 JD Sports sale running page via Firecrawl (RAW/HTML)
-// ✅ Applies your rules
+// ✅ Scrapes JD Sports running shoes sale via Algolia (NO Firecrawl)
+// ✅ Fast mode: attributesToRetrieve + no facets + no highlights/snippets
+// ✅ Applies your rules (honesty; dedupe by listingURL)
 // ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: jdsports.json
 // ✅ Returns LIGHTWEIGHT response (no deals array) + blobUrl
-// ✅ Includes dropCounts + dropReasons[] in the BLOB (and in the lightweight response)
 //
 // ENV required:
-// - FIRECRAWL_API_KEY
+// - JDSPORTS_ALGOLIA_APP_ID
+// - JDSPORTS_ALGOLIA_API_KEY
 // - BLOB_READ_WRITE_TOKEN
 //
 // Optional:
-// - JDSPORTS_DEALS_BLOB_URL (for your merge system / debugging)
-// - CRON_SECRET (if you enable cron auth)
+// - JDSPORTS_ALGOLIA_INDEX (default: jd_products_prod)
+// - JDSPORTS_DEALS_BLOB_URL
+// - CRON_SECRET
 
 import { put } from "@vercel/blob";
-import * as cheerio from "cheerio";
 
 function nowIso() {
   return new Date().toISOString();
 }
+
 function cleanText(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
 }
-function parseMoney(s) {
-  const t = String(s || "").trim();
+
+function parseMoney(x) {
+  if (x === null || x === undefined) return null;
+  if (typeof x === "number") return Number.isFinite(x) ? x : null;
+
+  const t = String(x).trim();
   if (!t) return null;
   const m = t.replace(/[^0-9.]/g, "");
   const n = Number(m);
   return Number.isFinite(n) ? n : null;
 }
+
 function roundInt(n) {
   return Number.isFinite(n) ? Math.round(n) : null;
 }
 
-function inferGender(listingName) {
-  const n = listingName.toLowerCase();
+function pickFirstTruthy(...vals) {
+  for (const v of vals) {
+    if (v !== null && v !== undefined && String(v).trim() !== "") return v;
+  }
+  return null;
+}
+
+function normalizeListingUrl(u) {
+  const url = cleanText(u);
+  if (!url) return "";
+  if (url.startsWith("http")) return url;
+  if (url.startsWith("/")) return `https://www.jdsports.com${url}`;
+  return url;
+}
+
+function extractListingName(hit) {
+  return cleanText(
+    pickFirstTruthy(
+      hit?.listingName,
+      hit?.name,
+      hit?.title,
+      hit?.product_name,
+      hit?.productName
+    ) || ""
+  );
+}
+
+function extractListingURL(hit) {
+  return normalizeListingUrl(
+    pickFirstTruthy(hit?.url, hit?.pdpUrl, hit?.productUrl, hit?.link, hit?.path) || ""
+  );
+}
+
+function extractImageURL(hit) {
+  const raw = pickFirstTruthy(
+    hit?.imageURL,
+    hit?.imageUrl,
+    hit?.image,
+    hit?.image_url,
+    hit?.thumbnail,
+    hit?.thumbnail_url
+  );
+
+  const url = cleanText(raw || "");
+  if (!url) return "";
+  if (url.startsWith("//")) return `https:${url}`;
+  if (url.startsWith("http")) return url;
+  if (url.startsWith("/")) return `https://www.jdsports.com${url}`;
+  return url;
+}
+
+function extractPrices(hit) {
+  const saleCandidate = pickFirstTruthy(
+    hit?.salePrice,
+    hit?.sale_price,
+    hit?.final_price,
+    hit?.current_price,
+    hit?.price?.sale,
+    hit?.price?.current,
+    hit?.price
+  );
+
+  const originalCandidate = pickFirstTruthy(
+    hit?.originalPrice,
+    hit?.original_price,
+    hit?.regular_price,
+    hit?.msrp,
+    hit?.compare_at_price,
+    hit?.was_price,
+    hit?.price?.original,
+    hit?.price?.regular
+  );
+
+  const salePrice = parseMoney(saleCandidate);
+  const originalPrice = parseMoney(originalCandidate);
+  return { salePrice, originalPrice };
+}
+
+function inferGenderFromHit(hit, listingName) {
+  const candidates = [
+    hit?.facet_gender,
+    hit?.gender,
+    hit?.product_gender,
+    hit?.department,
+  ].filter(Boolean);
+
+  const joined = cleanText(candidates.join(" ")).toLowerCase();
+  if (joined.includes("women")) return "womens";
+  if (joined.includes("men")) return "mens";
+  if (joined.includes("unisex")) return "unisex";
+
+  // Fallback: listingName prefix rule
+  const n = (listingName || "").toLowerCase();
   if (n.startsWith("women's ")) return "womens";
   if (n.startsWith("men's ")) return "mens";
   if (n.startsWith("unisex ")) return "unisex";
+
   return null; // drop
 }
-function mustBeRunningShoes(listingName) {
-  return listingName.toLowerCase().includes("running shoes");
-}
-function inferShoeType(listingName) {
-  const n = listingName.toLowerCase();
-  if (n.includes("trail running")) return "trail";
-  if (n.includes("road running")) return "road";
+
+function inferShoeType(listingName, hit) {
+  const n = (listingName || "").toLowerCase();
+  const facets = [
+    hit?.facet_surface,
+    hit?.surface,
+    hit?.facet_activity,
+    hit?.activity,
+  ]
+    .flat()
+    .filter(Boolean)
+    .map((v) => String(v).toLowerCase());
+
+  const blob = [n, ...facets].join(" ");
+
+  if (blob.includes("trail")) return "trail";
+  if (blob.includes("road")) return "road";
   return "unknown";
 }
 
@@ -58,14 +167,13 @@ function deriveBrandModel(listingName) {
   // Remove gender prefix
   s = s.replace(/^(Women's|Men's|Unisex)\s+/i, "");
 
-  // Remove trailing running shoes phrases
+  // Remove trailing "Running Shoes"
   s = s.replace(/\s+(Trail|Road)\s+Running\s+Shoes\s*$/i, "");
   s = s.replace(/\s+Running\s+Shoes\s*$/i, "");
   s = cleanText(s);
 
   if (!s) return { brand: "unknown", model: "unknown" };
 
-  // multi-word brand fix
   const multiWordBrands = ["New Balance"];
   for (const b of multiWordBrands) {
     const bl = b.toLowerCase();
@@ -76,159 +184,23 @@ function deriveBrandModel(listingName) {
     }
   }
 
-  // default: first token is brand
   const parts = s.split(" ");
   const brand = parts[0] ? cleanText(parts[0]) : "unknown";
   const model = parts.length > 1 ? cleanText(parts.slice(1).join(" ")) : "unknown";
   return { brand, model };
 }
 
-// -----------------------------
-// IMAGE URL EXTRACTION (robust)
-// -----------------------------
-function decodeHtmlEntities(s) {
-  return String(s || "").replace(/&amp;/g, "&").trim();
-}
-function pickFromSrcset(srcset) {
-  const s = cleanText(srcset);
-  if (!s) return "";
-  const first = s.split(",")[0]?.trim() || "";
-  return first.split(/\s+/)[0] || "";
-}
-function normalizeImgUrl(u) {
-  let url = decodeHtmlEntities(u);
-  if (!url) return "";
-  if (url.startsWith("data:")) return "";
-  if (url.startsWith("//")) url = "https:" + url;
-  return url;
-}
-
-function extractImageURLFromDom(node, $) {
-  const c = [];
-
-  node.find("img").each((_, img) => {
-    const el = $(img);
-    c.push(el.attr("src") || "");
-    c.push(el.attr("data-src") || "");
-    c.push(pickFromSrcset(el.attr("srcset") || ""));
-    c.push(pickFromSrcset(el.attr("data-srcset") || ""));
-  });
-
-  node.find("source").each((_, src) => {
-    const el = $(src);
-    c.push(pickFromSrcset(el.attr("srcset") || ""));
-    c.push(pickFromSrcset(el.attr("data-srcset") || ""));
-  });
-
-  const urls = c.map(normalizeImgUrl).filter(Boolean);
-  if (!urls.length) return "";
-
-  return (
-    urls.find((u) => u.includes("media.jdsports.com/")) ||
-    urls.find((u) => u.includes("jdsports")) ||
-    urls[0] ||
-    ""
-  );
-}
-
-function buildImageUrlFromSku(sku) {
-  const s = String(sku || "").trim();
-  if (!s) return "";
-  return `https://media.jdsports.com/s/jdsports/${encodeURIComponent(s)}?$Main$?&w=660&h=660&fmt=auto`;
-}
-
-function deriveSkuFromListingURL(listingURL) {
-  try {
-    const u = new URL(listingURL);
-    const parts = u.pathname.split("/").filter(Boolean);
-    // Example:
-    // /pdp/mens-on-cloudswift-4-running-shoes/prod2872829/3MF11003/002
-    // parts = ["pdp","mens-on-cloudswift-4-running-shoes","prod2872829","3MF11003","002"]
-    if (parts.length >= 2) {
-      const last = parts[parts.length - 1];
-      const prev = parts[parts.length - 2];
-      if (prev && last && /^[A-Za-z0-9]+$/.test(prev) && /^[A-Za-z0-9]+$/.test(last)) {
-        return `${prev}_${last}`;
-      }
-    }
-  } catch {}
-  return "";
-}
-
-function extractImageURL(node, $, listingURL) {
-  // 1) DOM extraction
-  const fromDom = extractImageURLFromDom(node, $);
-  if (fromDom) return fromDom;
-
-  // 2) data-sku attribute (if Firecrawl kept it)
-  const skuAttr = node.attr("data-sku") || node.find("[data-sku]").first().attr("data-sku") || "";
-  if (skuAttr) {
-    const url = buildImageUrlFromSku(skuAttr);
-    if (url) return url;
-  }
-
-  // 3) derive SKU from listingURL path segments
-  const derivedSku = deriveSkuFromListingURL(listingURL);
-  const fromUrl = buildImageUrlFromSku(derivedSku);
-  if (fromUrl) return fromUrl;
-
-  return "";
-}
-
-// -----------------------------
-// FIRECRAWL
-// -----------------------------
-async function firecrawlScrapeHtml(url) {
-  const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
-  if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
-
-  const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      url,
-      formats: ["html"],
-
-      maxAge: 0,
-      storeInCache: false,
-
-      waitFor: 2000,
-      removeBase64Images: true,
-
-      timeout: 60000,
-    }),
-  });
-
-  const json = await resp.json().catch(() => null);
-
-  if (!resp.ok) {
-    const msg = json?.error || json?.message || `Firecrawl HTTP ${resp.status}`;
-    throw new Error(`Firecrawl failed: ${msg}`);
-  }
-
-  const html = json?.data?.rawHtml || json?.data?.html || "";
-  if (!html) throw new Error("Firecrawl returned empty rawHtml/html");
-  return html;
-}
-
 function makeDropTracker() {
   const counts = {
-    totalTiles: 0,
-
-    dropped_gender: 0,
-    dropped_notRunningShoes: 0,
+    totalHits: 0,
+    dropped_missingListingName: 0,
     dropped_missingUrl: 0,
-
+    dropped_gender: 0,
     dropped_saleMissingOrZero: 0,
     dropped_originalMissingOrZero: 0,
     dropped_notADeal: 0,
-
     kept: 0,
-
-    __debug_firstTile: null,
+    __debug_firstHit: null,
   };
 
   const bump = (key) => {
@@ -237,9 +209,9 @@ function makeDropTracker() {
 
   function toSummaryArray() {
     const rows = [
-      { reason: "dropped_gender", count: counts.dropped_gender, note: "Name must start with Women's / Men's / Unisex" },
-      { reason: "dropped_notRunningShoes", count: counts.dropped_notRunningShoes, note: "Name must include 'running shoes'" },
+      { reason: "dropped_missingListingName", count: counts.dropped_missingListingName, note: "No title/name field found" },
       { reason: "dropped_missingUrl", count: counts.dropped_missingUrl, note: "No PDP link found" },
+      { reason: "dropped_gender", count: counts.dropped_gender, note: "Could not infer mens/womens/unisex" },
       { reason: "dropped_saleMissingOrZero", count: counts.dropped_saleMissingOrZero, note: "Sale price missing/invalid/0" },
       { reason: "dropped_originalMissingOrZero", count: counts.dropped_originalMissingOrZero, note: "Original price missing/invalid/0" },
       { reason: "dropped_notADeal", count: counts.dropped_notADeal, note: "originalPrice must be > salePrice" },
@@ -251,111 +223,24 @@ function makeDropTracker() {
   return { counts, bump, toSummaryArray };
 }
 
-function parseDealsFromHtml(html, drop) {
-  if (html.includes("Your Access Has Been Denied")) {
-    return { blocked: true, dealsFound: 0, deals: [] };
+async function algoliaQueries({ host, appId, apiKey, requests }) {
+  const resp = await fetch(`https://${host}/1/indexes/*/queries`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+      "x-algolia-application-id": appId,
+      "x-algolia-api-key": apiKey,
+    },
+    body: JSON.stringify({ requests }),
+  });
+
+  const json = await resp.json().catch(() => null);
+  if (!resp.ok) {
+    const msg = json?.message || json?.error || `Algolia HTTP ${resp.status}`;
+    throw new Error(`Algolia failed: ${msg}`);
   }
-
-  const $ = cheerio.load(html);
-  const tiles = $('div[data-testid="product-item"]');
-
-  drop.counts.totalTiles = tiles.length;
-
-  // dealsFound = unique PDP URLs
-  const hrefSet = new Set();
-  tiles.each((_, el) => {
-    const href = $(el).find('a[href*="/pdp/"]').first().attr("href") || "";
-    if (!href) return;
-    const abs = href.startsWith("http") ? href : `https://www.jdsports.com${href}`;
-    hrefSet.add(abs);
-  });
-  const dealsFound = hrefSet.size;
-
-  const deals = [];
-
-  tiles.each((_, el) => {
-    const node = $(el);
-
-    const a = node.find('a[href*="/pdp/"]').first();
-    const href = a.attr("href") || "";
-    const listingURL = href
-      ? href.startsWith("http")
-        ? href
-        : `https://www.jdsports.com${href}`
-      : "";
-
-    if (!listingURL) {
-      drop.bump("dropped_missingUrl");
-      return;
-    }
-
-    const listingName = cleanText(
-      node.find("h4.text-default-primary").first().text() ||
-        node.find("h4").first().text() ||
-        ""
-    );
-
-    const gender = inferGender(listingName);
-    if (!gender) {
-      drop.bump("dropped_gender");
-      return;
-    }
-
-    if (!mustBeRunningShoes(listingName)) {
-      drop.bump("dropped_notRunningShoes");
-      return;
-    }
-
-    const shoeType = inferShoeType(listingName);
-
-    const saleText = cleanText(node.find("h4.text-default-onSale").first().text() || "");
-    const originalText = cleanText(node.find("p.line-through").first().text() || "");
-
-    const salePrice = parseMoney(saleText);
-    const originalPrice = parseMoney(originalText);
-
-    if (!(Number.isFinite(salePrice) && salePrice > 0)) {
-      drop.bump("dropped_saleMissingOrZero");
-      return;
-    }
-    if (!(Number.isFinite(originalPrice) && originalPrice > 0)) {
-      drop.bump("dropped_originalMissingOrZero");
-      return;
-    }
-    if (!(originalPrice > salePrice)) {
-      drop.bump("dropped_notADeal");
-      return;
-    }
-
-    const imageURL = extractImageURL(node, $, listingURL) || "";
-
-    const discountPercent = roundInt(((originalPrice - salePrice) / originalPrice) * 100);
-    const { brand, model } = deriveBrandModel(listingName);
-
-    deals.push({
-      schemaVersion: 1,
-      listingName,
-      brand,
-      model,
-      salePrice,
-      originalPrice,
-      discountPercent,
-      salePriceLow: null,
-      salePriceHigh: null,
-      originalPriceLow: null,
-      originalPriceHigh: null,
-      discountPercentUpTo: null,
-      store: "JD Sports",
-      listingURL,
-      imageURL,
-      gender,
-      shoeType,
-    });
-
-    drop.bump("kept");
-  });
-
-  return { blocked: false, dealsFound, deals };
+  return json;
 }
 
 async function writeBlobJson(key, obj) {
@@ -366,7 +251,7 @@ async function writeBlobJson(key, obj) {
     access: "public",
     token,
     contentType: "application/json",
-    addRandomSuffix: false, // keep exactly jdsports.json
+    addRandomSuffix: false,
   });
 
   return result?.url || null;
@@ -385,82 +270,225 @@ function toLightweightResponse(output) {
     scrapeDurationMs: output.scrapeDurationMs,
     ok: output.ok,
     error: output.error,
-
     dropCounts: output.dropCounts || null,
     dropReasons: output.dropReasons || null,
-
     blobUrl: output.blobUrl || null,
     configuredBlobUrl: output.configuredBlobUrl || null,
   };
 }
 
 export default async function handler(req, res) {
-  // Avoid req.query (Vercel runtime uses deprecated url.parse() under the hood)
-  const urlObj = new URL(req.url, "http://localhost");
-
-  // -----------------------------
-  // CRON SECRET (optional)
-  // -----------------------------
-const secret = process.env.CRON_SECRET;
-if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
-  return res.status(401).json({ ok: false, error: "Unauthorized" });
-}
-
-  const startUrl =
-    String(urlObj.searchParams.get("url") || "").trim() ||
-    "https://www.jdsports.com/plp/all-sale/category=shoes+activity=running";
-
-  const configuredBlobUrl = String(process.env.JDSPORTS_DEALS_BLOB_URL || "").trim() || null;
+  // CRON_SECRET
+  const auth = req.headers.authorization;
+  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
 
   const t0 = Date.now();
 
-  try {
-    const html = await firecrawlScrapeHtml(startUrl);
+  const configuredBlobUrl = String(process.env.JDSPORTS_DEALS_BLOB_URL || "").trim() || null;
 
-    const drop = makeDropTracker();
-    const parsed = parseDealsFromHtml(html, drop);
+  const appId = String(process.env.JDSPORTS_ALGOLIA_APP_ID || "").trim();
+  const apiKey = String(process.env.JDSPORTS_ALGOLIA_API_KEY || "").trim();
+  const indexName = String(process.env.JDSPORTS_ALGOLIA_INDEX || "jd_products_prod").trim();
+
+  if (!appId) return res.status(500).json({ ok: false, error: "Missing JDSPORTS_ALGOLIA_APP_ID" });
+  if (!apiKey) return res.status(500).json({ ok: false, error: "Missing JDSPORTS_ALGOLIA_API_KEY" });
+
+  const host = `${appId.toLowerCase()}-dsn.algolia.net`;
+  const startUrl = `algolia:${indexName} facet_activity=Running facet_category=Shoes ruleContexts=jd-all-sale`;
+
+  const drop = makeDropTracker();
+
+  try {
+    const deals = [];
+    const seenUrl = new Set();
+
+    // Keep conservative for Vercel. Adjust if needed.
+    const MAX_PAGES = 8;
+    const HITS_PER_PAGE = 100;
+
+    // FAST: only fetch fields we might use (huge payload reduction)
+    const ATTRS = [
+      // names
+      "listingName",
+      "name",
+      "title",
+      "product_name",
+      "productName",
+
+      // urls
+      "url",
+      "pdpUrl",
+      "productUrl",
+      "link",
+      "path",
+
+      // images
+      "imageURL",
+      "imageUrl",
+      "image",
+      "image_url",
+      "thumbnail",
+      "thumbnail_url",
+
+      // prices
+      "salePrice",
+      "sale_price",
+      "final_price",
+      "current_price",
+      "price",
+      "originalPrice",
+      "original_price",
+      "regular_price",
+      "msrp",
+      "compare_at_price",
+      "was_price",
+
+      // gender / facets (for infer)
+      "facet_gender",
+      "gender",
+      "product_gender",
+      "department",
+      "facet_activity",
+      "facet_category",
+      "facet_surface",
+      "surface",
+      "activity",
+    ];
+
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const requests = [
+        {
+          indexName,
+          analytics: false,
+          clickAnalytics: false,
+          analyticsTags: ["jd-all-sale", "browse", "web"],
+          facetFilters: [["facet_activity:Running"], ["facet_category:Shoes"]],
+
+          // FAST: no facets, no highlight/snippet payload
+          facets: [],
+          attributesToRetrieve: ATTRS,
+          attributesToHighlight: [],
+          attributesToSnippet: [],
+
+          filters: "",
+          hitsPerPage: HITS_PER_PAGE,
+          page,
+          query: "",
+          ruleContexts: ["jd-all-sale", "web"],
+          userToken: "anonymous",
+        },
+      ];
+
+      const json = await algoliaQueries({ host, appId, apiKey, requests });
+      const r0 = json?.results?.[0];
+      const hits = Array.isArray(r0?.hits) ? r0.hits : [];
+
+      if (page === 0 && hits.length) {
+        drop.counts.__debug_firstHit = {
+          objectID: hits[0]?.objectID ?? null,
+          keys: Object.keys(hits[0] || {}).slice(0, 60),
+        };
+      }
+
+      drop.counts.totalHits += hits.length;
+
+      if (!hits.length) break;
+
+      for (const hit of hits) {
+        const listingName = extractListingName(hit);
+        if (!listingName) {
+          drop.bump("dropped_missingListingName");
+          continue;
+        }
+
+        const listingURL = extractListingURL(hit);
+        if (!listingURL) {
+          drop.bump("dropped_missingUrl");
+          continue;
+        }
+
+        // Dedup by PDP URL
+        if (seenUrl.has(listingURL)) continue;
+        seenUrl.add(listingURL);
+
+        const gender = inferGenderFromHit(hit, listingName);
+        if (!gender) {
+          drop.bump("dropped_gender");
+          continue;
+        }
+
+        const { salePrice, originalPrice } = extractPrices(hit);
+
+        if (!(Number.isFinite(salePrice) && salePrice > 0)) {
+          drop.bump("dropped_saleMissingOrZero");
+          continue;
+        }
+        if (!(Number.isFinite(originalPrice) && originalPrice > 0)) {
+          drop.bump("dropped_originalMissingOrZero");
+          continue;
+        }
+        if (!(originalPrice > salePrice)) {
+          drop.bump("dropped_notADeal");
+          continue;
+        }
+
+        const shoeType = inferShoeType(listingName, hit);
+        const imageURL = extractImageURL(hit) || "";
+
+        const discountPercent = roundInt(((originalPrice - salePrice) / originalPrice) * 100);
+        const { brand, model } = deriveBrandModel(listingName);
+
+        deals.push({
+          schemaVersion: 1,
+          listingName,
+          brand,
+          model,
+          salePrice,
+          originalPrice,
+          discountPercent,
+          salePriceLow: null,
+          salePriceHigh: null,
+          originalPriceLow: null,
+          originalPriceHigh: null,
+          discountPercentUpTo: null,
+          store: "JD Sports",
+          listingURL,
+          imageURL,
+          gender,
+          shoeType,
+        });
+
+        drop.bump("kept");
+      }
+
+      const nbPages = Number(r0?.nbPages);
+      if (Number.isFinite(nbPages) && page + 1 >= nbPages) break;
+    }
 
     const scrapeDurationMs = Date.now() - t0;
 
-    let output;
-    if (parsed.blocked) {
-      output = {
-        store: "JD Sports",
-        schemaVersion: 1,
-        lastUpdated: nowIso(),
-        via: "firecrawl",
-        sourceUrls: [startUrl],
-        pagesFetched: 1,
-        dealsFound: 0,
-        dealsExtracted: 0,
-        scrapeDurationMs,
-        ok: false,
-        error: "Blocked: Your Access Has Been Denied",
-        deals: [],
-        dropCounts: { totalTiles: 0, kept: 0, __debug_firstTile: null },
-        dropReasons: [{ reason: "blocked", count: 1, note: "JD Sports returned an access denied page" }],
-      };
-    } else {
-      output = {
-        store: "JD Sports",
-        schemaVersion: 1,
-        lastUpdated: nowIso(),
-        via: "firecrawl",
-        sourceUrls: [startUrl],
-        pagesFetched: 1,
-        dealsFound: parsed.dealsFound,
-        dealsExtracted: parsed.deals.length,
-        scrapeDurationMs,
-        ok: true,
-        error: null,
-        deals: parsed.deals,
-        dropCounts: drop.counts,
-        dropReasons: drop.toSummaryArray(),
-      };
-    }
+    const output = {
+      store: "JD Sports",
+      schemaVersion: 1,
+      lastUpdated: nowIso(),
+      via: "algolia",
+      sourceUrls: [startUrl],
+      pagesFetched: null,
+      dealsFound: seenUrl.size,
+      dealsExtracted: deals.length,
+      scrapeDurationMs,
+      ok: true,
+      error: null,
+      deals,
+      dropCounts: drop.counts,
+      dropReasons: drop.toSummaryArray(),
+      blobUrl: null,
+      configuredBlobUrl,
+    };
 
     output.blobUrl = await writeBlobJson("jdsports.json", output);
-    output.configuredBlobUrl = configuredBlobUrl;
 
     return res.status(200).json(toLightweightResponse(output));
   } catch (err) {
@@ -470,22 +498,21 @@ if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
       store: "JD Sports",
       schemaVersion: 1,
       lastUpdated: nowIso(),
-      via: "firecrawl",
+      via: "algolia",
       sourceUrls: [startUrl],
-      pagesFetched: 1,
+      pagesFetched: null,
       dealsFound: 0,
       dealsExtracted: 0,
       scrapeDurationMs,
       ok: false,
       error: String(err?.message || err),
       deals: [],
-      dropCounts: null,
-      dropReasons: null,
+      dropCounts: drop?.counts || null,
+      dropReasons: drop?.toSummaryArray?.() || null,
       blobUrl: null,
       configuredBlobUrl,
     };
 
-    // Best-effort failure blob
     try {
       output.blobUrl = await writeBlobJson("jdsports.json", output);
     } catch {}
