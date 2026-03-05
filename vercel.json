@@ -8,9 +8,6 @@
 
     { "path": "/api/scrapers/cheerio_scrapers_2", "schedule": "30 9 * * *" },
 
-    { "path": "/api/scrapers/holabird-mens-road", "schedule": "40 9 * * *" },
-    { "path": "/api/scrapers/holabird-womens-road", "schedule": "45 9 * * *" },
-    { "path": "/api/scrapers/holabird-trail-unisex", "schedule": "50 9 * * *" },
 
     { "path": "/api/merge-deals", "schedule": "55 9 * * *" },
 
