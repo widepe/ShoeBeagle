@@ -374,6 +374,29 @@
     "scraperType": "apify",
     "notes": "no notes"
   },
+
+{
+  "id": "runnersplus",
+  "displayName": "Runners Plus",
+  "addedAt": "2026-03-05",
+  "lastUpdated": "2026-03-05",
+  "scrapedUrls": [
+    "https://www.runnersplus.com/collections/mens-sale?filter.v.availability=1&sort_by=created-descending",
+    "https://www.runnersplus.com/collections/womens-sale?filter.v.availability=1&sort_by=created-descending",
+    "https://www.runnersplus.com/collections/sale?filter.v.availability=1&sort_by=created-descending"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/runnersplus.json"
+  ],
+  "aliases": [
+    "runnersplus",
+    "runners plus"
+  ],
+  "enabled": true,
+  "scraperType": "vercel",
+  "notes": "Shopify section_id product grid scraper (UI pagination). Collects product URLs from the grid and fetches /products/<handle>.json for pricing. Gender inferred from title, shoeType forced to unknown. Writes to runnersplus.json."
+},
+  
   {
     "id": "running-warehouse",
     "displayName": "Running Warehouse",
