@@ -86,15 +86,9 @@ module.exports = async function handler(req, res) {
     "/api/scrapers/trackshack-clearance",
     "/api/scrapers/als-sale",
     "/api/scrapers/shoebacca-clearance",
-
-    // Run United — NOT Cheerio
-    // Uses Searchanise API (searchserverapi*/getresults) to fetch products directly.
-    // Much faster than HTML scraping.
+    // Run United — NOT Cheerio. Uses Searchanise API (searchserverapi*/getresults) to fetch products directly.
     "/api/scrapers/rununited-searchanise",
-
-    // JD Sports — NOT Cheerio
-    // Uses Algolia Search API (*/1/indexes/*/queries) to fetch products directly.
-    // Much faster than HTML scraping.
+    // JD Sports — NOT Cheerio. Uses Algolia Search API (*/1/indexes/*/queries) to fetch products directly.
     "/api/scrapers/jdsports-algolia",
   ];
 
