@@ -1,4 +1,4 @@
-// /api/scrapers/big-peach-running-co.js  (CommonJS)
+// /api/scrapers/big-peach-running-co-firecrawl.js  (CommonJS)
 //
 // Big Peach Running Co (RunFree storefront) — Deals! Footwear page
 // Writes ONE blob: .../big-peach-running-co.json
@@ -16,6 +16,7 @@
 
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
+module.exports.config = { maxDuration: 120 };
 
 const STORE = "Big Peach Running Co";
 const SCHEMA_VERSION = 1;
