@@ -1,440 +1,373 @@
 // /api/going-going-gone.js  (CommonJS)
 //
-// GoingGoingGone (DSG catalog API) scraper that:
-//  - Fetches paginated product search JSON
-//  - Filters to ONLY listings whose name contains "running shoes" (case-insensitive)
-//  - Outputs your canonical deal schema (shoeType always "unknown" for this store)
-//  - Writes FULL payload (including deals[]) to Vercel Blob at: going-going-gone.json
-//  - Returns a SMALL SUMMARY ONLY (Option A) — NO deals[] in the HTTP response
+// GoingGoingGone Firecrawl scraper (Vercel)
 //
-// ENV you likely already use elsewhere:
-//   BLOB_READ_WRITE_TOKEN  (required for Vercel Blob put)
+// Rules you required:
+// - ONLY running shoes: listingName MUST contain "running shoes" (case-insensitive)
+// - No sneakers/other products
+// - shoeType is road/trail/track/unknown -> for this site ALWAYS "unknown"
+// - Store is "GoingGoingGone"
+// - Upload blob to STABLE name: "going-going-gone.json"
+// - Top-level structure matches your standard
+// - HTTP response must be a SMALL SUMMARY (no big deals array)
 //
-// Optional ENV (only if you want to send these to DSG; otherwise omitted):
-//   DSG_STORE_ID
-//   DSG_SELECTED_STORE
-//   DSG_ZIPCODE
+// Env vars:
+// - FIRECRAWL_API_KEY
+// - BLOB_READ_WRITE_TOKEN
+// - (optional) CRON_SECRET
 //
-// Optional ENV:
-//   DSG_PAGE_SIZE (default 24)
-//   DSG_SELECTED_SORT (default 5)
-//   DSG_CATEGORY (default "12301_10515458")  // women's sale category from your sample
-//
-// NOTE on "filter to running":
-//   We do TWO layers:
-//   (1) Try to ask the API for Activity=Running via selectedFilters["4285"]=["Running"]
-//   (2) Enforce your hard rule anyway: name must contain "running shoes"
-//
-// CRON SECRET (commented out for testing)
-// const auth = req.headers.authorization;
-// if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-//   return res.status(401).json({ success: false, error: "Unauthorized" });
-// }
+// Note: This intentionally does NOT use any DSG internal API endpoints (no zipcode/storeId).
 
 const { put } = require("@vercel/blob");
+const cheerio = require("cheerio");
 
 const STORE = "GoingGoingGone";
 const SCHEMA_VERSION = 1;
-
-const DSG_API =
-  "https://prod-catalog-product-api.dickssportinggoods.com/v2/search?searchVO=";
 
 function nowIso() {
   return new Date().toISOString();
 }
 
-function asNumber(x) {
-  const n = typeof x === "number" ? x : Number(x);
+function makeRunId() {
+  const rand = Math.random().toString(36).slice(2, 10);
+  return `goinggoinggone-${rand}`;
+}
+
+function round2(n) {
+  return Math.round(n * 100) / 100;
+}
+
+function computeDiscountPercent(sale, original) {
+  if (!Number.isFinite(sale) || !Number.isFinite(original) || original <= 0) return null;
+  const pct = ((original - sale) / original) * 100;
+  return round2(pct);
+}
+
+function isRunningShoeTitle(title) {
+  return /running shoes/i.test(title);
+}
+
+function parseMoneyToNumber(text) {
+  if (!text) return null;
+  const m = String(text).match(/([0-9]+(?:\.[0-9]{1,2})?)/);
+  if (!m) return null;
+  const n = Number(m[1]);
   return Number.isFinite(n) ? n : null;
 }
 
-function safeJsonParse(str, fallback) {
-  try {
-    return JSON.parse(str);
-  } catch {
-    return fallback;
-  }
-}
-
-// DSG sends attributes as a string like: "[{\"X_BRAND\":\"Nike\"}, ...]"
-function parseAttributesList(attributesStr) {
-  const arr = safeJsonParse(attributesStr, []);
-  return Array.isArray(arr) ? arr : [];
-}
-
-function detectGenderFromAttributes(attributesStr) {
-  const attrs = parseAttributesList(attributesStr);
-  // Look for "Women's" anywhere
-  for (const obj of attrs) {
-    if (!obj || typeof obj !== "object") continue;
-    for (const v of Object.values(obj)) {
-      if (typeof v === "string" && v.toLowerCase().includes("women")) return "women";
-    }
-  }
+function guessGenderFromTitle(title) {
+  if (/women/i.test(title)) return "women";
+  if (/men/i.test(title)) return "men";
   return "unknown";
 }
 
-function buildListingUrl(assetSeoUrl) {
-  if (!assetSeoUrl) return null;
-  return `https://www.goinggoinggone.com${assetSeoUrl}`;
-}
+function extractBrandModel(listingName) {
+  const cleaned = String(listingName || "").trim().replace(/\s+/g, " ");
+  const lower = cleaned.toLowerCase();
+  const knownTwoWordBrands = ["new balance"];
 
-function buildImageUrl(imageId) {
-  if (!imageId) return null;
-  return `https://dks.scene7.com/is/image/dks/${imageId}?wid=600&fmt=png-alpha`;
-}
-
-function extractPrices(floatFacets) {
-  const facets = Array.isArray(floatFacets) ? floatFacets : [];
-
-  const offerPrices = [];
-  const listPrices = [];
-
-  for (const f of facets) {
-    if (!f || typeof f !== "object") continue;
-    const id = String(f.identifier || "").toLowerCase();
-    const val = asNumber(f.value ?? f.stringValue);
-
-    if (val == null) continue;
-
-    if (id.includes("offerprice")) offerPrices.push(val);
-    if (id.includes("listprice")) listPrices.push(val);
+  for (const b of knownTwoWordBrands) {
+    if (lower.startsWith(b + " ")) {
+      const brand = b
+        .split(" ")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+      const rest = cleaned.slice(b.length).trim();
+      return {
+        brand,
+        model: rest.replace(/\s+running shoes$/i, "").trim() || rest,
+      };
+    }
   }
 
-  // Choose the best single prices:
-  // - salePrice: min offerprice (best deal)
-  // - originalPrice: max listprice (most conservative "was" price if multiple)
-  const salePrice = offerPrices.length ? Math.min(...offerPrices) : null;
-  const originalPrice = listPrices.length ? Math.max(...listPrices) : null;
+  const first = cleaned.split(" ")[0] || "Unknown";
+  const rest = cleaned.slice(first.length).trim();
 
-  return { salePrice, originalPrice };
-}
-
-function computeDiscountPercent(salePrice, originalPrice) {
-  if (salePrice == null || originalPrice == null) return null;
-  if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return null;
-  if (originalPrice <= 0) return null;
-  // NOTE: You said "don't worry about negative for now" (merge-deals will drop it).
-  // We'll still compute it here.
-  const pct = ((originalPrice - salePrice) / originalPrice) * 100;
-  // Round to 2 decimals to match your sample feel
-  return Math.round(pct * 100) / 100;
-}
-
-function deriveModelFromName(name, brand) {
-  const n = String(name || "").trim();
-  const b = String(brand || "").trim();
-  if (!n) return "";
-
-  // Remove leading "Brand " (case-insensitive)
-  let s = n;
-  if (b) {
-    const re = new RegExp(`^${escapeRegExp(b)}\\s+`, "i");
-    s = s.replace(re, "");
-  }
-
-  // Remove leading gender tokens if present
-  s = s.replace(/^(men's|mens|women's|womens|unisex)\s+/i, "");
-
-  // Remove trailing "Running Shoes" (and variants)
-  s = s.replace(/\s+(road\s+)?running\s+shoes$/i, "");
-  s = s.replace(/\s+running\s+shoe$/i, "");
-
-  return s.trim();
-}
-
-function escapeRegExp(str) {
-  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-// Build a DSG searchVO object. We omit zipcode/storeId/selectedStore unless env provided.
-function buildSearchVO({ pageNumber, pageSize, selectedSort, selectedCategory }) {
-  const selectedFilters = {
-    // Try to ask for Running activity (your "filter to running" request)
-    // This may or may not reduce results server-side depending on how DSG config is set.
-    "4285": ["Running"],
+  return {
+    brand: first,
+    model: rest.replace(/\s+running shoes$/i, "").trim() || rest || first,
   };
-
-  const vo = {
-    pageNumber,
-    pageSize,
-    selectedSort,
-    selectedCategory,
-    selectedFilters,
-    isFamilyPage: true,
-    mlBypass: false,
-    snbAudience: "",
-    includeFulfillmentFacets: false,
-  };
-
-  // Optional fields (only if you set env vars)
-  if (process.env.DSG_SELECTED_STORE) vo.selectedStore = String(process.env.DSG_SELECTED_STORE);
-  if (process.env.DSG_STORE_ID) vo.storeId = String(process.env.DSG_STORE_ID);
-  if (process.env.DSG_ZIPCODE) vo.zipcode = String(process.env.DSG_ZIPCODE);
-
-  return vo;
 }
 
-async function fetchDsgPage({ pageNumber, pageSize, selectedSort, selectedCategory }) {
-  const searchVO = buildSearchVO({ pageNumber, pageSize, selectedSort, selectedCategory });
-  const encoded = encodeURIComponent(JSON.stringify(searchVO));
-  const url = `${DSG_API}${encoded}`;
-
-  const resp = await fetch(url, {
-    method: "GET",
+// Firecrawl scrape helper (HTML)
+async function firecrawlGetHtml(url, apiKey) {
+  const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
+    method: "POST",
     headers: {
-      accept: "application/json, text/plain, */*",
-      channel: "g3",
-      "x-dsg-platform": "v2",
-      // These two help mimic the real client a bit without overdoing it:
-      origin: "https://www.goinggoinggone.com",
-      referer: "https://www.goinggoinggone.com/",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
     },
+    body: JSON.stringify({
+      url,
+      formats: ["html"],
+      // keep broad so we can parse product grids
+      onlyMainContent: false,
+    }),
   });
 
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    const msg = `DSG API HTTP ${resp.status}: ${text.slice(0, 600)}`;
-    const err = new Error(msg);
-    err.status = resp.status;
-    throw err;
+  const text = await resp.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`Firecrawl non-JSON response (status ${resp.status}): ${text.slice(0, 200)}`);
   }
 
-  return resp.json();
+  if (!resp.ok || !json.success) {
+    const msg = json.error || json.message || `Firecrawl error (status ${resp.status})`;
+    throw new Error(msg);
+  }
+
+  const html = json?.data?.html;
+  if (!html || typeof html !== "string") {
+    throw new Error("Firecrawl returned no HTML");
+  }
+
+  return html;
+}
+
+// Parse a GoingGoingGone listing page HTML
+function parseDealsFromHtml(html) {
+  const $ = cheerio.load(html);
+
+  // Collect anchors to product pages (/p/...)
+  // We'll de-dupe by href.
+  const uniq = new Map();
+
+  $('a[href^="/p/"]').each((_, a) => {
+    const href = ($(a).attr("href") || "").trim();
+    if (!href) return;
+
+    if (uniq.has(href)) return;
+
+    // Title sources: aria-label often contains full product name
+    const aria = ($(a).attr("aria-label") || "").trim();
+    const textTitle = ($(a).text() || "").replace(/\s+/g, " ").trim();
+    const title = (aria || textTitle || "").trim();
+
+    // Image
+    const img = $(a).find("img").first();
+    const imageURL = (img.attr("src") || img.attr("data-src") || "").trim();
+
+    // Nearby text for prices: use closest reasonably-sized container
+    // We try a few parent levels to find price text.
+    let container = $(a).closest("div");
+    if (!container || container.length === 0) container = $(a).parent();
+
+    const blobText = (container.text() || "").replace(/\s+/g, " ").trim();
+    const priceMatches = blobText.match(/\$[0-9]+(?:\.[0-9]{1,2})?/g) || [];
+
+    uniq.set(href, { href, title, imageURL, priceMatches });
+  });
+
+  return Array.from(uniq.values());
+}
+
+// Pagination
+function buildPageUrl(baseUrl, pageNumber) {
+  return pageNumber === 0 ? baseUrl : `${baseUrl}&page=${pageNumber + 1}`;
 }
 
 module.exports = async function handler(req, res) {
-  const t0 = Date.now();
-  const runId = `goinggoinggone-${Math.random().toString(36).slice(2, 10)}`;
+  const startedAt = Date.now();
+  const runId = makeRunId();
 
-  // Only allow GET for simplicity
-  if (req.method !== "GET") {
-    return res.status(405).json({ ok: false, error: "Method Not Allowed" });
+  // -----------------------------------
+  // CRON SECRET (COMMENTED OUT FOR TEST)
+  // -----------------------------------
+  // const auth = req.headers.authorization;
+  // if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  //   return res.status(401).json({ success: false, error: "Unauthorized" });
+  // }
+
+  // Only allow GET/POST
+  if (req.method !== "GET" && req.method !== "POST") {
+    return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  const pageSize = asNumber(process.env.DSG_PAGE_SIZE) || 24;
-  const selectedSort = asNumber(process.env.DSG_SELECTED_SORT) || 5;
-  const selectedCategory = process.env.DSG_CATEGORY || "12301_10515458";
+  const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
+  if (!FIRECRAWL_API_KEY) {
+    return res.status(500).json({ success: false, error: "Missing FIRECRAWL_API_KEY" });
+  }
 
-  // For your dashboard/sourceUrls
-  // This is the user-facing page; the actual fetch uses the DSG API.
-  const sourceUrls = [
-    // A reasonable "running" version of your URL (the site might ignore it; still useful as reference)
-    `https://www.goinggoinggone.com/f/shop-all-womens-sale?pageSize=${pageSize}`,
-  ];
+  const BASE_URL = "https://www.goinggoinggone.com/f/shop-all-womens-sale?pageSize=24";
+  const MAX_PAGES = 6;
+
+  const sourceUrls = [];
+  const pageNotes = [];
+  const deals = [];
+
+  const dropCounts = {
+    totalProducts: 0,
+    dropped_notRunningShoes: 0,
+    dropped_missingPrices: 0,
+    dropped_missingUrl: 0,
+    dropped_other: 0,
+    kept: 0,
+  };
+
+  let ok = true;
+  let error = null;
+
+  // Build URLs
+  for (let pageNumber = 0; pageNumber < MAX_PAGES; pageNumber++) {
+    sourceUrls.push(buildPageUrl(BASE_URL, pageNumber));
+  }
+
+  // Scrape sequentially (gentler)
+  try {
+    for (let i = 0; i < sourceUrls.length; i++) {
+      const url = sourceUrls[i];
+
+      const html = await firecrawlGetHtml(url, FIRECRAWL_API_KEY);
+      const items = parseDealsFromHtml(html);
+
+      pageNotes.push({ pageNumber: i, cards: items.length });
+
+      for (const it of items) {
+        dropCounts.totalProducts += 1;
+
+        const href = String(it.href || "").trim();
+        const listingURL = href.startsWith("http")
+          ? href
+          : href
+          ? `https://www.goinggoinggone.com${href}`
+          : "";
+
+        if (!listingURL || listingURL === "https://www.goinggoinggone.com") {
+          dropCounts.dropped_missingUrl += 1;
+          continue;
+        }
+
+        const listingName = String(it.title || "").replace(/\s+/g, " ").trim();
+        if (!listingName) {
+          dropCounts.dropped_other += 1;
+          continue;
+        }
+
+        // RULE: must explicitly say "running shoes"
+        if (!isRunningShoeTitle(listingName)) {
+          dropCounts.dropped_notRunningShoes += 1;
+          continue;
+        }
+
+        const priceMatches = Array.isArray(it.priceMatches) ? it.priceMatches : [];
+        const salePrice = priceMatches.length >= 1 ? parseMoneyToNumber(priceMatches[0]) : null;
+        const originalPrice = priceMatches.length >= 2 ? parseMoneyToNumber(priceMatches[1]) : null;
+
+        if (salePrice == null || originalPrice == null) {
+          dropCounts.dropped_missingPrices += 1;
+          continue;
+        }
+
+        const discountPercent = computeDiscountPercent(salePrice, originalPrice);
+
+        // Drop negative/zero “discount”
+        if (discountPercent == null || discountPercent <= 0) {
+          dropCounts.dropped_other += 1;
+          continue;
+        }
+
+        const { brand, model } = extractBrandModel(listingName);
+        const gender = guessGenderFromTitle(listingName);
+
+        deals.push({
+          schemaVersion: 1,
+
+          listingName,
+
+          brand: String(brand || "").trim(),
+          model: String(model || "").trim(),
+
+          salePrice,
+          originalPrice,
+          discountPercent,
+
+          salePriceLow: null,
+          salePriceHigh: null,
+          originalPriceLow: null,
+          originalPriceHigh: null,
+          discountPercentUpTo: null,
+
+          store: STORE,
+
+          listingURL,
+          imageURL: String(it.imageURL || "").trim(),
+
+          gender,
+          shoeType: "unknown",
+        });
+
+        dropCounts.kept += 1;
+      }
+    }
+  } catch (e) {
+    ok = false;
+    error = String(e && e.message ? e.message : e);
+  }
 
   const payload = {
     store: STORE,
     schemaVersion: SCHEMA_VERSION,
+
     lastUpdated: nowIso(),
     via: "vercel",
 
     sourceUrls,
-    pagesFetched: 0,
+    pagesFetched: pageNotes.length,
 
-    dealsFound: 0,
-    dealsExtracted: 0,
+    dealsFound: dropCounts.totalProducts,
+    dealsExtracted: deals.length,
 
-    scrapeDurationMs: 0,
+    scrapeDurationMs: Date.now() - startedAt,
 
-    ok: true,
-    error: null,
+    ok,
+    error,
 
-    // FULL DATA ONLY IN BLOB JSON:
-    deals: [],
+    deals,
 
-    // Debug extras (keep; they help you troubleshoot)
     runId,
-    pageNotes: [],
-    dropCounts: {
-      totalProducts: 0,
-      dropped_notRunningShoes: 0,
-      dropped_missingPrices: 0,
-      dropped_missingUrl: 0,
-      dropped_other: 0,
-      kept: 0,
-    },
+    pageNotes,
+    dropCounts,
 
     blobUrl: null,
   };
 
+  // Upload to Vercel Blob (stable filename)
   try {
-    // Fetch first page to get totalCount
-    const first = await fetchDsgPage({
-      pageNumber: 0,
-      pageSize,
-      selectedSort,
-      selectedCategory,
-    });
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    if (!token) throw new Error("Missing BLOB_READ_WRITE_TOKEN");
 
-    const totalCount = asNumber(first.totalCount) ?? 0;
-    payload.dealsFound = totalCount;
-
-    const totalPages = totalCount > 0 ? Math.ceil(totalCount / pageSize) : 0;
-
-    // Process a page response into deals
-    const processPage = (pageJson, pageNumber) => {
-      const productVOs = Array.isArray(pageJson.productVOs) ? pageJson.productVOs : [];
-      payload.dropCounts.totalProducts += productVOs.length;
-
-      payload.pageNotes.push({ pageNumber, cards: productVOs.length });
-
-      for (const p of productVOs) {
-        try {
-          const name = String(p?.name || "").trim();
-          if (!name) {
-            payload.dropCounts.dropped_other += 1;
-            continue;
-          }
-
-          // HARD RULE: must contain "running shoes"
-          if (!/running\s+shoes/i.test(name)) {
-            payload.dropCounts.dropped_notRunningShoes += 1;
-            continue;
-          }
-
-          const brand = String(p?.mfName || "").trim() || "Unknown";
-          const model = deriveModelFromName(name, brand);
-
-          const listingURL = buildListingUrl(p?.assetSeoUrl || p?.dsgSeoUrl);
-          if (!listingURL) {
-            payload.dropCounts.dropped_missingUrl += 1;
-            continue;
-          }
-
-          const imageURL = buildImageUrl(p?.thumbnail || p?.fullImage);
-
-          const { salePrice, originalPrice } = extractPrices(p?.floatFacets);
-          if (salePrice == null || originalPrice == null) {
-            payload.dropCounts.dropped_missingPrices += 1;
-            continue;
-          }
-
-          const discountPercent = computeDiscountPercent(salePrice, originalPrice);
-          const gender = detectGenderFromAttributes(p?.attributes);
-
-          payload.deals.push({
-            schemaVersion: SCHEMA_VERSION,
-
-            listingName: name,
-
-            brand,
-            model,
-
-            salePrice,
-            originalPrice,
-            discountPercent,
-
-            salePriceLow: null,
-            salePriceHigh: null,
-            originalPriceLow: null,
-            originalPriceHigh: null,
-            discountPercentUpTo: null,
-
-            store: STORE,
-
-            listingURL,
-            imageURL,
-
-            gender,
-            shoeType: "unknown",
-          });
-
-          payload.dropCounts.kept += 1;
-        } catch {
-          payload.dropCounts.dropped_other += 1;
-        }
-      }
-    };
-
-    // First page
-    processPage(first, 0);
-    payload.pagesFetched = totalPages > 0 ? 1 : 0;
-
-    // Remaining pages
-    for (let pageNumber = 1; pageNumber < totalPages; pageNumber++) {
-      const pageJson = await fetchDsgPage({
-        pageNumber,
-        pageSize,
-        selectedSort,
-        selectedCategory,
-      });
-      processPage(pageJson, pageNumber);
-      payload.pagesFetched += 1;
-    }
-
-    payload.dealsExtracted = payload.deals.length;
-    payload.scrapeDurationMs = Date.now() - t0;
-
-    // Upload FULL JSON to blob (stable pathname)
     const blob = await put("going-going-gone.json", JSON.stringify(payload, null, 2), {
       access: "public",
       contentType: "application/json",
-      addRandomSuffix: false, // IMPORTANT: stable overwrite
+      token,
     });
 
     payload.blobUrl = blob.url;
-
-    // ✅ Option A: SMALL SUMMARY ONLY (no deals[])
-    return res.status(200).json({
-      ok: payload.ok,
-      store: payload.store,
-      schemaVersion: payload.schemaVersion,
-      lastUpdated: payload.lastUpdated,
-      via: payload.via,
-
-      sourceUrls: payload.sourceUrls,
-      pagesFetched: payload.pagesFetched,
-
-      dealsFound: payload.dealsFound,
-      dealsExtracted: payload.dealsExtracted,
-
-      scrapeDurationMs: payload.scrapeDurationMs,
-
-      runId: payload.runId,
-      blobUrl: payload.blobUrl,
-
-      error: payload.error,
-      dropCounts: payload.dropCounts,
-      pageNotes: payload.pageNotes,
-    });
-  } catch (err) {
+  } catch (e) {
     payload.ok = false;
-    payload.scrapeDurationMs = Date.now() - t0;
-    payload.error = err?.message ? String(err.message) : "Unknown error";
-
-    // Try to still write an error payload to blob (optional but useful)
-    try {
-      const blob = await put("going-going-gone.json", JSON.stringify(payload, null, 2), {
-        access: "public",
-        contentType: "application/json",
-        addRandomSuffix: false,
-      });
-      payload.blobUrl = blob.url;
-    } catch {
-      // ignore blob failure in error path
-    }
-
-    // Summary only (still no deals[])
-    return res.status(200).json({
-      ok: payload.ok,
-      store: payload.store,
-      schemaVersion: payload.schemaVersion,
-      lastUpdated: payload.lastUpdated,
-      via: payload.via,
-
-      sourceUrls: payload.sourceUrls,
-      pagesFetched: payload.pagesFetched,
-
-      dealsFound: payload.dealsFound,
-      dealsExtracted: payload.dealsExtracted,
-
-      scrapeDurationMs: payload.scrapeDurationMs,
-
-      runId: payload.runId,
-      blobUrl: payload.blobUrl,
-
-      error: payload.error,
-    });
+    payload.error = payload.error
+      ? `${payload.error} | blob upload failed: ${String(e && e.message ? e.message : e)}`
+      : `blob upload failed: ${String(e && e.message ? e.message : e)}`;
   }
+
+  // IMPORTANT: Response is SMALL SUMMARY ONLY (no deals array in response)
+  return res.status(payload.ok ? 200 : 500).json({
+    store: payload.store,
+    schemaVersion: payload.schemaVersion,
+    lastUpdated: payload.lastUpdated,
+    via: payload.via,
+    sourceUrls: payload.sourceUrls,
+    pagesFetched: payload.pagesFetched,
+    dealsFound: payload.dealsFound,
+    dealsExtracted: payload.dealsExtracted,
+    scrapeDurationMs: payload.scrapeDurationMs,
+    ok: payload.ok,
+    error: payload.error,
+    runId: payload.runId,
+    pageNotes: payload.pageNotes,
+    dropCounts: payload.dropCounts,
+    blobUrl: payload.blobUrl,
+  });
 };
