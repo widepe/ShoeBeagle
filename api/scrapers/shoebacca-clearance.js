@@ -408,8 +408,8 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // ✅ COMMENTED OUT FOR TESTING (per request)
-  /*
+  // CRON SECRET
+  
   const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
   if (CRON_SECRET) {
     const auth = String(req.headers.authorization || "").trim();
@@ -420,7 +420,7 @@ module.exports = async (req, res) => {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
   }
-  */
+  
 
   const start = Date.now();
 
