@@ -55,7 +55,7 @@ async function callInternal(req, path) {
       : "");
 
   const headers = {};
-  if (cronSecret) headers["x-cron-secret"] = cronSecret;
+if (cronSecret) headers["Authorization"] = `Bearer ${cronSecret}`;
 
   const res = await fetch(url, { method: "GET", headers });
   const text = await res.text();
