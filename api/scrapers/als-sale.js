@@ -218,24 +218,10 @@ async function scrapeCategory(baseUrl, gender) {
 
 function isAuthorized(req) {
   const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
-  if (!CRON_SECRET) return true; // no secret set => open
+  if (!CRON_SECRET) return true;
 
-  // Allow:
-  // 1) Authorization: Bearer <secret>
-  // 2) x-cron-secret: <secret>
-  // 3) ?cron_secret=<secret>   ✅ browser-friendly (matches your Gazelle approach)
   const auth = String(req.headers.authorization || "").trim();
-  const xCron = String(req.headers["x-cron-secret"] || "").trim();
-
-  let qs = "";
-  try {
-    const urlObj = new URL(req.url, "http://localhost");
-    qs = String(urlObj.searchParams.get("cron_secret") || "").trim();
-  } catch {
-    qs = "";
-  }
-
-  return auth === `Bearer ${CRON_SECRET}` || xCron === CRON_SECRET || qs === CRON_SECRET;
+  return auth === `Bearer ${CRON_SECRET}`;
 }
 
 /** -------------------- handler -------------------- **/
