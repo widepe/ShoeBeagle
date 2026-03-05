@@ -307,7 +307,7 @@ export default async function handler(req, res) {
           listingURL,
           imageURL: imageURL || "",
 
-          gender: gender || "",
+          gender: gender || "unknown",
           shoeType: src.shoeType,
         });
       }
