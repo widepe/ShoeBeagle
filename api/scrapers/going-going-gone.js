@@ -1,22 +1,31 @@
 // /api/going-going-gone.js  (CommonJS)
 //
-// GoingGoingGone (DSG catalog API) -> Shoe Beagle deals JSON -> Vercel Blob
+// GoingGoingGone (DSG catalog API) scraper that:
+//  - Fetches paginated product search JSON
+//  - Filters to ONLY listings whose name contains "running shoes" (case-insensitive)
+//  - Outputs your canonical deal schema (shoeType always "unknown" for this store)
+//  - Writes FULL payload (including deals[]) to Vercel Blob at: going-going-gone.json
+//  - Returns a SMALL SUMMARY ONLY (Option A) — NO deals[] in the HTTP response
 //
-// RULES YOU GAVE ME (implemented):
-// - store for the payload is "GoingGoingGone"
-// - blob path is STABLE: "going-going-gone.json" (overwrites each run)
-// - include ONLY items whose listingName contains "running shoes" (case-insensitive)
-// - shoeType is ALWAYS "unknown" for this store
-// - keep your top-level structure fields exactly (plus deals + optional runId/pageNotes/dropCounts debug)
+// ENV you likely already use elsewhere:
+//   BLOB_READ_WRITE_TOKEN  (required for Vercel Blob put)
 //
-// NOTE:
-// - This endpoint sometimes returns HTTP 403 (HTML "Site Maintenance") from datacenter IPs.
-//   If you still see 403 from Vercel, move this scraper to Apify w/ proxies.
+// Optional ENV (only if you want to send these to DSG; otherwise omitted):
+//   DSG_STORE_ID
+//   DSG_SELECTED_STORE
+//   DSG_ZIPCODE
 //
-// ---------------------------
-// AUTH (COMMENTED OUT FOR TESTING)
-// ---------------------------
-// // CRON_SECRET
+// Optional ENV:
+//   DSG_PAGE_SIZE (default 24)
+//   DSG_SELECTED_SORT (default 5)
+//   DSG_CATEGORY (default "12301_10515458")  // women's sale category from your sample
+//
+// NOTE on "filter to running":
+//   We do TWO layers:
+//   (1) Try to ask the API for Activity=Running via selectedFilters["4285"]=["Running"]
+//   (2) Enforce your hard rule anyway: name must contain "running shoes"
+//
+// CRON SECRET (commented out for testing)
 // const auth = req.headers.authorization;
 // if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
 //   return res.status(401).json({ success: false, error: "Unauthorized" });
@@ -24,367 +33,203 @@
 
 const { put } = require("@vercel/blob");
 
-const API_BASE =
-  "https://prod-catalog-product-api.dickssportinggoods.com/v2/search?searchVO=";
-
 const STORE = "GoingGoingGone";
 const SCHEMA_VERSION = 1;
 
-const SOURCE_URLS = [
-  // this is the page your site is browsing
-  "https://www.goinggoinggone.com/f/shop-all-womens-sale?pageSize=24&filterFacets=5382%253AAthletic%2520%2526%2520Sneakers",
-];
+const DSG_API =
+  "https://prod-catalog-product-api.dickssportinggoods.com/v2/search?searchVO=";
 
-// category/filters in your sample request:
-const CFG = {
-  pageSize: 24,
-  selectedSort: 5,
-  selectedCategory: "12301_10515458",
-  // IMPORTANT: the API filter you captured is still "Athletic & Sneakers".
-  // We filter down to "running shoes" ourselves.
-  filter5382: "Athletic & Sneakers",
-
-  // safety
-  maxPages: Number(process.env.GOINGGOINGGONE_MAX_PAGES || 25),
-  timeoutMs: Number(process.env.GOINGGOINGGONE_TIMEOUT_MS || 25_000),
-};
-
-function stripInvisible(s) {
-  if (typeof s !== "string") return "";
-  // remove common invisible/control chars + zero-width + soft hyphen, normalize whitespace
-  return s
-    .replace(/[\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180F\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, "")
-    .replace(/[\u0000-\u001F\u007F]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+function nowIso() {
+  return new Date().toISOString();
 }
 
-function looksLikeRunningShoes(listingName) {
-  const s = stripInvisible(listingName).toLowerCase();
-  return s.includes("running shoes");
+function asNumber(x) {
+  const n = typeof x === "number" ? x : Number(x);
+  return Number.isFinite(n) ? n : null;
 }
 
-function safeJsonParse(s, fallback) {
+function safeJsonParse(str, fallback) {
   try {
-    return JSON.parse(s);
+    return JSON.parse(str);
   } catch {
     return fallback;
   }
 }
 
-function pickCurrentFacet(floatFacets, identifier, nowMs) {
-  const matches = Array.isArray(floatFacets)
-    ? floatFacets.filter((f) => f && f.identifier === identifier)
-    : [];
+// DSG sends attributes as a string like: "[{\"X_BRAND\":\"Nike\"}, ...]"
+function parseAttributesList(attributesStr) {
+  const arr = safeJsonParse(attributesStr, []);
+  return Array.isArray(arr) ? arr : [];
+}
 
-  if (!matches.length) return null;
-
-  // Prefer the one valid "now"
-  const active = matches.find((f) => {
-    const st = Number(f.startDateTime);
-    const en = Number(f.endDateTime);
-    return Number.isFinite(st) && Number.isFinite(en) && nowMs >= st && nowMs <= en;
-  });
-  if (active && Number.isFinite(Number(active.value))) return Number(active.value);
-
-  // Otherwise pick the lowest numeric value (safe for offerprice) or first numeric
-  const nums = matches
-    .map((f) => Number(f.value))
-    .filter((n) => Number.isFinite(n));
-  if (!nums.length) return null;
-
-  // For listprice we could pick max; but typically only one listprice exists.
-  // We'll pick the first for listprice-like identifiers, min for offerprice-like.
-  if (identifier.toLowerCase().includes("offer")) {
-    return Math.min(...nums);
+function detectGenderFromAttributes(attributesStr) {
+  const attrs = parseAttributesList(attributesStr);
+  // Look for "Women's" anywhere
+  for (const obj of attrs) {
+    if (!obj || typeof obj !== "object") continue;
+    for (const v of Object.values(obj)) {
+      if (typeof v === "string" && v.toLowerCase().includes("women")) return "women";
+    }
   }
-  return nums[0];
+  return "unknown";
 }
 
-function computeExactDiscountPercent(original, sale) {
-  if (!Number.isFinite(original) || !Number.isFinite(sale) || original <= 0) return null;
-  const pct = ((original - sale) / original) * 100;
-  if (!Number.isFinite(pct)) return null;
-  // round to 2 decimals
+function buildListingUrl(assetSeoUrl) {
+  if (!assetSeoUrl) return null;
+  return `https://www.goinggoinggone.com${assetSeoUrl}`;
+}
+
+function buildImageUrl(imageId) {
+  if (!imageId) return null;
+  return `https://dks.scene7.com/is/image/dks/${imageId}?wid=600&fmt=png-alpha`;
+}
+
+function extractPrices(floatFacets) {
+  const facets = Array.isArray(floatFacets) ? floatFacets : [];
+
+  const offerPrices = [];
+  const listPrices = [];
+
+  for (const f of facets) {
+    if (!f || typeof f !== "object") continue;
+    const id = String(f.identifier || "").toLowerCase();
+    const val = asNumber(f.value ?? f.stringValue);
+
+    if (val == null) continue;
+
+    if (id.includes("offerprice")) offerPrices.push(val);
+    if (id.includes("listprice")) listPrices.push(val);
+  }
+
+  // Choose the best single prices:
+  // - salePrice: min offerprice (best deal)
+  // - originalPrice: max listprice (most conservative "was" price if multiple)
+  const salePrice = offerPrices.length ? Math.min(...offerPrices) : null;
+  const originalPrice = listPrices.length ? Math.max(...listPrices) : null;
+
+  return { salePrice, originalPrice };
+}
+
+function computeDiscountPercent(salePrice, originalPrice) {
+  if (salePrice == null || originalPrice == null) return null;
+  if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return null;
+  if (originalPrice <= 0) return null;
+  // NOTE: You said "don't worry about negative for now" (merge-deals will drop it).
+  // We'll still compute it here.
+  const pct = ((originalPrice - salePrice) / originalPrice) * 100;
+  // Round to 2 decimals to match your sample feel
   return Math.round(pct * 100) / 100;
 }
 
-function computeUpToDiscountPercent(originalHigh, saleLow) {
-  if (!Number.isFinite(originalHigh) || !Number.isFinite(saleLow) || originalHigh <= 0) return null;
-  const pct = ((originalHigh - saleLow) / originalHigh) * 100;
-  if (!Number.isFinite(pct)) return null;
-  return Math.round(pct * 100) / 100;
+function deriveModelFromName(name, brand) {
+  const n = String(name || "").trim();
+  const b = String(brand || "").trim();
+  if (!n) return "";
+
+  // Remove leading "Brand " (case-insensitive)
+  let s = n;
+  if (b) {
+    const re = new RegExp(`^${escapeRegExp(b)}\\s+`, "i");
+    s = s.replace(re, "");
+  }
+
+  // Remove leading gender tokens if present
+  s = s.replace(/^(men's|mens|women's|womens|unisex)\s+/i, "");
+
+  // Remove trailing "Running Shoes" (and variants)
+  s = s.replace(/\s+(road\s+)?running\s+shoes$/i, "");
+  s = s.replace(/\s+running\s+shoe$/i, "");
+
+  return s.trim();
 }
 
-function buildSearchVO(pageNumber) {
-  // NOTE: zipcode / storeId / selectedStore intentionally REMOVED (your request)
-  return {
+function escapeRegExp(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Build a DSG searchVO object. We omit zipcode/storeId/selectedStore unless env provided.
+function buildSearchVO({ pageNumber, pageSize, selectedSort, selectedCategory }) {
+  const selectedFilters = {
+    // Try to ask for Running activity (your "filter to running" request)
+    // This may or may not reduce results server-side depending on how DSG config is set.
+    "4285": ["Running"],
+  };
+
+  const vo = {
     pageNumber,
-    pageSize: CFG.pageSize,
-    selectedSort: CFG.selectedSort,
-    selectedCategory: CFG.selectedCategory,
-    selectedFilters: {
-      "5382": [CFG.filter5382],
-    },
+    pageSize,
+    selectedSort,
+    selectedCategory,
+    selectedFilters,
     isFamilyPage: true,
     mlBypass: false,
     snbAudience: "",
     includeFulfillmentFacets: false,
   };
+
+  // Optional fields (only if you set env vars)
+  if (process.env.DSG_SELECTED_STORE) vo.selectedStore = String(process.env.DSG_SELECTED_STORE);
+  if (process.env.DSG_STORE_ID) vo.storeId = String(process.env.DSG_STORE_ID);
+  if (process.env.DSG_ZIPCODE) vo.zipcode = String(process.env.DSG_ZIPCODE);
+
+  return vo;
 }
 
-function buildApiUrl(pageNumber) {
-  const vo = buildSearchVO(pageNumber);
-  return API_BASE + encodeURIComponent(JSON.stringify(vo));
-}
+async function fetchDsgPage({ pageNumber, pageSize, selectedSort, selectedCategory }) {
+  const searchVO = buildSearchVO({ pageNumber, pageSize, selectedSort, selectedCategory });
+  const encoded = encodeURIComponent(JSON.stringify(searchVO));
+  const url = `${DSG_API}${encoded}`;
 
-function guessGenderFromAttributes(attributesStr) {
-  // attributesStr looks like JSON string of an array of {"5495":"Women's"} etc.
-  const arr = safeJsonParse(attributesStr, []);
-  if (!Array.isArray(arr)) return "unknown";
+  const resp = await fetch(url, {
+    method: "GET",
+    headers: {
+      accept: "application/json, text/plain, */*",
+      channel: "g3",
+      "x-dsg-platform": "v2",
+      // These two help mimic the real client a bit without overdoing it:
+      origin: "https://www.goinggoinggone.com",
+      referer: "https://www.goinggoinggone.com/",
+    },
+  });
 
-  // Try common fields in your sample
-  const values = [];
-  for (const obj of arr) {
-    if (obj && typeof obj === "object") {
-      for (const [k, v] of Object.entries(obj)) {
-        if (typeof v === "string") values.push(v);
-      }
-    }
-  }
-  const joined = values.join(" | ").toLowerCase();
-  if (joined.includes("women")) return "women";
-  if (joined.includes("men")) return "men";
-  if (joined.includes("unisex")) return "unisex";
-  return "unknown";
-}
-
-function deriveModel(brand, listingName) {
-  // very simple: remove brand prefix if present
-  const b = stripInvisible(brand);
-  let name = stripInvisible(listingName);
-
-  if (b && name.toLowerCase().startsWith(b.toLowerCase() + " ")) {
-    name = name.slice(b.length).trim();
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    const msg = `DSG API HTTP ${resp.status}: ${text.slice(0, 600)}`;
+    const err = new Error(msg);
+    err.status = resp.status;
+    throw err;
   }
 
-  // Remove leading "Women's"/"Men's"/"Unisex" if present
-  name = name.replace(/^(women's|mens|men's|unisex)\s+/i, "").trim();
-
-  // Keep the rest (including "Running Shoes") because you might want it in model search,
-  // but we can also optionally strip trailing "Running Shoes" for cleaner model.
-  const cleaned = name.replace(/\s+running shoes$/i, "").trim();
-
-  return stripInvisible(cleaned || name);
-}
-
-function buildListingUrl(assetSeoUrl) {
-  const path = typeof assetSeoUrl === "string" ? assetSeoUrl : "";
-  if (!path.startsWith("/")) return null;
-  return `https://www.goinggoinggone.com${path}`;
-}
-
-function buildImageUrl(fullImageOrThumb) {
-  // Best-effort: DSG commonly serves images from scene7 under /is/image/dks/<id>
-  // If this doesn't render, we can adjust later once you confirm the exact working pattern.
-  const id = stripInvisible(fullImageOrThumb);
-  if (!id) return null;
-  return `https://dks.scene7.com/is/image/dks/${encodeURIComponent(id)}?wid=600&fmt=png-alpha`;
-}
-
-async function fetchWithTimeout(url, opts, timeoutMs) {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { ...opts, signal: controller.signal });
-    return res;
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-async function fetchPage(pageNumber) {
-  const url = buildApiUrl(pageNumber);
-
-  // Keep these headers "browser-ish" (your 403 came from over-simplifying + datacenter IPs)
-  const headers = {
-    accept: "application/json, text/plain, */*",
-    "accept-language": "en-US,en;q=0.9",
-    channel: "g3",
-    "content-type": "application/json",
-    "disable-pinning": "false",
-    origin: "https://www.goinggoinggone.com",
-    referer: SOURCE_URLS[0],
-    "user-agent":
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-    "x-dsg-platform": "v2",
-
-    // sometimes helps (harmless if ignored)
-    "sec-fetch-site": "cross-site",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-dest": "empty",
-  };
-
-  const res = await fetchWithTimeout(
-    url,
-    { method: "GET", headers, cache: "no-store" },
-    CFG.timeoutMs
-  );
-
-  const ct = res.headers.get("content-type") || "";
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`DSG API HTTP ${res.status} (${ct}): ${txt.slice(0, 600)}`);
-  }
-
-  // If protection returns HTML with 200, detect it
-  if (!ct.toLowerCase().includes("application/json")) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`DSG API non-JSON (${ct}): ${txt.slice(0, 600)}`);
-  }
-
-  return res.json();
-}
-
-function buildDealFromVO(vo, productDetails, nowMs) {
-  const listingName = stripInvisible(vo?.name || "");
-  if (!listingName) return null;
-
-  // must explicitly contain "running shoes"
-  if (!looksLikeRunningShoes(listingName)) return null;
-
-  const brand = stripInvisible(vo?.mfName || "");
-  const model = deriveModel(brand, listingName);
-
-  const parentId = String(vo?.parentCatentryId || vo?.parentCatentryId === 0 ? vo.parentCatentryId : "");
-  const parentDetails = parentId ? productDetails?.[parentId] : null;
-
-  // RANGE PRICES (preferred if present)
-  let saleLow = null,
-    saleHigh = null,
-    origLow = null,
-    origHigh = null;
-
-  if (parentDetails?.prices) {
-    const p = parentDetails.prices;
-
-    const minOffer = Number(p.minofferprice);
-    const maxOffer = Number(p.maxofferprice);
-    const minList = Number(p.minlistprice);
-    const maxList = Number(p.maxlistprice);
-
-    if (Number.isFinite(minOffer) && Number.isFinite(maxOffer)) {
-      saleLow = minOffer;
-      saleHigh = maxOffer;
-    }
-    if (Number.isFinite(minList) && Number.isFinite(maxList)) {
-      origLow = minList;
-      origHigh = maxList;
-    }
-  }
-
-  // SINGLE PRICES (fallback to floatFacets)
-  const floatFacets = vo?.floatFacets || [];
-  const listPrice = pickCurrentFacet(floatFacets, "dickssportinggoodslistprice", nowMs);
-  const offerPrice = pickCurrentFacet(floatFacets, "dickssportinggoodsofferprice", nowMs);
-
-  // Decide whether we’re range or single
-  const hasRange =
-    Number.isFinite(saleLow) &&
-    Number.isFinite(saleHigh) &&
-    saleLow !== saleHigh &&
-    Number.isFinite(origLow) &&
-    Number.isFinite(origHigh) &&
-    origLow !== origHigh;
-
-  const hasSingle =
-    Number.isFinite(offerPrice) && Number.isFinite(listPrice) && listPrice > 0;
-
-  // HONESTY RULE: must have BOTH sale and original (range OR single)
-  if (!hasRange && !hasSingle) return null;
-
-  let salePrice = null;
-  let originalPrice = null;
-
-  let salePriceLow = null,
-    salePriceHigh = null,
-    originalPriceLow = null,
-    originalPriceHigh = null;
-
-  let discountPercent = null;
-  let discountPercentUpTo = null;
-
-  if (hasRange) {
-    // Use range fields; keep legacy salePrice/originalPrice as the LOW end (consistent with "up to")
-    salePriceLow = saleLow;
-    salePriceHigh = saleHigh;
-    originalPriceLow = origLow;
-    originalPriceHigh = origHigh;
-
-    salePrice = saleLow;
-    originalPrice = origHigh; // show the "best" original for context (high end)
-
-    discountPercent = null; // exact-only rule
-    discountPercentUpTo = computeUpToDiscountPercent(origHigh, saleLow);
-  } else {
-    salePrice = offerPrice;
-    originalPrice = listPrice;
-
-    discountPercent = computeExactDiscountPercent(originalPrice, salePrice);
-    discountPercentUpTo = null;
-
-    // keep range fields null
-  }
-
-  const listingURL = buildListingUrl(vo?.assetSeoUrl || vo?.dsgSeoUrl);
-  const imageURL = buildImageUrl(vo?.fullImage || vo?.thumbnail);
-
-  const gender = guessGenderFromAttributes(vo?.attributes);
-
-  return {
-    schemaVersion: SCHEMA_VERSION,
-
-    listingName,
-
-    brand: stripInvisible(brand),
-    model: stripInvisible(model),
-
-    salePrice: Number.isFinite(salePrice) ? salePrice : null,
-    originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
-    discountPercent: Number.isFinite(discountPercent) ? discountPercent : null,
-
-    salePriceLow: Number.isFinite(salePriceLow) ? salePriceLow : null,
-    salePriceHigh: Number.isFinite(salePriceHigh) ? salePriceHigh : null,
-    originalPriceLow: Number.isFinite(originalPriceLow) ? originalPriceLow : null,
-    originalPriceHigh: Number.isFinite(originalPriceHigh) ? originalPriceHigh : null,
-    discountPercentUpTo: Number.isFinite(discountPercentUpTo) ? discountPercentUpTo : null,
-
-    store: STORE,
-
-    listingURL: listingURL || null,
-    imageURL: imageURL || null,
-
-    gender,
-    shoeType: "unknown",
-  };
+  return resp.json();
 }
 
 module.exports = async function handler(req, res) {
-  const startedAt = Date.now();
+  const t0 = Date.now();
   const runId = `goinggoinggone-${Math.random().toString(36).slice(2, 10)}`;
 
-  // (AUTH BLOCK IS COMMENTED OUT ABOVE FOR TESTING)
+  // Only allow GET for simplicity
+  if (req.method !== "GET") {
+    return res.status(405).json({ ok: false, error: "Method Not Allowed" });
+  }
 
-  const out = {
+  const pageSize = asNumber(process.env.DSG_PAGE_SIZE) || 24;
+  const selectedSort = asNumber(process.env.DSG_SELECTED_SORT) || 5;
+  const selectedCategory = process.env.DSG_CATEGORY || "12301_10515458";
+
+  // For your dashboard/sourceUrls
+  // This is the user-facing page; the actual fetch uses the DSG API.
+  const sourceUrls = [
+    // A reasonable "running" version of your URL (the site might ignore it; still useful as reference)
+    `https://www.goinggoinggone.com/f/shop-all-womens-sale?pageSize=${pageSize}`,
+  ];
+
+  const payload = {
     store: STORE,
     schemaVersion: SCHEMA_VERSION,
-
-    lastUpdated: new Date().toISOString(),
+    lastUpdated: nowIso(),
     via: "vercel",
 
-    sourceUrls: SOURCE_URLS,
-
+    sourceUrls,
     pagesFetched: 0,
 
     dealsFound: 0,
@@ -395,9 +240,10 @@ module.exports = async function handler(req, res) {
     ok: true,
     error: null,
 
+    // FULL DATA ONLY IN BLOB JSON:
     deals: [],
 
-    // optional debug (safe to keep; your merge-deals will ignore extra keys)
+    // Debug extras (keep; they help you troubleshoot)
     runId,
     pageNotes: [],
     dropCounts: {
@@ -408,95 +254,187 @@ module.exports = async function handler(req, res) {
       dropped_other: 0,
       kept: 0,
     },
+
+    blobUrl: null,
   };
 
   try {
-    const nowMs = Date.now();
-    const seenKey = new Set();
+    // Fetch first page to get totalCount
+    const first = await fetchDsgPage({
+      pageNumber: 0,
+      pageSize,
+      selectedSort,
+      selectedCategory,
+    });
 
-    // We'll loop pages until we have covered totalCount or hit maxPages
-    let pageNumber = 0;
-    let totalCount = null;
+    const totalCount = asNumber(first.totalCount) ?? 0;
+    payload.dealsFound = totalCount;
 
-    while (pageNumber < CFG.maxPages) {
-      const json = await fetchPage(pageNumber);
+    const totalPages = totalCount > 0 ? Math.ceil(totalCount / pageSize) : 0;
 
-      const vos = Array.isArray(json?.productVOs) ? json.productVOs : [];
-      const productDetails = json?.productDetails || {};
+    // Process a page response into deals
+    const processPage = (pageJson, pageNumber) => {
+      const productVOs = Array.isArray(pageJson.productVOs) ? pageJson.productVOs : [];
+      payload.dropCounts.totalProducts += productVOs.length;
 
-      // totals
-      if (typeof json?.totalCount === "number") totalCount = json.totalCount;
+      payload.pageNotes.push({ pageNumber, cards: productVOs.length });
 
-      out.pagesFetched += 1;
-      out.dealsFound += vos.length;
+      for (const p of productVOs) {
+        try {
+          const name = String(p?.name || "").trim();
+          if (!name) {
+            payload.dropCounts.dropped_other += 1;
+            continue;
+          }
 
-      out.pageNotes.push({
+          // HARD RULE: must contain "running shoes"
+          if (!/running\s+shoes/i.test(name)) {
+            payload.dropCounts.dropped_notRunningShoes += 1;
+            continue;
+          }
+
+          const brand = String(p?.mfName || "").trim() || "Unknown";
+          const model = deriveModelFromName(name, brand);
+
+          const listingURL = buildListingUrl(p?.assetSeoUrl || p?.dsgSeoUrl);
+          if (!listingURL) {
+            payload.dropCounts.dropped_missingUrl += 1;
+            continue;
+          }
+
+          const imageURL = buildImageUrl(p?.thumbnail || p?.fullImage);
+
+          const { salePrice, originalPrice } = extractPrices(p?.floatFacets);
+          if (salePrice == null || originalPrice == null) {
+            payload.dropCounts.dropped_missingPrices += 1;
+            continue;
+          }
+
+          const discountPercent = computeDiscountPercent(salePrice, originalPrice);
+          const gender = detectGenderFromAttributes(p?.attributes);
+
+          payload.deals.push({
+            schemaVersion: SCHEMA_VERSION,
+
+            listingName: name,
+
+            brand,
+            model,
+
+            salePrice,
+            originalPrice,
+            discountPercent,
+
+            salePriceLow: null,
+            salePriceHigh: null,
+            originalPriceLow: null,
+            originalPriceHigh: null,
+            discountPercentUpTo: null,
+
+            store: STORE,
+
+            listingURL,
+            imageURL,
+
+            gender,
+            shoeType: "unknown",
+          });
+
+          payload.dropCounts.kept += 1;
+        } catch {
+          payload.dropCounts.dropped_other += 1;
+        }
+      }
+    };
+
+    // First page
+    processPage(first, 0);
+    payload.pagesFetched = totalPages > 0 ? 1 : 0;
+
+    // Remaining pages
+    for (let pageNumber = 1; pageNumber < totalPages; pageNumber++) {
+      const pageJson = await fetchDsgPage({
         pageNumber,
-        cards: vos.length,
+        pageSize,
+        selectedSort,
+        selectedCategory,
       });
-
-      out.dropCounts.totalProducts += vos.length;
-
-      for (const vo of vos) {
-        const listingName = stripInvisible(vo?.name || "");
-        if (!looksLikeRunningShoes(listingName)) {
-          out.dropCounts.dropped_notRunningShoes += 1;
-          continue;
-        }
-
-        const deal = buildDealFromVO(vo, productDetails, nowMs);
-        if (!deal) {
-          out.dropCounts.dropped_missingPrices += 1;
-          continue;
-        }
-
-        if (!deal.listingURL) {
-          out.dropCounts.dropped_missingUrl += 1;
-          continue;
-        }
-
-        // Dedup by URL (your preference)
-        if (seenKey.has(deal.listingURL)) continue;
-        seenKey.add(deal.listingURL);
-
-        out.deals.push(deal);
-        out.dealsExtracted += 1;
-        out.dropCounts.kept += 1;
-      }
-
-      // stop condition: last page
-      const pageSize = CFG.pageSize;
-      if (totalCount != null) {
-        const fetchedSoFar = (pageNumber + 1) * pageSize;
-        if (fetchedSoFar >= totalCount) break;
-      }
-
-      // If API returns fewer than pageSize, also stop
-      if (vos.length < pageSize) break;
-
-      pageNumber += 1;
+      processPage(pageJson, pageNumber);
+      payload.pagesFetched += 1;
     }
 
-    // Upload to Vercel Blob (stable pathname)
-    const blob = await put("going-going-gone.json", JSON.stringify(out, null, 2), {
+    payload.dealsExtracted = payload.deals.length;
+    payload.scrapeDurationMs = Date.now() - t0;
+
+    // Upload FULL JSON to blob (stable pathname)
+    const blob = await put("going-going-gone.json", JSON.stringify(payload, null, 2), {
       access: "public",
       contentType: "application/json",
       addRandomSuffix: false, // IMPORTANT: stable overwrite
     });
 
-    out.blobUrl = blob?.url || null;
+    payload.blobUrl = blob.url;
 
-    out.scrapeDurationMs = Date.now() - startedAt;
-    out.ok = true;
-    out.error = null;
+    // ✅ Option A: SMALL SUMMARY ONLY (no deals[])
+    return res.status(200).json({
+      ok: payload.ok,
+      store: payload.store,
+      schemaVersion: payload.schemaVersion,
+      lastUpdated: payload.lastUpdated,
+      via: payload.via,
 
-    return res.status(200).json(out);
+      sourceUrls: payload.sourceUrls,
+      pagesFetched: payload.pagesFetched,
+
+      dealsFound: payload.dealsFound,
+      dealsExtracted: payload.dealsExtracted,
+
+      scrapeDurationMs: payload.scrapeDurationMs,
+
+      runId: payload.runId,
+      blobUrl: payload.blobUrl,
+
+      error: payload.error,
+      dropCounts: payload.dropCounts,
+      pageNotes: payload.pageNotes,
+    });
   } catch (err) {
-    out.scrapeDurationMs = Date.now() - startedAt;
-    out.ok = false;
-    out.error = String(err && err.message ? err.message : err);
+    payload.ok = false;
+    payload.scrapeDurationMs = Date.now() - t0;
+    payload.error = err?.message ? String(err.message) : "Unknown error";
 
-    // keep deals array present (empty ok)
-    return res.status(200).json(out);
+    // Try to still write an error payload to blob (optional but useful)
+    try {
+      const blob = await put("going-going-gone.json", JSON.stringify(payload, null, 2), {
+        access: "public",
+        contentType: "application/json",
+        addRandomSuffix: false,
+      });
+      payload.blobUrl = blob.url;
+    } catch {
+      // ignore blob failure in error path
+    }
+
+    // Summary only (still no deals[])
+    return res.status(200).json({
+      ok: payload.ok,
+      store: payload.store,
+      schemaVersion: payload.schemaVersion,
+      lastUpdated: payload.lastUpdated,
+      via: payload.via,
+
+      sourceUrls: payload.sourceUrls,
+      pagesFetched: payload.pagesFetched,
+
+      dealsFound: payload.dealsFound,
+      dealsExtracted: payload.dealsExtracted,
+
+      scrapeDurationMs: payload.scrapeDurationMs,
+
+      runId: payload.runId,
+      blobUrl: payload.blobUrl,
+
+      error: payload.error,
+    });
   }
 };
