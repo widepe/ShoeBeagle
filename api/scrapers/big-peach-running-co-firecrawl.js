@@ -5,7 +5,7 @@
 //
 // Page:
 //  - https://shop.bigpeachrunningco.com/category/17804/deals-footwear
-//
+// 
 // Required env vars:
 // - BLOB_READ_WRITE_TOKEN
 // - FIRECRAWL_API_KEY
