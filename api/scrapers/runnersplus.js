@@ -1,12 +1,18 @@
 // /api/scrapers/runnersplus-shopify.js (CommonJS)
 //
-// Scrapes 3 Shopify collections via products.json, merges, dedupes,
-// writes FULL payload (including deals[]) to Vercel Blob at /runnersplus.json,
-// but returns ONLY top-level structure (no deals[]) when called.
+// Runners Plus Shopify scraper using /collections/<handle>/products.json?page=N
+// Scrapes 3 collections (mens-sale, womens-sale, sale/unisex), merges, dedupes.
 //
-// Rules:
+// IMPORTANT BEHAVIOR (per you):
+// - DO NOT set a max pages cap.
+// - Stop naturally when pagination stops producing NEW products
+//   (page adds 0 new handles) OR products[] is empty.
+//
 // - shoeType ALWAYS "unknown"
 // - gender derived from TITLE first (Men's/Women's/Unisex), fallback to collection gender
+//
+// Writes FULL payload (including deals[]) to Vercel Blob at stable key /runnersplus.json,
+// but returns ONLY top-level structure + blobUrl (NO deals array).
 //
 // CRON_SECRET auth included but COMMENTED OUT for testing.
 
@@ -17,12 +23,24 @@ const SCHEMA_VERSION = 1;
 const VIA = "shopify-products-json";
 const BASE = "https://www.runnersplus.com";
 
-// Stable blob key (no random suffix => overwrite)
-const BLOB_PATHNAME = "runnersplus.json"; // effectively /runnersplus.json
+// Stable blob key (overwrite each run)
+const BLOB_PATHNAME = "runnersplus.json"; // => /runnersplus.json
 
-const DEFAULT_MAX_PAGES_PER_COLLECTION = 25;
+// Network
 const TIMEOUT_MS = 25_000;
 
+// Safety guard that is NOT a "max pages policy":
+// It only prevents an infinite loop if the site behaves unexpectedly.
+// If you truly want NO guard at all, set to something huge.
+const HARD_SAFETY_PAGE_LIMIT = 250;
+
+// Stop rule: if we get this many consecutive pages with 0 new handles, stop.
+// 1 is usually enough; 2 is extra safe against a single weird repeat page.
+const NO_NEW_PAGES_TO_STOP = 1;
+
+// ------------------------------------
+// Collections to scrape (your 3 pages)
+// ------------------------------------
 const COLLECTIONS = [
   {
     id: "mens",
@@ -77,9 +95,13 @@ const COLLECTIONS = [
   },
 ];
 
-// ---------- helpers ----------
+// ---------------------------
+// Helpers
+// ---------------------------
+
 function cleanInvisible(s) {
   if (typeof s !== "string") return s;
+  // Remove soft hyphen, zero-width chars, BOM, NBSP, etc.
   return s
     .replace(/[\u00AD\u200B-\u200F\u2060\uFEFF]/g, "")
     .replace(/\u00A0/g, " ")
@@ -135,12 +157,14 @@ function deriveModelFromTitle(title, vendor) {
 }
 
 function pickImageUrl(product) {
+  // Prefer any variant featured image
   if (Array.isArray(product?.variants)) {
     for (const v of product.variants) {
       const src = v?.featured_image?.src;
       if (src) return src;
     }
   }
+  // Fallbacks
   if (Array.isArray(product?.images) && product.images.length) {
     if (typeof product.images[0] === "string") return product.images[0];
     if (product.images[0]?.src) return product.images[0].src;
@@ -191,7 +215,7 @@ function buildDealFromProduct(product, fallbackGender) {
   const shoeType = "unknown";
   const gender = deriveGenderFromTitleFirst(listingName, fallbackGender);
 
-  // Your honesty rule: require BOTH sale and original (compare_at_price) for a deal.
+  // HONESTY RULE: require BOTH sale and original per variant (compare_at_price > price)
   const salePrices = [];
   const originalPrices = [];
 
@@ -239,12 +263,17 @@ function buildDealFromProduct(product, fallbackGender) {
   };
 }
 
-async function scrapeCollection({ fallbackGender, collectionHandle, query }, maxPages) {
+// ✅ The "right" stopping logic (no max pages policy):
+// stop when page is empty OR when it yields 0 new handles (repeats -> end).
+async function scrapeCollection({ fallbackGender, collectionHandle, query }) {
   let pagesFetched = 0;
-  let productsSeen = 0;
+  let productsSeenUnique = 0;
   const deals = [];
 
-  for (let page = 1; page <= maxPages; page++) {
+  const seenHandles = new Set();
+  let consecutiveNoNew = 0;
+
+  for (let page = 1; page <= HARD_SAFETY_PAGE_LIMIT; page++) {
     const url = `${BASE}/collections/${collectionHandle}/products.json?${query}&page=${page}`;
 
     const json = await fetchJson(url, TIMEOUT_MS);
@@ -254,18 +283,35 @@ async function scrapeCollection({ fallbackGender, collectionHandle, query }, max
 
     if (!products.length) break;
 
-    productsSeen += products.length;
+    let addedThisPage = 0;
 
     for (const p of products) {
+      const handle = cleanInvisible(p?.handle || "");
+      if (!handle) continue;
+
+      if (seenHandles.has(handle)) continue;
+      seenHandles.add(handle);
+      addedThisPage++;
+
       const d = buildDealFromProduct(p, fallbackGender);
       if (d) deals.push(d);
     }
+
+    if (addedThisPage === 0) {
+      consecutiveNoNew++;
+      if (consecutiveNoNew >= NO_NEW_PAGES_TO_STOP) break;
+    } else {
+      consecutiveNoNew = 0;
+      productsSeenUnique += addedThisPage;
+    }
   }
 
-  return { pagesFetched, productsSeen, deals };
+  return { pagesFetched, productsSeenUnique, deals };
 }
 
-// ---------- handler ----------
+// ---------------------------
+// Vercel handler
+// ---------------------------
 module.exports = async function handler(req, res) {
   const startedAt = Date.now();
 
@@ -277,32 +323,33 @@ module.exports = async function handler(req, res) {
   //   return res.status(401).json({ success: false, error: "Unauthorized" });
   // }
 
-  const maxPagesPerCollection = Math.min(
-    Number(req.query.maxPages || DEFAULT_MAX_PAGES_PER_COLLECTION) || DEFAULT_MAX_PAGES_PER_COLLECTION,
-    100
-  );
-
   // Keep these stable + small (3 pages only)
   const sourceUrls = COLLECTIONS.map((c) => c.publicCollectionUrl);
 
   let pagesFetched = 0;
-  let dealsFound = 0; // products seen
+  let dealsFound = 0; // we will report UNIQUE products seen across collections
   let ok = true;
   let error = null;
 
   try {
     const allDeals = [];
+    const seenGlobalListingUrl = new Set();
 
     for (const c of COLLECTIONS) {
-      const r = await scrapeCollection(c, maxPagesPerCollection);
+      const r = await scrapeCollection(c);
       pagesFetched += r.pagesFetched;
-      dealsFound += r.productsSeen;
-      allDeals.push(...r.deals);
+      dealsFound += r.productsSeenUnique;
+
+      // Merge deals; we'll also global-dedupe by listingURL here to keep memory down.
+      for (const d of r.deals) {
+        if (!d?.listingURL) continue;
+        if (seenGlobalListingUrl.has(d.listingURL)) continue;
+        seenGlobalListingUrl.add(d.listingURL);
+        allDeals.push(d);
+      }
     }
 
-    const dedupedDeals = uniqBy(allDeals, (d) => d.listingURL);
-
-    // FULL payload (written to blob)
+    // Full payload written to blob
     const fullPayload = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
@@ -314,23 +361,23 @@ module.exports = async function handler(req, res) {
       pagesFetched,
 
       dealsFound,
-      dealsExtracted: dedupedDeals.length,
+      dealsExtracted: allDeals.length,
 
       scrapeDurationMs: Date.now() - startedAt,
 
       ok: true,
       error: null,
 
-      deals: dedupedDeals,
+      deals: allDeals,
     };
 
     const blob = await put(BLOB_PATHNAME, JSON.stringify(fullPayload), {
       access: "public",
-      addRandomSuffix: false,
+      addRandomSuffix: false, // stable overwrite
       contentType: "application/json",
     });
 
-    // RESPONSE payload (NO deals[])
+    // Response payload: NO deals[] (per you)
     const responsePayload = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
@@ -357,7 +404,6 @@ module.exports = async function handler(req, res) {
     ok = false;
     error = String(e?.message || e);
 
-    // Still match your top-level structure even on failure
     const fullPayload = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
