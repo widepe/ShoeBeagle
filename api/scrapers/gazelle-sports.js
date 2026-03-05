@@ -273,13 +273,8 @@ module.exports = async function handler(req, res) {
   // ---------------------------------
   const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
   if (CRON_SECRET) {
-    const urlObj = new URL(req.url, "http://localhost");
-
-    const auth = String(req.headers.authorization || "").trim();
-    const xCron = String(req.headers["x-cron-secret"] || "").trim();
-    const qs = String(urlObj.searchParams.get("cron_secret") || "").trim();
-
-    const ok = auth === `Bearer ${CRON_SECRET}` || xCron === CRON_SECRET || qs === CRON_SECRET;
+const auth = String(req.headers.authorization || "").trim();
+const ok = auth === `Bearer ${CRON_SECRET}`;
 
     if (!ok) {
       return res.status(401).json({ ok: false, error: "Unauthorized: Invalid CRON_SECRET" });
