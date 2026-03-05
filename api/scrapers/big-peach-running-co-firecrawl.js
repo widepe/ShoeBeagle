@@ -308,12 +308,12 @@ async function fetchPageHtml(url, pageNum, apiKey, proxy, timeout) {
 module.exports = async function handler(req, res) {
   const t0 = Date.now();
 
-  // CRON_SECRET
+/*  // CRON_SECRET
    const secret = process.env.CRON_SECRET;
    if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
      return res.status(401).json({ error: "Unauthorized" });
    }
-
+*/
   try {
     requireEnv("BLOB_READ_WRITE_TOKEN");
     const apiKey = requireEnv("FIRECRAWL_API_KEY");
