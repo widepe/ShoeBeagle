@@ -269,7 +269,7 @@ function dedupeByListingUrl(deals) {
 module.exports = async function handler(req, res) {
   const t0 = Date.now();
 
-  // CRON SECRET
+/*  // CRON SECRET
   const CRON_SECRET = String(process.env.CRON_SECRET || "").trim();
   if (CRON_SECRET) {
     const auth = String(req.headers.authorization || "").trim();
@@ -277,7 +277,7 @@ module.exports = async function handler(req, res) {
       return res.status(401).json({ error: "Unauthorized" });
     }
   }
-
+*/
   try {
     const maxPages = Math.max(1, parseInt(process.env.BIGPEACH_MAX_PAGES || "20", 10));
 
