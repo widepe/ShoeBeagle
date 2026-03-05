@@ -1,14 +1,12 @@
-// /api/scrapers/runnersplus-shopify.js  (CommonJS)
+// /api/scrapers/runnersplus-shopify.js (CommonJS)
 //
-// Runners Plus Shopify scraper using products.json (FAST).
-// Scrapes 3 collections (mens / womens / unisex), merges, dedupes, returns your top-level structure,
-// AND uploads the full payload JSON to Vercel Blob at a STABLE pathname: /runnersplus.json
+// Scrapes 3 Shopify collections via products.json, merges, dedupes,
+// writes FULL payload (including deals[]) to Vercel Blob at /runnersplus.json,
+// but returns ONLY top-level structure (no deals[]) when called.
 //
-// Rules per you:
+// Rules:
 // - shoeType ALWAYS "unknown"
 // - gender derived from TITLE first (Men's/Women's/Unisex), fallback to collection gender
-// - brand from product.vendor
-// - model from title (strip gender prefix + brand prefix)
 //
 // CRON_SECRET auth included but COMMENTED OUT for testing.
 
@@ -17,24 +15,21 @@ const { put } = require("@vercel/blob");
 const STORE = "Runners Plus";
 const SCHEMA_VERSION = 1;
 const VIA = "shopify-products-json";
-
 const BASE = "https://www.runnersplus.com";
 
-// Safety + runtime limits
+// Stable blob key (no random suffix => overwrite)
+const BLOB_PATHNAME = "runnersplus.json"; // effectively /runnersplus.json
+
 const DEFAULT_MAX_PAGES_PER_COLLECTION = 25;
 const TIMEOUT_MS = 25_000;
 
-// Where to write in Vercel Blob (stable overwrite)
-const BLOB_PATHNAME = "runnersplus.json"; // corresponds to /runnersplus.json
-
-// ---------------------------
-// Collections to scrape
-// ---------------------------
 const COLLECTIONS = [
   {
     id: "mens",
     fallbackGender: "mens",
     collectionHandle: "mens-sale",
+    publicCollectionUrl:
+      `${BASE}/collections/mens-sale?filter.v.availability=1&sort_by=created-descending`,
     query:
       "filter.p.product_type=Men+%3E+Shoes+%3E+Racing" +
       "&filter.p.product_type=Men+%3E+Shoes+%3E+Running" +
@@ -50,6 +45,8 @@ const COLLECTIONS = [
     id: "womens",
     fallbackGender: "womens",
     collectionHandle: "womens-sale",
+    publicCollectionUrl:
+      `${BASE}/collections/womens-sale?filter.v.availability=1&sort_by=created-descending`,
     query:
       "filter.p.product_type=Women+%3E+Shoes+%3E+Racing" +
       "&filter.p.product_type=Women+%3E+Shoes+%3E+Running" +
@@ -65,6 +62,8 @@ const COLLECTIONS = [
     id: "unisex",
     fallbackGender: "unisex",
     collectionHandle: "sale",
+    publicCollectionUrl:
+      `${BASE}/collections/sale?filter.v.availability=1&sort_by=created-descending`,
     query:
       "filter.p.product_type=Unisex+%3E+Shoes+%3E+Racing" +
       "&filter.p.product_type=Unisex+%3E+Shoes+%3E+Running" +
@@ -78,13 +77,9 @@ const COLLECTIONS = [
   },
 ];
 
-// ---------------------------
-// Helpers
-// ---------------------------
-
+// ---------- helpers ----------
 function cleanInvisible(s) {
   if (typeof s !== "string") return s;
-  // Remove soft hyphen, zero-width chars, BOM, NBSP, etc.
   return s
     .replace(/[\u00AD\u200B-\u200F\u2060\uFEFF]/g, "")
     .replace(/\u00A0/g, " ")
@@ -102,14 +97,12 @@ function parseMoney(x) {
 
 function computeDiscountPercent(original, sale) {
   if (!Number.isFinite(original) || !Number.isFinite(sale) || original <= 0) return null;
-  const pct = ((original - sale) / original) * 100;
-  return Math.round(pct);
+  return Math.round(((original - sale) / original) * 100);
 }
 
 function computeDiscountUpTo(originalHigh, saleLow) {
   if (!Number.isFinite(originalHigh) || !Number.isFinite(saleLow) || originalHigh <= 0) return null;
-  const pct = ((originalHigh - saleLow) / originalHigh) * 100;
-  return Math.round(pct);
+  return Math.round(((originalHigh - saleLow) / originalHigh) * 100);
 }
 
 function escapeRegExp(s) {
@@ -118,11 +111,9 @@ function escapeRegExp(s) {
 
 function deriveGenderFromTitleFirst(listingName, fallbackGender) {
   const t = cleanInvisible(listingName || "").toLowerCase();
-
   if (t.startsWith("men's ") || t.startsWith("mens ")) return "mens";
   if (t.startsWith("women's ") || t.startsWith("womens ")) return "womens";
   if (t.startsWith("unisex ")) return "unisex";
-
   return fallbackGender || "unisex";
 }
 
@@ -176,10 +167,7 @@ async function fetchJson(url, timeoutMs) {
   try {
     const res = await fetch(url, {
       method: "GET",
-      headers: {
-        accept: "application/json",
-        "user-agent": "Mozilla/5.0",
-      },
+      headers: { accept: "application/json", "user-agent": "Mozilla/5.0" },
       signal: ctrl.signal,
     });
     if (!res.ok) {
@@ -203,7 +191,7 @@ function buildDealFromProduct(product, fallbackGender) {
   const shoeType = "unknown";
   const gender = deriveGenderFromTitleFirst(listingName, fallbackGender);
 
-  // HONESTY RULE: require BOTH sale + original per *variant*
+  // Your honesty rule: require BOTH sale and original (compare_at_price) for a deal.
   const salePrices = [];
   const originalPrices = [];
 
@@ -229,7 +217,6 @@ function buildDealFromProduct(product, fallbackGender) {
     schemaVersion: SCHEMA_VERSION,
 
     listingName,
-
     brand,
     model,
 
@@ -244,7 +231,6 @@ function buildDealFromProduct(product, fallbackGender) {
     discountPercentUpTo: hasRange ? computeDiscountUpTo(originalHigh, saleLow) : null,
 
     store: STORE,
-
     listingURL,
     imageURL,
 
@@ -254,9 +240,8 @@ function buildDealFromProduct(product, fallbackGender) {
 }
 
 async function scrapeCollection({ fallbackGender, collectionHandle, query }, maxPages) {
-  const sourceUrls = [];
   let pagesFetched = 0;
-  let productsFound = 0;
+  let productsSeen = 0;
   const deals = [];
 
   for (let page = 1; page <= maxPages; page++) {
@@ -265,12 +250,11 @@ async function scrapeCollection({ fallbackGender, collectionHandle, query }, max
     const json = await fetchJson(url, TIMEOUT_MS);
     const products = Array.isArray(json?.products) ? json.products : [];
 
-    sourceUrls.push(url);
     pagesFetched++;
 
     if (!products.length) break;
 
-    productsFound += products.length;
+    productsSeen += products.length;
 
     for (const p of products) {
       const d = buildDealFromProduct(p, fallbackGender);
@@ -278,12 +262,10 @@ async function scrapeCollection({ fallbackGender, collectionHandle, query }, max
     }
   }
 
-  return { sourceUrls, pagesFetched, productsFound, deals };
+  return { pagesFetched, productsSeen, deals };
 }
 
-// ---------------------------
-// Vercel handler
-// ---------------------------
+// ---------- handler ----------
 module.exports = async function handler(req, res) {
   const startedAt = Date.now();
 
@@ -300,35 +282,36 @@ module.exports = async function handler(req, res) {
     100
   );
 
-  const allSourceUrls = [];
-  let pagesFetchedTotal = 0;
-  let dealsFound = 0;
+  // Keep these stable + small (3 pages only)
+  const sourceUrls = COLLECTIONS.map((c) => c.publicCollectionUrl);
+
+  let pagesFetched = 0;
+  let dealsFound = 0; // products seen
+  let ok = true;
+  let error = null;
 
   try {
     const allDeals = [];
 
     for (const c of COLLECTIONS) {
-      const result = await scrapeCollection(c, maxPagesPerCollection);
-      allSourceUrls.push(...result.sourceUrls);
-      pagesFetchedTotal += result.pagesFetched;
-      dealsFound += result.productsFound; // "dealsFound" as "products seen" (matches your prior usage)
-      allDeals.push(...result.deals);
+      const r = await scrapeCollection(c, maxPagesPerCollection);
+      pagesFetched += r.pagesFetched;
+      dealsFound += r.productsSeen;
+      allDeals.push(...r.deals);
     }
 
     const dedupedDeals = uniqBy(allDeals, (d) => d.listingURL);
 
-    // ---------------------------
-    // TOP-LEVEL STRUCTURE (yours)
-    // ---------------------------
-    const payload = {
+    // FULL payload (written to blob)
+    const fullPayload = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
 
       lastUpdated: new Date().toISOString(),
       via: VIA,
 
-      sourceUrls: allSourceUrls,
-      pagesFetched: pagesFetchedTotal,
+      sourceUrls,
+      pagesFetched,
 
       dealsFound,
       dealsExtracted: dedupedDeals.length,
@@ -338,58 +321,95 @@ module.exports = async function handler(req, res) {
       ok: true,
       error: null,
 
-      // extra (your other scrapers often include deals in the payload)
       deals: dedupedDeals,
     };
 
-    // ---------------------------
-    // WRITE TO VERCEL BLOB
-    // ---------------------------
-    // Stable overwrite at /runnersplus.json (pathname runnersplus.json)
-    const blob = await put(BLOB_PATHNAME, JSON.stringify(payload), {
+    const blob = await put(BLOB_PATHNAME, JSON.stringify(fullPayload), {
       access: "public",
-      addRandomSuffix: false, // CRITICAL: stable overwrite
+      addRandomSuffix: false,
       contentType: "application/json",
     });
 
-    // You didn’t require blobUrl in top-level, but it's useful and non-breaking.
-    payload.blobUrl = blob.url;
+    // RESPONSE payload (NO deals[])
+    const responsePayload = {
+      store: STORE,
+      schemaVersion: SCHEMA_VERSION,
 
-    return res.status(200).json(payload);
+      lastUpdated: fullPayload.lastUpdated,
+      via: VIA,
+
+      sourceUrls,
+      pagesFetched,
+
+      dealsFound,
+      dealsExtracted: fullPayload.dealsExtracted,
+
+      scrapeDurationMs: fullPayload.scrapeDurationMs,
+
+      ok: true,
+      error: null,
+
+      blobUrl: blob.url,
+    };
+
+    return res.status(200).json(responsePayload);
   } catch (e) {
-    const payload = {
+    ok = false;
+    error = String(e?.message || e);
+
+    // Still match your top-level structure even on failure
+    const fullPayload = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
 
       lastUpdated: new Date().toISOString(),
       via: VIA,
 
-      sourceUrls: allSourceUrls,
-      pagesFetched: pagesFetchedTotal,
+      sourceUrls,
+      pagesFetched,
 
       dealsFound,
       dealsExtracted: 0,
 
       scrapeDurationMs: Date.now() - startedAt,
 
-      ok: false,
-      error: String(e?.message || e),
+      ok,
+      error,
 
       deals: [],
     };
 
-    // Try to write the error payload too (optional, but keeps blob updated)
+    let blobUrl = null;
     try {
-      const blob = await put(BLOB_PATHNAME, JSON.stringify(payload), {
+      const blob = await put(BLOB_PATHNAME, JSON.stringify(fullPayload), {
         access: "public",
         addRandomSuffix: false,
         contentType: "application/json",
       });
-      payload.blobUrl = blob.url;
-    } catch (_) {
-      // ignore blob write errors in failure response
-    }
+      blobUrl = blob.url;
+    } catch (_) {}
 
-    return res.status(200).json(payload);
+    const responsePayload = {
+      store: STORE,
+      schemaVersion: SCHEMA_VERSION,
+
+      lastUpdated: fullPayload.lastUpdated,
+      via: VIA,
+
+      sourceUrls,
+      pagesFetched,
+
+      dealsFound,
+      dealsExtracted: 0,
+
+      scrapeDurationMs: fullPayload.scrapeDurationMs,
+
+      ok,
+      error,
+
+      blobUrl,
+    };
+
+    return res.status(200).json(responsePayload);
   }
 };
