@@ -9,6 +9,7 @@
     "@mendable/firecrawl-js": "^1.0.0",
     "@vercel/blob": "^0.23.0",
     "@sendgrid/mail": "^8.1.0",
-      "proxy-agent": "^6.5.0"
+    "xml2js": "^0.6.2",
+    "proxy-agent": "^6.5.0"
   }
 }
