@@ -13,6 +13,7 @@
 // - /api/scrapers/trackshack-clearance
 // - /api/scrapers/als-sale
 // - /api/scrapers/shoebacca-clearance
+// - /api/scrapers/runnersplus
 // - /api/scrapers/rununited-searchanise
 // - /api/scrapers/jdsports-algolia
 //
@@ -55,7 +56,7 @@ async function callInternal(req, path) {
       : "");
 
   const headers = {};
-if (cronSecret) headers["Authorization"] = `Bearer ${cronSecret}`;
+  if (cronSecret) headers["Authorization"] = `Bearer ${cronSecret}`;
 
   const res = await fetch(url, { method: "GET", headers });
   const text = await res.text();
@@ -80,17 +81,32 @@ module.exports = async function handler(req, res) {
   // ✅ safest default
   const RUN_CONCURRENTLY = false;
 
+  // ==========================================================
+  // EASY TOGGLES (turn off a store by setting false)
+  // ==========================================================
+  const ENABLED = {
+    gazelle_sports: true,
+    trackshack_clearance: true,
+    als_sale: true,
+    shoebacca_clearance: true,
+    runnersplus: true,
+    rununited_searchanise: true,
+    jdsports_algolia: true,
+  };
+
   // IMPORTANT: URL paths typically do NOT include ".js"
-  const TARGETS = [
-    "/api/scrapers/gazelle-sports",
-    "/api/scrapers/trackshack-clearance",
-    "/api/scrapers/als-sale",
-    "/api/scrapers/shoebacca-clearance",
-    // Run United — NOT Cheerio. Uses Searchanise API (searchserverapi*/getresults) to fetch products directly.
-    "/api/scrapers/rununited-searchanise",
-    // JD Sports — NOT Cheerio. Uses Algolia Search API (*/1/indexes/*/queries) to fetch products directly.
-    "/api/scrapers/jdsports-algolia",
-  ];
+  const TARGETS = [];
+  if (ENABLED.gazelle_sports) TARGETS.push("/api/scrapers/gazelle-sports");
+  if (ENABLED.trackshack_clearance) TARGETS.push("/api/scrapers/trackshack-clearance");
+  if (ENABLED.als_sale) TARGETS.push("/api/scrapers/als-sale");
+  if (ENABLED.shoebacca_clearance) TARGETS.push("/api/scrapers/shoebacca-clearance");
+  if (ENABLED.runnersplus) TARGETS.push("/api/scrapers/runnersplus");
+
+  // Run United — NOT Cheerio. Uses Searchanise API (searchserverapi*/getresults) to fetch products directly.
+  if (ENABLED.rununited_searchanise) TARGETS.push("/api/scrapers/rununited-searchanise");
+
+  // JD Sports — NOT Cheerio. Uses Algolia Search API (*/1/indexes/*/queries) to fetch products directly.
+  if (ENABLED.jdsports_algolia) TARGETS.push("/api/scrapers/jdsports-algolia");
 
   try {
     const results = [];
@@ -116,6 +132,7 @@ module.exports = async function handler(req, res) {
       startedAt,
       finishedAt: nowIso(),
       mode: RUN_CONCURRENTLY ? "concurrent" : "sequential",
+      enabled: ENABLED,
       targets: TARGETS,
       okCount,
       total: results.length,
