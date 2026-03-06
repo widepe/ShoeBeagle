@@ -40,7 +40,7 @@ const { assertDealSchema } = require("../lib/dealSchema");
 const canonicalBrandModels = require("../lib/canonical-brands-models.json");
 
 // ✅ Canonical store list (single source of truth for stores)
-const storeList = require("../lib/stores.json");
+const storeList = require("../lib/canonical-stores.json");
 
 /** ------------ Utilities ------------ **/
 
