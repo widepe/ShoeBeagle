@@ -535,10 +535,11 @@ async function scrapeFleetFeet() {
 
       const $ = cheerio.load(response.data);
       pagesFetched++;
+// REPLACE your 3 existing log lines with these 4:
 console.log("[FF]", nextUrl, "status:", response.status, "html length:", response.data.length);
 console.log("[FF] tiles found:", $("a.product-tile-link").length);
-console.log("[FF] sample HTML:", response.data.slice(0, 500));      console.log("[FF]", nextUrl, "status:", response.status, "html:", response.data.length);
-      console.log("[FF] tiles found:", $("a.product-tile-link").length);
+console.log("[FF] product-tile attempts:", $('[class*="product-tile"]').length);
+console.log("[FF] product links:", $('a[href*="/products/"]').length);
 
       $("a.product-tile-link").each((_, el) => {
         const $link = $(el);
