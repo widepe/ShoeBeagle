@@ -583,7 +583,7 @@ async function scrapeFleetFeet() {
     listingURL,
     imageURL,
     gender: detectGender(listingURL, listingName),
-    shoeType: detectShoeType(cleanedForParsing, model),
+shoeType: "unknown",
   });
 });
 
