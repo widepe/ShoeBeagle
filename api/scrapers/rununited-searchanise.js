@@ -80,30 +80,47 @@ function toNumberFromMoney(x) {
   return Number.isFinite(n) ? n : null;
 }
 
-function parseTitleForBrandGenderModel(listingName) {
+function parseTitleForBrandGenderModel(listingName, listingURL = "") {
   const s = cleanText(listingName);
-  const m = s.match(/^(.*?)\s+(Men's|Women's|Unisex|Kids')\s+(.*)$/i);
-  if (!m) return { brand: "", gender: "", model: "" };
+  const url = cleanText(listingURL).toLowerCase();
 
-  const brand = cleanText(m[1]);
-  const genderRaw = cleanText(m[2]);
-  let rest = cleanText(m[3]);
+  const m = s.match(/^(.*?)\s+(Men'?s|Women'?s|Unisex|Kids'?)\s+(.*)$/i);
 
-  rest = rest.replace(/\s+Running Shoes\s*$/i, "").trim();
-  rest = rest.replace(/\s+Shoes\s*$/i, "").trim();
+  let brand = "";
+  let gender = "";
+  let model = "";
 
-  const gender =
-    /^men/i.test(genderRaw)
+  if (m) {
+    brand = cleanText(m[1]);
+    const genderRaw = cleanText(m[2]);
+    let rest = cleanText(m[3]);
+
+    rest = rest.replace(/\s+Running Shoes\s*$/i, "").trim();
+    rest = rest.replace(/\s+Running Shoe\s*$/i, "").trim();
+    rest = rest.replace(/\s+Shoes\s*$/i, "").trim();
+    rest = rest.replace(/\s+Shoe\s*$/i, "").trim();
+
+    gender =
+      /^men/i.test(genderRaw)
+        ? "mens"
+        : /^women/i.test(genderRaw)
+        ? "womens"
+        : /^unisex/i.test(genderRaw)
+        ? "unisex"
+        : /^kids/i.test(genderRaw)
+        ? "unknown"
+        : "unknown";
+
+    model = rest;
+  } else {
+    gender = url.includes("/mens/") || /\bmens\b/.test(url)
       ? "mens"
-      : /^women/i.test(genderRaw)
+      : url.includes("/womens/") || /\bwomens\b/.test(url)
       ? "womens"
-      : /^kids/i.test(genderRaw)
-      ? "kids"
-      : /^unisex/i.test(genderRaw)
-      ? "unisex"
-      : "";
+      : "unknown";
+  }
 
-  return { brand, gender, model: rest };
+  return { brand, gender, model };
 }
 
 function computeDiscountPercent(salePrice, originalPrice) {
@@ -282,7 +299,7 @@ export default async function handler(req, res) {
         }
 
         const discountPercent = computeDiscountPercent(salePrice, originalPrice);
-        const { brand, gender, model } = parseTitleForBrandGenderModel(listingName);
+      const { brand, gender, model } = parseTitleForBrandGenderModel(listingName, listingURL);
 
         deals.push({
           schemaVersion: 1,
