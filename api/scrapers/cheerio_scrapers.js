@@ -535,8 +535,9 @@ async function scrapeFleetFeet() {
 
       const $ = cheerio.load(response.data);
       pagesFetched++;
-
-      console.log("[FF]", nextUrl, "status:", response.status, "html:", response.data.length);
+console.log("[FF]", nextUrl, "status:", response.status, "html length:", response.data.length);
+console.log("[FF] tiles found:", $("a.product-tile-link").length);
+console.log("[FF] sample HTML:", response.data.slice(0, 500));      console.log("[FF]", nextUrl, "status:", response.status, "html:", response.data.length);
       console.log("[FF] tiles found:", $("a.product-tile-link").length);
 
       $("a.product-tile-link").each((_, el) => {
