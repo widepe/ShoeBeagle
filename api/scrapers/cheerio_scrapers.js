@@ -30,8 +30,6 @@ const SCRAPER_TOGGLES = {
 
 // -----------------------------------------------------------------------------
 // ✅ REQUEST / AUTH TOGGLES
-// - Set REQUIRE_CRON_SECRET = true in production
-// - Leave false while testing manually in browser/postman
 // -----------------------------------------------------------------------------
 const REQUEST_TOGGLES = {
   REQUIRE_CRON_SECRET: false,
@@ -541,7 +539,8 @@ async function scrapeFleetFeet() {
       console.log("[FF] tiles found:", $("a.product-tile-link").length);
       console.log("[FF] product-tile attempts:", $('[class*="product-tile"]').length);
       console.log("[FF] product links:", $('a[href*="/products/"]').length);
-
+      console.log("[FF] first product link href+class:", $('a[href*="/products/"]').first().attr("href"), $('a[href*="/products/"]').first().attr("class"));
+      
       $("a.product-tile-link").each((_, el) => {
         const $link = $(el);
         const href = ($link.attr("href") || "").trim();
