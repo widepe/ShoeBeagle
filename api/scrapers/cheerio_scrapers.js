@@ -22,10 +22,10 @@
 // ✅ SCRAPER TOGGLES (edit these booleans to enable/disable stores)
 // -----------------------------------------------------------------------------
 const SCRAPER_TOGGLES = {
-  RUNNING_WAREHOUSE: true,
+  RUNNING_WAREHOUSE: false,
   FLEET_FEET: true,
-  LUKES_LOCKER: true,
-  MARATHON_SPORTS: true,
+  LUKES_LOCKER: false,
+  MARATHON_SPORTS: false,
 };
 
 const axios = require("axios");
@@ -496,81 +496,102 @@ async function scrapeRunningWarehouse() {
 /* -------------------------------  Fleet Feet ----------------------------------- */
 async function scrapeFleetFeet() {
   const STORE = "Fleet Feet";
+  const base = "https://www.fleetfeet.com";
 
-  const urls = [
+  const seedUrls = [
     "https://www.fleetfeet.com/browse/shoes/mens?clearance=on",
     "https://www.fleetfeet.com/browse/shoes/womens?clearance=on",
   ];
 
-  const sourceUrls = urls.slice();
+  const sourceUrls = [];
   let pagesFetched = 0;
   let dealsFound = 0;
 
   const deals = [];
   const seenUrls = new Set();
 
-  for (const pageUrl of urls) {
-    const response = await axios.get(pageUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-      timeout: 30000,
-    });
+  const parseDollar = (txt) => {
+    const m = String(txt || "").match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
+    if (!m) return null;
+    const n = parseFloat(m[1].replace(/,/g, ""));
+    return Number.isFinite(n) ? n : null;
+  };
 
-    const $ = cheerio.load(response.data);
-    pagesFetched++;
+  for (const seedUrl of seedUrls) {
+    let nextUrl = seedUrl;
 
-    $('a[href^="/products/"]').each((_, el) => {
-      const $link = $(el);
-      const href = ($link.attr("href") || "").trim();
-      if (!href || !href.startsWith("/products/")) return;
+    while (nextUrl) {
+      sourceUrls.push(nextUrl);
 
-      // Found a product link (before filtering)
-      dealsFound++;
-
-      // PRESERVE listingName RAW
-      const listingName = String($link.text() ?? "");
-
-      // For parsing & prices, keep SAME normalized input as before
-      const fullText = normalizeWhitespace(listingName);
-
-      // Keep same validation & parsing input
-      const cleanedForParsing = cleanTitleText(fullText);
-      if (!cleanedForParsing) return;
-
-      const { salePrice, originalPrice, valid } = extractPrices($, $link, fullText);
-      if (!valid || !salePrice || salePrice <= 0) return;
-
-      const listingURL = absolutizeUrl(href, "https://www.fleetfeet.com");
-      if (seenUrls.has(listingURL)) return;
-      seenUrls.add(listingURL);
-
-      let $img = $link.find("img").first();
-      if (!$img.length) $img = $link.closest("div, article, li").find("img").first();
-      const imageURL = pickBestImgUrl($, $img, "https://www.fleetfeet.com");
-
-      const { brand, model } = parseBrandModel(cleanedForParsing);
-      const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-
-      deals.push({
-        listingName, // RAW, unaltered
-        brand,
-        model,
-        salePrice,
-        originalPrice: originalPrice || null,
-        discountPercent,
-        store: STORE,
-        listingURL,
-        imageURL,
-        gender: detectGender(listingURL, cleanedForParsing),
-        shoeType: detectShoeType(cleanedForParsing, model),
+      const response = await axios.get(nextUrl, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+        timeout: 30000,
       });
-    });
 
-    await randomDelay();
+      const $ = cheerio.load(response.data);
+      pagesFetched++;
+
+      console.log("[FF]", nextUrl, "status:", response.status, "html:", response.data.length);
+      console.log("[FF] tiles found:", $("a.product-tile-link").length);
+
+      $("a.product-tile-link").each((_, el) => {
+        const $link = $(el);
+        const href = ($link.attr("href") || "").trim();
+        if (!href) return;
+
+        dealsFound++;
+
+        const listingURL = absolutizeUrl(href, base);
+        if (seenUrls.has(listingURL)) return;
+
+        // listingName: RAW text from title element
+        const listingName = String($link.find(".product-tile-title").first().text() ?? "");
+        if (!listingName) return;
+
+        // Prices: use dedicated spans
+        const originalPrice = parseDollar($link.find("span.original").first().text());
+        const salePrice = parseDollar($link.find("span.discounted").first().text());
+
+        if (!Number.isFinite(salePrice) || salePrice <= 0) return;
+        if (!Number.isFinite(originalPrice) || !(originalPrice > salePrice)) return;
+
+        const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+        if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
+
+        seenUrls.add(listingURL);
+
+        const $img = $link.find("img.product-tile-image").first();
+        const imageURL = pickBestImgUrl($, $img, base);
+
+        const cleanedForParsing = cleanTitleText(normalizeWhitespace(listingName));
+        const { brand, model } = parseBrandModel(cleanedForParsing);
+
+        deals.push({
+          listingName,       // RAW, unaltered
+          brand,
+          model,
+          salePrice,
+          originalPrice,
+          discountPercent,
+          store: STORE,
+          listingURL,
+          imageURL,
+          gender: detectGender(listingURL, listingName),
+          shoeType: detectShoeType(cleanedForParsing, model),
+        });
+      });
+
+      // Follow pagination
+      const nextHref = ($("a#browsenext").attr("href") || "").trim();
+      nextUrl = nextHref ? absolutizeUrl(nextHref, base) : null;
+
+      await randomDelay();
+    }
   }
 
   return {
@@ -946,12 +967,12 @@ module.exports = async (req, res) => {
   if (req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
-
-  const auth = req.headers.authorization;
+// CRON SECRET
+/*  const auth = req.headers.authorization;
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
   }
-
+*/
   const overallStartTime = Date.now();
   const runTimestamp = nowIso();
 
