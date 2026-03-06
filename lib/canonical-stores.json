@@ -210,7 +210,23 @@
   "notes": "JD Sports running shoes sale via Algolia product search API (jd_products_prod index). Much faster than HTML scraping. Filters facet_activity=Running and facet_category=Shoes. Writes to jdsports.json."
 },
 
-
+{
+  "id": "journeys",
+  "displayName": "Journeys",
+  "addedAt": "2026-03-06",
+  "lastUpdated": "2026-03-06",
+  "scrapedUrls": [
+    "https://www.journeys.com/products/womens-sale-shoes?style=running+shoes",
+    "https://www.journeys.com/products/mens-sale-shoes?style=running+shoes"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/journeys.json"
+  ],
+  "aliases": ["journeys"],
+  "enabled": true,
+  "scraperType": "apify",
+  "notes": "Journeys running shoes sale pages (womens + mens). One deal per product card. shoeType forced to unknown. Writes to journeys.json."
+},
   
 {
   "id": "kohls",
