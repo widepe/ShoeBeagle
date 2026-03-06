@@ -30,7 +30,7 @@
 // so your existing pipeline still has a single-number anchor,
 // but UI should prefer the range fields when present.
 //
-// TO ADD A NEW STORE: add it to /lib/stores.json only. No changes needed here.
+// TO ADD A NEW STORE: add it to /lib/canonical-stores.json only. No changes needed here.
 
 const axios = require("axios");
 const { put } = require("@vercel/blob");
@@ -323,7 +323,7 @@ function absolutizeUrl(u, base) {
   return base.replace(/\/+$/, "") + "/" + url.replace(/^\/+/, "");
 }
 
-// ✅ Data-driven storeBaseUrl — reads from /lib/stores.json at module load
+// ✅ Data-driven storeBaseUrl — reads from /lib/canonical-stores.json at module load
 const STORE_BASE_URL_MAP = (() => {
   const map = new Map();
   for (const s of storeList) {
@@ -1292,8 +1292,8 @@ module.exports = async (req, res) => {
     console.log("[MERGE] Starting merge:", new Date().toISOString());
     console.log("[MERGE] Blob-only mode: endpoints disabled.");
 
-    // ✅ Sources built dynamically from /lib/stores.json.
-    // To add a new store: add it to stores.json only. No changes needed here.
+    // ✅ Sources built dynamically from /lib/canonical-stores.json.
+    // To add a new store: add it to canonical-stores.json only. No changes needed here.
     const sources = storeList
       .filter((s) => s.enabled !== false)
       .map((s) => ({
