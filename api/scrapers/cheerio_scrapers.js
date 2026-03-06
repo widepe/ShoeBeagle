@@ -535,56 +535,57 @@ async function scrapeFleetFeet() {
       const $ = cheerio.load(response.data);
       pagesFetched++;
 
-      console.log("[FF]", nextUrl, "status:", response.status, "html length:", response.data.length);
-      console.log("[FF] tiles found:", $("a.product-tile-link").length);
-      console.log("[FF] product-tile attempts:", $('[class*="product-tile"]').length);
-      console.log("[FF] product links:", $('a[href*="/products/"]').length);
-      console.log("[FF] first product link href+class:", $('a[href*="/products/"]').first().attr("href"), $('a[href*="/products/"]').first().attr("class"));
-      
-      $("a.product-tile-link").each((_, el) => {
-        const $link = $(el);
-        const href = ($link.attr("href") || "").trim();
-        if (!href) return;
+     $('div.product-tile script[type="application/json"]').each((_, el) => {
+  let data;
+  try {
+    data = JSON.parse($(el).html());
+  } catch (e) {
+    return;
+  }
 
-        dealsFound++;
+  const discounted = data["computed.discounted"];
+  if (!discounted) return;
 
-        const listingURL = absolutizeUrl(href, base);
-        if (seenUrls.has(listingURL)) return;
+  dealsFound++;
 
-        const listingName = String($link.find(".product-tile-title").first().text() ?? "");
-        if (!listingName) return;
+  const salePrice = parseFloat(data["computed.price"]);
+  const originalPrice = parseFloat(data["computed.originalPrice"]);
 
-        const originalPrice = parseDollar($link.find("span.original").first().text());
-        const salePrice = parseDollar($link.find("span.discounted").first().text());
+  if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
+  if (!(originalPrice > salePrice && salePrice > 0)) return;
 
-        if (!Number.isFinite(salePrice) || salePrice <= 0) return;
-        if (!Number.isFinite(originalPrice) || !(originalPrice > salePrice)) return;
+  const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+  if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
 
-        const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-        if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
+  const slug = data["product.slug"] || "";
+  if (!slug) return;
 
-        seenUrls.add(listingURL);
+  const listingURL = absolutizeUrl(`/products/${slug}`, base);
+  if (seenUrls.has(listingURL)) return;
+  seenUrls.add(listingURL);
 
-        const $img = $link.find("img.product-tile-image").first();
-        const imageURL = pickBestImgUrl($, $img, base);
+  const listingName = String(data["product.title"] || "");
+  if (!listingName) return;
 
-        const cleanedForParsing = cleanTitleText(normalizeWhitespace(listingName));
-        const { brand, model } = parseBrandModel(cleanedForParsing);
+  const imageURL = data["sku.bestPhoto"] || data["sku.photo"] || null;
 
-        deals.push({
-          listingName,
-          brand,
-          model,
-          salePrice,
-          originalPrice,
-          discountPercent,
-          store: STORE,
-          listingURL,
-          imageURL,
-          gender: detectGender(listingURL, listingName),
-          shoeType: detectShoeType(cleanedForParsing, model),
-        });
-      });
+  const cleanedForParsing = cleanTitleText(normalizeWhitespace(listingName));
+  const { brand, model } = parseBrandModel(cleanedForParsing);
+
+  deals.push({
+    listingName,
+    brand,
+    model,
+    salePrice,
+    originalPrice,
+    discountPercent,
+    store: STORE,
+    listingURL,
+    imageURL,
+    gender: detectGender(listingURL, listingName),
+    shoeType: detectShoeType(cleanedForParsing, model),
+  });
+});
 
       const nextHref = ($("a#browsenext").attr("href") || "").trim();
       nextUrl = nextHref ? absolutizeUrl(nextHref, base) : null;
