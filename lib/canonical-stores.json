@@ -4,118 +4,101 @@
     "displayName": "ALS",
     "addedAt": "2026-02-09",
     "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-      "https://www.als.com/"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/als-sale.json"
-    ],
+    "scrapedUrls": ["https://www.als.com/"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/als-sale.json"],
     "aliases": ["als"],
     "enabled": true,
     "scraperType": "cheerio",
+    "envVar": "ALS_SALE_BLOB_URL",
+    "baseUrl": "https://www.als.com",
     "notes": "no notes"
   },
-{
-  "id": "asics",
-  "displayName": "ASICS",
-  "addedAt": "2026-02-09",
-  "lastUpdated": "2026-03-04",
-  "scrapedUrls": [
-    "https://www.asics.com/us/en-us/mens-clearance/c/aa10106000/running/shoes/",
-    "https://www.asics.com/us/en-us/womens-clearance/c/aa20106000/running/shoes/",
-    "https://www.asics.com/us/en-us/styles-leaving-asics-com/c/aa60400001/running/shoes/?prefn1=c_productGender&prefv1=Women%7CMen"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/asics-sale.json"
-  ],
-  "aliases": ["asics"],
-  "enabled": true,
-  "scraperType": "firecrawl-cheerio",
-  "notes": "Scrapes 3 ASICS running clearance categories (mens, womens, last chance). Shoe type inferred from model name."
-},
-
-{
-  "id": "backcountry",
-  "displayName": "Backcountry",
-  "addedAt": "2026-02-19",
-  "lastUpdated": "2026-02-19",
-  "scrapedUrls": [
-    "https://www.backcountry.com/rc/footwear-on-sale?p=u_categoryPathId:%22bc-running-shoes%22"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/backcountry.json"
-  ],
-  "aliases": ["backcountry"],
-  "enabled": true,
-  "scraperType": "firecrawl",
-  "notes": "Backcountry running shoes sale page via Firecrawl. Excludes cards without an original (strikethrough) price. Supports current-price ranges. Writes to backcountry.json."
-},
-
-{
+  {
+    "id": "asics",
+    "displayName": "ASICS",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-03-04",
+    "scrapedUrls": [
+      "https://www.asics.com/us/en-us/mens-clearance/c/aa10106000/running/shoes/",
+      "https://www.asics.com/us/en-us/womens-clearance/c/aa20106000/running/shoes/",
+      "https://www.asics.com/us/en-us/styles-leaving-asics-com/c/aa60400001/running/shoes/?prefn1=c_productGender&prefv1=Women%7CMen"
+    ],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/asics-sale.json"],
+    "aliases": ["asics"],
+    "enabled": true,
+    "scraperType": "firecrawl-cheerio",
+    "envVar": "ASICS_SALE_BLOB_URL",
+    "baseUrl": "https://www.asics.com",
+    "notes": "Scrapes 3 ASICS running clearance categories (mens, womens, last chance). Shoe type inferred from model name."
+  },
+  {
+    "id": "backcountry",
+    "displayName": "Backcountry",
+    "addedAt": "2026-02-19",
+    "lastUpdated": "2026-02-19",
+    "scrapedUrls": ["https://www.backcountry.com/rc/footwear-on-sale?p=u_categoryPathId:%22bc-running-shoes%22"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/backcountry.json"],
+    "aliases": ["backcountry"],
+    "enabled": true,
+    "scraperType": "firecrawl",
+    "envVar": "BACKCOUNTRY_DEALS_BLOB_URL",
+    "baseUrl": "https://www.backcountry.com",
+    "notes": "Backcountry running shoes sale page via Firecrawl. Excludes cards without an original (strikethrough) price. Supports current-price ranges. Writes to backcountry.json."
+  },
+  {
     "id": "big-peach-running-co",
     "displayName": "Big Peach Running Co",
     "addedAt": "2026-02-23",
     "lastUpdated": "2026-02-23",
-    "scrapedUrls": [
-      "https://shop.bigpeachrunningco.com/category/17804/deals-footwear"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/big-peach-running-co.json"
-    ],
+    "scrapedUrls": ["https://shop.bigpeachrunningco.com/category/17804/deals-footwear"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/big-peach-running-co.json"],
     "aliases": ["big peach", "big peach running", "big peach running co"],
     "enabled": true,
     "scraperType": "firecrawl",
+    "envVar": "BIGPEACH_DEALS_BLOB_URL",
+    "baseUrl": "https://shop.bigpeachrunningco.com",
     "notes": "Big Peach Running Co deals footwear page via Firecrawl. Handles multiple pages automatically by detecting pagination. Gender inferred from product name. Writes to big-peach-running-co.json."
   },
-
   {
     "id": "brooks-running",
     "displayName": "Brooks Running",
     "addedAt": "2026-02-09",
     "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-      "https://www.brooksrunning.com/"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/brooks/deals.json"
-    ],
+    "scrapedUrls": ["https://www.brooksrunning.com/"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/brooks/deals.json"],
     "aliases": ["brooks", "brooks running"],
     "enabled": true,
     "scraperType": "cheerio",
+    "envVar": "BROOKS_DEALS_BLOB_URL",
+    "baseUrl": "https://www.brooksrunning.com",
     "notes": "no notes"
   },
-
-{
-  "id": "finishline",
-  "displayName": "Finish Line",
-  "addedAt": "2026-02-20",
-  "lastUpdated": "2026-02-20",
-  "scrapedUrls": [
-    "https://www.finishline.com/plp/all-sale/category=shoes+activity=running"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/finishline.json"
-  ],
-  "aliases": ["finishline", "finish line"],
-  "enabled": true,
-  "scraperType": "firecrawl",
-  "notes": "Finish Line running shoes sale page via Firecrawl. Scrapes ONE page only (no pagination). Skips 'See price in bag' items and counts skips. imageURL uses media.finishline.com img/srcset fallback, then data-sku fallback. Writes to finishline.json."
-},
-  
+  {
+    "id": "finishline",
+    "displayName": "Finish Line",
+    "addedAt": "2026-02-20",
+    "lastUpdated": "2026-02-20",
+    "scrapedUrls": ["https://www.finishline.com/plp/all-sale/category=shoes+activity=running"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/finishline.json"],
+    "aliases": ["finishline", "finish line"],
+    "enabled": true,
+    "scraperType": "firecrawl",
+    "envVar": "FINISHLINE_DEALS_BLOB_URL",
+    "baseUrl": "https://www.finishline.com",
+    "notes": "Finish Line running shoes sale page via Firecrawl. Scrapes ONE page only (no pagination). Skips 'See price in bag' items and counts skips. imageURL uses media.finishline.com img/srcset fallback, then data-sku fallback. Writes to finishline.json."
+  },
   {
     "id": "fleet-feet",
     "displayName": "Fleet Feet",
     "addedAt": "2026-02-09",
     "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-      "https://www.fleetfeet.com/collections/mens-running-shoes-on-sale"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/fleet-feet.json"
-    ],
+    "scrapedUrls": ["https://www.fleetfeet.com/collections/mens-running-shoes-on-sale"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/fleet-feet.json"],
     "aliases": ["fleet feet", "fleetfeet"],
     "enabled": true,
     "scraperType": "cheerio",
+    "envVar": "FLEET_FEET_CHEERIO_BLOB_URL",
+    "baseUrl": "https://www.fleetfeet.com",
     "notes": "Per-store Cheerio blob (env: FLEET_FEET_CHEERIO_BLOB_URL)."
   },
   {
@@ -123,143 +106,127 @@
     "displayName": "Foot Locker",
     "addedAt": "2026-02-09",
     "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-      "https://www.footlocker.com/category/mens/shoes/running.html"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-footlocker.json"
-    ],
+    "scrapedUrls": ["https://www.footlocker.com/category/mens/shoes/running.html"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-footlocker.json"],
     "aliases": ["foot locker", "footlocker"],
     "enabled": true,
     "scraperType": "apify",
+    "envVar": "FOOTLOCKER_DEALS_BLOB_URL",
+    "baseUrl": "https://www.footlocker.com",
     "notes": "no notes"
   },
-
-{
-  "id": "gazelle-sports",
-  "displayName": "Gazelle Sports",
-  "addedAt": "2026-02-23",
-  "lastUpdated": "2026-02-23",
-  "scrapedUrls": [
-    "https://gazellesports.com/collections/mens-sale-shoes",
-    "https://gazellesports.com/collections/womens-sale-shoes"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/gazelle-sports.json"
-  ],
-  "aliases": ["gazelle", "gazelle sports"],
-  "enabled": true,
-  "scraperType": "vercel",
-  "notes": "Shopify products.json collection scraper (mens + womens sale)"
-},
-
-{
-  "id": "hoka",
-  "displayName": "HOKA",
-  "addedAt": "2026-02-19",
-  "lastUpdated": "2026-02-19",
-  "scrapedUrls": [
-    "https://www.hoka.com/en/us/sale/?prefn1=type&prefv1=shoes"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/hoka.json"
-  ],
-  "aliases": ["hoka", "hoka one one"],
-  "enabled": true,
-  "scraperType": "firecrawl",
-  "notes": "HOKA sale shoes page. Fetched via Firecrawl (waitFor:3000 for JS rendering). Writes to hoka.json via HOKA_DEALS_BLOB_URL / BLOB_READ_WRITE_TOKEN."
-},
-  
   {
-  "id": "holabird-sports",
-  "displayName": "Holabird Sports",
-  "addedAt": "2026-02-09",
-  "lastUpdated": "2026-03-04",
-  "scrapedUrls": [
-    "https://www.holabirdsports.com/collections/shoe-deals/Gender_Mens+Type_Running-Shoes+",
-    "https://www.holabirdsports.com/collections/shoe-deals/Type_Running-Shoes+Gender_Womens+",
-    "https://www.holabirdsports.com/collections/shoe-deals/Type_Running-Shoes+Gender_Unisex+",
-    "https://www.holabirdsports.com/collections/shoe-deals/Gender_Mens+Type_Trail-Running-Shoes+",
-    "https://www.holabirdsports.com/collections/shoe-deals/Type_Trail-Running-Shoes+Gender_Womens+",
-    "https://www.holabirdsports.com/collections/shoe-deals/Type_Trail-Running-Shoes+Gender_Unisex+"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/holabird-shoe-deals.json"
-  ],
-  "aliases": ["holabird", "holabird sports"],
-  "enabled": true,
-  "scraperType": "cheerio",
-  "notes": "Holabird is combined into a single blob (road + trail, mens/womens/unisex)."
-},
-
-
-{
-  "id": "jd-sports",
-  "displayName": "JD Sports",
-  "addedAt": "2026-02-22",
-  "lastUpdated": "2026-03-04",
-  "scrapedUrls": [
-    "https://www.jdsports.com/plp/all-sale/category=shoes+activity=running"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/jdsports.json"
-  ],
-  "aliases": ["jd sports", "jdsports"],
-  "enabled": true,
-  "scraperType": "algolia",
-  "notes": "JD Sports running shoes sale via Algolia product search API (jd_products_prod index). Much faster than HTML scraping. Filters facet_activity=Running and facet_category=Shoes. Writes to jdsports.json."
-},
-
-{
-  "id": "journeys",
-  "displayName": "Journeys",
-  "addedAt": "2026-03-06",
-  "lastUpdated": "2026-03-06",
-  "scrapedUrls": [
-    "https://www.journeys.com/products/womens-sale-shoes?style=running+shoes",
-    "https://www.journeys.com/products/mens-sale-shoes?style=running+shoes"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/journeys.json"
-  ],
-  "aliases": ["journeys"],
-  "enabled": true,
-  "scraperType": "apify",
-  "notes": "Journeys running shoes sale pages (womens + mens). One deal per product card. shoeType forced to unknown. Writes to journeys.json."
-},
-  
-{
-  "id": "kohls",
-  "displayName": "Kohl's",
-  "addedAt": "2026-02-19",
-  "lastUpdated": "2026-02-19",
-  "scrapedUrls": [
-    "https://www.kohls.com/catalog/sale-adult-running-shoes.jsp?CN=Promotions:Sale+AgeAppropriate:Adult+Activity:Running+Department:Shoes",
-    "https://www.kohls.com/catalog/clearance-adult-running-shoes.jsp?CN=Promotions:Clearance+AgeAppropriate:Adult+Activity:Running+Department:Shoes"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/kohls.json"
-  ],
-  "aliases": ["kohls", "kohl's"],
-  "enabled": true,
-  "scraperType": "firecrawl",
-  "notes": "Kohl's running shoes Sale + Clearance via Firecrawl. Extracts canonical fields including imageURL, supports price ranges (sale/original) and discountPercentUpTo. Writes to xxx/kohls.json."
-},
-  
+    "id": "gazelle-sports",
+    "displayName": "Gazelle Sports",
+    "addedAt": "2026-02-23",
+    "lastUpdated": "2026-02-23",
+    "scrapedUrls": [
+      "https://gazellesports.com/collections/mens-sale-shoes",
+      "https://gazellesports.com/collections/womens-sale-shoes"
+    ],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/gazelle-sports.json"],
+    "aliases": ["gazelle", "gazelle sports"],
+    "enabled": true,
+    "scraperType": "vercel",
+    "envVar": "GAZELLESPORTS_DEALS_BLOB_URL",
+    "baseUrl": "https://gazellesports.com",
+    "notes": "Shopify products.json collection scraper (mens + womens sale)"
+  },
+  {
+    "id": "hoka",
+    "displayName": "HOKA",
+    "addedAt": "2026-02-19",
+    "lastUpdated": "2026-02-19",
+    "scrapedUrls": ["https://www.hoka.com/en/us/sale/?prefn1=type&prefv1=shoes"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/hoka.json"],
+    "aliases": ["hoka", "hoka one one"],
+    "enabled": true,
+    "scraperType": "firecrawl",
+    "envVar": "HOKA_DEALS_BLOB_URL",
+    "baseUrl": "https://www.hoka.com",
+    "notes": "HOKA sale shoes page. Fetched via Firecrawl (waitFor:3000 for JS rendering). Writes to hoka.json via HOKA_DEALS_BLOB_URL / BLOB_READ_WRITE_TOKEN."
+  },
+  {
+    "id": "holabird-sports",
+    "displayName": "Holabird Sports",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-03-04",
+    "scrapedUrls": [
+      "https://www.holabirdsports.com/collections/shoe-deals/Gender_Mens+Type_Running-Shoes+",
+      "https://www.holabirdsports.com/collections/shoe-deals/Type_Running-Shoes+Gender_Womens+",
+      "https://www.holabirdsports.com/collections/shoe-deals/Type_Running-Shoes+Gender_Unisex+",
+      "https://www.holabirdsports.com/collections/shoe-deals/Gender_Mens+Type_Trail-Running-Shoes+",
+      "https://www.holabirdsports.com/collections/shoe-deals/Type_Trail-Running-Shoes+Gender_Womens+",
+      "https://www.holabirdsports.com/collections/shoe-deals/Type_Trail-Running-Shoes+Gender_Unisex+"
+    ],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/holabird-shoe-deals.json"],
+    "aliases": ["holabird", "holabird sports"],
+    "enabled": true,
+    "scraperType": "cheerio",
+    "envVar": "HOLABIRD_DEALS_BLOB_URL",
+    "baseUrl": "https://www.holabirdsports.com",
+    "notes": "Holabird is combined into a single blob (road + trail, mens/womens/unisex)."
+  },
+  {
+    "id": "jd-sports",
+    "displayName": "JD Sports",
+    "addedAt": "2026-02-22",
+    "lastUpdated": "2026-03-04",
+    "scrapedUrls": ["https://www.jdsports.com/plp/all-sale/category=shoes+activity=running"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/jdsports.json"],
+    "aliases": ["jd sports", "jdsports"],
+    "enabled": true,
+    "scraperType": "algolia",
+    "envVar": "JDSPORTS_DEALS_BLOB_URL",
+    "baseUrl": "https://www.jdsports.com",
+    "notes": "JD Sports running shoes sale via Algolia product search API (jd_products_prod index). Much faster than HTML scraping. Filters facet_activity=Running and facet_category=Shoes. Writes to jdsports.json."
+  },
+  {
+    "id": "journeys",
+    "displayName": "Journeys",
+    "addedAt": "2026-03-06",
+    "lastUpdated": "2026-03-06",
+    "scrapedUrls": [
+      "https://www.journeys.com/products/womens-sale-shoes?style=running+shoes",
+      "https://www.journeys.com/products/mens-sale-shoes?style=running+shoes"
+    ],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/journeys.json"],
+    "aliases": ["journeys"],
+    "enabled": true,
+    "scraperType": "apify",
+    "envVar": "JOURNEYS_DEALS_BLOB_URL",
+    "baseUrl": "https://www.journeys.com",
+    "notes": "Journeys running shoes sale pages (womens + mens). One deal per product card. shoeType forced to unknown. Writes to journeys.json."
+  },
+  {
+    "id": "kohls",
+    "displayName": "Kohl's",
+    "addedAt": "2026-02-19",
+    "lastUpdated": "2026-02-19",
+    "scrapedUrls": [
+      "https://www.kohls.com/catalog/sale-adult-running-shoes.jsp?CN=Promotions:Sale+AgeAppropriate:Adult+Activity:Running+Department:Shoes",
+      "https://www.kohls.com/catalog/clearance-adult-running-shoes.jsp?CN=Promotions:Clearance+AgeAppropriate:Adult+Activity:Running+Department:Shoes"
+    ],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/kohls.json"],
+    "aliases": ["kohls", "kohl's"],
+    "enabled": true,
+    "scraperType": "firecrawl",
+    "envVar": "KOHLS_DEALS_BLOB_URL",
+    "baseUrl": "https://www.kohls.com",
+    "notes": "Kohl's running shoes Sale + Clearance via Firecrawl. Extracts canonical fields including imageURL, supports price ranges (sale/original) and discountPercentUpTo. Writes to xxx/kohls.json."
+  },
   {
     "id": "lukes-locker",
     "displayName": "Luke's Locker",
     "addedAt": "2026-02-09",
     "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-      "https://www.lukeslocker.com/"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/lukes-locker.json"
-    ],
+    "scrapedUrls": ["https://www.lukeslocker.com/"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/lukes-locker.json"],
     "aliases": ["luke's locker", "lukes locker", "lukeslocker"],
     "enabled": true,
     "scraperType": "cheerio",
+    "envVar": "LUKES_LOCKER_CHEERIO_BLOB_URL",
+    "baseUrl": "https://lukeslocker.com",
     "notes": "Per-store Cheerio blob (env: LUKES_LOCKER_CHEERIO_BLOB_URL)."
   },
   {
@@ -267,111 +234,86 @@
     "displayName": "Marathon Sports",
     "addedAt": "2026-02-09",
     "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-      "https://www.marathonsports.com/"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/marathon-sports.json"
-    ],
+    "scrapedUrls": ["https://www.marathonsports.com/"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/marathon-sports.json"],
     "aliases": ["marathon sports", "marathonsports"],
     "enabled": true,
     "scraperType": "cheerio",
+    "envVar": "MARATHON_SPORTS_CHEERIO_BLOB_URL",
+    "baseUrl": "https://www.marathonsports.com",
     "notes": "Per-store Cheerio blob (env: MARATHON_SPORTS_CHEERIO_BLOB_URL)."
   },
-
-{
-  "id": "mizuno",
-  "displayName": "Mizuno",
-  "addedAt": "2026-02-17",
-  "lastUpdated": "2026-02-17",
-  "scrapedUrls": [
-    "https://usa.mizuno.com/running/womens-shoes/sale/#/pageSize:100",
-    "https://usa.mizuno.com/running/mens-shoes/sale/#/pageSize:100"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/mizuno.json"
-  ],
-  "aliases": ["mizuno"],
-  "enabled": true,
-  "scraperType": "apify",
-  "notes": "Mizuno USA running sale pages (mens + womens). Writes to mizuno.json via APIFY + Vercel Blob."
-},
-
-{
-  "id": "nike",
-  "displayName": "Nike",
-  "addedAt": "2026-02-22",
-  "lastUpdated": "2026-02-22",
-  "scrapedUrls": [
-    "https://www.nike.com/w/sale-running-shoes-37v7jz3rauvz3yaepz5e1x6znik1zy7ok"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/nike.json"
-  ],
-  "aliases": ["nike"],
-  "enabled": true,
-  "scraperType": "firecrawl",
-  "notes": "Nike sale running shoes page via Firecrawl. Uses scroll actions to load more tiles (infinite scroll). Drops 'See Price in Bag' items and counts drops. ShoeType inferred from title keywords: road/trail/track; gender inferred from title: Women's/Men's/Unisex else unknown. Writes to nike.json."
-},
-
-{
-  "id": "puma",
-  "displayName": "PUMA",
-  "addedAt": "2026-02-24",
-  "lastUpdated": "2026-02-24",
-  "scrapedUrls": [
-    "https://us.puma.com/us/en/sale/all-sale?filter_product_division=%3E%7Bshoes%7D&filter_sport_type=%3E%7Brunning%7D"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/puma.json"
-  ],
-  "aliases": ["puma"],
-  "enabled": true,
-  "scraperType": "apify",
-  "notes": "PUMA US running shoes sale page via Apify Playwright (infinite scroll). Extracts h2 model, h3 subtitle, sale-price + price data-test-id values. Writes to puma.json via PUMA_DEALS_BLOB_URL / BLOB_READ_WRITE_TOKEN."
-},
-  
-  
-{
-  "id": "rei",
-  "displayName": "REI",
-  "addedAt": "2026-02-09",
-  "lastUpdated": "2026-03-04",
-  "scrapedUrls": [
-    "https://www.rei.com/c/running-shoes/f/scd-deals"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/rei/deals.json"
-  ],
-
- "aliases": [
-    "REI",
-    "REI Co-op",
-    "REI Co-op Outlet",
-    "REI Outlet",
-    "REI Garage",
-    "REI-Garage",
-    "REI.com"
-  ],
-  
-  "enabled": true,
-  "scraperType": "playwright",
-  "notes": "Uses REI JSON endpoint via Playwright to bypass 403 and paginate deals"
-},
+  {
+    "id": "mizuno",
+    "displayName": "Mizuno",
+    "addedAt": "2026-02-17",
+    "lastUpdated": "2026-02-17",
+    "scrapedUrls": [
+      "https://usa.mizuno.com/running/womens-shoes/sale/#/pageSize:100",
+      "https://usa.mizuno.com/running/mens-shoes/sale/#/pageSize:100"
+    ],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/mizuno.json"],
+    "aliases": ["mizuno"],
+    "enabled": true,
+    "scraperType": "apify",
+    "envVar": "MIZUNO_DEALS_BLOB_URL",
+    "baseUrl": "https://usa.mizuno.com",
+    "notes": "Mizuno USA running sale pages (mens + womens). Writes to mizuno.json via APIFY + Vercel Blob."
+  },
+  {
+    "id": "nike",
+    "displayName": "Nike",
+    "addedAt": "2026-02-22",
+    "lastUpdated": "2026-02-22",
+    "scrapedUrls": ["https://www.nike.com/w/sale-running-shoes-37v7jz3rauvz3yaepz5e1x6znik1zy7ok"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/nike.json"],
+    "aliases": ["nike"],
+    "enabled": true,
+    "scraperType": "firecrawl",
+    "envVar": "NIKE_DEALS_BLOB_URL",
+    "baseUrl": "https://www.nike.com",
+    "notes": "Nike sale running shoes page via Firecrawl. Uses scroll actions to load more tiles (infinite scroll). Drops 'See Price in Bag' items and counts drops. ShoeType inferred from title keywords: road/trail/track; gender inferred from title: Women's/Men's/Unisex else unknown. Writes to nike.json."
+  },
+  {
+    "id": "puma",
+    "displayName": "PUMA",
+    "addedAt": "2026-02-24",
+    "lastUpdated": "2026-02-24",
+    "scrapedUrls": ["https://us.puma.com/us/en/sale/all-sale?filter_product_division=%3E%7Bshoes%7D&filter_sport_type=%3E%7Brunning%7D"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/puma.json"],
+    "aliases": ["puma"],
+    "enabled": true,
+    "scraperType": "apify",
+    "envVar": "PUMA_DEALS_BLOB_URL",
+    "baseUrl": "https://us.puma.com",
+    "notes": "PUMA US running shoes sale page via Apify Playwright (infinite scroll). Extracts h2 model, h3 subtitle, sale-price + price data-test-id values. Writes to puma.json via PUMA_DEALS_BLOB_URL / BLOB_READ_WRITE_TOKEN."
+  },
+  {
+    "id": "rei",
+    "displayName": "REI",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-03-04",
+    "scrapedUrls": ["https://www.rei.com/c/running-shoes/f/scd-deals"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/rei/deals.json"],
+    "aliases": ["REI", "REI Co-op", "REI Co-op Outlet", "REI Outlet", "REI Garage", "REI-Garage", "REI.com"],
+    "enabled": true,
+    "scraperType": "playwright",
+    "envVar": "REI_DEALS_BLOB_URL",
+    "baseUrl": "https://www.rei.com",
+    "notes": "Uses REI JSON endpoint via Playwright to bypass 403 and paginate deals"
+  },
   {
     "id": "rnj-sports",
     "displayName": "RNJ Sports",
     "addedAt": "2026-02-09",
     "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-      "https://www.rnjsports.com/deals/running-shoes/"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/rnjsports.json"
-    ],
+    "scrapedUrls": ["https://www.rnjsports.com/deals/running-shoes/"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/rnjsports.json"],
     "aliases": ["rnj", "rnj sports", "rnjsports"],
     "enabled": true,
     "scraperType": "cheerio",
+    "envVar": "RNJSPORTS_DEALS_BLOB_URL",
+    "baseUrl": "https://www.rnjsports.com",
     "notes": "no notes"
   },
   {
@@ -379,126 +321,108 @@
     "displayName": "Road Runner Sports",
     "addedAt": "2026-02-09",
     "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-      "https://www.roadrunnersports.com/rrs/mens/shoes/sale/_/N-u5Z1z141i0"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-roadrunner_blob.json"
-    ],
+    "scrapedUrls": ["https://www.roadrunnersports.com/rrs/mens/shoes/sale/_/N-u5Z1z141i0"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-roadrunner_blob.json"],
     "aliases": ["road runner sports", "roadrunner sports", "road runner"],
     "enabled": true,
     "scraperType": "apify",
+    "envVar": "ROADRUNNER_DEALS_BLOB_URL",
+    "baseUrl": "https://www.roadrunnersports.com",
     "notes": "no notes"
   },
-
-{
-  "id": "runnersplus",
-  "displayName": "Runners Plus",
-  "addedAt": "2026-03-05",
-  "lastUpdated": "2026-03-05",
-  "scrapedUrls": [
-    "https://www.runnersplus.com/collections/mens-sale?filter.v.availability=1&sort_by=created-descending",
-    "https://www.runnersplus.com/collections/womens-sale?filter.v.availability=1&sort_by=created-descending",
-    "https://www.runnersplus.com/collections/sale?filter.v.availability=1&sort_by=created-descending"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/runnersplus.json"
-  ],
-  "aliases": [
-    "runnersplus",
-    "runners plus"
-  ],
-  "enabled": true,
-  "scraperType": "vercel",
-  "notes": "Shopify section_id product grid scraper (UI pagination). Collects product URLs from the grid and fetches /products/<handle>.json for pricing. Gender inferred from title, shoeType forced to unknown. Writes to runnersplus.json."
-},
-  
+  {
+    "id": "runnersplus",
+    "displayName": "Runners Plus",
+    "addedAt": "2026-03-05",
+    "lastUpdated": "2026-03-05",
+    "scrapedUrls": [
+      "https://www.runnersplus.com/collections/mens-sale?filter.v.availability=1&sort_by=created-descending",
+      "https://www.runnersplus.com/collections/womens-sale?filter.v.availability=1&sort_by=created-descending",
+      "https://www.runnersplus.com/collections/sale?filter.v.availability=1&sort_by=created-descending"
+    ],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/runnersplus.json"],
+    "aliases": ["runnersplus", "runners plus"],
+    "enabled": true,
+    "scraperType": "vercel",
+    "envVar": "RUNNERSPLUS_DEALS_BLOB_URL",
+    "baseUrl": "https://www.runnersplus.com",
+    "notes": "Shopify section_id product grid scraper (UI pagination). Collects product URLs from the grid and fetches /products/<handle>.json for pricing. Gender inferred from title, shoeType forced to unknown. Writes to runnersplus.json."
+  },
   {
     "id": "running-warehouse",
     "displayName": "Running Warehouse",
     "addedAt": "2026-02-09",
     "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-      "https://www.runningwarehouse.com/"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/running-warehouse.json"
-    ],
+    "scrapedUrls": ["https://www.runningwarehouse.com/"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/running-warehouse.json"],
     "aliases": ["running warehouse", "runningwarehouse"],
     "enabled": true,
     "scraperType": "cheerio",
+    "envVar": "RUNNING_WAREHOUSE_CHEERIO_BLOB_URL",
+    "baseUrl": "https://www.runningwarehouse.com",
     "notes": "Per-store Cheerio blob (env: RUNNING_WAREHOUSE_CHEERIO_BLOB_URL)."
   },
-{
-  "id": "run-united",
-  "displayName": "Run United",
-  "addedAt": "2026-03-03",
-  "lastUpdated": "2026-03-03",
-  "scrapedUrls": [
-    "https://rununited.com/mens/footwear/road-running-shoes/?page=1&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale",
-    "https://rununited.com/womens/footwear/road-running-shoes/?page=1&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale",
-
-    "https://rununited.com/mens/footwear/trail-running-shoes/?page=1&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale&rb_custom_field_69a256025f66e4ce5d15c9dd7225d357=Running",
-    "https://rununited.com/womens/footwear/trail-running-shoes/?page=1&rb_custom_field_69a256025f66e4ce5d15c9dd7225d357=Running&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale",
-
-    "https://rununited.com/mens/footwear/track-running-shoes/?page=1&rb_custom_field_69a256025f66e4ce5d15c9dd7225d357=Running&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale",
-    "https://rununited.com/womens/footwear/track-running-shoes/?page=1&rb_custom_field_69a256025f66e4ce5d15c9dd7225d357=Running&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/run-united.json"
-  ],
-  "aliases": ["run united", "rununited"],
-  "enabled": true,
-  "scraperType": "vercel",
-  "notes": "Searchanise (searchserverapi*/getresults) direct JSON/JSONP pagination. Drops all out-of-stock. shoeType forced per source URL: road/trail/track."
-},
-  
+  {
+    "id": "run-united",
+    "displayName": "Run United",
+    "addedAt": "2026-03-03",
+    "lastUpdated": "2026-03-03",
+    "scrapedUrls": [
+      "https://rununited.com/mens/footwear/road-running-shoes/?page=1&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale",
+      "https://rununited.com/womens/footwear/road-running-shoes/?page=1&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale",
+      "https://rununited.com/mens/footwear/trail-running-shoes/?page=1&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale&rb_custom_field_69a256025f66e4ce5d15c9dd7225d357=Running",
+      "https://rununited.com/womens/footwear/trail-running-shoes/?page=1&rb_custom_field_69a256025f66e4ce5d15c9dd7225d357=Running&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale",
+      "https://rununited.com/mens/footwear/track-running-shoes/?page=1&rb_custom_field_69a256025f66e4ce5d15c9dd7225d357=Running&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale",
+      "https://rununited.com/womens/footwear/track-running-shoes/?page=1&rb_custom_field_69a256025f66e4ce5d15c9dd7225d357=Running&rb_custom_field_e70b59714528d5798b1c8adaf0d0ed15=On%20Sale"
+    ],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/run-united.json"],
+    "aliases": ["run united", "rununited"],
+    "enabled": true,
+    "scraperType": "vercel",
+    "envVar": "RUNUNITED_DEALS_BLOB_URL",
+    "baseUrl": "https://rununited.com",
+    "notes": "Searchanise (searchserverapi*/getresults) direct JSON/JSONP pagination. Drops all out-of-stock. shoeType forced per source URL: road/trail/track."
+  },
   {
     "id": "shoebacca",
     "displayName": "Shoebacca",
     "addedAt": "2026-02-09",
     "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-      "https://www.shoebacca.com/collections/clearance-athletic"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/shoebacca-clearance.json"
-    ],
+    "scrapedUrls": ["https://www.shoebacca.com/collections/clearance-athletic"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/shoebacca-clearance.json"],
     "aliases": ["shoebacca"],
     "enabled": true,
     "scraperType": "cheerio",
+    "envVar": "SHOEBACCA_CLEARANCE_BLOB_URL",
+    "baseUrl": "https://www.shoebacca.com",
     "notes": "no notes"
   },
-{
-  "id": "track-shack",
-  "displayName": "Track Shack",
-  "addedAt": "2026-02-17",
-  "lastUpdated": "2026-02-17",
-  "scrapedUrls": [
-    "https://shop.trackshack.com/collections/track-shack-clearance-shoes"
-  ],
-  "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/trackshack.json"
-  ],
-  "aliases": ["track shack", "trackshack"],
-  "enabled": true,
-  "scraperType": "cheerio",
-  "notes": "Track Shack clearance running shoes. Writes to trackshack.json via Cheerio scraper."
-},
+  {
+    "id": "track-shack",
+    "displayName": "Track Shack",
+    "addedAt": "2026-02-17",
+    "lastUpdated": "2026-02-17",
+    "scrapedUrls": ["https://shop.trackshack.com/collections/track-shack-clearance-shoes"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/trackshack.json"],
+    "aliases": ["track shack", "trackshack"],
+    "enabled": true,
+    "scraperType": "cheerio",
+    "envVar": "TRACKSHACK_CLEARANCE_BLOB_URL",
+    "baseUrl": "https://shop.trackshack.com",
+    "notes": "Track Shack clearance running shoes. Writes to trackshack.json via Cheerio scraper."
+  },
   {
     "id": "zappos",
     "displayName": "Zappos",
     "addedAt": "2026-02-09",
     "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-      "https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso"
-    ],
-    "expectedBlob": [
-      "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-zappos.json"
-    ],
+    "scrapedUrls": ["https://www.zappos.com/men-athletic-shoes/CK_XARC81wHAAQLiAgMBAhg.zso"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-zappos.json"],
     "aliases": ["zappos"],
     "enabled": true,
     "scraperType": "apify",
+    "envVar": "ZAPPOS_DEALS_BLOB_URL",
+    "baseUrl": "https://www.zappos.com",
     "notes": "no notes"
   }
 ]
