@@ -17,7 +17,7 @@
 // - listingName is preserved EXACTLY as scraped (no cleaning / normalization applied to listingName).
 // - All parsing for brand/model/gender/shoeType uses the SAME cleaned/normalized inputs as before,
 //   so outputs (everything except listingName) should match current behavior.
-//
+
 // -----------------------------------------------------------------------------
 // ✅ SCRAPER TOGGLES (edit these booleans to enable/disable stores)
 // -----------------------------------------------------------------------------
@@ -26,6 +26,15 @@ const SCRAPER_TOGGLES = {
   FLEET_FEET: true,
   LUKES_LOCKER: false,
   MARATHON_SPORTS: false,
+};
+
+// -----------------------------------------------------------------------------
+// ✅ REQUEST / AUTH TOGGLES
+// - Set REQUIRE_CRON_SECRET = true in production
+// - Leave false while testing manually in browser/postman
+// -----------------------------------------------------------------------------
+const REQUEST_TOGGLES = {
+  REQUIRE_CRON_SECRET: false,
 };
 
 const axios = require("axios");
@@ -366,12 +375,12 @@ async function scrapeRunningWarehouse() {
 
   const pages = [
     { url: "https://www.runningwarehouse.com/catpage-WRSSALERONU.html", shoeType: "road" },
-    { url: "https://www.runningwarehouse.com/catpage-WRSSALETR.html",  shoeType: "trail" },
+    { url: "https://www.runningwarehouse.com/catpage-WRSSALETR.html", shoeType: "trail" },
     { url: "https://www.runningwarehouse.com/catpage-MRSSALENEU.html", shoeType: "road" },
-    { url: "https://www.runningwarehouse.com/catpage-MRSSALETR.html",  shoeType: "trail" },
+    { url: "https://www.runningwarehouse.com/catpage-MRSSALETR.html", shoeType: "trail" },
   ];
 
-  const sourceUrls = pages.map(p => p.url);
+  const sourceUrls = pages.map((p) => p.url);
   let pagesFetched = 0;
   let dealsFound = 0;
 
@@ -414,7 +423,6 @@ async function scrapeRunningWarehouse() {
       cellCount,
     });
 
-    // Count as fetched if we got HTML back (even non-200), consistent with your current behavior.
     pagesFetched++;
 
     $("a.cattable-wrap-cell-info").each((_, el) => {
@@ -422,7 +430,6 @@ async function scrapeRunningWarehouse() {
       const $cell = $link.closest(".cattable-wrap-cell");
       if (!$cell.length) return;
 
-      // dealsFound = products/cards found (before filtering)
       dealsFound++;
 
       const listingName = String($cell.find(".cattable-wrap-cell-info-name").first().text() || "");
@@ -442,15 +449,9 @@ async function scrapeRunningWarehouse() {
       const $img = $cell.find("img").first();
       const imageURL = pickBestImgUrl($, $img, base);
 
-      const saleText = $cell
-        .find(".cattable-wrap-cell-info-price.is-sale")
-        .first()
-        .text();
+      const saleText = $cell.find(".cattable-wrap-cell-info-price.is-sale").first().text();
 
-      const msrpText = $cell
-        .find(".cattable-wrap-cell-info-price-msrp")
-        .first()
-        .text();
+      const msrpText = $cell.find(".cattable-wrap-cell-info-price-msrp").first().text();
 
       const salePrice = parseDollar(saleText);
       const originalPrice = parseDollar(msrpText);
@@ -535,11 +536,11 @@ async function scrapeFleetFeet() {
 
       const $ = cheerio.load(response.data);
       pagesFetched++;
-// REPLACE your 3 existing log lines with these 4:
-console.log("[FF]", nextUrl, "status:", response.status, "html length:", response.data.length);
-console.log("[FF] tiles found:", $("a.product-tile-link").length);
-console.log("[FF] product-tile attempts:", $('[class*="product-tile"]').length);
-console.log("[FF] product links:", $('a[href*="/products/"]').length);
+
+      console.log("[FF]", nextUrl, "status:", response.status, "html length:", response.data.length);
+      console.log("[FF] tiles found:", $("a.product-tile-link").length);
+      console.log("[FF] product-tile attempts:", $('[class*="product-tile"]').length);
+      console.log("[FF] product links:", $('a[href*="/products/"]').length);
 
       $("a.product-tile-link").each((_, el) => {
         const $link = $(el);
@@ -551,11 +552,9 @@ console.log("[FF] product links:", $('a[href*="/products/"]').length);
         const listingURL = absolutizeUrl(href, base);
         if (seenUrls.has(listingURL)) return;
 
-        // listingName: RAW text from title element
         const listingName = String($link.find(".product-tile-title").first().text() ?? "");
         if (!listingName) return;
 
-        // Prices: use dedicated spans
         const originalPrice = parseDollar($link.find("span.original").first().text());
         const salePrice = parseDollar($link.find("span.discounted").first().text());
 
@@ -574,7 +573,7 @@ console.log("[FF] product links:", $('a[href*="/products/"]').length);
         const { brand, model } = parseBrandModel(cleanedForParsing);
 
         deals.push({
-          listingName,       // RAW, unaltered
+          listingName,
           brand,
           model,
           salePrice,
@@ -588,7 +587,6 @@ console.log("[FF] product links:", $('a[href*="/products/"]').length);
         });
       });
 
-      // Follow pagination
       const nextHref = ($("a#browsenext").attr("href") || "").trim();
       nextUrl = nextHref ? absolutizeUrl(nextHref, base) : null;
 
@@ -638,19 +636,16 @@ async function scrapeLukesLocker() {
     if (!Array.isArray(products) || products.length === 0) break;
 
     pagesFetched++;
-    dealsFound += products.length; // products found on this JSON page (before filtering)
+    dealsFound += products.length;
 
     for (const p of products) {
-      // PRESERVE listingName RAW (as delivered by Shopify JSON)
       const listingName = String(p?.title ?? "");
       if (!listingName) continue;
 
-      // Keep SAME parsing input as before
       const titleRawNormalized = normalizeWhitespace(listingName);
       const cleanedForParsing = cleanTitleText(titleRawNormalized);
       if (!cleanedForParsing) continue;
 
-      // Shopify vendor as brand
       const brand = normalizeWhitespace(p?.vendor || "") || "Unknown";
 
       const listingURL = `${base}/products/${p?.handle || ""}`;
@@ -658,7 +653,6 @@ async function scrapeLukesLocker() {
       if (seenUrls.has(listingURL)) continue;
       seenUrls.add(listingURL);
 
-      // image (Shopify products.json: image/images are usually OBJECTS with .src)
       let imageURL = null;
 
       const pickSrc = (img) => {
@@ -668,9 +662,7 @@ async function scrapeLukesLocker() {
         return null;
       };
 
-      let src =
-        pickSrc(p?.image) ||
-        (Array.isArray(p?.images) ? pickSrc(p.images[0]) : null);
+      let src = pickSrc(p?.image) || (Array.isArray(p?.images) ? pickSrc(p.images[0]) : null);
 
       if (!src && Array.isArray(p?.images)) {
         for (const img of p.images) {
@@ -688,7 +680,6 @@ async function scrapeLukesLocker() {
         imageURL = u;
       }
 
-      // prices from variants: choose the best "on sale" variant
       let bestSale = null;
       let bestOriginal = null;
 
@@ -711,7 +702,6 @@ async function scrapeLukesLocker() {
       const discountPercent = computeDiscountPercent(bestOriginal, bestSale);
       if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) continue;
 
-      // model: keep SAME behavior as before
       let model = cleanedForParsing;
       if (brand && brand !== "Unknown") {
         const escaped = escapeRegExp(brand);
@@ -721,7 +711,7 @@ async function scrapeLukesLocker() {
       model = cleanModelName(model);
 
       deals.push({
-        listingName, // RAW, unaltered
+        listingName,
         brand,
         model,
         salePrice: bestSale,
@@ -784,7 +774,6 @@ async function scrapeMarathonSports() {
       const href = ($link.attr("href") || "").trim();
       if (!href) return;
 
-      // Found a product link (before filtering)
       dealsFound++;
 
       const listingURL = absolutizeUrl(href, "https://www.marathonsports.com");
@@ -799,13 +788,11 @@ async function scrapeMarathonSports() {
       const containerText = normalizeWhitespace($container.text());
       if (!containerText.includes("$") || !containerText.toLowerCase().includes("price")) return;
 
-      // PRESERVE listingName RAW from title element (no normalize/clean applied)
       let listingName = "";
       const $titleEl = $container.find("h2, h3, .product-title, .product-name, [class*='title']").first();
       if ($titleEl.length) listingName = String($titleEl.text() ?? "");
       if (!listingName) return;
 
-      // Keep SAME parsing input as before
       const titleNormalized = normalizeWhitespace(listingName);
       const cleanedForParsing = cleanTitleText(titleNormalized);
       if (!cleanedForParsing) return;
@@ -823,7 +810,7 @@ async function scrapeMarathonSports() {
       const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
       deals.push({
-        listingName, // RAW, unaltered
+        listingName,
         brand,
         model,
         salePrice,
@@ -859,14 +846,15 @@ async function runAndSaveStore({ storeName, blobName, via, fn }) {
     const result = await fn();
     const durationMs = Date.now() - start;
 
-    // Support both legacy array return and new meta object return
-    const deals = Array.isArray(result) ? result : (Array.isArray(result?.deals) ? result.deals : []);
+    const deals = Array.isArray(result) ? result : Array.isArray(result?.deals) ? result.deals : [];
     const sourceUrls = Array.isArray(result?.sourceUrls) ? result.sourceUrls.filter(Boolean) : [];
     const pagesFetched = Number.isFinite(Number(result?.pagesFetched)) ? Number(result.pagesFetched) : null;
     const dealsFound = Number.isFinite(Number(result?.dealsFound)) ? Number(result.dealsFound) : null;
     const dealsExtracted = Number.isFinite(Number(result?.dealsExtracted))
       ? Number(result.dealsExtracted)
-      : (Array.isArray(deals) ? deals.length : 0);
+      : Array.isArray(deals)
+        ? deals.length
+        : 0;
 
     const output = {
       store: storeName,
@@ -947,8 +935,6 @@ async function runAndSaveStore({ storeName, blobName, via, fn }) {
 }
 
 function skippedResult(storeName, blobName) {
-  // NOTE: We do NOT overwrite the blob when skipped (your original behavior had skippedResult but
-  // still returned blobName). If you WANT to write a "skipped" blob, say so.
   return {
     scraper: storeName,
     ok: true,
@@ -969,12 +955,17 @@ module.exports = async (req, res) => {
   if (req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
-// CRON SECRET
-/*  const auth = req.headers.authorization;
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+
+  // CRON SECRET
+  const auth = req.headers.authorization;
+  if (
+    REQUEST_TOGGLES.REQUIRE_CRON_SECRET &&
+    process.env.CRON_SECRET &&
+    auth !== `Bearer ${process.env.CRON_SECRET}`
+  ) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
   }
-*/
+
   const overallStartTime = Date.now();
   const runTimestamp = nowIso();
 
@@ -1038,10 +1029,13 @@ module.exports = async (req, res) => {
       success: true,
       timestamp: runTimestamp,
       duration: `${durationMs}ms`,
-      toggles: SCRAPER_TOGGLES,
+      toggles: {
+        scrapers: SCRAPER_TOGGLES,
+        request: REQUEST_TOGGLES,
+      },
       stores: results,
       note:
-        "Disabled stores are skipped (no scrape + no blob write). Enable/disable at top via SCRAPER_TOGGLES.",
+        "Disabled stores are skipped (no scrape + no blob write). REQUIRE_CRON_SECRET can be toggled on/off for testing.",
     });
   } catch (error) {
     return res.status(500).json({
