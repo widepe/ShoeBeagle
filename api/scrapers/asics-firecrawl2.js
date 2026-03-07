@@ -168,27 +168,23 @@ function extractImageFromTile($product, $) {
 // Classification helpers
 // ─────────────────────────────────────────────
 
-function normalizeClassificationText(text = "") {
+function normalizeText(text = "") {
   return String(text || "").replace(/\s+/g, " ").trim();
 }
 
 function parseClassification(classification = "") {
-  const c = normalizeClassificationText(classification).toLowerCase();
+  const c = normalizeText(classification).toLowerCase();
 
-  let gender = "unknown";
+  // Default to unisex if no gender text appears
+  let gender = "unisex";
   let shoeType = "unknown";
 
-  // gender is independent of shoeType
-  if (c.includes("unisex")) {
-    gender = "unisex";
-  } else if (c.includes("women")) {
+  if (c.includes("women")) {
     gender = "womens";
   } else if (c.includes("men")) {
     gender = "mens";
   }
 
-  // order matters:
-  // "trail running shoes" must be checked before "running shoes"
   if (c.includes("trail running shoes")) {
     shoeType = "trail";
   } else if (c.includes("track & field shoes")) {
@@ -239,7 +235,7 @@ function extractTotalHitCount($) {
   return Number.isFinite(n) ? n : null;
 }
 
-function extractNextPageUrl($, currentUrl) {
+function extractNextPageUrl($) {
   const href = $('[data-test="plp-load-more"]').first().attr("href");
   if (!href) return null;
   return normalizeUrl(absolutizeUrl(href, BASE_URL));
@@ -253,19 +249,18 @@ function parseCategoryPage(html, sourceUrl) {
     const $product = $(el);
 
     const $link = $product.find('a[href*="/p/"]').first();
-    let title = ($link.attr("aria-label") || $link.text() || "")
-      .trim()
-      .replace(/Next slide|Previous slide|\bSale\b/gi, "")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    if (!title || title.length < 3) return;
-
     const href = $link.attr("href") || "";
     const listingURL = absolutizeUrl(href);
     if (!listingURL) return;
 
-    const classification = normalizeClassificationText(
+    const model = normalizeText(
+      $product.find('[data-test="product-name"]').first().text() ||
+      $product.find(".productTile__title").first().text() ||
+      ""
+    );
+    if (!model) return;
+
+    const classification = normalizeText(
       $product.find('[data-test="product-classification"]').first().text() || ""
     );
 
@@ -278,7 +273,6 @@ function parseCategoryPage(html, sourceUrl) {
 
     const imageURL = extractImageFromTile($product, $) || deriveImageFromProductUrl(listingURL);
     const brand = "ASICS";
-    const model = title.replace(/^ASICS\s+/i, "").trim();
     const listingName = `${brand} ${model}`;
     const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
@@ -304,7 +298,7 @@ function parseCategoryPage(html, sourceUrl) {
   });
 
   const totalHitCount = extractTotalHitCount($);
-  const nextPageUrl = extractNextPageUrl($, sourceUrl);
+  const nextPageUrl = extractNextPageUrl($);
 
   return {
     deals,
@@ -385,8 +379,10 @@ async function scrapeAllAsicsSales() {
       const parsed = await scrapeListingPage(app, currentUrl);
       const pageDeals = parsed.deals || [];
       const uniqueBefore = allDeals.length;
+
       allDeals.push(...pageDeals);
       allDeals = deduplicateDeals(allDeals);
+
       const addedUnique = allDeals.length - uniqueBefore;
 
       if (expectedTotal == null && parsed.totalHitCount != null) {
