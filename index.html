@@ -91,7 +91,7 @@
       <div class="links-ribbon-inner">
         <!-- LEFT: Set Alert -->
         <div class="links-ribbon-left">
-          <a class="links-ribbon-link" href="#" data-open-alert>Set Alert</a>
+          <a class="links-ribbon-link" href="#" data-open-alert>Price Alert</a>
         </div>
 
         <!-- CENTER: Filter (Sort removed) -->
@@ -171,7 +171,7 @@
     <button class="to-top" id="toTopBtn" type="button" aria-label="Back to top">↑</button>
   </div>
 
-<!-- Load canonical brand/models for Set Alert modal (replaces /brandModels.js) -->
+<!-- Load canonical brand/models for Price Alert modal (replaces /brandModels.js) -->
 <script>
   // Expose canonical brand-model map to the modal script.
   // This fetch happens once on page load.
@@ -1400,13 +1400,13 @@ if (qInput) qInput.addEventListener("input", updateFetchReady);
     })();
   </script>
 
-  <!-- ===== Set Alert Modal (drop-in) ===== -->
+  <!-- ===== Price Alert Modal (drop-in) ===== -->
   <!-- (UNCHANGED: your modal stays brand+model, using brandModels.js as designed) -->
   <div id="sbAlertBackdrop" class="sb-alert-backdrop" aria-hidden="true">
     <div class="sb-alert-modal" role="dialog" aria-modal="true" aria-labelledby="sbAlertTitle">
       <button type="button" class="sb-alert-close" id="sbAlertClose" aria-label="Close">×</button>
 
-      <div class="sb-alert-title" id="sbAlertTitle">Set Alert</div>
+      <div class="sb-alert-title" id="sbAlertTitle">Set Price Alert</div>
 
       <form id="sbSetAlertForm" class="sb-alert-form">
         <!-- FORM VIEW -->
