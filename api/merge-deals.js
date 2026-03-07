@@ -533,7 +533,9 @@ function normalizeDeal(d) {
   const saleRangeOk = (saleLo == null && saleHi == null) || (Number.isFinite(saleLo) && Number.isFinite(saleHi));
   const origRangeOk = (origLo == null && origHi == null) || (Number.isFinite(origLo) && Number.isFinite(origHi));
 
-  return {
+return {
+  ...d, // Preserve any existing fields from the original scraper deal object so future schema fields aren't lost during normalization
+    
     schemaVersion: 1,
 
     listingName: typeof c.listingName === "string" ? c.listingName.trim() : "",
