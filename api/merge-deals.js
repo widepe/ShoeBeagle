@@ -377,6 +377,8 @@ function sanitizeDeal(raw) {
   const safeName = looksLikeCssOrJunk(safeListingName) ? "" : safeListingName;
 
   const canonical = {
+    schemaVersion: 1,
+
     listingName: safeName,
     brand: brand || "Unknown",
     model: model || "",
@@ -386,16 +388,16 @@ function sanitizeDeal(raw) {
     discountPercent: null,
     discountPercentUpTo: null,
 
+    salePriceLow: priceShape.salePriceLow,
+    salePriceHigh: priceShape.salePriceHigh,
+    originalPriceLow: priceShape.originalPriceLow,
+    originalPriceHigh: priceShape.originalPriceHigh,
+
     store: typeof store === "string" ? store.trim() : "Unknown",
     listingURL: listingURL || "",
     imageURL: imageURL || null,
     gender,
     shoeType,
-
-    salePriceLow: priceShape.salePriceLow,
-    salePriceHigh: priceShape.salePriceHigh,
-    originalPriceLow: priceShape.originalPriceLow,
-    originalPriceHigh: priceShape.originalPriceHigh,
   };
 
   const anySaleRange =
@@ -532,29 +534,31 @@ function normalizeDeal(d) {
   const origRangeOk = (origLo == null && origHi == null) || (Number.isFinite(origLo) && Number.isFinite(origHi));
 
   return {
+    schemaVersion: 1,
+
     listingName: typeof c.listingName === "string" ? c.listingName.trim() : "",
     brand: typeof c.brand === "string" ? c.brand.trim() : "Unknown",
     model: typeof c.model === "string" ? c.model.trim() : "",
 
     salePrice: toNumber(c.salePrice),
     originalPrice: toNumber(c.originalPrice),
+    discountPercent: Number.isFinite(toNumber(c.discountPercent))
+      ? Math.round(toNumber(c.discountPercent))
+      : null,
 
-    discountPercent: Number.isFinite(toNumber(c.discountPercent)) ? Math.round(toNumber(c.discountPercent)) : null,
+    salePriceLow: saleRangeOk ? saleLo : null,
+    salePriceHigh: saleRangeOk ? saleHi : null,
+    originalPriceLow: origRangeOk ? origLo : null,
+    originalPriceHigh: origRangeOk ? origHi : null,
+    discountPercentUpTo: Number.isFinite(toNumber(c.discountPercentUpTo))
+      ? Math.round(toNumber(c.discountPercentUpTo))
+      : null,
 
     store: typeof c.store === "string" ? c.store.trim() : "Unknown",
     listingURL: typeof c.listingURL === "string" ? c.listingURL.trim() : "",
     imageURL: typeof c.imageURL === "string" ? c.imageURL.trim() : c.imageURL ?? null,
     gender: typeof c.gender === "string" ? c.gender.trim() : "unknown",
     shoeType: typeof c.shoeType === "string" ? c.shoeType.trim() : "unknown",
-
-    salePriceLow: saleRangeOk ? saleLo : null,
-    salePriceHigh: saleRangeOk ? saleHi : null,
-    originalPriceLow: origRangeOk ? origLo : null,
-    originalPriceHigh: origRangeOk ? origHi : null,
-
-    discountPercentUpTo: Number.isFinite(toNumber(c.discountPercentUpTo))
-      ? Math.round(toNumber(c.discountPercentUpTo))
-      : null,
   };
 }
 
