@@ -21,6 +21,7 @@ const RUN_CONCURRENTLY = true; // set false to run one-after-another (safer)
 // EASY TOGGLES (on/off here)
 // ===========================
 const ENABLED = {
+  asics: true,
   backcountry: true,
   bigpeach: true,
   finishline: true,
@@ -33,7 +34,13 @@ const ENABLED = {
 // SCRAPER TARGETS (add new ones here)
 // ===========================
 const TARGETS = [
-    
+
+{
+  key: "asics",
+  name: "ASICS Firecrawl",
+  path: "/api/scrapers/asics-firecrawl",
+},
+
     {
     key: "backcountry",
     name: "Backcountry Firecrawl",
