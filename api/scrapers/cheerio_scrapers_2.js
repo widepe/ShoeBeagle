@@ -14,6 +14,7 @@
 // - /api/scrapers/als-sale
 // - /api/scrapers/shoebacca-clearance
 // - /api/scrapers/runnersplus
+// - /api/scrapers/holabird-sports
 // - /api/scrapers/rununited-searchanise
 // - /api/scrapers/jdsports-algolia
 //
@@ -78,7 +79,7 @@ module.exports = async function handler(req, res) {
   const runId = `cheerio2-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
   const startedAt = nowIso();
 
-  // ✅ safest default
+  // safest default
   const RUN_CONCURRENTLY = false;
 
   // ==========================================================
@@ -90,6 +91,7 @@ module.exports = async function handler(req, res) {
     als_sale: true,
     shoebacca_clearance: true,
     runnersplus: true,
+    holabird_sports: true,
     rununited_searchanise: true,
     jdsports_algolia: true,
   };
@@ -101,6 +103,7 @@ module.exports = async function handler(req, res) {
   if (ENABLED.als_sale) TARGETS.push("/api/scrapers/als-sale");
   if (ENABLED.shoebacca_clearance) TARGETS.push("/api/scrapers/shoebacca-clearance");
   if (ENABLED.runnersplus) TARGETS.push("/api/scrapers/runnersplus");
+  if (ENABLED.holabird_sports) TARGETS.push("/api/scrapers/holabird-sports");
 
   // Run United — NOT Cheerio. Uses Searchanise API (searchserverapi*/getresults) to fetch products directly.
   if (ENABLED.rununited_searchanise) TARGETS.push("/api/scrapers/rununited-searchanise");
@@ -115,7 +118,16 @@ module.exports = async function handler(req, res) {
       const settled = await Promise.allSettled(TARGETS.map((p) => callInternal(req, p)));
       for (const s of settled) {
         if (s.status === "fulfilled") results.push(s.value);
-        else results.push({ ok: false, status: 0, elapsedMs: 0, error: s.reason?.message || String(s.reason) });
+        else {
+          results.push({
+            path: null,
+            url: null,
+            ok: false,
+            status: 0,
+            elapsedMs: 0,
+            error: s.reason?.message || String(s.reason),
+          });
+        }
       }
     } else {
       for (const p of TARGETS) {
