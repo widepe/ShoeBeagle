@@ -51,7 +51,6 @@ async function runWithConcurrency(items, concurrency, worker) {
 // EASY TOGGLES
 // ===========================
 const ENABLED = {
-  asics: true,
   brooks: true,
   footlocker: true,
   journeys: true,
@@ -67,7 +66,6 @@ const ENABLED = {
 // ACTOR DEFINITIONS
 // ===========================
 const TARGETS = [
-  { key: "asics", name: "ASICS", actorEnv: "APIFY_ASICS_ACTOR_ID", inputEnv: "APIFY_ASICS_INPUT_JSON" },
   { key: "brooks", name: "Brooks Running", actorEnv: "APIFY_BROOKS_ACTOR_ID", inputEnv: "APIFY_BROOKS_INPUT_JSON" },
   { key: "footlocker", name: "Foot Locker", actorEnv: "APIFY_FOOTLOCKER_ACTOR_ID", inputEnv: "APIFY_FOOTLOCKER_INPUT_JSON" },
   { key: "journeys", name: "Journeys", actorEnv: "APIFY_JOURNEYS_ACTOR_ID", inputEnv: "APIFY_JOURNEYS_INPUT_JSON" },
