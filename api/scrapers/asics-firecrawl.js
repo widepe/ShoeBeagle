@@ -1,4 +1,4 @@
-// api/scrapers/asics-sale.js
+// api/scrapers/asics-firecrawl.js
 // Scrapes ASICS sale running shoes using Firecrawl + Cheerio
 // Safer approach: scrape combined clearance listing pages and follow Load More pagination
 // Avoids heavy sitemap/product-page crawling to reduce bot pressure
