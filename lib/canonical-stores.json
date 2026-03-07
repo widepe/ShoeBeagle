@@ -13,24 +13,24 @@
     "baseUrl": "https://www.als.com",
     "notes": "no notes"
   },
-  {
-    "id": "asics",
-    "displayName": "ASICS",
-    "addedAt": "2026-02-09",
-    "lastUpdated": "2026-03-04",
-    "scrapedUrls": [
-      "https://www.asics.com/us/en-us/mens-clearance/c/aa10106000/running/shoes/",
-      "https://www.asics.com/us/en-us/womens-clearance/c/aa20106000/running/shoes/",
-      "https://www.asics.com/us/en-us/styles-leaving-asics-com/c/aa60400001/running/shoes/?prefn1=c_productGender&prefv1=Women%7CMen"
-    ],
-    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/asics-sale.json"],
-    "aliases": ["asics"],
-    "enabled": true,
-    "scraperType": "firecrawl-cheerio",
-    "envVar": "ASICS_SALE_BLOB_URL",
-    "baseUrl": "https://www.asics.com",
-    "notes": "Scrapes 3 ASICS running clearance categories (mens, womens, last chance). Shoe type inferred from model name."
-  },
+{
+  "id": "asics",
+  "displayName": "ASICS",
+  "addedAt": "2026-02-09",
+  "lastUpdated": "2026-03-06",
+  "scrapedUrls": [
+    "https://www.asics.com/us/en-us/clearance/c/aa60000000/running/shoes/?prefn1=c_productGender&prefv1=Men%7CWomen%7CUnisex"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/asics-sale.json"
+  ],
+  "aliases": ["asics"],
+  "enabled": true,
+  "scraperType": "firecrawl-cheerio",
+  "envVar": "ASICS_SALE_BLOB_URL",
+  "baseUrl": "https://www.asics.com",
+  "notes": "ASICS combined running clearance page via Firecrawl + Cheerio. Follows Load More pagination using page URLs, reads total-hit-count for completeness, extracts model from [data-test='product-name'], and derives gender/shoeType from [data-test='product-classification']. Gender defaults to unisex when mens/womens is not shown. shoeType: trail for 'trail running shoes', track for 'track & field shoes', road for 'running shoes'. Writes to asics-sale.json."
+},
   {
     "id": "backcountry",
     "displayName": "Backcountry",
