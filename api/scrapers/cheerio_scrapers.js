@@ -22,10 +22,10 @@
 // ✅ SCRAPER TOGGLES (edit these booleans to enable/disable stores)
 // -----------------------------------------------------------------------------
 const SCRAPER_TOGGLES = {
-  RUNNING_WAREHOUSE: false,
+  RUNNING_WAREHOUSE: true,
   FLEET_FEET: true,
-  LUKES_LOCKER: false,
-  MARATHON_SPORTS: false,
+  LUKES_LOCKER: true,
+  MARATHON_SPORTS: true,
 };
 
 // -----------------------------------------------------------------------------
