@@ -1,7 +1,7 @@
 // /api/scrapers/running-center.js
 
 import { put } from "@vercel/blob";
-import cheerio from "cheerio";
+import { load } from "cheerio";
 
 export const config = { maxDuration: 60 };
 
@@ -167,13 +167,12 @@ async function fetchText(url) {
 }
 
 function extractProductIdsFromHtml(html) {
-  const $ = cheerio.load(html);
+  const $ = load(html);
   const ids = new Set();
 
   $("div.product.clickable").each((_, el) => {
     const card = $(el);
 
-    // 1) Try data-url: /product/5596162/asics/mens-sonicblast
     const dataUrl = clean(card.attr("data-url"));
     const fromDataUrl = dataUrl.match(/\/product\/(\d+)\//i)?.[1];
     if (fromDataUrl) {
@@ -181,7 +180,6 @@ function extractProductIdsFromHtml(html) {
       return;
     }
 
-    // 2) Try anchor href
     const href = clean(card.find('a[href*="/product/"]').first().attr("href"));
     const fromHref = href.match(/\/product\/(\d+)\//i)?.[1];
     if (fromHref) {
@@ -189,14 +187,11 @@ function extractProductIdsFromHtml(html) {
       return;
     }
 
-    // 3) Try wishlist button data-product-id
     const buttonId = clean(card.find("button.wishlist-toggle").first().attr("data-product-id"));
     if (/^\d+$/.test(buttonId)) {
       ids.add(Number(buttonId));
       return;
     }
-
-    // 4) Try outer id like Product0 is not useful for true product id, so skip
   });
 
   return ids;
