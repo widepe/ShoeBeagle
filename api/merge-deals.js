@@ -1124,81 +1124,38 @@ function toIsoDayUTC(isoOrDate) {
   return d.toISOString().split("T")[0];
 }
 
-function buildTodayScraperRecords({ sourceName, meta, perSourceOk }) {
+function buildTodayScraperRecord({ sourceId, sourceDisplayName, meta, perSource }) {
   const payload = meta?.payloadMeta || null;
-  const timestamp = meta?.timestamp || payload?.lastUpdated || payload?.timestamp || payload?.scrapedAt || null;
+
+  const timestamp =
+    meta?.timestamp ||
+    payload?.lastUpdated ||
+    payload?.timestamp ||
+    payload?.scrapedAt ||
+    null;
+
   const durationMs = parseDurationMs(
-    (meta?.duration != null ? meta.duration : (payload?.scrapeDurationMs ?? payload?.elapsedMs ?? payload?.duration ?? null))
+    meta?.duration != null
+      ? meta.duration
+      : (payload?.scrapeDurationMs ?? payload?.elapsedMs ?? payload?.duration ?? null)
   );
-  const via = meta?.source || null;
+
+  const via = meta?.source || perSource?.via || null;
   const blobUrl = meta?.blobUrl || null;
+  const ok = !!perSource?.ok;
+  const count = ok ? (Number.isFinite(perSource?.count) ? perSource.count : safeArray(meta?.deals).length) : 0;
 
-  if (!perSourceOk) {
-    return [
-      {
-        scraper: sourceName,
-        ok: false,
-        count: 0,
-        durationMs,
-        timestamp,
-        via,
-        blobUrl,
-        error: meta?.error || "Unknown error",
-      },
-    ];
-  }
-
-  if (payload && payload.scraperResults && typeof payload.scraperResults === "object") {
-    const records = [];
-    for (const [name, r] of Object.entries(payload.scraperResults)) {
-      const ok = typeof r?.success === "boolean" ? r.success : typeof r?.ok === "boolean" ? r.ok : true;
-      const count = Number.isFinite(r?.count) ? r.count : 0;
-      const dMs = parseDurationMs(r?.durationMs || r?.duration || null) ?? durationMs ?? null;
-
-      records.push({
-        scraper: name,
-        ok,
-        count,
-        durationMs: dMs,
-        timestamp: payload.lastUpdated || payload.timestamp || payload.scrapedAt || timestamp || null,
-        via,
-        blobUrl,
-      });
-    }
-    if (records.length) return records;
-  }
-
-  if (payload && payload.scraperResult && typeof payload.scraperResult === "object") {
-    const r = payload.scraperResult;
-    const ok = typeof r?.success === "boolean" ? r.success : typeof r?.ok === "boolean" ? r.ok : true;
-    const count = Number.isFinite(r?.count) ? r.count : safeArray(meta?.deals).length;
-    const dMs = parseDurationMs(r?.durationMs || r?.duration || null) ?? durationMs ?? null;
-
-    return [
-      {
-        scraper: r?.scraper || sourceName,
-        ok,
-        count,
-        durationMs: dMs,
-        timestamp: payload.lastUpdated || payload.timestamp || payload.scrapedAt || timestamp || null,
-        via,
-        blobUrl,
-        error: r?.error || null,
-      },
-    ];
-  }
-
-  return [
-    {
-      scraper: sourceName,
-      ok: true,
-      count: safeArray(meta?.deals).length,
-      durationMs,
-      timestamp,
-      via,
-      blobUrl,
-    },
-  ];
+  return {
+    storeId: sourceId,
+    scraper: sourceDisplayName,
+    ok,
+    count,
+    durationMs,
+    timestamp,
+    via,
+    blobUrl,
+    error: ok ? null : (meta?.error || perSource?.error || "Unknown error"),
+  };
 }
 
 function mergeRollingScraperHistory(existing, todayDayUTC, todayRecords, maxDays = 30) {
@@ -1523,13 +1480,21 @@ module.exports = async (req, res) => {
     // scraper-data: rolling 30-day history
     const todayDayUTC = toIsoDayUTC(output.lastUpdated);
 
-    const todayRecords = [];
-    for (const src of sources) {
-      const key = src.id || src.name;
-      const ok = !!perSource[key]?.ok;
-      const meta = perSourceMeta[key] || null;
-      todayRecords.push(...buildTodayScraperRecords({ sourceName: key, meta, perSourceOk: ok }));
-    }
+   const todayRecords = [];
+for (const src of sources) {
+  const key = src.id || src.name;
+  const meta = perSourceMeta[key] || null;
+  const perSourceEntry = perSource[key] || { ok: false, count: 0, error: "Missing perSource entry" };
+
+  todayRecords.push(
+    buildTodayScraperRecord({
+      sourceId: src.id || key,
+      sourceDisplayName: src.name || key,
+      meta,
+      perSource: perSourceEntry,
+    })
+  );
+}
 
     let existingScraperData = null;
     if (SCRAPER_DATA_BLOB_URL) {
