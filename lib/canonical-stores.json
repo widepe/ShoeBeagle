@@ -353,7 +353,7 @@
   "id": "running-center",
   "displayName": "Running Center",
   "addedAt": "2026-03-07",
-  "lastUpdated": "2026-03-07",
+  "lastUpdated": "2026-03-08",
   "scrapedUrls": [
     "https://shop.runningcenters.com/category/18334/men-s-shoes",
     "https://shop.runningcenters.com/category/18342/women-s-shoes"
@@ -366,7 +366,7 @@
   "scraperType": "vercel",
   "envVar": "RUNNING_CENTER_BLOB_URL",
   "baseUrl": "https://shop.runningcenters.com",
-  "notes": "Running Center uses the products-search API with categoryId 18334 (Men's Shoes) and 18342 (Women's Shoes). Filters to true sale items only using salePrice < originalPrice. Requires products to be shippable by excluding in-store-purchase-only items. Gender is parsed from the product name: Men's -> mens, Women's/Woman's -> womens, Unisex/All Gender/U -> unisex, otherwise unknown. shoeType is forced to unknown. Writes to running-center.json."
+  "notes": "Running Center uses the products-search API with categoryId 18334 (Men's Shoes) and 18342 (Women's Shoes). Keeps only true sale items where salePrice and originalPrice both exist and salePrice < originalPrice. Requires products to be shippable by excluding in-store-purchase-only items. Gender is parsed from the product name. shoeType is forced to unknown. Writes to running-center.json."
 },
   
   {
