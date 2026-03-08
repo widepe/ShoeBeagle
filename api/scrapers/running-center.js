@@ -231,7 +231,10 @@ export default async function handler(req, res) {
     lastUpdated: nowIso(),
     via: "api",
 
-    sourceUrls: [API_URL],
+  sourceUrls: [
+  "https://shop.runningcenters.com/category/18334/men-s-shoes",
+  "https://shop.runningcenters.com/category/18342/women-s-shoes"
+],
 
     pagesFetched: 2,
 
