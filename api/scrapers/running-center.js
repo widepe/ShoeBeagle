@@ -61,23 +61,6 @@ function asNumber(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-function isSaleProduct(p) {
-  const sale = getSalePrice(p);
-  const original = getOriginalPrice(p);
-  return Number.isFinite(sale) && Number.isFinite(original) && sale < original;
-}
-
-function isShippable(p) {
-  return (
-    p &&
-    p.inStorePurchaseOnly === false &&
-    p.productPurchaseOnly === false &&
-    p.brandPurchaseOnly === false &&
-    p.isLive === true &&
-    Number(p.stock || 0) > 0
-  );
-}
-
 function getSalePrice(p) {
   const markdown = asNumber(p.markdown ?? p.markDown);
   if (markdown != null) return markdown;
@@ -101,6 +84,27 @@ function getOriginalPrice(p) {
   }
 
   return null;
+}
+
+function isSaleProduct(p) {
+  const sale = getSalePrice(p);
+  const original = getOriginalPrice(p);
+  return Number.isFinite(sale) && Number.isFinite(original) && sale < original;
+}
+
+// Must be shippable.
+// Store pickup may be allowed or not allowed — that does NOT matter.
+// So we do NOT filter out inStorePickupOnly / productPickupOnly / brandPickupOnly here.
+// We only exclude items that appear to require in-store purchase only.
+function isShippable(p) {
+  return (
+    p &&
+    p.isLive === true &&
+    Number(p.stock || 0) > 0 &&
+    p.inStorePurchaseOnly === false &&
+    p.productPurchaseOnly === false &&
+    p.brandPurchaseOnly === false
+  );
 }
 
 function listingUrl(p) {
