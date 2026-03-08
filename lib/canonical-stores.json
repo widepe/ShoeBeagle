@@ -364,7 +364,7 @@
   "aliases": ["running center", "runningcenters", "running centers"],
   "enabled": true,
   "scraperType": "vercel",
-  "envVar": "RUNNING_CENTER_BLOB_URL",
+  "envVar": "RUNNINGCENTER_DEALS_BLOB_URL",
   "baseUrl": "https://shop.runningcenters.com",
   "notes": "Running Center uses the products-search API with categoryId 18334 (Men's Shoes) and 18342 (Women's Shoes). Keeps only true sale items where salePrice and originalPrice both exist and salePrice < originalPrice. Requires products to be shippable by excluding in-store-purchase-only items. Gender is parsed from the product name. shoeType is forced to unknown. Writes to running-center.json."
 },
