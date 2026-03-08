@@ -8,6 +8,10 @@ const STORE = "Running Center";
 const SCHEMA_VERSION = 1;
 const API_URL = "https://shop.runningcenters.com/api/products-search";
 
+const MEN_CATEGORY_ID = 18334;     // Men's Shoes
+const WOMEN_CATEGORY_ID = 18342;   // Women's Shoes
+const SALE_CATEGORY_ID = 18811;    // Sale (known, but not used directly here)
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -93,7 +97,7 @@ function isSaleProduct(p) {
 }
 
 // Must be shippable.
-// It may or may not also allow store pickup.
+// Store pickup may also be allowed — that is fine.
 function isShippable(p) {
   return (
     p &&
@@ -129,80 +133,6 @@ function imageUrl(p) {
   return `https://shop.runningcenters.com/${u}`;
 }
 
-// Broad exclusion list for obvious non-shoe items.
-// This is the honest fallback since the API itself is not category-filtered.
-function isLikelyShoeProduct(p) {
-  const name = clean(p?.name).toLowerCase();
-  const blurb = clean(p?.blurb).toLowerCase();
-  const text = `${name} ${blurb}`;
-
-  const blockedTerms = [
-    "sock",
-    "socks",
-    "shirt",
-    "singlet",
-    "tank",
-    "tee",
-    "t-shirt",
-    "short",
-    "shorts",
-    "jacket",
-    "hoodie",
-    "crew",
-    "bra",
-    "tight",
-    "tights",
-    "legging",
-    "leggings",
-    "pant",
-    "pants",
-    "capri",
-    "hat",
-    "visor",
-    "beanie",
-    "glove",
-    "gloves",
-    "mitten",
-    "mittens",
-    "belt",
-    "bottle",
-    "flask",
-    "cup",
-    "gel",
-    "gels",
-    "chew",
-    "chews",
-    "nutrition",
-    "sunglass",
-    "sunglasses",
-    "watch",
-    "pack",
-    "bag",
-    "backpack",
-    "vest",
-    "wallet",
-    "headband",
-    "sleeve",
-    "arm sleeve",
-    "calf sleeve",
-    "insole",
-    "lace",
-    "laces",
-    "spike",
-    "spikes",
-    "sandals",
-    "slide",
-    "slides",
-    "recovery sandal",
-  ];
-
-  for (const term of blockedTerms) {
-    if (text.includes(term)) return false;
-  }
-
-  return true;
-}
-
 function dedupeDeals(deals) {
   const seen = new Set();
   const out = [];
@@ -215,6 +145,45 @@ function dedupeDeals(deals) {
   }
 
   return out;
+}
+
+async function fetchProductsForCategory(categoryId, refererPath) {
+  const response = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      accept: "application/json, text/javascript, */*; q=0.01",
+      "content-type": "application/json",
+      origin: "https://shop.runningcenters.com",
+      referer: `https://shop.runningcenters.com${refererPath}`,
+      "user-agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+      "x-requested-with": "XMLHttpRequest",
+    },
+    body: JSON.stringify({
+      brand: -1,
+      category: categoryId,
+      collection: -1,
+      search: "",
+      grouped: true,
+      size: 10000,
+      cost: -1,
+      page: 1,
+      stock: -1,
+      complete: -1,
+      live: -1,
+      sort: "brandName, name",
+      sortType: "asc",
+      admin: false,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`API fetch failed for category ${categoryId} (${response.status}): ${text.slice(0, 300)}`);
+  }
+
+  const json = await response.json();
+  return Array.isArray(json?.data) ? json.data : [];
 }
 
 export default async function handler(req, res) {
@@ -237,7 +206,7 @@ export default async function handler(req, res) {
 
     sourceUrls: [API_URL],
 
-    pagesFetched: 1,
+    pagesFetched: 2,
 
     dealsFound: 0,
     dealsExtracted: 0,
@@ -254,63 +223,22 @@ export default async function handler(req, res) {
   };
 
   try {
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        accept: "application/json, text/javascript, */*; q=0.01",
-        "content-type": "application/json",
-        origin: "https://shop.runningcenters.com",
-        referer: "https://shop.runningcenters.com/category/18334/men-s-shoes",
-        "user-agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-        "x-requested-with": "XMLHttpRequest",
-      },
-      body: JSON.stringify({
-        brand: -1,
-        category: -1,
-        collection: -1,
-        search: "",
-        grouped: true,
-        size: 10000,
-        cost: -1,
-        page: 1,
-        stock: -1,
-        complete: -1,
-        live: -1,
-        sort: "brandName, name",
-        sortType: "asc",
-        admin: false,
-      }),
-    });
+    const [menProducts, womenProducts] = await Promise.all([
+      fetchProductsForCategory(MEN_CATEGORY_ID, "/category/18334/men-s-shoes"),
+      fetchProductsForCategory(WOMEN_CATEGORY_ID, "/category/18342/women-s-shoes"),
+    ]);
 
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(`API fetch failed ${response.status}: ${text.slice(0, 300)}`);
-    }
-
-    const json = await response.json();
-    const products = Array.isArray(json?.data) ? json.data : [];
-
-    payload.dealsFound = products.length;
+    const allProducts = [...menProducts, ...womenProducts];
+    payload.dealsFound = allProducts.length;
 
     const rawDeals = [];
-    let skippedNotShoe = 0;
     let skippedNotSale = 0;
     let skippedNotShippable = 0;
     let skippedBadUrl = 0;
     let keptUnknownGender = 0;
     const unknownGenderExamples = [];
-    const filteredNonShoeExamples = [];
 
-    for (const p of products) {
-      if (!isLikelyShoeProduct(p)) {
-        skippedNotShoe += 1;
-        if (filteredNonShoeExamples.length < 20) {
-          filteredNonShoeExamples.push(clean(p.name));
-        }
-        continue;
-      }
-
+    for (const p of allProducts) {
       if (!isSaleProduct(p)) {
         skippedNotSale += 1;
         continue;
@@ -375,20 +303,28 @@ export default async function handler(req, res) {
     payload.ok = true;
     payload.error = null;
 
-    payload.pageNotes.push({
-      url: API_URL,
-      rowsReturned: products.length,
-      keptAfterFilters: deals.length,
-    });
+    payload.pageNotes.push(
+      {
+        categoryId: MEN_CATEGORY_ID,
+        label: "Men's Shoes",
+        rowsReturned: menProducts.length,
+      },
+      {
+        categoryId: WOMEN_CATEGORY_ID,
+        label: "Women's Shoes",
+        rowsReturned: womenProducts.length,
+      }
+    );
 
     payload.debug = {
-      skippedNotShoe,
+      saleCategoryIdKnown: SALE_CATEGORY_ID,
+      menRows: menProducts.length,
+      womenRows: womenProducts.length,
       skippedNotSale,
       skippedNotShippable,
       skippedBadUrl,
       keptUnknownGender,
       unknownGenderExamples,
-      filteredNonShoeExamples,
     };
   } catch (err) {
     payload.ok = false;
