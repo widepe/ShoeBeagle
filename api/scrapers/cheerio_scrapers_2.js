@@ -7,6 +7,8 @@
 //   (searchserverapi*/getresults) instead of HTML scraping.
 // - JD Sports uses the Algolia search API (*/1/indexes/*/queries)
 //   instead of HTML scraping. (FAST)
+// - Running Center uses the products-search API
+//   instead of HTML scraping.
 //
 // Triggers (in order):
 // - /api/scrapers/gazelle-sports
@@ -17,6 +19,7 @@
 // - /api/scrapers/holabird-sports
 // - /api/scrapers/rununited-searchanise
 // - /api/scrapers/jdsports-algolia
+// - /api/scrapers/running-center
 //
 // Notes:
 // - This runner only TRIGGERS internal endpoints; each endpoint does its own scrape + blob write.
@@ -94,6 +97,7 @@ module.exports = async function handler(req, res) {
     holabird_sports: true,
     rununited_searchanise: true,
     jdsports_algolia: true,
+    running_center: true,
   };
 
   // IMPORTANT: URL paths typically do NOT include ".js"
@@ -110,6 +114,9 @@ module.exports = async function handler(req, res) {
 
   // JD Sports — NOT Cheerio. Uses Algolia Search API (*/1/indexes/*/queries) to fetch products directly.
   if (ENABLED.jdsports_algolia) TARGETS.push("/api/scrapers/jdsports-algolia");
+
+  // Running Center — NOT Cheerio. Uses products-search API to fetch products directly.
+  if (ENABLED.running_center) TARGETS.push("/api/scrapers/running-center");
 
   try {
     const results = [];
