@@ -1,16 +1,12 @@
 // /api/scrapers/running-center.js
 
 import { put } from "@vercel/blob";
-import { load } from "cheerio";
 
 export const config = { maxDuration: 60 };
 
 const STORE = "Running Center";
 const SCHEMA_VERSION = 1;
 const API_URL = "https://shop.runningcenters.com/api/products-search";
-
-const MEN_URL = "https://shop.runningcenters.com/category/18334/men-s-shoes";
-const WOMEN_URL = "https://shop.runningcenters.com/category/18334/women-s-shoes";
 
 function nowIso() {
   return new Date().toISOString();
@@ -98,8 +94,6 @@ function isSaleProduct(p) {
 
 // Must be shippable.
 // It may or may not also allow store pickup.
-// So pickup flags do NOT exclude it.
-// We only exclude rows that appear to require in-store purchase only.
 function isShippable(p) {
   return (
     p &&
@@ -135,6 +129,80 @@ function imageUrl(p) {
   return `https://shop.runningcenters.com/${u}`;
 }
 
+// Broad exclusion list for obvious non-shoe items.
+// This is the honest fallback since the API itself is not category-filtered.
+function isLikelyShoeProduct(p) {
+  const name = clean(p?.name).toLowerCase();
+  const blurb = clean(p?.blurb).toLowerCase();
+  const text = `${name} ${blurb}`;
+
+  const blockedTerms = [
+    "sock",
+    "socks",
+    "shirt",
+    "singlet",
+    "tank",
+    "tee",
+    "t-shirt",
+    "short",
+    "shorts",
+    "jacket",
+    "hoodie",
+    "crew",
+    "bra",
+    "tight",
+    "tights",
+    "legging",
+    "leggings",
+    "pant",
+    "pants",
+    "capri",
+    "hat",
+    "visor",
+    "beanie",
+    "glove",
+    "gloves",
+    "mitten",
+    "mittens",
+    "belt",
+    "bottle",
+    "flask",
+    "cup",
+    "gel",
+    "gels",
+    "chew",
+    "chews",
+    "nutrition",
+    "sunglass",
+    "sunglasses",
+    "watch",
+    "pack",
+    "bag",
+    "backpack",
+    "vest",
+    "wallet",
+    "headband",
+    "sleeve",
+    "arm sleeve",
+    "calf sleeve",
+    "insole",
+    "lace",
+    "laces",
+    "spike",
+    "spikes",
+    "sandals",
+    "slide",
+    "slides",
+    "recovery sandal",
+  ];
+
+  for (const term of blockedTerms) {
+    if (text.includes(term)) return false;
+  }
+
+  return true;
+}
+
 function dedupeDeals(deals) {
   const seen = new Set();
   const out = [];
@@ -147,93 +215,6 @@ function dedupeDeals(deals) {
   }
 
   return out;
-}
-
-async function fetchText(url) {
-  const res = await fetch(url, {
-    headers: {
-      accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "user-agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-    },
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`HTML fetch failed ${res.status} for ${url}: ${text.slice(0, 300)}`);
-  }
-
-  return await res.text();
-}
-
-function extractProductIdsFromHtml(html) {
-  const $ = load(html);
-  const ids = new Set();
-
-  $("div.product.clickable").each((_, el) => {
-    const card = $(el);
-
-    const dataUrl = clean(card.attr("data-url"));
-    const fromDataUrl = dataUrl.match(/\/product\/(\d+)\//i)?.[1];
-    if (fromDataUrl) {
-      ids.add(Number(fromDataUrl));
-      return;
-    }
-
-    const href = clean(card.find('a[href*="/product/"]').first().attr("href"));
-    const fromHref = href.match(/\/product\/(\d+)\//i)?.[1];
-    if (fromHref) {
-      ids.add(Number(fromHref));
-      return;
-    }
-
-    const buttonId = clean(card.find("button.wishlist-toggle").first().attr("data-product-id"));
-    if (/^\d+$/.test(buttonId)) {
-      ids.add(Number(buttonId));
-      return;
-    }
-  });
-
-  return ids;
-}
-
-async function fetchApiProducts() {
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      accept: "application/json, text/javascript, */*; q=0.01",
-      "content-type": "application/json",
-      origin: "https://shop.runningcenters.com",
-      referer: MEN_URL,
-      "user-agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-      "x-requested-with": "XMLHttpRequest",
-    },
-    body: JSON.stringify({
-      brand: -1,
-      category: -1,
-      collection: -1,
-      search: "",
-      grouped: true,
-      size: 10000,
-      cost: -1,
-      page: 1,
-      stock: -1,
-      complete: -1,
-      live: -1,
-      sort: "brandName, name",
-      sortType: "asc",
-      admin: false,
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(`API fetch failed ${response.status}: ${text.slice(0, 300)}`);
-  }
-
-  const json = await response.json();
-  return Array.isArray(json?.data) ? json.data : [];
 }
 
 export default async function handler(req, res) {
@@ -252,11 +233,11 @@ export default async function handler(req, res) {
     schemaVersion: SCHEMA_VERSION,
 
     lastUpdated: nowIso(),
-    via: "api+html",
+    via: "api",
 
-    sourceUrls: [MEN_URL, WOMEN_URL, API_URL],
+    sourceUrls: [API_URL],
 
-    pagesFetched: 3,
+    pagesFetched: 1,
 
     dealsFound: 0,
     dealsExtracted: 0,
@@ -273,30 +254,60 @@ export default async function handler(req, res) {
   };
 
   try {
-    const [menHtml, womenHtml, products] = await Promise.all([
-      fetchText(MEN_URL),
-      fetchText(WOMEN_URL),
-      fetchApiProducts(),
-    ]);
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        accept: "application/json, text/javascript, */*; q=0.01",
+        "content-type": "application/json",
+        origin: "https://shop.runningcenters.com",
+        referer: "https://shop.runningcenters.com/category/18334/men-s-shoes",
+        "user-agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        "x-requested-with": "XMLHttpRequest",
+      },
+      body: JSON.stringify({
+        brand: -1,
+        category: -1,
+        collection: -1,
+        search: "",
+        grouped: true,
+        size: 10000,
+        cost: -1,
+        page: 1,
+        stock: -1,
+        complete: -1,
+        live: -1,
+        sort: "brandName, name",
+        sortType: "asc",
+        admin: false,
+      }),
+    });
 
-    const menIds = extractProductIdsFromHtml(menHtml);
-    const womenIds = extractProductIdsFromHtml(womenHtml);
-    const shoeIds = new Set([...menIds, ...womenIds]);
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`API fetch failed ${response.status}: ${text.slice(0, 300)}`);
+    }
+
+    const json = await response.json();
+    const products = Array.isArray(json?.data) ? json.data : [];
 
     payload.dealsFound = products.length;
 
     const rawDeals = [];
-    let skippedNotOnShoePages = 0;
+    let skippedNotShoe = 0;
     let skippedNotSale = 0;
     let skippedNotShippable = 0;
     let skippedBadUrl = 0;
     let keptUnknownGender = 0;
+    const unknownGenderExamples = [];
+    const filteredNonShoeExamples = [];
 
     for (const p of products) {
-      const productId = Number(p.productId);
-
-      if (!shoeIds.has(productId)) {
-        skippedNotOnShoePages += 1;
+      if (!isLikelyShoeProduct(p)) {
+        skippedNotShoe += 1;
+        if (filteredNonShoeExamples.length < 20) {
+          filteredNonShoeExamples.push(clean(p.name));
+        }
         continue;
       }
 
@@ -315,6 +326,9 @@ export default async function handler(req, res) {
 
       if (gender === "unknown") {
         keptUnknownGender += 1;
+        if (unknownGenderExamples.length < 20) {
+          unknownGenderExamples.push(listingName);
+        }
       }
 
       const salePrice = getSalePrice(p);
@@ -361,32 +375,20 @@ export default async function handler(req, res) {
     payload.ok = true;
     payload.error = null;
 
-    payload.pageNotes.push(
-      {
-        url: MEN_URL,
-        productCardsFound: menIds.size,
-      },
-      {
-        url: WOMEN_URL,
-        productCardsFound: womenIds.size,
-      },
-      {
-        url: API_URL,
-        rowsReturned: products.length,
-        shoeIdsMatched: shoeIds.size,
-        keptAfterSaleAndShippingFilters: deals.length,
-      }
-    );
+    payload.pageNotes.push({
+      url: API_URL,
+      rowsReturned: products.length,
+      keptAfterFilters: deals.length,
+    });
 
     payload.debug = {
-      menPageIds: menIds.size,
-      womenPageIds: womenIds.size,
-      totalUniqueShoeIds: shoeIds.size,
-      skippedNotOnShoePages,
+      skippedNotShoe,
       skippedNotSale,
       skippedNotShippable,
       skippedBadUrl,
       keptUnknownGender,
+      unknownGenderExamples,
+      filteredNonShoeExamples,
     };
   } catch (err) {
     payload.ok = false;
