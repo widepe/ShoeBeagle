@@ -1,90 +1,59 @@
-// /api/scrapers/running-center-api.js
-//
-// Running Centers scraper (API-first / faster / more reliable)
-// - Scrapes these two category pages through the site's product JSON endpoint:
-//   1) https://shop.runningcenter.com/category/18334/men-s-shoes
-//   2) https://shop.runningcenter.com/category/18334/women-s-shoes
-//
-// RULES:
-// - listingName preserved exactly as received
-// - gender is parsed from the same line as model (the name field)
-// - brand comes from brandName
-// - shoeType is always "unknown"
-// - ONLY true deals included:
-//     * salePrice and originalPrice must both exist
-//     * salePrice must be < originalPrice
-// - ONLY shippable products included:
-//     * inStorePurchaseOnly === false
-//     * productPurchaseOnly === false
-//     * brandPurchaseOnly === false
-// - Stable blob path: running-center.json
-//
-// ENV:
-// - BLOB_READ_WRITE_TOKEN
-// - CRON_SECRET (commented out below for testing)
-//
-// OPTIONAL:
-// - RUNNING_CENTERS_PAGE_SIZE=250
-//
-// Notes:
-// - The exact endpoint shape can vary by site build. This version is structured so you only
-//   need to adjust buildApiUrl() if their category JSON URL differs.
-// - Start by testing with ?debug=1 if needed.
-//
+// /api/scrapers/running-center.js
 
 import { put } from "@vercel/blob";
 
 export const config = { maxDuration: 60 };
 
 const STORE = "Running Center";
-const VIA = "api";
 const SCHEMA_VERSION = 1;
-const BASE = "https://shop.runningcenter.com";
-
-const CATEGORY_PAGES = [
-  {
-    sourceUrl: `${BASE}/category/18334/men-s-shoes`,
-    genderHint: "mens",
-    slug: "men-s-shoes",
-  },
-  {
-    sourceUrl: `${BASE}/category/18334/women-s-shoes`,
-    genderHint: "womens",
-    slug: "women-s-shoes",
-  },
-];
-
-const PAGE_SIZE = Math.max(
-  1,
-  Math.min(250, Number(process.env.RUNNING_CENTER_PAGE_SIZE || 250))
-);
+const API_URL = "https://shop.runningcenters.com/api/products-search";
 
 function nowIso() {
   return new Date().toISOString();
 }
 
-function cleanText(v) {
+function clean(v) {
   return String(v || "").replace(/\s+/g, " ").trim();
 }
 
-function toAbsoluteUrl(url) {
-  const s = String(url || "").trim();
-  if (!s) return null;
-  if (/^https?:\/\//i.test(s)) return s;
-  if (s.startsWith("//")) return `https:${s}`;
-  if (s.startsWith("/")) return `${BASE}${s}`;
-  return `${BASE}/${s.replace(/^\/+/, "")}`;
-}
-
-function titleCaseBrand(v) {
-  const s = cleanText(v);
+function titleCase(v) {
+  const s = clean(v);
   if (!s) return null;
   return s
     .toLowerCase()
     .split(" ")
     .filter(Boolean)
-    .map((x) => x.charAt(0).toUpperCase() + x.slice(1))
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
+}
+
+function parseGenderModel(name) {
+  const n = clean(name);
+  const lower = n.toLowerCase();
+
+  if (lower.startsWith("men's ")) {
+    return { gender: "mens", model: n.slice(6).trim() };
+  }
+  if (lower.startsWith("mens ")) {
+    return { gender: "mens", model: n.slice(5).trim() };
+  }
+  if (lower.startsWith("women's ")) {
+    return { gender: "womens", model: n.slice(8).trim() };
+  }
+  if (lower.startsWith("womens ")) {
+    return { gender: "womens", model: n.slice(7).trim() };
+  }
+  if (lower.startsWith("unisex ")) {
+    return { gender: "unisex", model: n.slice(7).trim() };
+  }
+
+  return { gender: "unknown", model: n };
+}
+
+function computeDiscountPercent(original, sale) {
+  if (!Number.isFinite(original) || !Number.isFinite(sale)) return null;
+  if (original <= 0 || sale >= original) return null;
+  return Math.round(((original - sale) / original) * 100);
 }
 
 function asNumber(v) {
@@ -92,145 +61,70 @@ function asNumber(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-function roundPercent(n) {
-  return Number.isFinite(n) ? Math.round(n) : null;
+function isSaleProduct(p) {
+  const sale = getSalePrice(p);
+  const original = getOriginalPrice(p);
+  return Number.isFinite(sale) && Number.isFinite(original) && sale < original;
 }
 
-function computeDiscountPercent(originalPrice, salePrice) {
-  if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return null;
-  if (originalPrice <= 0 || salePrice >= originalPrice) return null;
-  return roundPercent(((originalPrice - salePrice) / originalPrice) * 100);
-}
-
-function parseGenderAndModel(listingName, fallbackGender = "unknown") {
-  const raw = cleanText(listingName);
-  if (!raw) {
-    return { gender: fallbackGender, model: null };
-  }
-
-  const lower = raw.toLowerCase();
-
-  if (lower.startsWith("men's ")) {
-    return { gender: "mens", model: raw.slice(6).trim() };
-  }
-  if (lower.startsWith("mens ")) {
-    return { gender: "mens", model: raw.slice(5).trim() };
-  }
-  if (lower.startsWith("women's ")) {
-    return { gender: "womens", model: raw.slice(8).trim() };
-  }
-  if (lower.startsWith("womens ")) {
-    return { gender: "womens", model: raw.slice(7).trim() };
-  }
-  if (lower.startsWith("unisex ")) {
-    return { gender: "unisex", model: raw.slice(7).trim() };
-  }
-
-  return { gender: fallbackGender, model: raw };
-}
-
-function isShippableProduct(row) {
+function isShippable(p) {
   return (
-    row &&
-    row.isLive === true &&
-    Number(row.stock || 0) > 0 &&
-    row.inStorePurchaseOnly === false &&
-    row.productPurchaseOnly === false &&
-    row.brandPurchaseOnly === false
+    p &&
+    p.inStorePurchaseOnly === false &&
+    p.productPurchaseOnly === false &&
+    p.brandPurchaseOnly === false &&
+    p.isLive === true &&
+    Number(p.stock || 0) > 0
   );
 }
 
-function getSalePrice(row) {
-  const markdown = asNumber(row.markdown ?? row.markDown);
+function getSalePrice(p) {
+  const markdown = asNumber(p.markdown ?? p.markDown);
   if (markdown != null) return markdown;
 
-  const cost = asNumber(row.cost);
-  const retail = asNumber(row.retail);
+  const cost = asNumber(p.cost);
+  const retail = asNumber(p.retail);
 
-  // If marked as on sale but markdown is missing, cost often behaves like current sale price.
-  if (row.isOnSale === true && cost != null && retail != null && cost < retail) {
+  if (p.isOnSale === true && cost != null && retail != null && cost < retail) {
     return cost;
   }
 
   return null;
 }
 
-function getOriginalPrice(row) {
-  const retail = asNumber(row.retail);
-  const sale = getSalePrice(row);
+function getOriginalPrice(p) {
+  const retail = asNumber(p.retail);
+  const sale = getSalePrice(p);
 
-  if (retail != null && sale != null && retail > sale) return retail;
-  return null;
-}
-
-function buildListingUrl(row) {
-  // If the API ever includes a canonical path, use it.
-  if (row.productUrl) return toAbsoluteUrl(row.productUrl);
-  if (row.urlSlug) return toAbsoluteUrl(row.urlSlug);
-
-  // Fallback guess:
-  // /product/{productId}/{brand-lower}/{slugified-name}
-  const productId = row.productId;
-  const brand = cleanText(row.label || row.brandName || "").toLowerCase();
-  const name = cleanText(row.name || "")
-    .toLowerCase()
-    .replace(/['’]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  if (productId && brand && name) {
-    return `${BASE}/product/${productId}/${brand}/${name}`;
+  if (retail != null && sale != null && retail > sale) {
+    return retail;
   }
 
   return null;
 }
 
-function buildImageUrl(row) {
-  return toAbsoluteUrl(row.url || null);
+function listingUrl(p) {
+  const productId = p.productId;
+  const brand = clean(p.label || p.brandName || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const slug = clean(p.name)
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  if (!productId || !brand || !slug) return null;
+  return `https://shop.runningcenters.com/product/${productId}/${brand}/${slug}`;
 }
 
-function makeDeal(row, fallbackGender) {
-  const listingName = cleanText(row.name);
-  const brand = titleCaseBrand(row.label || row.brandName);
-  const salePrice = getSalePrice(row);
-  const originalPrice = getOriginalPrice(row);
-  const listingURL = buildListingUrl(row);
-  const imageURL = buildImageUrl(row);
-
-  if (!listingName || !brand || !listingURL) return null;
-  if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return null;
-  if (!(salePrice < originalPrice)) return null;
-  if (!isShippableProduct(row)) return null;
-
-  const { gender, model } = parseGenderAndModel(listingName, fallbackGender);
-  const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-
-  return {
-    schemaVersion: SCHEMA_VERSION,
-
-    listingName,
-
-    brand,
-    model: model || listingName,
-
-    salePrice,
-    originalPrice,
-    discountPercent,
-
-    salePriceLow: null,
-    salePriceHigh: null,
-    originalPriceLow: null,
-    originalPriceHigh: null,
-    discountPercentUpTo: null,
-
-    store: STORE,
-
-    listingURL,
-    imageURL,
-
-    gender,
-    shoeType: "unknown",
-  };
+function imageUrl(p) {
+  const u = clean(p.url);
+  if (!u) return null;
+  if (/^https?:\/\//i.test(u)) return u;
+  if (u.startsWith("/")) return `https://shop.runningcenters.com${u}`;
+  return `https://shop.runningcenters.com/${u}`;
 }
 
 function dedupeDeals(deals) {
@@ -247,107 +141,31 @@ function dedupeDeals(deals) {
   return out;
 }
 
-// IMPORTANT:
-// This is the one function you may need to tweak if the site's JSON endpoint differs.
-// A lot of these storefronts expose category products from an ajax endpoint.
-// Try this first. If the site responds differently, only update this URL builder.
-function buildApiUrl({ sourceUrl, startIndex = 0, maxResults = PAGE_SIZE }) {
-  const u = new URL(sourceUrl);
-
-  // Common pattern used by this storefront family:
-  // /api/products?category=<full category url>&startIndex=0&maxResults=250&preview=false
-  const api = new URL(`${BASE}/api/products`);
-  api.searchParams.set("category", u.pathname);
-  api.searchParams.set("startIndex", String(startIndex));
-  api.searchParams.set("maxResults", String(maxResults));
-  api.searchParams.set("preview", "false");
-
-  return api.toString();
-}
-
-async function fetchJson(url) {
-  const res = await fetch(url, {
-    headers: {
-      "user-agent": "Mozilla/5.0",
-      accept: "application/json,text/plain,*/*",
-      referer: BASE,
-      "x-requested-with": "XMLHttpRequest",
-    },
-  });
-
-  const text = await res.text();
-
-  if (!res.ok) {
-    throw new Error(`Fetch failed ${res.status} for ${url}: ${text.slice(0, 300)}`);
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch (err) {
-    throw new Error(`Non-JSON response for ${url}: ${text.slice(0, 300)}`);
-  }
-}
-
-async function fetchAllCategoryRows(category) {
-  const firstUrl = buildApiUrl({
-    sourceUrl: category.sourceUrl,
-    startIndex: 0,
-    maxResults: PAGE_SIZE,
-  });
-
-  const first = await fetchJson(firstUrl);
-
-  const firstRows = Array.isArray(first?.data) ? first.data : [];
-  const total = Number(first?.total || firstRows[0]?.totalRows || firstRows.length || 0);
-
-  let rows = [...firstRows];
-  let pagesFetched = 1;
-  const sourceUrls = [firstUrl];
-
-  for (let startIndex = firstRows.length; startIndex < total; startIndex += PAGE_SIZE) {
-    const url = buildApiUrl({
-      sourceUrl: category.sourceUrl,
-      startIndex,
-      maxResults: PAGE_SIZE,
-    });
-
-    const page = await fetchJson(url);
-    const pageRows = Array.isArray(page?.data) ? page.data : [];
-
-    rows.push(...pageRows);
-    pagesFetched += 1;
-    sourceUrls.push(url);
-
-    if (!pageRows.length) break;
-  }
-
-  return {
-    rows,
-    pagesFetched,
-    sourceUrls,
-    totalRows: total,
-  };
+function isWantedGender(gender) {
+  return gender === "mens" || gender === "womens" || gender === "unisex";
 }
 
 export default async function handler(req, res) {
   const started = Date.now();
 
   // CRON auth (temporarily commented out for testing)
-  // const auth = req.headers.authorization;
-  // if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-  //   return res.status(401).json({ success: false, error: "Unauthorized" });
-  // }
+  /*
+  const auth = req.headers.authorization;
+  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
+  */
 
   const payload = {
     store: STORE,
     schemaVersion: SCHEMA_VERSION,
 
     lastUpdated: nowIso(),
-    via: VIA,
+    via: "api",
 
-    sourceUrls: [],
+    sourceUrls: [API_URL],
 
-    pagesFetched: 0,
+    pagesFetched: 1,
 
     dealsFound: 0,
     dealsExtracted: 0,
@@ -364,37 +182,126 @@ export default async function handler(req, res) {
   };
 
   try {
-    let allDeals = [];
-    let allRows = 0;
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        accept: "application/json, text/javascript, */*; q=0.01",
+        "content-type": "application/json",
+        origin: "https://shop.runningcenters.com",
+        referer: "https://shop.runningcenters.com/category/18334/men-s-shoes",
+        "user-agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        "x-requested-with": "XMLHttpRequest",
+      },
+      body: JSON.stringify({
+        brand: -1,
+        category: -1,
+        collection: -1,
+        search: "",
+        grouped: true,
+        size: 10000,
+        cost: -1,
+        page: 1,
+        stock: -1,
+        complete: -1,
+        live: -1,
+        sort: "brandName, name",
+        sortType: "asc",
+        admin: false,
+      }),
+    });
 
-    for (const category of CATEGORY_PAGES) {
-      const result = await fetchAllCategoryRows(category);
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`API fetch failed ${response.status}: ${text.slice(0, 300)}`);
+    }
 
-      payload.sourceUrls.push(...result.sourceUrls);
-      payload.pagesFetched += result.pagesFetched;
-      allRows += result.rows.length;
+    const json = await response.json();
+    const products = Array.isArray(json?.data) ? json.data : [];
 
-      const categoryDeals = result.rows
-        .map((row) => makeDeal(row, category.genderHint))
-        .filter(Boolean);
+    payload.dealsFound = products.length;
 
-      allDeals.push(...categoryDeals);
+    const rawDeals = [];
+    let skippedUnknownGender = 0;
+    let skippedNotSale = 0;
+    let skippedNotShippable = 0;
+    let skippedBadUrl = 0;
 
-      payload.pageNotes.push({
-        url: category.sourceUrl,
-        apiCalls: result.pagesFetched,
-        rowsReturned: result.rows.length,
-        keptByParser: categoryDeals.length,
+    for (const p of products) {
+      const listingName = clean(p.name);
+      const { gender, model } = parseGenderModel(listingName);
+
+      if (!isWantedGender(gender)) {
+        skippedUnknownGender += 1;
+        continue;
+      }
+
+      if (!isSaleProduct(p)) {
+        skippedNotSale += 1;
+        continue;
+      }
+
+      if (!isShippable(p)) {
+        skippedNotShippable += 1;
+        continue;
+      }
+
+      const salePrice = getSalePrice(p);
+      const originalPrice = getOriginalPrice(p);
+      const url = listingUrl(p);
+
+      if (!url) {
+        skippedBadUrl += 1;
+        continue;
+      }
+
+      rawDeals.push({
+        schemaVersion: SCHEMA_VERSION,
+
+        listingName,
+
+        brand: titleCase(p.label || p.brandName),
+        model: model || listingName,
+
+        salePrice,
+        originalPrice,
+        discountPercent: computeDiscountPercent(originalPrice, salePrice),
+
+        salePriceLow: null,
+        salePriceHigh: null,
+        originalPriceLow: null,
+        originalPriceHigh: null,
+        discountPercentUpTo: null,
+
+        store: STORE,
+
+        listingURL: url,
+        imageURL: imageUrl(p),
+
+        gender,
+        shoeType: "unknown",
       });
     }
 
-    const deduped = dedupeDeals(allDeals);
+    const deals = dedupeDeals(rawDeals);
 
-    payload.dealsFound = allRows;
-    payload.dealsExtracted = deduped.length;
-    payload.deals = deduped;
+    payload.deals = deals;
+    payload.dealsExtracted = deals.length;
     payload.ok = true;
     payload.error = null;
+
+    payload.pageNotes.push({
+      url: API_URL,
+      rowsReturned: products.length,
+      keptAfterSaleAndShippingFilters: deals.length,
+    });
+
+    payload.debug = {
+      skippedUnknownGender,
+      skippedNotSale,
+      skippedNotShippable,
+      skippedBadUrl,
+    };
   } catch (err) {
     payload.ok = false;
     payload.error = err?.message || "Unknown scraper error";
@@ -404,26 +311,24 @@ export default async function handler(req, res) {
   payload.lastUpdated = nowIso();
 
   try {
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
-      const blob = await put("running-center.json", JSON.stringify(payload, null, 2), {
-        access: "public",
-        contentType: "application/json",
-        addRandomSuffix: false,
-      });
+    const blob = await put("running-center.json", JSON.stringify(payload, null, 2), {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: "application/json",
+    });
 
-      return res.status(payload.ok ? 200 : 500).json({
-        ok: payload.ok,
-        error: payload.error,
-        store: payload.store,
-        pagesFetched: payload.pagesFetched,
-        dealsFound: payload.dealsFound,
-        dealsExtracted: payload.dealsExtracted,
-        scrapeDurationMs: payload.scrapeDurationMs,
-        blobUrl: blob.url,
-      });
-    }
-
-    return res.status(payload.ok ? 200 : 500).json(payload);
+    return res.status(payload.ok ? 200 : 500).json({
+      ok: payload.ok,
+      error: payload.error,
+      store: payload.store,
+      via: payload.via,
+      pagesFetched: payload.pagesFetched,
+      dealsFound: payload.dealsFound,
+      dealsExtracted: payload.dealsExtracted,
+      scrapeDurationMs: payload.scrapeDurationMs,
+      debug: payload.debug,
+      blobUrl: blob.url,
+    });
   } catch (uploadErr) {
     return res.status(500).json({
       ok: false,
