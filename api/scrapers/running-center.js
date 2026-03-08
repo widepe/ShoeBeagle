@@ -41,14 +41,36 @@ function parseGenderModel(name) {
   if (lower.startsWith("mens ")) {
     return { gender: "mens", model: n.slice(5).trim() };
   }
+  if (lower.startsWith("men'sm ")) {
+    return { gender: "mens", model: n.slice(7).trim() };
+  }
   if (lower.startsWith("women's ")) {
     return { gender: "womens", model: n.slice(8).trim() };
   }
   if (lower.startsWith("womens ")) {
     return { gender: "womens", model: n.slice(7).trim() };
   }
+  if (lower.startsWith("woman's ")) {
+    return { gender: "womens", model: n.slice(8).trim() };
+  }
   if (lower.startsWith("unisex ")) {
     return { gender: "unisex", model: n.slice(7).trim() };
+  }
+  if (lower.startsWith("all gender ")) {
+    return { gender: "unisex", model: n.slice(11).trim() };
+  }
+  if (/^u\s+/i.test(n)) {
+    return { gender: "unisex", model: n.replace(/^u\s+/i, "").trim() };
+  }
+
+  // Optional shorthand handling:
+  // M880v15 -> mens
+  // W860v14 -> womens
+  if (/^m\d/i.test(n)) {
+    return { gender: "mens", model: n };
+  }
+  if (/^w\d/i.test(n)) {
+    return { gender: "womens", model: n };
   }
 
   return { gender: "unknown", model: n };
