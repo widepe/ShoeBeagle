@@ -979,151 +979,176 @@
     }
 
     function displayScraperHistory(scraperData, mergeData) {
-      const panel = document.getElementById("scraperHistoryPanel");
-      const chart = document.getElementById("scraperHistoryChart");
+  const panel = document.getElementById("scraperHistoryPanel");
+  const chart = document.getElementById("scraperHistoryChart");
 
-      if (!panel || !chart || !scraperData || !Array.isArray(scraperData.days) || scraperData.days.length === 0) {
+  if (!panel || !chart || !scraperData || !Array.isArray(scraperData.days) || scraperData.days.length === 0) {
+    return;
+  }
+
+  // These are not stores; keep hidden.
+  const HIDE_FROM_HISTORY = new Set([
+    "Cheerio (non-Holabird)",
+    "Apify (non-Holabird)",
+    "Brooks Running",
+    "Brooks Sale",
+  ]);
+
+  // ONE row per canonical store
+  const canonicalRowsMap = new Map(); // key: canonical displayName -> { canonicalName, historyNames:Set }
+
+  scraperData.days.forEach(day => {
+    (day.scrapers || []).forEach(s => {
+      const historyName = String(s?.scraper || "").trim();
+      if (!historyName) return;
+      if (HIDE_FROM_HISTORY.has(historyName)) return;
+
+      const canonicalName = canonicalDisplayNameFromHistoryScraperName(historyName);
+      if (!canonicalName) return;
+
+      if (!canonicalRowsMap.has(canonicalName)) {
+        canonicalRowsMap.set(canonicalName, {
+          canonicalName,
+          historyNames: new Set()
+        });
+      }
+
+      canonicalRowsMap.get(canonicalName).historyNames.add(historyName);
+    });
+  });
+
+  const rows = Array.from(canonicalRowsMap.values())
+    .sort((a, b) => a.canonicalName.localeCompare(b.canonicalName));
+
+  if (rows.length === 0) return;
+
+  const viaFromHistory = getScraperViaMapFromHistory(scraperData);
+  const viaFromMerge = getScraperViaFromMerge(mergeData);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const allDates = [];
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    allDates.push(d.toISOString().split("T")[0]);
+  }
+
+  const dataMap = {};
+  scraperData.days.forEach(day => {
+    const dateKey = (day.dayUTC || "").split("T")[0];
+    if (dateKey) dataMap[dateKey] = day;
+  });
+
+  const apifyInTable = new Set();
+  const cheerioInTable = new Set();
+
+  let html = `
+    <div style="overflow-x:auto;">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th class="scraper-name">Store</th>
+  `;
+
+  allDates.forEach(dateStr => {
+    const date = new Date(dateStr + "T00:00:00");
+    const monthDay = `${date.getMonth() + 1}/${date.getDate()}`;
+    html += `<th>${monthDay}</th>`;
+  });
+
+  html += `
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  rows.forEach(({ canonicalName, historyNames }) => {
+    const namesArray = Array.from(historyNames);
+
+    let via = "";
+    for (const historyName of namesArray) {
+      via = viaFromHistory[historyName] || viaFromMerge[historyName] || via;
+      if (via) break;
+    }
+
+    const decoratedDisplay = decorateScraperName(canonicalName, via);
+
+    if (String(via).toLowerCase() === "apify") apifyInTable.add(canonicalName);
+    if (String(via).toLowerCase() === "cheerio") cheerioInTable.add(canonicalName);
+
+    html += `<tr><td class="scraper-name">${decoratedDisplay}</td>`;
+
+    allDates.forEach(dateStr => {
+      const dayData = dataMap[dateStr];
+
+      if (!dayData) {
+        html += `<td class="history-cell-failed">✗</td>`;
         return;
       }
 
-      // These are not stores; keep hidden.
-      const HIDE_FROM_HISTORY = new Set([
-        "Cheerio (non-Holabird)",
-        "Apify (non-Holabird)",
-        "Brooks Running",
-        "Brooks Sale",
-      ]);
-
-      // Only show rows that map to canonical stores.
-      const allowedScrapers = new Map(); // key: original history scraperName -> canonical displayName
-
-      scraperData.days.forEach(day => {
-        (day.scrapers || []).forEach(s => {
-          const historyName = s?.scraper;
-          if (!historyName) return;
-          if (HIDE_FROM_HISTORY.has(historyName)) return;
-
-          const canonicalName = canonicalDisplayNameFromHistoryScraperName(historyName);
-          if (!canonicalName) return; // <-- this is your requested filter
-
-          if (!allowedScrapers.has(historyName)) {
-            allowedScrapers.set(historyName, canonicalName);
-          }
-        });
+      const matchingEntries = (dayData.scrapers || []).filter(s => {
+        const historyName = String(s?.scraper || "").trim();
+        return namesArray.includes(historyName);
       });
 
-      // Sort by canonical displayName (what user sees)
-      const rows = Array.from(allowedScrapers.entries())
-        .map(([historyName, canonicalName]) => ({ historyName, canonicalName }))
-        .sort((a, b) => a.canonicalName.localeCompare(b.canonicalName));
-
-      if (rows.length === 0) return;
-
-      const viaFromHistory = getScraperViaMapFromHistory(scraperData);
-      const viaFromMerge = getScraperViaFromMerge(mergeData);
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const allDates = [];
-      for (let i = 0; i < 30; i++) {
-        const d = new Date(today);
-        d.setDate(d.getDate() - i);
-        allDates.push(d.toISOString().split("T")[0]);
+      if (!matchingEntries.length) {
+        html += `<td class="history-cell-failed">✗</td>`;
+        return;
       }
 
-      const dataMap = {};
-      scraperData.days.forEach(day => {
-        const dateKey = (day.dayUTC || "").split("T")[0];
-        if (dateKey) dataMap[dateKey] = day;
+      matchingEntries.sort((a, b) => {
+        const aOk = a?.ok ? 1 : 0;
+        const bOk = b?.ok ? 1 : 0;
+        if (bOk !== aOk) return bOk - aOk;
+        return (Number(b?.count) || 0) - (Number(a?.count) || 0);
       });
 
-      const apifyInTable = new Set();
-      const cheerioInTable = new Set();
+      const bestEntry = matchingEntries[0];
 
-      let html = `
-        <div style="overflow-x:auto;">
-          <table class="history-table">
-            <thead>
-              <tr>
-                <th class="scraper-name">Store</th>
-      `;
-
-      allDates.forEach(dateStr => {
-        const date = new Date(dateStr + "T00:00:00");
-        const monthDay = `${date.getMonth() + 1}/${date.getDate()}`;
-        html += `<th>${monthDay}</th>`;
-      });
-
-      html += `
-              </tr>
-            </thead>
-            <tbody>
-      `;
-
-      rows.forEach(({ historyName, canonicalName }) => {
-        const via = viaFromHistory[historyName] || viaFromMerge[historyName] || "";
-        const decoratedDisplay = decorateScraperName(canonicalName, via);
-
-        if (String(via).toLowerCase() === "apify") apifyInTable.add(historyName);
-        if (String(via).toLowerCase() === "cheerio") cheerioInTable.add(historyName);
-
-        html += `<tr><td class="scraper-name">${decoratedDisplay}</td>`;
-
-        allDates.forEach(dateStr => {
-          const dayData = dataMap[dateStr];
-
-          if (!dayData) {
-            html += `<td class="history-cell-failed">✗</td>`;
-          } else {
-            const scraperEntry = (dayData.scrapers || []).find(s => s.scraper === historyName);
-
-            if (!scraperEntry) {
-              html += `<td class="history-cell-failed">✗</td>`;
-            } else if (!scraperEntry.ok) {
-              html += `<td class="history-cell-failed">✗</td>`;
-            } else {
-              const count = scraperEntry.count || 0;
-              if (count === 0) html += `<td class="history-cell-failed">0</td>`;
-              else if (count < 10) html += `<td class="history-cell-warning">${count}</td>`;
-              else html += `<td class="history-cell-success">${count}</td>`;
-            }
-          }
-        });
-
-        html += `</tr>`;
-      });
-
-      html += `
-            </tbody>
-          </table>
-        </div>
-
-        <div class="history-legend">
-          <div class="history-legend-item">
-            <span style="color:#28a745;font-weight:bold;">■</span> Good (10+ deals)
-          </div>
-          <div class="history-legend-item">
-            <span style="color:#856404;font-weight:bold;">■</span> Warning (&lt;10 deals)
-          </div>
-          <div class="history-legend-item">
-            <span style="color:#dc3545;font-weight:bold;">✗</span> Failed/Zero/Not Run
-          </div>
-        </div>
-      `;
-
-      const notes = [];
-      if (apifyInTable.size > 0) notes.push(`<div><strong>*</strong> Apify scraper.</div>`);
-      if (cheerioInTable.size > 0) notes.push(`<div><strong>†</strong> Cheerio scraper.</div>`);
-
-      if (notes.length) {
-        html += `<div class="history-notes">${notes.join("")}</div>`;
+      if (!bestEntry.ok) {
+        html += `<td class="history-cell-failed">✗</td>`;
+      } else {
+        const count = Number(bestEntry.count) || 0;
+        if (count === 0) html += `<td class="history-cell-failed">0</td>`;
+        else if (count < 10) html += `<td class="history-cell-warning">${count}</td>`;
+        else html += `<td class="history-cell-success">${count}</td>`;
       }
+    });
 
-      chart.innerHTML = html;
-      panel.style.display = "block";
-    }
+    html += `</tr>`;
+  });
 
+  html += `
+        </tbody>
+      </table>
+    </div>
+
+    <div class="history-legend">
+      <div class="history-legend-item">
+        <span style="color:#28a745;font-weight:bold;">■</span> Good (10+ deals)
+      </div>
+      <div class="history-legend-item">
+        <span style="color:#856404;font-weight:bold;">■</span> Warning (&lt;10 deals)
+      </div>
+      <div class="history-legend-item">
+        <span style="color:#dc3545;font-weight:bold;">✗</span> Failed/Zero/Not Run
+      </div>
+    </div>
+  `;
+
+  const notes = [];
+  if (apifyInTable.size > 0) notes.push(`<div><strong>*</strong> Apify scraper.</div>`);
+  if (cheerioInTable.size > 0) notes.push(`<div><strong>†</strong> Cheerio scraper.</div>`);
+
+  if (notes.length) {
+    html += `<div class="history-notes">${notes.join("")}</div>`;
+  }
+
+  chart.innerHTML = html;
+  panel.style.display = "block";
+}
     // ------------------------------------------------------------
     // Gender breakdown
     // ------------------------------------------------------------
