@@ -533,9 +533,9 @@ function normalizeDeal(d) {
   const saleRangeOk = (saleLo == null && saleHi == null) || (Number.isFinite(saleLo) && Number.isFinite(saleHi));
   const origRangeOk = (origLo == null && origHi == null) || (Number.isFinite(origLo) && Number.isFinite(origHi));
 
-return {
-  ...d, // Preserve any existing fields from the original scraper deal object so future schema fields aren't lost during normalization
-    
+  return {
+    ...d, // Preserve any existing fields from the original scraper deal object so future schema fields aren't lost during normalization
+
     schemaVersion: 1,
 
     listingName: typeof c.listingName === "string" ? c.listingName.trim() : "",
@@ -621,15 +621,14 @@ function extractTopLevelMeta(payload) {
     payload?.runFinishedAt ||
     null;
 
-  const durationMs =
-    parseDurationMs(
-      payload?.scrapeDurationMs ??
+  const durationMs = parseDurationMs(
+    payload?.scrapeDurationMs ??
       payload?.elapsedMs ??
       payload?.durationMs ??
       payload?.duration ??
       payload?.scrapeDuration ??
       null
-    );
+  );
 
   const via = payload?.via || payload?.source || null;
 
@@ -1143,7 +1142,9 @@ function buildTodayScraperRecord({ sourceId, sourceDisplayName, meta, perSource 
   const via = meta?.source || perSource?.via || null;
   const blobUrl = meta?.blobUrl || null;
   const ok = !!perSource?.ok;
-  const count = ok ? (Number.isFinite(perSource?.count) ? perSource.count : safeArray(meta?.deals).length) : 0;
+  const count = ok
+    ? (Number.isFinite(perSource?.count) ? perSource.count : safeArray(meta?.deals).length)
+    : 0;
 
   return {
     storeId: sourceId,
@@ -1320,9 +1321,9 @@ module.exports = async (req, res) => {
         storeMetadata[key] = {
           blobUrl: blobUrl || prev.blobUrl || null,
           timestamp: newestTs,
-          duration: (duration != null ? duration : (prev.duration ?? null)),
+          duration: duration != null ? duration : prev.duration ?? null,
           count: prevCount + safeArray(deals).length,
-          ageDays: ageDays != null ? ageDays : (prev.ageDays ?? null),
+          ageDays: ageDays != null ? ageDays : prev.ageDays ?? null,
           staleExcluded: !!isTooOld,
           staleThresholdDays: MAX_STORE_DATA_AGE_DAYS,
         };
@@ -1480,21 +1481,21 @@ module.exports = async (req, res) => {
     // scraper-data: rolling 30-day history
     const todayDayUTC = toIsoDayUTC(output.lastUpdated);
 
-   const todayRecords = [];
-for (const src of sources) {
-  const key = src.id || src.name;
-  const meta = perSourceMeta[key] || null;
-  const perSourceEntry = perSource[key] || { ok: false, count: 0, error: "Missing perSource entry" };
+    const todayRecords = [];
+    for (const src of sources) {
+      const key = src.id || src.name;
+      const meta = perSourceMeta[key] || null;
+      const perSourceEntry = perSource[key] || { ok: false, count: 0, error: "Missing perSource entry" };
 
-  todayRecords.push(
-    buildTodayScraperRecord({
-      sourceId: src.id || key,
-      sourceDisplayName: src.name || key,
-      meta,
-      perSource: perSourceEntry,
-    })
-  );
-}
+      todayRecords.push(
+        buildTodayScraperRecord({
+          sourceId: src.id || key,
+          sourceDisplayName: src.name || key,
+          meta,
+          perSource: perSourceEntry,
+        })
+      );
+    }
 
     let existingScraperData = null;
     if (SCRAPER_DATA_BLOB_URL) {
@@ -1511,9 +1512,15 @@ for (const src of sources) {
     // Write blobs (public, stable filenames)
     const [dealsBlob, unalteredBlob, statsBlob, dailyDealsBlob, scraperDataBlob] = await Promise.all([
       put("deals.json", JSON.stringify(output, null, 2), { access: "public", addRandomSuffix: false }),
-      put("unaltered-deals.json", JSON.stringify(unalteredPayload, null, 2), { access: "public", addRandomSuffix: false }),
+      put("unaltered-deals.json", JSON.stringify(unalteredPayload, null, 2), {
+        access: "public",
+        addRandomSuffix: false,
+      }),
       put("stats.json", JSON.stringify(stats, null, 2), { access: "public", addRandomSuffix: false }),
-      put("twelve_daily_deals.json", JSON.stringify(dailyDealsPayload, null, 2), { access: "public", addRandomSuffix: false }),
+      put("twelve_daily_deals.json", JSON.stringify(dailyDealsPayload, null, 2), {
+        access: "public",
+        addRandomSuffix: false,
+      }),
       put("scraper-data.json", JSON.stringify(scraperData, null, 2), { access: "public", addRandomSuffix: false }),
     ]);
 
