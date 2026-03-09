@@ -309,6 +309,33 @@
     "baseUrl": "https://us.puma.com",
     "notes": "PUMA US running shoes sale page via Apify Playwright (infinite scroll). Extracts h2 model, h3 subtitle, sale-price + price data-test-id values. Writes to puma.json via PUMA_DEALS_BLOB_URL / BLOB_READ_WRITE_TOKEN."
   },
+
+
+{
+  "id": "performance-running-outfitters",
+  "displayName": "Performance Running Outfitters",
+  "addedAt": "2026-03-09",
+  "lastUpdated": "2026-03-09",
+  "scrapedUrls": [
+    "https://performancerunning.com/collections/womens-sale-shoes",
+    "https://performancerunning.com/collections/mens-sale-shoes",
+    "https://performancerunning.com/collections/sale-super-shoes"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/pro.json"
+  ],
+  "aliases": [
+    "performance running",
+    "performance running outfitters",
+    "pro"
+  ],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "PERFORMANCE_RUNNING_OUTFITTERS_BLOB_URL",
+  "baseUrl": "https://performancerunning.com",
+  "notes": "Shopify collection products.json scraper for womens-sale-shoes, mens-sale-shoes, and sale-super-shoes. Dedupe by listingURL across collections. Stops on HTTP failure, empty products array, or 2 consecutive non-empty pages with no new unique products. Counts pages with products only. Writes to pro.json. Gender parsed from title; shoeType forced to unknown."
+},
+  
   {
     "id": "rei",
     "displayName": "REI",
