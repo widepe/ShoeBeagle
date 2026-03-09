@@ -11,9 +11,6 @@ const STORE = "Running Warehouse";
 const VIA = "cheerio";
 const SCHEMA_VERSION = 1;
 
-const REQUEST_TOGGLES = {
-  REQUIRE_CRON_SECRET: false,
-};
 
 function nowIso() {
   return new Date().toISOString();
@@ -323,14 +320,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  const auth = req.headers.authorization;
-  if (
-    REQUEST_TOGGLES.REQUIRE_CRON_SECRET &&
-    process.env.CRON_SECRET &&
-    auth !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
-    return res.status(401).json({ success: false, error: "Unauthorized" });
-  }
+// CRON_SECRET
+const auth = req.headers.authorization;
+if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  return res.status(401).json({ success: false, error: "Unauthorized" });
+}
 
   const start = Date.now();
   const timestamp = nowIso();
