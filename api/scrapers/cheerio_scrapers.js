@@ -1,8 +1,8 @@
-// api/cheerio_scrapers.js
+// /api/cheerio_scrapers.js
 // Daily scraper for running shoe deals (CHEERIO ONLY)
 // Runs via Vercel Cron
 //
-// OUTPUT (per store blob) – STANDARDIZED TOP LEVEL (Zappos-style):
+// OUTPUT (per store blob) – STANDARDIZED TOP LEVEL:
 // {
 //   store, schemaVersion,
 //   lastUpdated, via,
@@ -13,14 +13,12 @@
 //   deals: [...]
 // }
 //
-// IMPORTANT RULE (per your requirement):
-// - listingName is preserved EXACTLY as scraped (no cleaning / normalization applied to listingName).
-// - All parsing for brand/model/gender/shoeType uses the SAME cleaned/normalized inputs as before,
-//   so outputs (everything except listingName) should match current behavior.
+// IMPORTANT RULES:
+// - listingName is preserved EXACTLY as scraped.
+// - No model cleaning / normalization is performed here.
+// - No title cleaning / normalization is performed here.
+// - merge-deals is responsible for downstream cleanup / canonicalization.
 
-// -----------------------------------------------------------------------------
-// ✅ SCRAPER TOGGLES (edit these booleans to enable/disable stores)
-// -----------------------------------------------------------------------------
 const SCRAPER_TOGGLES = {
   RUNNING_WAREHOUSE: true,
   FLEET_FEET: true,
@@ -28,9 +26,6 @@ const SCRAPER_TOGGLES = {
   MARATHON_SPORTS: true,
 };
 
-// -----------------------------------------------------------------------------
-// ✅ REQUEST / AUTH TOGGLES
-// -----------------------------------------------------------------------------
 const REQUEST_TOGGLES = {
   REQUIRE_CRON_SECRET: false,
 };
@@ -38,7 +33,6 @@ const REQUEST_TOGGLES = {
 const axios = require("axios");
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
-const { cleanModelName } = require("../modelNameCleaner");
 
 /** -------------------- Small helpers -------------------- **/
 
@@ -46,18 +40,8 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-// NOTE: We still use this for parsing/validation (as before).
-// listingName itself is NOT passed through this; it stays raw.
 function normalizeWhitespace(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
-}
-
-// NOTE: Still used for parsing only (as before). listingName is never set to this.
-function cleanTitleText(raw) {
-  let t = normalizeWhitespace(raw);
-  t = t.replace(/^(extra\s*\d+\s*%\s*off)\s+/i, "");
-  t = t.replace(/^(sale|clearance|closeout)\s+/i, "");
-  return normalizeWhitespace(t);
 }
 
 function absolutizeUrl(u, base) {
@@ -99,11 +83,19 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// parseBrandModel() behavior preserved.
-// It still cleans (for parsing) and uses your cleaner for model.
-function parseBrandModel(title) {
-  title = cleanTitleText(title);
-  if (!title) return { brand: "Unknown", model: "" };
+/**
+ * RAW brand/model parser:
+ * - no cleanTitleText
+ * - no cleanModelName
+ * - no normalization beyond what is necessary for matching
+ * - brand is inferred from title if possible
+ * - model is raw title with matched brand removed, otherwise title
+ */
+function parseBrandModelRaw(title) {
+  const rawTitle = String(title || "");
+  if (!rawTitle.trim()) {
+    return { brand: "Unknown", model: "" };
+  }
 
   const brands = [
     "361 Degrees",
@@ -157,27 +149,28 @@ function parseBrandModel(title) {
   const brandsSorted = [...brands].sort((a, b) => b.length - a.length);
 
   let brand = "Unknown";
-  let model = title;
+  let model = rawTitle;
 
   for (const b of brandsSorted) {
     const escaped = escapeRegExp(b);
     const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
-    if (regex.test(title)) {
+    if (regex.test(rawTitle)) {
       brand = b;
-      model = title.replace(regex, " ").trim().replace(/\s+/g, " ");
+      model = rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim();
       break;
     }
   }
 
-  model = cleanModelName(model);
-  return { brand, model };
+  return {
+    brand,
+    model: model || rawTitle,
+  };
 }
 
-// Detect gender from URL or listing text
 function detectGender(listingURL, listingName) {
   const urlLower = (listingURL || "").toLowerCase();
   const nameLower = (listingName || "").toLowerCase();
-  const combined = urlLower + " " + nameLower;
+  const combined = `${urlLower} ${nameLower}`;
 
   if (/\/mens?[\/-]|\/men\/|men-/.test(urlLower)) return "mens";
   if (/\/womens?[\/-]|\/women\/|women-/.test(urlLower)) return "womens";
@@ -189,11 +182,10 @@ function detectGender(listingURL, listingName) {
   return "unknown";
 }
 
-// Detect shoe type from listing text or model
 function detectShoeType(listingName, model) {
-  const combined = ((listingName || "") + " " + (model || "")).toLowerCase();
+  const combined = `${listingName || ""} ${model || ""}`.toLowerCase();
 
-  if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross|ultra|summit)\b/i.test(combined)) {
+  if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross|summit)\b/i.test(combined)) {
     return "trail";
   }
 
@@ -222,6 +214,47 @@ function computeDiscountPercent(originalPrice, salePrice) {
 function randomDelay(min = 3000, max = 5000) {
   const wait = Math.floor(Math.random() * (max - min + 1)) + min;
   return new Promise((resolve) => setTimeout(resolve, wait));
+}
+
+function buildDeal({
+  listingName,
+  brand,
+  model,
+  salePrice,
+  originalPrice,
+  discountPercent,
+  store,
+  listingURL,
+  imageURL,
+  gender,
+  shoeType,
+}) {
+  return {
+    schemaVersion: 1,
+
+    listingName: listingName || "",
+
+    brand: brand || "Unknown",
+    model: model || "",
+
+    salePrice: Number.isFinite(salePrice) ? salePrice : null,
+    originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
+    discountPercent: Number.isFinite(discountPercent) ? discountPercent : null,
+
+    salePriceLow: null,
+    salePriceHigh: null,
+    originalPriceLow: null,
+    originalPriceHigh: null,
+    discountPercentUpTo: null,
+
+    store: store || "",
+
+    listingURL: listingURL || "",
+    imageURL: imageURL || null,
+
+    gender: gender || "unknown",
+    shoeType: shoeType || "unknown",
+  };
 }
 
 /** -------------------- UNIVERSAL PRICE EXTRACTOR -------------------- **/
@@ -276,9 +309,6 @@ function findPercentOff(text) {
   return percent > 0 && percent < 100 ? percent : null;
 }
 
-/**
- * Returns: { salePrice: number|null, originalPrice: number|null, valid: boolean }
- */
 function extractPrices($, $element, fullText) {
   let prices = extractDollarAmounts(fullText);
 
@@ -295,7 +325,6 @@ function extractPrices($, $element, fullText) {
 
   prices.sort((a, b) => b - a);
 
-  // 2 prices: [original, sale]
   if (prices.length === 2) {
     const original = prices[0];
     const sale = prices[1];
@@ -308,7 +337,6 @@ function extractPrices($, $element, fullText) {
     return { salePrice: sale, originalPrice: original, valid: true };
   }
 
-  // 3 prices: try to detect "save $X" or "% off"
   if (prices.length === 3) {
     const original = prices[0];
     const remaining = prices.slice(1);
@@ -353,7 +381,6 @@ function extractPrices($, $element, fullText) {
       }
     }
 
-    // fallback: choose the larger of remaining as sale
     const sale = Math.max(...remaining);
     const pct = ((original - sale) / original) * 100;
     if (pct >= 5 && pct <= 90 && sale < original) return { salePrice: sale, originalPrice: original, valid: true };
@@ -366,7 +393,7 @@ function extractPrices($, $element, fullText) {
 
 /** -------------------- Site scrapers (CHEERIO) -------------------- **/
 
-/* ----------------------------  Running Warehouse ------------------------------ */
+/* ---------------------------- Running Warehouse ------------------------------ */
 async function scrapeRunningWarehouse() {
   const STORE = "Running Warehouse";
   const base = "https://www.runningwarehouse.com";
@@ -407,20 +434,6 @@ async function scrapeRunningWarehouse() {
 
     const html = String(resp.data || "");
     const $ = cheerio.load(html);
-
-    const title = $("title").first().text().trim();
-    const linkCount = $("a.cattable-wrap-cell-info").length;
-    const cellCount = $(".cattable-wrap-cell").length;
-
-    console.log("[RW PAGE]", {
-      url: page.url,
-      status: resp.status,
-      htmlLength: html.length,
-      title,
-      linkCount,
-      cellCount,
-    });
-
     pagesFetched++;
 
     $("a.cattable-wrap-cell-info").each((_, el) => {
@@ -448,7 +461,6 @@ async function scrapeRunningWarehouse() {
       const imageURL = pickBestImgUrl($, $img, base);
 
       const saleText = $cell.find(".cattable-wrap-cell-info-price.is-sale").first().text();
-
       const msrpText = $cell.find(".cattable-wrap-cell-info-price-msrp").first().text();
 
       const salePrice = parseDollar(saleText);
@@ -460,24 +472,24 @@ async function scrapeRunningWarehouse() {
       const discountPercent = computeDiscountPercent(originalPrice, salePrice);
       if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
 
-      const cleanedForParsing = cleanTitleText(normalizeWhitespace(listingName));
-      const { brand, model } = parseBrandModel(cleanedForParsing);
-
+      const { brand, model } = parseBrandModelRaw(listingName);
       const gender = detectGender(listingURL, `${listingName} ${subLine}`);
 
-      deals.push({
-        listingName,
-        brand,
-        model,
-        salePrice,
-        originalPrice,
-        discountPercent,
-        store: STORE,
-        listingURL,
-        imageURL,
-        gender,
-        shoeType: page.shoeType,
-      });
+      deals.push(
+        buildDeal({
+          listingName,
+          brand,
+          model,
+          salePrice,
+          originalPrice,
+          discountPercent,
+          store: STORE,
+          listingURL,
+          imageURL,
+          gender,
+          shoeType: page.shoeType,
+        })
+      );
     });
 
     await randomDelay();
@@ -492,7 +504,7 @@ async function scrapeRunningWarehouse() {
   };
 }
 
-/* -------------------------------  Fleet Feet ----------------------------------- */
+/* ------------------------------- Fleet Feet ----------------------------------- */
 async function scrapeFleetFeet() {
   const STORE = "Fleet Feet";
   const base = "https://www.fleetfeet.com";
@@ -508,13 +520,6 @@ async function scrapeFleetFeet() {
 
   const deals = [];
   const seenUrls = new Set();
-
-  const parseDollar = (txt) => {
-    const m = String(txt || "").match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
-    if (!m) return null;
-    const n = parseFloat(m[1].replace(/,/g, ""));
-    return Number.isFinite(n) ? n : null;
-  };
 
   for (const seedUrl of seedUrls) {
     let nextUrl = seedUrl;
@@ -535,57 +540,57 @@ async function scrapeFleetFeet() {
       const $ = cheerio.load(response.data);
       pagesFetched++;
 
-     $('div.product-tile script[type="application/json"]').each((_, el) => {
-  let data;
-  try {
-    data = JSON.parse($(el).html());
-  } catch (e) {
-    return;
-  }
+      $('div.product-tile script[type="application/json"]').each((_, el) => {
+        let data;
+        try {
+          data = JSON.parse($(el).html());
+        } catch (e) {
+          return;
+        }
 
-  const discounted = data["computed.discounted"];
-  if (!discounted) return;
+        const discounted = data["computed.discounted"];
+        if (!discounted) return;
 
-  dealsFound++;
+        dealsFound++;
 
-  const salePrice = parseFloat(data["computed.price"]);
-  const originalPrice = parseFloat(data["computed.originalPrice"]);
+        const salePrice = parseFloat(data["computed.price"]);
+        const originalPrice = parseFloat(data["computed.originalPrice"]);
 
-  if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
-  if (!(originalPrice > salePrice && salePrice > 0)) return;
+        if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
+        if (!(originalPrice > salePrice && salePrice > 0)) return;
 
-  const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-  if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
+        const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+        if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
 
-  const slug = data["product.slug"] || "";
-  if (!slug) return;
+        const slug = data["product.slug"] || "";
+        if (!slug) return;
 
-  const listingURL = absolutizeUrl(`/products/${slug}`, base);
-  if (seenUrls.has(listingURL)) return;
-  seenUrls.add(listingURL);
+        const listingURL = absolutizeUrl(`/products/${slug}`, base);
+        if (seenUrls.has(listingURL)) return;
+        seenUrls.add(listingURL);
 
-  const listingName = String(data["product.title"] || "");
-  if (!listingName) return;
+        const listingName = String(data["product.title"] || "");
+        if (!listingName) return;
 
-  const imageURL = data["sku.bestPhoto"] || data["sku.photo"] || null;
+        const imageURL = data["sku.bestPhoto"] || data["sku.photo"] || null;
+        const { brand, model } = parseBrandModelRaw(listingName);
 
-  const cleanedForParsing = cleanTitleText(normalizeWhitespace(listingName));
-  const { brand, model } = parseBrandModel(cleanedForParsing);
-
-  deals.push({
-    listingName,
-    brand,
-    model,
-    salePrice,
-    originalPrice,
-    discountPercent,
-    store: STORE,
-    listingURL,
-    imageURL,
-    gender: detectGender(listingURL, listingName),
-shoeType: "unknown",
-  });
-});
+        deals.push(
+          buildDeal({
+            listingName,
+            brand,
+            model,
+            salePrice,
+            originalPrice,
+            discountPercent,
+            store: STORE,
+            listingURL,
+            imageURL,
+            gender: detectGender(listingURL, listingName),
+            shoeType: "unknown",
+          })
+        );
+      });
 
       const nextHref = ($("a#browsenext").attr("href") || "").trim();
       nextUrl = nextHref ? absolutizeUrl(nextHref, base) : null;
@@ -603,7 +608,7 @@ shoeType: "unknown",
   };
 }
 
-/* -------------------- LUKE'S LOCKER ------------------------------- */
+/* ----------------------------- Luke's Locker ---------------------------------- */
 async function scrapeLukesLocker() {
   const STORE = "Luke's Locker";
   const base = "https://lukeslocker.com";
@@ -642,14 +647,10 @@ async function scrapeLukesLocker() {
       const listingName = String(p?.title ?? "");
       if (!listingName) continue;
 
-      const titleRawNormalized = normalizeWhitespace(listingName);
-      const cleanedForParsing = cleanTitleText(titleRawNormalized);
-      if (!cleanedForParsing) continue;
+      const brand = String(p?.vendor || "").trim() || "Unknown";
 
-      const brand = normalizeWhitespace(p?.vendor || "") || "Unknown";
-
-      const listingURL = `${base}/products/${p?.handle || ""}`;
       if (!p?.handle) continue;
+      const listingURL = `${base}/products/${p.handle}`;
       if (seenUrls.has(listingURL)) continue;
       seenUrls.add(listingURL);
 
@@ -702,27 +703,28 @@ async function scrapeLukesLocker() {
       const discountPercent = computeDiscountPercent(bestOriginal, bestSale);
       if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) continue;
 
-      let model = cleanedForParsing;
+      let model = listingName;
       if (brand && brand !== "Unknown") {
         const escaped = escapeRegExp(brand);
-        model = model.replace(new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i"), " ");
-        model = normalizeWhitespace(model);
+        model = listingName.replace(new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i"), " ");
+        model = model.replace(/\s+/g, " ").trim() || listingName;
       }
-      model = cleanModelName(model);
 
-      deals.push({
-        listingName,
-        brand,
-        model,
-        salePrice: bestSale,
-        originalPrice: bestOriginal,
-        discountPercent,
-        store: STORE,
-        listingURL,
-        imageURL,
-        gender: detectGender("", cleanedForParsing),
-        shoeType: "unknown",
-      });
+      deals.push(
+        buildDeal({
+          listingName,
+          brand,
+          model,
+          salePrice: bestSale,
+          originalPrice: bestOriginal,
+          discountPercent,
+          store: STORE,
+          listingURL,
+          imageURL,
+          gender: detectGender("", listingName),
+          shoeType: "unknown",
+        })
+      );
     }
 
     if (products.length < limit) break;
@@ -738,7 +740,7 @@ async function scrapeLukesLocker() {
   };
 }
 
-/* ----------------------------  Marathon Sports ------------------------------ */
+/* ---------------------------- Marathon Sports ------------------------------ */
 async function scrapeMarathonSports() {
   const STORE = "Marathon Sports";
 
@@ -793,10 +795,6 @@ async function scrapeMarathonSports() {
       if ($titleEl.length) listingName = String($titleEl.text() ?? "");
       if (!listingName) return;
 
-      const titleNormalized = normalizeWhitespace(listingName);
-      const cleanedForParsing = cleanTitleText(titleNormalized);
-      if (!cleanedForParsing) return;
-
       const { salePrice, originalPrice, valid } = extractPrices($, $container, containerText);
       if (!valid || !salePrice || salePrice <= 0) return;
 
@@ -806,22 +804,24 @@ async function scrapeMarathonSports() {
 
       seenUrls.add(listingURL);
 
-      const { brand, model } = parseBrandModel(cleanedForParsing);
+      const { brand, model } = parseBrandModelRaw(listingName);
       const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
-      deals.push({
-        listingName,
-        brand,
-        model,
-        salePrice,
-        originalPrice: originalPrice || null,
-        discountPercent,
-        store: STORE,
-        listingURL,
-        imageURL,
-        gender: detectGender(listingURL, cleanedForParsing),
-        shoeType: detectShoeType(cleanedForParsing, model),
-      });
+      deals.push(
+        buildDeal({
+          listingName,
+          brand,
+          model,
+          salePrice,
+          originalPrice,
+          discountPercent,
+          store: STORE,
+          listingURL,
+          imageURL,
+          gender: detectGender(listingURL, listingName),
+          shoeType: detectShoeType(listingName, model),
+        })
+      );
     });
 
     await randomDelay();
@@ -836,7 +836,7 @@ async function scrapeMarathonSports() {
   };
 }
 
-/** -------------------- Per-store blob writer (STANDARDIZED) -------------------- **/
+/** -------------------- Per-store blob writer -------------------- **/
 
 async function runAndSaveStore({ storeName, blobName, via, fn }) {
   const start = Date.now();
@@ -956,7 +956,6 @@ module.exports = async (req, res) => {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  // CRON SECRET
   const auth = req.headers.authorization;
   if (
     REQUEST_TOGGLES.REQUIRE_CRON_SECRET &&
@@ -972,7 +971,6 @@ module.exports = async (req, res) => {
   try {
     const results = {};
 
-    // ---------------- RUNNING WAREHOUSE ----------------
     if (SCRAPER_TOGGLES.RUNNING_WAREHOUSE) {
       results["Running Warehouse"] = await runAndSaveStore({
         storeName: "Running Warehouse",
@@ -985,7 +983,6 @@ module.exports = async (req, res) => {
       results["Running Warehouse"] = skippedResult("Running Warehouse", "running-warehouse.json");
     }
 
-    // ---------------- FLEET FEET ----------------
     if (SCRAPER_TOGGLES.FLEET_FEET) {
       results["Fleet Feet"] = await runAndSaveStore({
         storeName: "Fleet Feet",
@@ -998,7 +995,6 @@ module.exports = async (req, res) => {
       results["Fleet Feet"] = skippedResult("Fleet Feet", "fleet-feet.json");
     }
 
-    // ---------------- LUKE'S LOCKER ----------------
     if (SCRAPER_TOGGLES.LUKES_LOCKER) {
       results["Luke's Locker"] = await runAndSaveStore({
         storeName: "Luke's Locker",
@@ -1011,7 +1007,6 @@ module.exports = async (req, res) => {
       results["Luke's Locker"] = skippedResult("Luke's Locker", "lukes-locker.json");
     }
 
-    // ---------------- MARATHON SPORTS ----------------
     if (SCRAPER_TOGGLES.MARATHON_SPORTS) {
       results["Marathon Sports"] = await runAndSaveStore({
         storeName: "Marathon Sports",
