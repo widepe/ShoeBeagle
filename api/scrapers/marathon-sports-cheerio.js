@@ -3,16 +3,13 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
+const canonicalBrandModels = require("../../lib/canonical-brands-models.json");
 
 export const config = { maxDuration: 60 };
 
 const STORE = "Marathon Sports";
 const VIA = "cheerio";
 const SCHEMA_VERSION = 1;
-
-const REQUEST_TOGGLES = {
-  REQUIRE_CRON_SECRET: false,
-};
 
 function nowIso() {
   return new Date().toISOString();
@@ -61,108 +58,96 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function parseBrandModelRaw(title) {
-  const rawTitle = String(title || "");
-  if (!rawTitle.trim()) return { brand: "Unknown", model: "" };
+function getCanonicalBrandKeys() {
+  return Object.keys(canonicalBrandModels || {})
+    .map((b) => String(b || "").trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+}
 
-  const brands = [
-    "361 Degrees",
-    "adidas",
-    "Allbirds",
-    "Altra",
-    "ASICS",
-    "Brooks",
-    "Craft",
-    "Diadora",
-    "HOKA",
-    "Hylo Athletics",
-    "INOV8",
-    "Inov-8",
-    "Karhu",
-    "La Sportiva",
-    "Lems",
-    "Merrell",
-    "Mizuno",
-    "New Balance",
-    "Newton",
-    "Nike",
-    "norda",
-    "Nnormal",
-    "On Running",
-    "On",
-    "Oofos",
-    "Pearl Izumi",
-    "Puma",
-    "Reebok",
-    "Salomon",
-    "Saucony",
-    "Saysh",
-    "Skechers",
-    "Skora",
-    "The North Face",
-    "Topo Athletic",
-    "Topo",
-    "Tyr",
-    "Under Armour",
-    "Vibram FiveFingers",
-    "Vibram",
-    "Vivobarefoot",
-    "VJ Shoes",
-    "VJ",
-    "X-Bionic",
-    "Xero Shoes",
-    "Xero",
-  ];
+function findCanonicalBrandMatch(rawText) {
+  const text = String(rawText || "");
+  if (!text.trim()) return null;
 
-  const brandsSorted = [...brands].sort((a, b) => b.length - a.length);
+  const canonicalBrands = getCanonicalBrandKeys();
 
-  let brand = "Unknown";
-  let model = rawTitle;
-
-  for (const b of brandsSorted) {
-    const escaped = escapeRegExp(b);
+  for (const brandName of canonicalBrands) {
+    const escaped = escapeRegExp(brandName);
     const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
-    if (regex.test(rawTitle)) {
-      brand = b;
-      model = rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim();
-      break;
+    if (regex.test(text)) return brandName;
+  }
+
+  return null;
+}
+
+function parseBrandModelFromCanonical(listingName, rawBrandHint = "") {
+  const rawTitle = String(listingName || "");
+  const brandHint = String(rawBrandHint || "").trim();
+
+  if (!rawTitle.trim()) {
+    return { brand: "Unknown", model: "" };
+  }
+
+  if (brandHint) {
+    const matchedHintBrand = findCanonicalBrandMatch(brandHint);
+    if (matchedHintBrand) {
+      const escaped = escapeRegExp(matchedHintBrand);
+      const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
+
+      const model = regex.test(rawTitle)
+        ? rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim()
+        : rawTitle;
+
+      return {
+        brand: matchedHintBrand,
+        model: model || rawTitle,
+      };
     }
   }
 
-  return { brand, model: model || rawTitle };
+  const matchedTitleBrand = findCanonicalBrandMatch(rawTitle);
+  if (matchedTitleBrand) {
+    const escaped = escapeRegExp(matchedTitleBrand);
+    const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
+
+    const model = rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim();
+
+    return {
+      brand: matchedTitleBrand,
+      model: model || rawTitle,
+    };
+  }
+
+  return {
+    brand: "Unknown",
+    model: rawTitle,
+  };
 }
 
-function detectGender(listingURL, listingName) {
+function detectGender(listingURL, listingName, extraText = "") {
   const urlLower = (listingURL || "").toLowerCase();
   const nameLower = (listingName || "").toLowerCase();
-  const combined = `${urlLower} ${nameLower}`;
+  const extraLower = (extraText || "").toLowerCase();
+  const combined = `${urlLower} ${nameLower} ${extraLower}`;
 
   if (/\/mens?[\/-]|\/men\/|men-/.test(urlLower)) return "mens";
   if (/\/womens?[\/-]|\/women\/|women-/.test(urlLower)) return "womens";
 
-  if (/\b(men'?s?|male)\b/i.test(combined)) return "mens";
-  if (/\b(women'?s?|female|ladies)\b/i.test(combined)) return "womens";
+  if (/\b(men'?s?|mens|male)\b/i.test(combined)) return "mens";
+  if (/\b(women'?s?|womens|female|ladies)\b/i.test(combined)) return "womens";
   if (/\bunisex\b/i.test(combined)) return "unisex";
 
   return "unknown";
 }
 
-function detectShoeType(listingName, model) {
-  const combined = `${listingName || ""} ${model || ""}`.toLowerCase();
+function detectShoeType(listingName, extraText = "") {
+  const combined = `${listingName || ""} ${extraText || ""}`.toLowerCase();
 
-  if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross|summit)\b/i.test(combined)) {
+  if (/\b(track|spike|spikes|dragonfly|victory|ja fly|ld|md)\b/.test(combined)) return "track";
+  if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross|summit|off[- ]road)\b/.test(combined)) {
     return "trail";
   }
-
-  if (/\b(track|spike|dragonfly|zoom.*victory|ja fly|ld|md)\b/i.test(combined)) {
-    return "track";
-  }
-
-  if (
-    /\b(road|kayano|clifton|ghost|pegasus|nimbus|cumulus|gel|glycerin|kinvara|ride|triumph|novablast)\b/i.test(
-      combined
-    )
-  ) {
+  if (/\b(road|kayano|clifton|ghost|pegasus|nimbus|cumulus|gel|glycerin|kinvara|ride|triumph|novablast|running shoe|running shoes)\b/.test(combined)) {
     return "road";
   }
 
@@ -176,7 +161,7 @@ function computeDiscountPercent(originalPrice, salePrice) {
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
-function randomDelay(min = 3000, max = 5000) {
+function randomDelay(min = 1200, max = 2200) {
   const wait = Math.floor(Math.random() * (max - min + 1)) + min;
   return new Promise((resolve) => setTimeout(resolve, wait));
 }
@@ -196,20 +181,27 @@ function buildDeal({
 }) {
   return {
     schemaVersion: 1,
+
     listingName: listingName || "",
+
     brand: brand || "Unknown",
     model: model || "",
+
     salePrice: Number.isFinite(salePrice) ? salePrice : null,
     originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
     discountPercent: Number.isFinite(discountPercent) ? discountPercent : null,
+
     salePriceLow: null,
     salePriceHigh: null,
     originalPriceLow: null,
     originalPriceHigh: null,
     discountPercentUpTo: null,
+
     store: store || "",
+
     listingURL: listingURL || "",
     imageURL: imageURL || null,
+
     gender: gender || "unknown",
     shoeType: shoeType || "unknown",
   };
@@ -347,7 +339,31 @@ function extractPrices($, $element, fullText) {
   return { salePrice: null, originalPrice: null, valid: false };
 }
 
+function pickProductContainer($, $link) {
+  const candidates = [
+    ".product-grid-item",
+    ".product-item",
+    ".product",
+    "article",
+    "li",
+    "div",
+  ];
+
+  for (const selector of candidates) {
+    const $container = $link.closest(selector);
+    if ($container.length) {
+      const text = normalizeWhitespace($container.text());
+      if (text.includes("$")) return $container;
+    }
+  }
+
+  const $fallback = $link.closest("div, article, li");
+  return $fallback.length ? $fallback : null;
+}
+
 async function scrapeMarathonSports() {
+  const base = "https://www.marathonsports.com";
+
   const urls = [
     "https://www.marathonsports.com/shop/mens/shoes?sale=1",
     "https://www.marathonsports.com/shop/womens/shoes?sale=1",
@@ -380,36 +396,46 @@ async function scrapeMarathonSports() {
       const href = ($link.attr("href") || "").trim();
       if (!href) return;
 
-      dealsFound++;
-
-      const listingURL = absolutizeUrl(href, "https://www.marathonsports.com");
+      const listingURL = absolutizeUrl(href, base);
+      if (!listingURL) return;
       if (seenUrls.has(listingURL)) return;
 
-      const $container = $link.closest("div, article, li").filter(function () {
-        return $(this).text().toLowerCase().includes("price");
-      });
-
-      if (!$container.length) return;
+      const $container = pickProductContainer($, $link);
+      if (!$container || !$container.length) return;
 
       const containerText = normalizeWhitespace($container.text());
-      if (!containerText.includes("$") || !containerText.toLowerCase().includes("price")) return;
+      if (!containerText.includes("$")) return;
+
+      dealsFound++;
 
       let listingName = "";
-      const $titleEl = $container.find("h2, h3, .product-title, .product-name, [class*='title']").first();
-      if ($titleEl.length) listingName = String($titleEl.text() ?? "");
+      const $titleEl = $container.find("h1, h2, h3, .product-title, .product-name, [class*='title']").first();
+      if ($titleEl.length) listingName = String($titleEl.text() || "");
+      if (!listingName) {
+        listingName = normalizeWhitespace($link.text() || "");
+      }
       if (!listingName) return;
 
       const { salePrice, originalPrice, valid } = extractPrices($, $container, containerText);
-      if (!valid || !salePrice || salePrice <= 0) return;
+      if (!valid || !Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
+      if (!(originalPrice > salePrice && salePrice > 0)) return;
 
-      let $img = $link.find("img").first();
-      if (!$img.length) $img = $container.find("img").first();
-      const imageURL = pickBestImgUrl($, $img, "https://www.marathonsports.com");
+      const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+      if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
+
+      let $img = $container.find("img").first();
+      if (!$img.length) $img = $link.find("img").first();
+      const imageURL = pickBestImgUrl($, $img, base);
+
+      const brandHint =
+        normalizeWhitespace($container.attr("data-brand") || "") ||
+        normalizeWhitespace($link.attr("data-brand") || "");
+
+      const { brand, model } = parseBrandModelFromCanonical(listingName, brandHint);
+      const gender = detectGender(listingURL, listingName, pageUrl);
+      const shoeType = detectShoeType(listingName, `${model} ${pageUrl}`);
 
       seenUrls.add(listingURL);
-
-      const { brand, model } = parseBrandModelRaw(listingName);
-      const discountPercent = computeDiscountPercent(originalPrice, salePrice);
 
       deals.push(
         buildDeal({
@@ -422,8 +448,8 @@ async function scrapeMarathonSports() {
           store: STORE,
           listingURL,
           imageURL,
-          gender: detectGender(listingURL, listingName),
-          shoeType: detectShoeType(listingName, model),
+          gender,
+          shoeType,
         })
       );
     });
@@ -445,14 +471,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  const auth = req.headers.authorization;
-  if (
-    REQUEST_TOGGLES.REQUIRE_CRON_SECRET &&
-    process.env.CRON_SECRET &&
-    auth !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
-    return res.status(401).json({ success: false, error: "Unauthorized" });
-  }
+  // CRON_SECRET
+   const auth = req.headers.authorization;
+   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+     return res.status(401).json({ success: false, error: "Unauthorized" });
+   }
 
   const start = Date.now();
   const timestamp = nowIso();
@@ -464,15 +487,21 @@ export default async function handler(req, res) {
     const output = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
+
       lastUpdated: timestamp,
       via: VIA,
+
       sourceUrls: result.sourceUrls,
       pagesFetched: result.pagesFetched,
+
       dealsFound: result.dealsFound,
       dealsExtracted: result.dealsExtracted,
+
       scrapeDurationMs: durationMs,
+
       ok: true,
       error: null,
+
       deals: result.deals,
     };
 
@@ -494,15 +523,21 @@ export default async function handler(req, res) {
     const output = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
+
       lastUpdated: timestamp,
       via: VIA,
+
       sourceUrls: [],
       pagesFetched: null,
+
       dealsFound: null,
       dealsExtracted: 0,
+
       scrapeDurationMs: durationMs,
+
       ok: false,
       error: err?.message || "Unknown error",
+
       deals: [],
     };
 
