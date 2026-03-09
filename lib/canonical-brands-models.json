@@ -123,9 +123,17 @@
     "aliases": ["Skechers", "Skechers Performance"],
     "models": ["GOrun Ride", "GOrun Razor", "MaxRoad"]
   },
+  "Skora": {
+    "aliases": ["Skora"],
+    "models": ["Kyori", "Phase", "Fit"]
+  },
+  "The North Face": {
+    "aliases": ["The North Face", "North Face"],
+    "models": ["Altamesa", "VECTIV"]
+  },
   "Topo Athletic": {
-    "aliases": ["Topo Athletic", "Topo"],
-    "models": ["Ultrafly", "Phantom", "Fly Lite"]
+    "aliases": ["Topo", "Topo Athletic"],
+    "models": ["Ultrafly", "Phantom", "Fly Lite", "Cyclone"]
   },
   "Under Armour": {
     "aliases": ["Under Armour", "UnderArmour", "UA"],
@@ -138,6 +146,10 @@
   "Vivobarefoot": {
     "aliases": ["Vivobarefoot", "Vivo Barefoot"],
     "models": ["Primus Lite", "Primus Trail", "Geo Racer", "Stealth", "Addis"]
+  },
+  "VJ": {
+    "aliases": ["VJ"],
+    "models": ["Flow", "Ultra", "Lightspeed", "Fuzion Aerofly", "Fuzion Tempo"]
   },
   "Xero Shoes": {
     "aliases": ["Xero Shoes", "Xero"],
