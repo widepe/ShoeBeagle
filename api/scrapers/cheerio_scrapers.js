@@ -1,23 +1,12 @@
 // /api/cheerio_scrapers.js
-// Daily scraper for running shoe deals (CHEERIO ONLY)
-// Runs via Vercel Cron
-//
-// OUTPUT (per store blob) – STANDARDIZED TOP LEVEL:
-// {
-//   store, schemaVersion,
-//   lastUpdated, via,
-//   sourceUrls, pagesFetched,
-//   dealsFound, dealsExtracted,
-//   scrapeDurationMs,
-//   ok, error,
-//   deals: [...]
-// }
-//
-// IMPORTANT RULES:
-// - listingName is preserved EXACTLY as scraped.
-// - No model cleaning / normalization is performed here.
-// - No title cleaning / normalization is performed here.
-// - merge-deals is responsible for downstream cleanup / canonicalization.
+// Trigger-only runner for independent cheerio scraper endpoints.
+// Each scraper runs in its own file and writes its own blob.
+
+export const config = { maxDuration: 60 };
+
+const REQUEST_TOGGLES = {
+  REQUIRE_CRON_SECRET: false,
+};
 
 const SCRAPER_TOGGLES = {
   RUNNING_WAREHOUSE: true,
@@ -26,932 +15,50 @@ const SCRAPER_TOGGLES = {
   MARATHON_SPORTS: true,
 };
 
-const REQUEST_TOGGLES = {
-  REQUIRE_CRON_SECRET: true,
-};
-
-const axios = require("axios");
-const cheerio = require("cheerio");
-const { put } = require("@vercel/blob");
-
-/** -------------------- Small helpers -------------------- **/
-
 function nowIso() {
   return new Date().toISOString();
 }
 
-function normalizeWhitespace(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function absolutizeUrl(u, base) {
-  let url = String(u || "").trim();
-  if (!url) return "";
-  if (/^https?:\/\//i.test(url)) return url;
-  if (url.startsWith("//")) return "https:" + url;
-  if (url.startsWith("/")) return base.replace(/\/+$/, "") + url;
-  return base.replace(/\/+$/, "") + "/" + url.replace(/^\/+/, "");
+function getBaseUrl(req) {
+  const host = req.headers.host;
+  const proto =
+    req.headers["x-forwarded-proto"] ||
+    (host && host.includes("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
 }
 
-function pickBestImgUrl($, $img, base) {
-  if (!$img || !$img.length) return null;
+async function triggerEndpoint(baseUrl, path, authHeader) {
+  const startedAt = Date.now();
 
-  const direct =
-    $img.attr("data-src") ||
-    $img.attr("data-original") ||
-    $img.attr("data-lazy") ||
-    $img.attr("src");
+  const headers = {};
+  if (authHeader) headers.authorization = authHeader;
 
-  const srcset = $img.attr("data-srcset") || $img.attr("srcset");
-
-  let candidate = (direct || "").trim();
-
-  if (!candidate && srcset) {
-    const parts = srcset
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const last = parts[parts.length - 1] || "";
-    candidate = (last.split(" ")[0] || "").trim();
-  }
-
-  if (!candidate || candidate.startsWith("data:") || candidate === "#") return null;
-  return absolutizeUrl(candidate, base);
-}
-
-function escapeRegExp(str) {
-  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/**
- * RAW brand/model parser:
- * - no cleanTitleText
- * - no cleanModelName
- * - no normalization beyond what is necessary for matching
- * - brand is inferred from title if possible
- * - model is raw title with matched brand removed, otherwise title
- */
-function parseBrandModelRaw(title) {
-  const rawTitle = String(title || "");
-  if (!rawTitle.trim()) {
-    return { brand: "Unknown", model: "" };
-  }
-
-  const brands = [
-    "361 Degrees",
-    "adidas",
-    "Allbirds",
-    "Altra",
-    "ASICS",
-    "Brooks",
-    "Craft",
-    "Diadora",
-    "HOKA",
-    "Hylo Athletics",
-    "INOV8",
-    "Inov-8",
-    "Karhu",
-    "La Sportiva",
-    "Lems",
-    "Merrell",
-    "Mizuno",
-    "New Balance",
-    "Newton",
-    "Nike",
-    "norda",
-    "Nnormal",
-    "On Running",
-    "On",
-    "Oofos",
-    "Pearl Izumi",
-    "Puma",
-    "Reebok",
-    "Salomon",
-    "Saucony",
-    "Saysh",
-    "Skechers",
-    "Skora",
-    "The North Face",
-    "Topo Athletic",
-    "Topo",
-    "Tyr",
-    "Under Armour",
-    "Vibram FiveFingers",
-    "Vibram",
-    "Vivobarefoot",
-    "VJ Shoes",
-    "VJ",
-    "X-Bionic",
-    "Xero Shoes",
-    "Xero",
-  ];
-
-  const brandsSorted = [...brands].sort((a, b) => b.length - a.length);
-
-  let brand = "Unknown";
-  let model = rawTitle;
-
-  for (const b of brandsSorted) {
-    const escaped = escapeRegExp(b);
-    const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
-    if (regex.test(rawTitle)) {
-      brand = b;
-      model = rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim();
-      break;
-    }
-  }
-
-  return {
-    brand,
-    model: model || rawTitle,
-  };
-}
-
-function detectGender(listingURL, listingName) {
-  const urlLower = (listingURL || "").toLowerCase();
-  const nameLower = (listingName || "").toLowerCase();
-  const combined = `${urlLower} ${nameLower}`;
-
-  if (/\/mens?[\/-]|\/men\/|men-/.test(urlLower)) return "mens";
-  if (/\/womens?[\/-]|\/women\/|women-/.test(urlLower)) return "womens";
-
-  if (/\b(men'?s?|male)\b/i.test(combined)) return "mens";
-  if (/\b(women'?s?|female|ladies)\b/i.test(combined)) return "womens";
-  if (/\bunisex\b/i.test(combined)) return "unisex";
-
-  return "unknown";
-}
-
-function detectShoeType(listingName, model) {
-  const combined = `${listingName || ""} ${model || ""}`.toLowerCase();
-
-  if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross|summit)\b/i.test(combined)) {
-    return "trail";
-  }
-
-  if (/\b(track|spike|dragonfly|zoom.*victory|ja fly|ld|md)\b/i.test(combined)) {
-    return "track";
-  }
-
-  if (
-    /\b(road|kayano|clifton|ghost|pegasus|nimbus|cumulus|gel|glycerin|kinvara|ride|triumph|novablast)\b/i.test(
-      combined
-    )
-  ) {
-    return "road";
-  }
-
-  return "unknown";
-}
-
-function computeDiscountPercent(originalPrice, salePrice) {
-  if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return null;
-  if (originalPrice <= 0 || salePrice <= 0) return null;
-  if (salePrice >= originalPrice) return 0;
-  return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
-}
-
-function randomDelay(min = 3000, max = 5000) {
-  const wait = Math.floor(Math.random() * (max - min + 1)) + min;
-  return new Promise((resolve) => setTimeout(resolve, wait));
-}
-
-function buildDeal({
-  listingName,
-  brand,
-  model,
-  salePrice,
-  originalPrice,
-  discountPercent,
-  store,
-  listingURL,
-  imageURL,
-  gender,
-  shoeType,
-}) {
-  return {
-    schemaVersion: 1,
-
-    listingName: listingName || "",
-
-    brand: brand || "Unknown",
-    model: model || "",
-
-    salePrice: Number.isFinite(salePrice) ? salePrice : null,
-    originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
-    discountPercent: Number.isFinite(discountPercent) ? discountPercent : null,
-
-    salePriceLow: null,
-    salePriceHigh: null,
-    originalPriceLow: null,
-    originalPriceHigh: null,
-    discountPercentUpTo: null,
-
-    store: store || "",
-
-    listingURL: listingURL || "",
-    imageURL: imageURL || null,
-
-    gender: gender || "unknown",
-    shoeType: shoeType || "unknown",
-  };
-}
-
-/** -------------------- UNIVERSAL PRICE EXTRACTOR -------------------- **/
-
-function extractDollarAmounts(text) {
-  if (!text) return [];
-  const matches = text.match(/\$\s*[\d,]+(?:\.\d{1,2})?/g);
-  if (!matches) return [];
-  return matches
-    .map((m) => parseFloat(m.replace(/[$,\s]/g, "")))
-    .filter((n) => Number.isFinite(n));
-}
-
-function extractSuperscriptPrices($, $element) {
-  const prices = [];
-  if (!$ || !$element || !$element.find) return prices;
-
-  $element.find("sup, .cents, .price-cents, small").each((_, el) => {
-    const $centsEl = $(el);
-    const centsText = $centsEl.text().trim();
-    if (!/^\d{1,2}$/.test(centsText)) return;
-
-    const $parent = $centsEl.parent();
-    const parentTextWithoutChildren = $parent.clone().children().remove().end().text();
-    const dollarMatch = parentTextWithoutChildren.match(/\$\s*(\d+)/);
-    if (!dollarMatch) return;
-
-    const dollars = parseInt(dollarMatch[1], 10);
-    const cents = parseInt(centsText, 10);
-    if (!Number.isFinite(dollars) || !Number.isFinite(cents)) return;
-
-    const price = dollars + cents / 100;
-    if (price >= 10 && price < 1000) prices.push(price);
+  const resp = await fetch(`${baseUrl}${path}`, {
+    method: "GET",
+    headers,
   });
 
-  return prices;
-}
-
-function findSaveAmount(text) {
-  if (!text) return null;
-  const match = text.match(/save\s*\$\s*([\d,]+(?:\.\d{1,2})?)/i);
-  if (!match) return null;
-  const amount = parseFloat(match[1].replace(/,/g, ""));
-  return Number.isFinite(amount) ? amount : null;
-}
-
-function findPercentOff(text) {
-  if (!text) return null;
-  const match = text.match(/(\d+)\s*%\s*off/i);
-  if (!match) return null;
-  const percent = parseInt(match[1], 10);
-  return percent > 0 && percent < 100 ? percent : null;
-}
-
-function extractPrices($, $element, fullText) {
-  let prices = extractDollarAmounts(fullText);
-
-  const supPrices = extractSuperscriptPrices($, $element);
-  if (supPrices.length) prices = prices.concat(supPrices);
-
-  prices = prices.filter((p) => Number.isFinite(p) && p >= 10 && p < 1000);
-  if (!prices.length) return { salePrice: null, originalPrice: null, valid: false };
-
-  prices = [...new Set(prices.map((p) => p.toFixed(2)))].map((s) => parseFloat(s));
-
-  if (prices.length < 2) return { salePrice: null, originalPrice: null, valid: false };
-  if (prices.length > 3) return { salePrice: null, originalPrice: null, valid: false };
-
-  prices.sort((a, b) => b - a);
-
-  if (prices.length === 2) {
-    const original = prices[0];
-    const sale = prices[1];
-    if (!(sale < original)) return { salePrice: null, originalPrice: null, valid: false };
-
-    const discountPercent = ((original - sale) / original) * 100;
-    if (discountPercent < 5 || discountPercent > 90) {
-      return { salePrice: null, originalPrice: null, valid: false };
-    }
-    return { salePrice: sale, originalPrice: original, valid: true };
-  }
-
-  if (prices.length === 3) {
-    const original = prices[0];
-    const remaining = prices.slice(1);
-    const [p1, p2] = remaining;
-    const tol = 1;
-
-    const saveAmount = findSaveAmount(fullText);
-    if (saveAmount != null) {
-      const isP1Save = Math.abs(p1 - saveAmount) <= tol;
-      const isP2Save = Math.abs(p2 - saveAmount) <= tol;
-
-      if (isP1Save && !isP2Save) {
-        const sale = p2;
-        const pct = ((original - sale) / original) * 100;
-        if (pct >= 5 && pct <= 90 && sale < original) return { salePrice: sale, originalPrice: original, valid: true };
-      } else if (isP2Save && !isP1Save) {
-        const sale = p1;
-        const pct = ((original - sale) / original) * 100;
-        if (pct >= 5 && pct <= 90 && sale < original) return { salePrice: sale, originalPrice: original, valid: true };
-      }
-    }
-
-    const percentOff = findPercentOff(fullText);
-    if (percentOff != null) {
-      const expectedSale = original * (1 - percentOff / 100);
-      let saleCandidate = null;
-      let bestDiff = Infinity;
-
-      for (const p of remaining) {
-        const diff = Math.abs(p - expectedSale);
-        if (diff <= tol && diff < bestDiff) {
-          bestDiff = diff;
-          saleCandidate = p;
-        }
-      }
-
-      if (saleCandidate != null) {
-        const pct = ((original - saleCandidate) / original) * 100;
-        if (pct >= 5 && pct <= 90 && saleCandidate < original) {
-          return { salePrice: saleCandidate, originalPrice: original, valid: true };
-        }
-      }
-    }
-
-    const sale = Math.max(...remaining);
-    const pct = ((original - sale) / original) * 100;
-    if (pct >= 5 && pct <= 90 && sale < original) return { salePrice: sale, originalPrice: original, valid: true };
-
-    return { salePrice: null, originalPrice: null, valid: false };
-  }
-
-  return { salePrice: null, originalPrice: null, valid: false };
-}
-
-/** -------------------- Site scrapers (CHEERIO) -------------------- **/
-
-/* ---------------------------- Running Warehouse ------------------------------ */
-async function scrapeRunningWarehouse() {
-  const STORE = "Running Warehouse";
-  const base = "https://www.runningwarehouse.com";
-
-  const pages = [
-    { url: "https://www.runningwarehouse.com/catpage-WRSSALERONU.html", shoeType: "road" },
-    { url: "https://www.runningwarehouse.com/catpage-WRSSALETR.html", shoeType: "trail" },
-    { url: "https://www.runningwarehouse.com/catpage-MRSSALENEU.html", shoeType: "road" },
-    { url: "https://www.runningwarehouse.com/catpage-MRSSALETR.html", shoeType: "trail" },
-  ];
-
-  const sourceUrls = pages.map((p) => p.url);
-  let pagesFetched = 0;
-  let dealsFound = 0;
-
-  const deals = [];
-  const seenUrls = new Set();
-
-  const parseDollar = (txt) => {
-    const m = String(txt || "").match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
-    if (!m) return null;
-    const n = parseFloat(m[1].replace(/,/g, ""));
-    return Number.isFinite(n) ? n : null;
-  };
-
-  for (const page of pages) {
-    const resp = await axios.get(page.url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-      timeout: 30000,
-      maxRedirects: 5,
-      validateStatus: () => true,
-    });
-
-    const html = String(resp.data || "");
-    const $ = cheerio.load(html);
-    pagesFetched++;
-
-    $("a.cattable-wrap-cell-info").each((_, el) => {
-      const $link = $(el);
-      const $cell = $link.closest(".cattable-wrap-cell");
-      if (!$cell.length) return;
-
-      dealsFound++;
-
-      const listingName = String($cell.find(".cattable-wrap-cell-info-name").first().text() || "");
-      if (!listingName) return;
-
-      const subLine = String($cell.find(".cattable-wrap-cell-info-sub").first().text() || "");
-
-      const href = $link.attr("href") || "";
-      if (!href) return;
-
-      const listingURL = absolutizeUrl(href, base);
-      if (!listingURL) return;
-
-      if (seenUrls.has(listingURL)) return;
-      seenUrls.add(listingURL);
-
-      const $img = $cell.find("img").first();
-      const imageURL = pickBestImgUrl($, $img, base);
-
-      const saleText = $cell.find(".cattable-wrap-cell-info-price.is-sale").first().text();
-      const msrpText = $cell.find(".cattable-wrap-cell-info-price-msrp").first().text();
-
-      const salePrice = parseDollar(saleText);
-      const originalPrice = parseDollar(msrpText);
-
-      if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
-      if (!(originalPrice > salePrice && salePrice > 0)) return;
-
-      const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-      if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
-
-      const { brand, model } = parseBrandModelRaw(listingName);
-      const gender = detectGender(listingURL, `${listingName} ${subLine}`);
-
-      deals.push(
-        buildDeal({
-          listingName,
-          brand,
-          model,
-          salePrice,
-          originalPrice,
-          discountPercent,
-          store: STORE,
-          listingURL,
-          imageURL,
-          gender,
-          shoeType: page.shoeType,
-        })
-      );
-    });
-
-    await randomDelay();
-  }
-
-  return {
-    deals,
-    sourceUrls,
-    pagesFetched,
-    dealsFound,
-    dealsExtracted: deals.length,
-  };
-}
-
-/* ------------------------------- Fleet Feet ----------------------------------- */
-async function scrapeFleetFeet() {
-  const STORE = "Fleet Feet";
-  const base = "https://www.fleetfeet.com";
-
-  const seedUrls = [
-    "https://www.fleetfeet.com/browse/shoes/mens?clearance=on",
-    "https://www.fleetfeet.com/browse/shoes/womens?clearance=on",
-  ];
-
-  const sourceUrls = [];
-  let pagesFetched = 0;
-  let dealsFound = 0;
-
-  const deals = [];
-  const seenUrls = new Set();
-
-  for (const seedUrl of seedUrls) {
-    let nextUrl = seedUrl;
-
-    while (nextUrl) {
-      sourceUrls.push(nextUrl);
-
-      const response = await axios.get(nextUrl, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.9",
-        },
-        timeout: 30000,
-      });
-
-      const $ = cheerio.load(response.data);
-      pagesFetched++;
-
-      $('div.product-tile script[type="application/json"]').each((_, el) => {
-        let data;
-        try {
-          data = JSON.parse($(el).html());
-        } catch (e) {
-          return;
-        }
-
-        const discounted = data["computed.discounted"];
-        if (!discounted) return;
-
-        dealsFound++;
-
-        const salePrice = parseFloat(data["computed.price"]);
-        const originalPrice = parseFloat(data["computed.originalPrice"]);
-
-        if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
-        if (!(originalPrice > salePrice && salePrice > 0)) return;
-
-        const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-        if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
-
-        const slug = data["product.slug"] || "";
-        if (!slug) return;
-
-        const listingURL = absolutizeUrl(`/products/${slug}`, base);
-        if (seenUrls.has(listingURL)) return;
-        seenUrls.add(listingURL);
-
-        const listingName = String(data["product.title"] || "");
-        if (!listingName) return;
-
-        const imageURL = data["sku.bestPhoto"] || data["sku.photo"] || null;
-        const { brand, model } = parseBrandModelRaw(listingName);
-
-        deals.push(
-          buildDeal({
-            listingName,
-            brand,
-            model,
-            salePrice,
-            originalPrice,
-            discountPercent,
-            store: STORE,
-            listingURL,
-            imageURL,
-            gender: detectGender(listingURL, listingName),
-            shoeType: "unknown",
-          })
-        );
-      });
-
-      const nextHref = ($("a#browsenext").attr("href") || "").trim();
-      nextUrl = nextHref ? absolutizeUrl(nextHref, base) : null;
-
-      await randomDelay();
-    }
-  }
-
-  return {
-    deals,
-    sourceUrls,
-    pagesFetched,
-    dealsFound,
-    dealsExtracted: deals.length,
-  };
-}
-
-/* ----------------------------- Luke's Locker ---------------------------------- */
-async function scrapeLukesLocker() {
-  const STORE = "Luke's Locker";
-  const base = "https://lukeslocker.com";
-  const handle = "closeout";
-
-  const deals = [];
-  const seenUrls = new Set();
-
-  const limit = 250;
-
-  const sourceUrls = [];
-  let pagesFetched = 0;
-  let dealsFound = 0;
-
-  for (let page = 1; page <= 10; page++) {
-    const url = `${base}/collections/${handle}/products.json?limit=${limit}&page=${page}`;
-    sourceUrls.push(url);
-
-    const resp = await axios.get(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        Accept: "application/json,text/plain,*/*",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-      timeout: 30000,
-    });
-
-    const products = resp?.data?.products;
-    if (!Array.isArray(products) || products.length === 0) break;
-
-    pagesFetched++;
-    dealsFound += products.length;
-
-    for (const p of products) {
-      const listingName = String(p?.title ?? "");
-      if (!listingName) continue;
-
-      const brand = String(p?.vendor || "").trim() || "Unknown";
-
-      if (!p?.handle) continue;
-      const listingURL = `${base}/products/${p.handle}`;
-      if (seenUrls.has(listingURL)) continue;
-      seenUrls.add(listingURL);
-
-      let imageURL = null;
-
-      const pickSrc = (img) => {
-        if (!img) return null;
-        if (typeof img === "string") return img;
-        if (typeof img === "object") return img.src || img.url || null;
-        return null;
-      };
-
-      let src = pickSrc(p?.image) || (Array.isArray(p?.images) ? pickSrc(p.images[0]) : null);
-
-      if (!src && Array.isArray(p?.images)) {
-        for (const img of p.images) {
-          src = pickSrc(img);
-          if (src) break;
-        }
-      }
-
-      if (src) {
-        let u = String(src).trim();
-        if (u.startsWith("//")) u = "https:" + u;
-        else if (u.startsWith("/")) u = base + u;
-        else if (/^cdn\.shopify\.com/i.test(u)) u = "https://" + u;
-        if (!/^https?:\/\//i.test(u)) u = null;
-        imageURL = u;
-      }
-
-      let bestSale = null;
-      let bestOriginal = null;
-
-      const variants = Array.isArray(p?.variants) ? p.variants : [];
-      for (const v of variants) {
-        const sale = parseFloat(String(v?.price ?? "").replace(/[^0-9.]/g, ""));
-        const orig = parseFloat(String(v?.compare_at_price ?? "").replace(/[^0-9.]/g, ""));
-
-        if (!Number.isFinite(sale) || !Number.isFinite(orig)) continue;
-        if (!(orig > sale && sale > 0)) continue;
-
-        if (bestSale == null || sale < bestSale) {
-          bestSale = sale;
-          bestOriginal = orig;
-        }
-      }
-
-      if (!Number.isFinite(bestSale) || !Number.isFinite(bestOriginal)) continue;
-
-      const discountPercent = computeDiscountPercent(bestOriginal, bestSale);
-      if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) continue;
-
-      let model = listingName;
-      if (brand && brand !== "Unknown") {
-        const escaped = escapeRegExp(brand);
-        model = listingName.replace(new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i"), " ");
-        model = model.replace(/\s+/g, " ").trim() || listingName;
-      }
-
-      deals.push(
-        buildDeal({
-          listingName,
-          brand,
-          model,
-          salePrice: bestSale,
-          originalPrice: bestOriginal,
-          discountPercent,
-          store: STORE,
-          listingURL,
-          imageURL,
-          gender: detectGender("", listingName),
-          shoeType: "unknown",
-        })
-      );
-    }
-
-    if (products.length < limit) break;
-    await randomDelay(800, 1400);
-  }
-
-  return {
-    deals,
-    sourceUrls,
-    pagesFetched,
-    dealsFound,
-    dealsExtracted: deals.length,
-  };
-}
-
-/* ---------------------------- Marathon Sports ------------------------------ */
-async function scrapeMarathonSports() {
-  const STORE = "Marathon Sports";
-
-  const urls = [
-    "https://www.marathonsports.com/shop/mens/shoes?sale=1",
-    "https://www.marathonsports.com/shop/womens/shoes?sale=1",
-    "https://www.marathonsports.com/shop?q=running%20shoes&sort=discount",
-  ];
-
-  const sourceUrls = urls.slice();
-  let pagesFetched = 0;
-  let dealsFound = 0;
-
-  const deals = [];
-  const seenUrls = new Set();
-
-  for (const pageUrl of urls) {
-    const response = await axios.get(pageUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-      timeout: 30000,
-    });
-
-    const $ = cheerio.load(response.data);
-    pagesFetched++;
-
-    $('a[href^="/products/"]').each((_, el) => {
-      const $link = $(el);
-      const href = ($link.attr("href") || "").trim();
-      if (!href) return;
-
-      dealsFound++;
-
-      const listingURL = absolutizeUrl(href, "https://www.marathonsports.com");
-      if (seenUrls.has(listingURL)) return;
-
-      const $container = $link.closest("div, article, li").filter(function () {
-        return $(this).text().toLowerCase().includes("price");
-      });
-
-      if (!$container.length) return;
-
-      const containerText = normalizeWhitespace($container.text());
-      if (!containerText.includes("$") || !containerText.toLowerCase().includes("price")) return;
-
-      let listingName = "";
-      const $titleEl = $container.find("h2, h3, .product-title, .product-name, [class*='title']").first();
-      if ($titleEl.length) listingName = String($titleEl.text() ?? "");
-      if (!listingName) return;
-
-      const { salePrice, originalPrice, valid } = extractPrices($, $container, containerText);
-      if (!valid || !salePrice || salePrice <= 0) return;
-
-      let $img = $link.find("img").first();
-      if (!$img.length) $img = $container.find("img").first();
-      const imageURL = pickBestImgUrl($, $img, "https://www.marathonsports.com");
-
-      seenUrls.add(listingURL);
-
-      const { brand, model } = parseBrandModelRaw(listingName);
-      const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-
-      deals.push(
-        buildDeal({
-          listingName,
-          brand,
-          model,
-          salePrice,
-          originalPrice,
-          discountPercent,
-          store: STORE,
-          listingURL,
-          imageURL,
-          gender: detectGender(listingURL, listingName),
-          shoeType: detectShoeType(listingName, model),
-        })
-      );
-    });
-
-    await randomDelay();
-  }
-
-  return {
-    deals,
-    sourceUrls,
-    pagesFetched,
-    dealsFound,
-    dealsExtracted: deals.length,
-  };
-}
-
-/** -------------------- Per-store blob writer -------------------- **/
-
-async function runAndSaveStore({ storeName, blobName, via, fn }) {
-  const start = Date.now();
-  const timestamp = nowIso();
-
+  let json = null;
   try {
-    const result = await fn();
-    const durationMs = Date.now() - start;
-
-    const deals = Array.isArray(result) ? result : Array.isArray(result?.deals) ? result.deals : [];
-    const sourceUrls = Array.isArray(result?.sourceUrls) ? result.sourceUrls.filter(Boolean) : [];
-    const pagesFetched = Number.isFinite(Number(result?.pagesFetched)) ? Number(result.pagesFetched) : null;
-    const dealsFound = Number.isFinite(Number(result?.dealsFound)) ? Number(result.dealsFound) : null;
-    const dealsExtracted = Number.isFinite(Number(result?.dealsExtracted))
-      ? Number(result.dealsExtracted)
-      : Array.isArray(deals)
-        ? deals.length
-        : 0;
-
-    const output = {
-      store: storeName,
-      schemaVersion: 1,
-
-      lastUpdated: timestamp,
-      via,
-
-      sourceUrls,
-      pagesFetched,
-
-      dealsFound,
-      dealsExtracted,
-
-      scrapeDurationMs: durationMs,
-
-      ok: true,
-      error: null,
-
-      deals: Array.isArray(deals) ? deals : [],
-    };
-
-    const blob = await put(blobName, JSON.stringify(output, null, 2), {
-      access: "public",
-      addRandomSuffix: false,
-    });
-
-    return {
-      scraper: storeName,
-      ok: true,
-      count: output.dealsExtracted,
-      durationMs,
-      timestamp,
-      via,
-      error: null,
-      blobUrl: blob.url,
-    };
-  } catch (err) {
-    const durationMs = Date.now() - start;
-
-    const output = {
-      store: storeName,
-      schemaVersion: 1,
-
-      lastUpdated: timestamp,
-      via,
-
-      sourceUrls: [],
-      pagesFetched: null,
-
-      dealsFound: null,
-      dealsExtracted: 0,
-
-      scrapeDurationMs: durationMs,
-
-      ok: false,
-      error: err?.message || "Unknown error",
-
-      deals: [],
-    };
-
-    const blob = await put(blobName, JSON.stringify(output, null, 2), {
-      access: "public",
-      addRandomSuffix: false,
-    });
-
-    return {
-      scraper: storeName,
-      ok: false,
-      count: 0,
-      durationMs,
-      timestamp,
-      via,
-      error: output.error,
-      blobUrl: blob.url,
-    };
+    json = await resp.json();
+  } catch {
+    json = null;
   }
-}
 
-function skippedResult(storeName, blobName) {
   return {
-    scraper: storeName,
-    ok: true,
-    skipped: true,
-    count: 0,
-    durationMs: 0,
-    timestamp: nowIso(),
-    via: "toggle-disabled",
-    error: null,
-    blobUrl: null,
-    blobName,
+    ok: resp.ok,
+    status: resp.status,
+    durationMs: Date.now() - startedAt,
+    path,
+    response: json,
   };
 }
 
-/** -------------------- Main handler -------------------- **/
-
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
@@ -965,78 +72,87 @@ module.exports = async (req, res) => {
     return res.status(401).json({ success: false, error: "Unauthorized" });
   }
 
-  const overallStartTime = Date.now();
+  const baseUrl = getBaseUrl(req);
   const runTimestamp = nowIso();
+  const overallStart = Date.now();
+
+  const results = {};
 
   try {
-    const results = {};
-
     if (SCRAPER_TOGGLES.RUNNING_WAREHOUSE) {
-      results["Running Warehouse"] = await runAndSaveStore({
-        storeName: "Running Warehouse",
-        blobName: "running-warehouse.json",
-        via: "cheerio",
-        fn: scrapeRunningWarehouse,
-      });
-      await randomDelay();
+      results["Running Warehouse"] = await triggerEndpoint(
+        baseUrl,
+        "/api/scrapers/running-warehouse-cheerio",
+        auth
+      );
+      await sleep(1000);
     } else {
-      results["Running Warehouse"] = skippedResult("Running Warehouse", "running-warehouse.json");
+      results["Running Warehouse"] = {
+        ok: true,
+        skipped: true,
+        path: "/api/scrapers/running-warehouse-cheerio",
+      };
     }
 
     if (SCRAPER_TOGGLES.FLEET_FEET) {
-      results["Fleet Feet"] = await runAndSaveStore({
-        storeName: "Fleet Feet",
-        blobName: "fleet-feet.json",
-        via: "cheerio",
-        fn: scrapeFleetFeet,
-      });
-      await randomDelay();
+      results["Fleet Feet"] = await triggerEndpoint(
+        baseUrl,
+        "/api/scrapers/fleet-feet-cheerio",
+        auth
+      );
+      await sleep(1000);
     } else {
-      results["Fleet Feet"] = skippedResult("Fleet Feet", "fleet-feet.json");
+      results["Fleet Feet"] = {
+        ok: true,
+        skipped: true,
+        path: "/api/scrapers/fleet-feet-cheerio",
+      };
     }
 
     if (SCRAPER_TOGGLES.LUKES_LOCKER) {
-      results["Luke's Locker"] = await runAndSaveStore({
-        storeName: "Luke's Locker",
-        blobName: "lukes-locker.json",
-        via: "cheerio",
-        fn: scrapeLukesLocker,
-      });
-      await randomDelay();
+      results["Luke's Locker"] = await triggerEndpoint(
+        baseUrl,
+        "/api/scrapers/lukes-locker-cheerio",
+        auth
+      );
+      await sleep(1000);
     } else {
-      results["Luke's Locker"] = skippedResult("Luke's Locker", "lukes-locker.json");
+      results["Luke's Locker"] = {
+        ok: true,
+        skipped: true,
+        path: "/api/scrapers/lukes-locker-cheerio",
+      };
     }
 
     if (SCRAPER_TOGGLES.MARATHON_SPORTS) {
-      results["Marathon Sports"] = await runAndSaveStore({
-        storeName: "Marathon Sports",
-        blobName: "marathon-sports.json",
-        via: "cheerio",
-        fn: scrapeMarathonSports,
-      });
+      results["Marathon Sports"] = await triggerEndpoint(
+        baseUrl,
+        "/api/scrapers/marathon-sports-cheerio",
+        auth
+      );
     } else {
-      results["Marathon Sports"] = skippedResult("Marathon Sports", "marathon-sports.json");
+      results["Marathon Sports"] = {
+        ok: true,
+        skipped: true,
+        path: "/api/scrapers/marathon-sports-cheerio",
+      };
     }
-
-    const durationMs = Date.now() - overallStartTime;
 
     return res.status(200).json({
       success: true,
       timestamp: runTimestamp,
-      duration: `${durationMs}ms`,
+      duration: `${Date.now() - overallStart}ms`,
       toggles: {
         scrapers: SCRAPER_TOGGLES,
         request: REQUEST_TOGGLES,
       },
       stores: results,
-      note:
-        "Disabled stores are skipped (no scrape + no blob write). REQUIRE_CRON_SECRET can be toggled on/off for testing.",
+      note: "This runner triggers independent scraper endpoints. Each scraper writes its own blob.",
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
       error: error?.message || "Unknown error",
-      stack: process.env.NODE_ENV === "development" ? error?.stack : undefined,
     });
   }
-};
+}
