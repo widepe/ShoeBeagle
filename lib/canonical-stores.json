@@ -331,7 +331,7 @@
   ],
   "enabled": true,
   "scraperType": "vercel",
-  "envVar": "PERFORMANCE_RUNNING_OUTFITTERS_BLOB_URL",
+  "envVar": "PRO_DEALS_BLOB_URL",
   "baseUrl": "https://performancerunning.com",
   "notes": "Shopify collection products.json scraper for womens-sale-shoes, mens-sale-shoes, and sale-super-shoes. Dedupe by listingURL across collections. Stops on HTTP failure, empty products array, or 2 consecutive non-empty pages with no new unique products. Counts pages with products only. Writes to pro.json. Gender parsed from title; shoeType forced to unknown."
 },
