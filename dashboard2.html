@@ -469,6 +469,15 @@
     .history-cell-warning { background: #fffbf0; color: #856404; }
     .history-cell-failed  { background: #fff5f5; color: #dc3545; }
 
+    .history-duration {
+      display: block;
+      margin-top: 3px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      opacity: 0.75;
+      line-height: 1.15;
+    }
+
     .history-legend {
       margin-top: 12px;
       font-size: 0.85rem;
@@ -693,6 +702,8 @@
     // - Removed "Data Quality by Store" section entirely.
     // - 30-day performance history only shows rows for stores
     //   that are in the canonical store list.
+    // - Supports optional canonical-stores.json field:
+    //     genderCoverage: "both" | "mens-only" | "womens-only" | "unisex-only"
     // ============================================================
 
     const BLOB_BASE = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
@@ -747,7 +758,7 @@
     let ALL_DEALS = [];
     let UNALTERED_DEALS = [];
     let STORE_DATA = null;
-    let CURRENT_STORE_SORT = { column: "count", direction: "desc" };
+    let CURRENT_STORE_SORT = { column: "name", direction: "asc" };
 
     // ------------------------------------------------------------
     // Canonical loader + normalization
@@ -782,6 +793,7 @@
           aliases: Array.isArray(s.aliases) ? s.aliases.filter(Boolean) : [],
           enabled: Boolean(s.enabled),
           scraperType: String(s.scraperType || "unknown"),
+          genderCoverage: String(s.genderCoverage || "both").trim().toLowerCase(),
           notes: String(s.notes || "")
         };
 
@@ -856,6 +868,17 @@
       if (!Number.isFinite(ms) || ms < 0) return "Not Available";
       const hours = ms / 3600000;
       return `${hours.toFixed(1)}h ago`;
+    }
+
+    function formatHistoryDuration(duration) {
+      const ms = Number(duration);
+      if (!Number.isFinite(ms) || ms < 0) return "dur: —";
+      if (ms < 1000) return `dur: ${Math.round(ms)}ms`;
+      const secs = ms / 1000;
+      if (secs < 60) return `dur: ${secs.toFixed(1)}s`;
+      const mins = Math.floor(secs / 60);
+      const remSecs = Math.round(secs % 60);
+      return `dur: ${mins}m ${remSecs}s`;
     }
 
     function computeDiscountPercent(originalPrice, salePrice) {
@@ -967,10 +990,8 @@
       const raw = String(scraperName || "").trim();
       if (!raw) return null;
 
-      // Exact displayName match (common case)
       if (CANONICAL.byDisplayName[raw]) return CANONICAL.byDisplayName[raw].displayName;
 
-      // Alias/id match
       const key = normalizeKey(raw);
       const id = CANONICAL.aliasToId[key];
       if (id && CANONICAL.byId[id]) return CANONICAL.byId[id].displayName;
@@ -979,176 +1000,181 @@
     }
 
     function displayScraperHistory(scraperData, mergeData) {
-  const panel = document.getElementById("scraperHistoryPanel");
-  const chart = document.getElementById("scraperHistoryChart");
+      const panel = document.getElementById("scraperHistoryPanel");
+      const chart = document.getElementById("scraperHistoryChart");
 
-  if (!panel || !chart || !scraperData || !Array.isArray(scraperData.days) || scraperData.days.length === 0) {
-    return;
-  }
-
-  // These are not stores; keep hidden.
-  const HIDE_FROM_HISTORY = new Set([
-    "Cheerio (non-Holabird)",
-    "Apify (non-Holabird)",
-    "Brooks Running",
-    "Brooks Sale",
-  ]);
-
-  // ONE row per canonical store
-  const canonicalRowsMap = new Map(); // key: canonical displayName -> { canonicalName, historyNames:Set }
-
-  scraperData.days.forEach(day => {
-    (day.scrapers || []).forEach(s => {
-      const historyName = String(s?.scraper || "").trim();
-      if (!historyName) return;
-      if (HIDE_FROM_HISTORY.has(historyName)) return;
-
-      const canonicalName = canonicalDisplayNameFromHistoryScraperName(historyName);
-      if (!canonicalName) return;
-
-      if (!canonicalRowsMap.has(canonicalName)) {
-        canonicalRowsMap.set(canonicalName, {
-          canonicalName,
-          historyNames: new Set()
-        });
+      if (!panel || !chart || !scraperData || !Array.isArray(scraperData.days) || scraperData.days.length === 0) {
+        return;
       }
 
-      canonicalRowsMap.get(canonicalName).historyNames.add(historyName);
-    });
-  });
+      const HIDE_FROM_HISTORY = new Set([
+        "Cheerio (non-Holabird)",
+        "Apify (non-Holabird)",
+        "Brooks Running",
+        "Brooks Sale",
+      ]);
 
-  const rows = Array.from(canonicalRowsMap.values())
-    .sort((a, b) => a.canonicalName.localeCompare(b.canonicalName));
+      const canonicalRowsMap = new Map();
 
-  if (rows.length === 0) return;
+      scraperData.days.forEach(day => {
+        (day.scrapers || []).forEach(s => {
+          const historyName = String(s?.scraper || "").trim();
+          if (!historyName) return;
+          if (HIDE_FROM_HISTORY.has(historyName)) return;
 
-  const viaFromHistory = getScraperViaMapFromHistory(scraperData);
-  const viaFromMerge = getScraperViaFromMerge(mergeData);
+          const canonicalName = canonicalDisplayNameFromHistoryScraperName(historyName);
+          if (!canonicalName) return;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+          if (!canonicalRowsMap.has(canonicalName)) {
+            canonicalRowsMap.set(canonicalName, {
+              canonicalName,
+              historyNames: new Set()
+            });
+          }
 
-  const allDates = [];
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    allDates.push(d.toISOString().split("T")[0]);
-  }
+          canonicalRowsMap.get(canonicalName).historyNames.add(historyName);
+        });
+      });
 
-  const dataMap = {};
-  scraperData.days.forEach(day => {
-    const dateKey = (day.dayUTC || "").split("T")[0];
-    if (dateKey) dataMap[dateKey] = day;
-  });
+      const rows = Array.from(canonicalRowsMap.values())
+        .sort((a, b) => a.canonicalName.localeCompare(b.canonicalName));
 
-  const apifyInTable = new Set();
-  const cheerioInTable = new Set();
+      if (rows.length === 0) return;
 
-  let html = `
-    <div style="overflow-x:auto;">
-      <table class="history-table">
-        <thead>
-          <tr>
-            <th class="scraper-name">Store</th>
-  `;
+      const viaFromHistory = getScraperViaMapFromHistory(scraperData);
+      const viaFromMerge = getScraperViaFromMerge(mergeData);
 
-  allDates.forEach(dateStr => {
-    const date = new Date(dateStr + "T00:00:00");
-    const monthDay = `${date.getMonth() + 1}/${date.getDate()}`;
-    html += `<th>${monthDay}</th>`;
-  });
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-  html += `
-          </tr>
-        </thead>
-        <tbody>
-  `;
+      const allDates = [];
+      for (let i = 0; i < 30; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        allDates.push(d.toISOString().split("T")[0]);
+      }
 
-  rows.forEach(({ canonicalName, historyNames }) => {
-    const namesArray = Array.from(historyNames);
+      const dataMap = {};
+      scraperData.days.forEach(day => {
+        const dateKey = (day.dayUTC || "").split("T")[0];
+        if (dateKey) dataMap[dateKey] = day;
+      });
 
-    let via = "";
-    for (const historyName of namesArray) {
-      via = viaFromHistory[historyName] || viaFromMerge[historyName] || via;
-      if (via) break;
+      const apifyInTable = new Set();
+      const cheerioInTable = new Set();
+
+      let html = `
+        <div style="overflow-x:auto;">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th class="scraper-name">Store</th>
+      `;
+
+      allDates.forEach(dateStr => {
+        const date = new Date(dateStr + "T00:00:00");
+        const monthDay = `${date.getMonth() + 1}/${date.getDate()}`;
+        html += `<th>${monthDay}</th>`;
+      });
+
+      html += `
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      rows.forEach(({ canonicalName, historyNames }) => {
+        const namesArray = Array.from(historyNames);
+
+        let via = "";
+        for (const historyName of namesArray) {
+          via = viaFromHistory[historyName] || viaFromMerge[historyName] || via;
+          if (via) break;
+        }
+
+        const decoratedDisplay = decorateScraperName(canonicalName, via);
+
+        if (String(via).toLowerCase() === "apify") apifyInTable.add(canonicalName);
+        if (String(via).toLowerCase() === "cheerio") cheerioInTable.add(canonicalName);
+
+        html += `<tr><td class="scraper-name">${decoratedDisplay}</td>`;
+
+        allDates.forEach(dateStr => {
+          const dayData = dataMap[dateStr];
+
+          if (!dayData) {
+            html += `<td class="history-cell-failed">✗<span class="history-duration">dur: —</span></td>`;
+            return;
+          }
+
+          const matchingEntries = (dayData.scrapers || []).filter(s => {
+            const historyName = String(s?.scraper || "").trim();
+            return namesArray.includes(historyName);
+          });
+
+          if (!matchingEntries.length) {
+            html += `<td class="history-cell-failed">✗<span class="history-duration">dur: —</span></td>`;
+            return;
+          }
+
+          matchingEntries.sort((a, b) => {
+            const aOk = a?.ok ? 1 : 0;
+            const bOk = b?.ok ? 1 : 0;
+            if (bOk !== aOk) return bOk - aOk;
+            return (Number(b?.count) || 0) - (Number(a?.count) || 0);
+          });
+
+          const bestEntry = matchingEntries[0];
+          const durationText = formatHistoryDuration(bestEntry?.durationMs ?? bestEntry?.duration);
+
+          if (!bestEntry.ok) {
+            html += `<td class="history-cell-failed">✗<span class="history-duration">${durationText}</span></td>`;
+          } else {
+            const count = Number(bestEntry.count) || 0;
+            if (count === 0) {
+              html += `<td class="history-cell-failed">0<span class="history-duration">${durationText}</span></td>`;
+            } else if (count < 10) {
+              html += `<td class="history-cell-warning">${count}<span class="history-duration">${durationText}</span></td>`;
+            } else {
+              html += `<td class="history-cell-success">${count}<span class="history-duration">${durationText}</span></td>`;
+            }
+          }
+        });
+
+        html += `</tr>`;
+      });
+
+      html += `
+            </tbody>
+          </table>
+        </div>
+
+        <div class="history-legend">
+          <div class="history-legend-item">
+            <span style="color:#28a745;font-weight:bold;">■</span> Good (10+ deals)
+          </div>
+          <div class="history-legend-item">
+            <span style="color:#856404;font-weight:bold;">■</span> Warning (&lt;10 deals)
+          </div>
+          <div class="history-legend-item">
+            <span style="color:#dc3545;font-weight:bold;">✗</span> Failed/Zero/Not Run
+          </div>
+        </div>
+      `;
+
+      const notes = [];
+      if (apifyInTable.size > 0) notes.push(`<div><strong>*</strong> Apify scraper.</div>`);
+      if (cheerioInTable.size > 0) notes.push(`<div><strong>†</strong> Cheerio scraper.</div>`);
+      notes.push(`<div><strong>dur</strong> = scraper duration for that day's run.</div>`);
+
+      if (notes.length) {
+        html += `<div class="history-notes">${notes.join("")}</div>`;
+      }
+
+      chart.innerHTML = html;
+      panel.style.display = "block";
     }
 
-    const decoratedDisplay = decorateScraperName(canonicalName, via);
-
-    if (String(via).toLowerCase() === "apify") apifyInTable.add(canonicalName);
-    if (String(via).toLowerCase() === "cheerio") cheerioInTable.add(canonicalName);
-
-    html += `<tr><td class="scraper-name">${decoratedDisplay}</td>`;
-
-    allDates.forEach(dateStr => {
-      const dayData = dataMap[dateStr];
-
-      if (!dayData) {
-        html += `<td class="history-cell-failed">✗</td>`;
-        return;
-      }
-
-      const matchingEntries = (dayData.scrapers || []).filter(s => {
-        const historyName = String(s?.scraper || "").trim();
-        return namesArray.includes(historyName);
-      });
-
-      if (!matchingEntries.length) {
-        html += `<td class="history-cell-failed">✗</td>`;
-        return;
-      }
-
-      matchingEntries.sort((a, b) => {
-        const aOk = a?.ok ? 1 : 0;
-        const bOk = b?.ok ? 1 : 0;
-        if (bOk !== aOk) return bOk - aOk;
-        return (Number(b?.count) || 0) - (Number(a?.count) || 0);
-      });
-
-      const bestEntry = matchingEntries[0];
-
-      if (!bestEntry.ok) {
-        html += `<td class="history-cell-failed">✗</td>`;
-      } else {
-        const count = Number(bestEntry.count) || 0;
-        if (count === 0) html += `<td class="history-cell-failed">0</td>`;
-        else if (count < 10) html += `<td class="history-cell-warning">${count}</td>`;
-        else html += `<td class="history-cell-success">${count}</td>`;
-      }
-    });
-
-    html += `</tr>`;
-  });
-
-  html += `
-        </tbody>
-      </table>
-    </div>
-
-    <div class="history-legend">
-      <div class="history-legend-item">
-        <span style="color:#28a745;font-weight:bold;">■</span> Good (10+ deals)
-      </div>
-      <div class="history-legend-item">
-        <span style="color:#856404;font-weight:bold;">■</span> Warning (&lt;10 deals)
-      </div>
-      <div class="history-legend-item">
-        <span style="color:#dc3545;font-weight:bold;">✗</span> Failed/Zero/Not Run
-      </div>
-    </div>
-  `;
-
-  const notes = [];
-  if (apifyInTable.size > 0) notes.push(`<div><strong>*</strong> Apify scraper.</div>`);
-  if (cheerioInTable.size > 0) notes.push(`<div><strong>†</strong> Cheerio scraper.</div>`);
-
-  if (notes.length) {
-    html += `<div class="history-notes">${notes.join("")}</div>`;
-  }
-
-  chart.innerHTML = html;
-  panel.style.display = "block";
-}
     // ------------------------------------------------------------
     // Gender breakdown
     // ------------------------------------------------------------
@@ -1183,10 +1209,8 @@
       debugInfo.style.display = "none";
 
       try {
-        // 1) Load canonical stores FIRST (single source of truth)
         await loadCanonicalStores();
 
-        // 2) Load merged deals — freshFetch bypasses all caching layers
         const dealsResponse = await freshFetch(`${BLOB_BASE}/deals.json`);
         if (!dealsResponse.ok) throw new Error(`Failed to fetch deals: ${dealsResponse.status}`);
 
@@ -1197,7 +1221,6 @@
 
         if (!deals) throw new Error("Invalid deals.json format (expected array or {deals:[...]})");
 
-        // 2b) Build mergeData
         let mergeData = {
           timestamp: dealsJson?.lastUpdated || dealsJson?.timestamp || null,
           lastUpdated: dealsJson?.lastUpdated || dealsJson?.timestamp || null,
@@ -1205,7 +1228,6 @@
           storeMetadata: {}
         };
 
-        // 2c) Load stats.json for per-store health card metadata
         try {
           const statsResponse = await freshFetch(`${BLOB_BASE}/stats.json`);
           if (statsResponse.ok) {
@@ -1218,7 +1240,6 @@
           console.log("Could not load stats.json (continuing without store metadata):", e?.message || e);
         }
 
-        // 2d) Load unaltered deals (optional)
         let unalteredDeals = [];
         try {
           const unalteredResponse = await freshFetch(`${BLOB_BASE}/unaltered-deals.json`);
@@ -1252,7 +1273,6 @@
           deals: UNALTERED_DEALS,
         });
 
-        // Debug panel
         const uniqueStoresFound = [...new Set(deals.map(d => normalizeStoreNameFromDeal(d.store)))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
         const uniqueBrands = [...new Set(deals.map(d => normalizeStr(d.brand) || "Unknown"))]
           .filter(b => b && b !== "Unknown")
@@ -1287,7 +1307,6 @@
 
         const stats = calculateStats(deals);
 
-        // Drop any non-canonical stores from stats.stores
         const canonicalSet = new Set(CANONICAL.list.map(s => s.displayName));
         for (const k of Object.keys(stats.stores)) {
           if (!canonicalSet.has(k)) delete stats.stores[k];
@@ -1326,15 +1345,15 @@
       `;
       el.style.display = "block";
 
-  if (staleBanner) {
-  const STALE_THRESHOLD_MS = 26 * 60 * 60 * 1000; // ✅ 26 hours
-  if (Number.isFinite(lastUpdatedInfo.ageMs) && lastUpdatedInfo.ageMs > STALE_THRESHOLD_MS) {
-    staleBanner.innerHTML = `⚠️ Data is stale. Last updated <strong>${formatAge(lastUpdatedInfo.ageMs)}</strong> ago.`;
-    staleBanner.style.display = "flex";
-  } else {
-    staleBanner.style.display = "none";
-  }
-}
+      if (staleBanner) {
+        const STALE_THRESHOLD_MS = 26 * 60 * 60 * 1000;
+        if (Number.isFinite(lastUpdatedInfo.ageMs) && lastUpdatedInfo.ageMs > STALE_THRESHOLD_MS) {
+          staleBanner.innerHTML = `⚠️ Data is stale. Last updated <strong>${formatAge(lastUpdatedInfo.ageMs)}</strong> ago.`;
+          staleBanner.style.display = "flex";
+        } else {
+          staleBanner.style.display = "none";
+        }
+      }
     }
 
     // ------------------------------------------------------------
@@ -1392,7 +1411,6 @@
         if (salePrice > 0) stats.prices.push(salePrice);
       });
 
-      // Ensure every canonical store exists even if zero deals
       for (const s of CANONICAL.list) {
         const name = s.displayName;
         if (!stats.stores[name]) stats.stores[name] = { count: 0, totalDiscount: 0, totalSavings: 0, deals: [] };
@@ -1524,6 +1542,7 @@
           scrapedUrls: canonicalScrapedUrls(storeObj),
           expectedBlobs: canonicalExpectedBlobs(storeObj),
           genderStats: { mens: 0, womens: 0, unisex: 0, unknown: 0 },
+          genderCoverage: storeObj.genderCoverage || "both",
           notes: storeObj.notes || ""
         };
 
@@ -1587,12 +1606,28 @@
           escalateStatus(health, "critical");
         }
 
-        if (health.dealCount >= 10 && (health.genderStats.mens === 0 || health.genderStats.womens === 0)) {
-          const parts = [];
-          if (health.genderStats.mens === 0) parts.push("0 Men's");
-          if (health.genderStats.womens === 0) parts.push("0 Women's");
-          health.issues.push({ type: "critical", message: `🚨 Gender breakdown anomaly (${parts.join(", ")}) with ${health.dealCount} deals` });
-          escalateStatus(health, "critical");
+        if (health.dealCount >= 10) {
+          const coverage = String(health.genderCoverage || "both").toLowerCase();
+          let missingExpected = [];
+
+          if (coverage === "both") {
+            if (health.genderStats.mens === 0) missingExpected.push("0 Men's");
+            if (health.genderStats.womens === 0) missingExpected.push("0 Women's");
+          } else if (coverage === "mens-only") {
+            if (health.genderStats.mens === 0) missingExpected.push("0 Men's");
+          } else if (coverage === "womens-only") {
+            if (health.genderStats.womens === 0) missingExpected.push("0 Women's");
+          } else if (coverage === "unisex-only") {
+            if (health.genderStats.unisex === 0) missingExpected.push("0 Unisex");
+          }
+
+          if (missingExpected.length > 0) {
+            health.issues.push({
+              type: "critical",
+              message: `🚨 Gender breakdown anomaly (${missingExpected.join(", ")}) with ${health.dealCount} deals`
+            });
+            escalateStatus(health, "critical");
+          }
         }
 
         const unknownBrands = storeDeals.filter(d => {
@@ -1671,9 +1706,9 @@
         const lastUpdatedStr = Number.isFinite(ts) ? new Date(ts).toLocaleString() : "Not Available";
         const hoursAgoStr = Number.isFinite(ts) ? formatHoursAgo(Date.now() - ts) : "Not Available";
         const durationStr =
-  Number.isFinite(Number(meta.duration))
-    ? `${Math.round(Number(meta.duration))} ms`
-    : (meta.duration != null ? String(meta.duration) : "Not Available");
+          Number.isFinite(Number(meta.duration))
+            ? `${Math.round(Number(meta.duration))} ms`
+            : (meta.duration != null ? String(meta.duration) : "Not Available");
 
         const sourceBlobsAll = meta.blobUrl ? [meta.blobUrl] : health.expectedBlobs;
         const scrapedUrls = health.scrapedUrls;
@@ -1749,6 +1784,8 @@
                 </div>
               </div>
             </div>
+
+            ${health.genderCoverage ? `<div class="note" style="margin-top:8px;"><strong>Expected gender coverage:</strong> ${health.genderCoverage}</div>` : ""}
 
             ${health.notes ? `<div class="note" style="margin-top:10px;"><strong>Notes:</strong> ${health.notes}</div>` : ""}
 
