@@ -1,6 +1,5 @@
 // /api/scrapers/lukes-locker-cheerio.js
 
-const axios = require("axios");
 const { put } = require("@vercel/blob");
 const canonicalBrandModels = require("../../lib/canonical-brands-models.json");
 
@@ -185,7 +184,7 @@ function pickImageUrl(product, base) {
   const pickSrc = (img) => {
     if (!img) return null;
     if (typeof img === "string") return img;
-    if (typeof img === "object") return img.src || img.url || img.alt || null;
+    if (typeof img === "object") return img.src || img.url || null;
     return null;
   };
 
@@ -204,6 +203,26 @@ function pickImageUrl(product, base) {
   return absolutizeUrl(src, base);
 }
 
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const resp = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status} for ${url}`);
+    }
+
+    return await resp.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function scrapeLukesLocker() {
   const base = "https://lukeslocker.com";
   const handle = "closeout";
@@ -220,17 +239,20 @@ async function scrapeLukesLocker() {
     const url = `${base}/collections/${handle}/products.json?limit=${limit}&page=${page}`;
     sourceUrls.push(url);
 
-    const resp = await axios.get(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        Accept: "application/json,text/plain,*/*",
-        "Accept-Language": "en-US,en;q=0.9",
+    const data = await fetchJsonWithTimeout(
+      url,
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          Accept: "application/json,text/plain,*/*",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
       },
-      timeout: 30000,
-    });
+      30000
+    );
 
-    const products = resp?.data?.products;
+    const products = data?.products;
     if (!Array.isArray(products) || products.length === 0) break;
 
     pagesFetched++;
@@ -277,12 +299,7 @@ async function scrapeLukesLocker() {
         normalizeWhitespace(p?.product_type || "") ||
         normalizeWhitespace(p?.type || "");
 
-      const extraText = [
-        p?.tags,
-        p?.product_type,
-        p?.type,
-        p?.vendor,
-      ]
+      const extraText = [p?.tags, p?.product_type, p?.type, p?.vendor]
         .flat()
         .filter(Boolean)
         .map((x) => String(x))
@@ -326,10 +343,10 @@ export default async function handler(req, res) {
   }
 
   // CRON_SECRET
-   const auth = req.headers.authorization;
-   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-     return res.status(401).json({ success: false, error: "Unauthorized" });
-   }
+  const auth = req.headers.authorization;
+  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
 
   const start = Date.now();
   const timestamp = nowIso();
