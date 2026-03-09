@@ -142,6 +142,82 @@ function parseDollar(txt) {
   return Number.isFinite(n) ? n : null;
 }
 
+function extractDollarAmounts(text) {
+  if (!text) return [];
+  const matches = String(text).match(/\$\s*[\d,]+(?:\.\d{1,2})?/g);
+  if (!matches) return [];
+  return matches
+    .map((m) => parseFloat(m.replace(/[$,\s]/g, "")))
+    .filter((n) => Number.isFinite(n));
+}
+
+function pickBestImageUrl($tile, base) {
+  const $img = $tile.find("img.product-tile-image, img").first();
+  if (!$img.length) return null;
+
+  const candidate =
+    $img.attr("src") ||
+    $img.attr("data-src") ||
+    $img.attr("data-original") ||
+    $img.attr("data-lazy") ||
+    "";
+
+  return absolutizeUrl(candidate, base) || null;
+}
+
+function extractPricesFromTile($tile) {
+  const originalClassText = $tile.find(".product-tile-price .original").first().text();
+  const discountedClassText = $tile.find(".product-tile-price .discounted").first().text();
+
+  const originalFromClasses = parseDollar(originalClassText);
+  const saleFromClasses = parseDollar(discountedClassText);
+
+  if (
+    Number.isFinite(originalFromClasses) &&
+    Number.isFinite(saleFromClasses) &&
+    originalFromClasses > saleFromClasses &&
+    saleFromClasses > 0
+  ) {
+    return {
+      salePrice: saleFromClasses,
+      originalPrice: originalFromClasses,
+      valid: true,
+      via: "class-pair",
+    };
+  }
+
+  const fullTileText = normalizeWhitespace($tile.text() || "");
+  let prices = extractDollarAmounts(fullTileText);
+
+  prices = prices.filter((p) => Number.isFinite(p) && p >= 10 && p < 1000);
+  prices = [...new Set(prices.map((p) => p.toFixed(2)))].map((s) => parseFloat(s));
+  prices.sort((a, b) => b - a);
+
+  if (prices.length >= 2) {
+    const originalPrice = prices[0];
+    const salePrice = prices[prices.length - 1];
+
+    if (originalPrice > salePrice && salePrice > 0) {
+      const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+      if (Number.isFinite(discountPercent) && discountPercent >= 5 && discountPercent <= 90) {
+        return {
+          salePrice,
+          originalPrice,
+          valid: true,
+          via: "tile-text-fallback",
+        };
+      }
+    }
+  }
+
+  return {
+    salePrice: null,
+    originalPrice: null,
+    valid: false,
+    via: "none",
+  };
+}
+
 function buildDeal({
   listingName,
   brand,
@@ -232,6 +308,8 @@ async function scrapeFleetFeet() {
               "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
             Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
           },
         },
         30000
@@ -240,22 +318,30 @@ async function scrapeFleetFeet() {
       const $ = cheerio.load(html);
       pagesFetched++;
 
+      const tileCount = $(".product-tile").length;
+      const linkCount = $("a.product-tile-link").length;
+      const priceCount = $(".product-tile-price").length;
+      const flagCount = $(".product-tile-flag").length;
+
+      console.log(
+        `[Fleet Feet] ${nextUrl} | tiles=${tileCount} links=${linkCount} prices=${priceCount} flags=${flagCount} title="${normalizeWhitespace(
+          $("title").text()
+        )}"`
+      );
+
+      const firstTileHtml = $(".product-tile").first().toString();
+      if (firstTileHtml) {
+        console.log(`[Fleet Feet] first tile snippet: ${firstTileHtml.slice(0, 1200)}`);
+      } else {
+        const bodySnippet = normalizeWhitespace($("body").text()).slice(0, 500);
+        console.log(`[Fleet Feet] no product tile found; body snippet: ${bodySnippet}`);
+      }
+
       $(".product-tile").each((_, el) => {
         const $tile = $(el);
 
         const $link = $tile.find("a.product-tile-link").first();
         if (!$link.length) return;
-
-        const flagText = normalizeWhitespace($tile.find(".product-tile-flag").text() || "");
-        const hasSaleFlag = /\b(sale|clearance|discount)\b/i.test(flagText);
-
-        const $priceWrap = $tile.find(".product-tile-price").first();
-        const priceClass = String($priceWrap.attr("class") || "");
-        const isDiscountedClass = /\bisDiscounted\b/i.test(priceClass);
-
-        if (!hasSaleFlag && !isDiscountedClass) return;
-
-        dealsFound++;
 
         const href = String($link.attr("href") || "").trim();
         if (!href) return;
@@ -266,19 +352,21 @@ async function scrapeFleetFeet() {
         if (seenUrls.has(listingURL)) return;
         seenUrls.add(listingURL);
 
-        const listingName = String($tile.find(".product-tile-title").first().text() || "");
+        const rawTitle = $tile.find(".product-tile-title").first().text() || "";
+        const listingName = normalizeWhitespace(rawTitle);
         if (!listingName) return;
 
-        const imageURL = absolutizeUrl($tile.find("img.product-tile-image").first().attr("src") || "", base) || null;
+        const flagText = normalizeWhitespace($tile.find(".product-tile-flags, .product-tile-flag").text() || "");
+        const imageURL = pickBestImageUrl($tile, base);
 
-        const originalPrice = parseDollar($tile.find(".product-tile-price .original").first().text());
-        const salePrice = parseDollar($tile.find(".product-tile-price .discounted").first().text());
-
-        if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
+        const { salePrice, originalPrice, valid, via } = extractPricesFromTile($tile);
+        if (!valid) return;
         if (!(originalPrice > salePrice && salePrice > 0)) return;
 
         const discountPercent = computeDiscountPercent(originalPrice, salePrice);
         if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
+
+        dealsFound++;
 
         const brandHint =
           normalizeWhitespace($tile.attr("data-brand") || "") ||
@@ -286,6 +374,10 @@ async function scrapeFleetFeet() {
 
         const { brand, model } = parseBrandModelFromCanonical(listingName, brandHint);
         const gender = detectGender(listingURL, listingName, flagText);
+
+        console.log(
+          `[Fleet Feet] accepted (${via}) | ${listingName} | sale=${salePrice} | original=${originalPrice} | discount=${discountPercent}%`
+        );
 
         deals.push(
           buildDeal({
@@ -327,7 +419,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  // CRON_SECRET
   const auth = req.headers.authorization;
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
