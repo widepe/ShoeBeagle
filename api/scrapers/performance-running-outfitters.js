@@ -7,7 +7,6 @@ export const config = { maxDuration: 60 };
 const STORE = "Performance Running";
 const SCHEMA_VERSION = 1;
 const VIA = "shopify-json";
-
 const BASE = "https://performancerunning.com";
 
 const COLLECTIONS = [
@@ -30,6 +29,13 @@ export default async function handler(req, res) {
   */
 
   try {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(500).json({
+        success: false,
+        error: "Missing BLOB_READ_WRITE_TOKEN",
+      });
+    }
+
     const deals = [];
     const seen = new Set();
     const sourceUrls = [];
@@ -47,8 +53,8 @@ export default async function handler(req, res) {
       kept: 0,
     };
 
-    let pagesFetched = 0;
-    let dealsFound = 0;
+    let pagesFetched = 0; // counts only pages with products
+    let dealsFound = 0;   // total raw products returned across non-empty pages
 
     for (const collection of COLLECTIONS) {
       dealsByCollection[collection] = 0;
@@ -63,7 +69,7 @@ export default async function handler(req, res) {
           headers: {
             "user-agent":
               "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-            "accept": "application/json,text/plain,*/*",
+            accept: "application/json,text/plain,*/*",
           },
         });
 
@@ -83,10 +89,7 @@ export default async function handler(req, res) {
         const data = await resp.json();
         const products = Array.isArray(data?.products) ? data.products : [];
 
-        pagesFetched += 1;
-        dealsFound += products.length;
-        dropCounts.totalProductsSeen += products.length;
-
+        // Do NOT count empty pages as fetched pages
         if (!products.length) {
           pageNotes.push({
             collection,
@@ -100,21 +103,27 @@ export default async function handler(req, res) {
           break;
         }
 
+        pagesFetched += 1;
+        dealsFound += products.length;
+        dropCounts.totalProductsSeen += products.length;
+
         let uniqueAdded = 0;
 
         for (const p of products) {
-          const brand = String(p.vendor || "").trim();
-          const title = String(p.title || "").trim();
-          const handle = String(p.handle || "").trim();
+          const brand = String(p?.vendor || "").trim();
+          const title = String(p?.title || "").trim();
+          const handle = String(p?.handle || "").trim();
 
           if (!title) {
             dropCounts.dropped_missingTitle += 1;
             continue;
           }
+
           if (!brand) {
             dropCounts.dropped_missingBrand += 1;
             continue;
           }
+
           if (!handle) {
             dropCounts.dropped_missingHandle += 1;
             continue;
@@ -127,15 +136,15 @@ export default async function handler(req, res) {
             continue;
           }
 
-          const variants = Array.isArray(p.variants) ? p.variants : [];
-          const availableVariants = variants.filter(v => v && v.available);
+          const variants = Array.isArray(p?.variants) ? p.variants : [];
+          const availableVariants = variants.filter((v) => v && v.available);
 
           let salePrice = null;
           let originalPrice = null;
 
           for (const v of availableVariants) {
-            const price = toNumber(v.price);
-            const compare = toNumber(v.compare_at_price);
+            const price = toNumber(v?.price);
+            const compare = toNumber(v?.compare_at_price);
 
             if (price != null && (salePrice == null || price < salePrice)) {
               salePrice = price;
@@ -285,9 +294,11 @@ function toNumber(v) {
 
 function parseGender(title) {
   const t = String(title || "").toUpperCase();
+
   if (/\bWOMEN'?S\b/.test(t) || /\bWOMENS\b/.test(t)) return "womens";
   if (/\bMEN'?S\b/.test(t) || /\bMENS\b/.test(t)) return "mens";
   if (/\bUNISEX\b/.test(t)) return "unisex";
+
   return "unknown";
 }
 
@@ -321,6 +332,8 @@ function firstImageUrl(product) {
     if (typeof img === "string") return img;
     if (img?.src) return img.src;
   }
+
   if (product?.image?.src) return product.image.src;
+
   return "";
 }
