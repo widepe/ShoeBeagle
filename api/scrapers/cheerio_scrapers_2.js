@@ -9,6 +9,8 @@
 //   instead of HTML scraping. (FAST)
 // - Running Center uses the products-search API
 //   instead of HTML scraping.
+// - Performance Running Outfitters uses Shopify collection products.json
+//   instead of HTML scraping.
 //
 // Triggers (in order):
 // - /api/scrapers/gazelle-sports
@@ -20,6 +22,7 @@
 // - /api/scrapers/rununited-searchanise
 // - /api/scrapers/jdsports-algolia
 // - /api/scrapers/running-center
+// - /api/scrapers/performance-running-outfitters
 //
 // Notes:
 // - This runner only TRIGGERS internal endpoints; each endpoint does its own scrape + blob write.
@@ -98,6 +101,7 @@ module.exports = async function handler(req, res) {
     rununited_searchanise: true,
     jdsports_algolia: true,
     running_center: true,
+    performance_running_outfitters: true,
   };
 
   // IMPORTANT: URL paths typically do NOT include ".js"
@@ -117,6 +121,11 @@ module.exports = async function handler(req, res) {
 
   // Running Center — NOT Cheerio. Uses products-search API to fetch products directly.
   if (ENABLED.running_center) TARGETS.push("/api/scrapers/running-center");
+
+  // Performance Running Outfitters — NOT Cheerio. Uses Shopify collection products.json.
+  if (ENABLED.performance_running_outfitters) {
+    TARGETS.push("/api/scrapers/performance-running-outfitters");
+  }
 
   try {
     const results = [];
