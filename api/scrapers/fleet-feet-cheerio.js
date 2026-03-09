@@ -107,8 +107,8 @@ function detectGender(listingURL, listingName, extraText = "") {
   if (/\/mens?[\/-]|\/men\/|men-/.test(urlLower)) return "mens";
   if (/\/womens?[\/-]|\/women\/|women-/.test(urlLower)) return "womens";
 
-  if (/\b(men'?s?|male)\b/i.test(combined)) return "mens";
-  if (/\b(women'?s?|female|ladies)\b/i.test(combined)) return "womens";
+  if (/\b(men'?s?|mens|male)\b/i.test(combined)) return "mens";
+  if (/\b(women'?s?|womens|female|ladies)\b/i.test(combined)) return "womens";
   if (/\bunisex\b/i.test(combined)) return "unisex";
 
   return "unknown";
@@ -134,6 +134,13 @@ function computeDiscountPercent(originalPrice, salePrice) {
 function randomDelay(min = 1200, max = 2200) {
   const wait = Math.floor(Math.random() * (max - min + 1)) + min;
   return new Promise((resolve) => setTimeout(resolve, wait));
+}
+
+function parseDollar(txt) {
+  const m = String(txt || "").match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
+  if (!m) return null;
+  const n = parseFloat(m[1].replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
 }
 
 function buildDeal({
@@ -211,25 +218,39 @@ async function scrapeFleetFeet() {
       const $ = cheerio.load(response.data);
       pagesFetched++;
 
-      $("div.product-tile").each((_, tile) => {
-        const $tile = $(tile);
-        const $jsonEl = $tile.find('script[type="application/json"]').first();
-        if (!$jsonEl.length) return;
+      $(".product-tile").each((_, el) => {
+        const $tile = $(el);
 
-        let data;
-        try {
-          data = JSON.parse($jsonEl.html());
-        } catch {
-          return;
-        }
+        const $link = $tile.find("a.product-tile-link").first();
+        if (!$link.length) return;
 
-        const discounted = data["computed.discounted"];
-        if (!discounted) return;
+        const flagText = normalizeWhitespace($tile.find(".product-tile-flag").text() || "");
+        const hasSaleFlag = /\b(sale|clearance|discount)\b/i.test(flagText);
+
+        const $priceWrap = $tile.find(".product-tile-price").first();
+        const priceClass = String($priceWrap.attr("class") || "");
+        const isDiscountedClass = /\bisDiscounted\b/i.test(priceClass);
+
+        if (!hasSaleFlag && !isDiscountedClass) return;
 
         dealsFound++;
 
-        const salePrice = parseFloat(data["computed.price"]);
-        const originalPrice = parseFloat(data["computed.originalPrice"]);
+        const href = String($link.attr("href") || "").trim();
+        if (!href) return;
+
+        const listingURL = absolutizeUrl(href, base);
+        if (!listingURL) return;
+
+        if (seenUrls.has(listingURL)) return;
+        seenUrls.add(listingURL);
+
+        const listingName = String($tile.find(".product-tile-title").first().text() || "");
+        if (!listingName) return;
+
+        const imageURL = absolutizeUrl($tile.find("img.product-tile-image").first().attr("src") || "", base) || null;
+
+        const originalPrice = parseDollar($tile.find(".product-tile-price .original").first().text());
+        const salePrice = parseDollar($tile.find(".product-tile-price .discounted").first().text());
 
         if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
         if (!(originalPrice > salePrice && salePrice > 0)) return;
@@ -237,38 +258,13 @@ async function scrapeFleetFeet() {
         const discountPercent = computeDiscountPercent(originalPrice, salePrice);
         if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
 
-        const slug = String(data["product.slug"] || "").trim();
-        if (!slug) return;
-
-        const listingURL = absolutizeUrl(`/products/${slug}`, base);
-        if (!listingURL) return;
-        if (seenUrls.has(listingURL)) return;
-        seenUrls.add(listingURL);
-
-        const listingName = String(data["product.title"] || "");
-        if (!listingName) return;
-
-        const imageURL =
-          data["sku.bestPhoto"] ||
-          data["sku.photo"] ||
-          data["product.photo"] ||
-          null;
-
         const brandHint =
-          normalizeWhitespace(data["product.brand"] || "") ||
-          normalizeWhitespace(data["brand.name"] || "") ||
-          normalizeWhitespace(data["product.vendor"] || "");
-
-        const genderHint =
-          normalizeWhitespace(data["product.department"] || "") ||
-          normalizeWhitespace(data["product.gender"] || "") ||
-          normalizeWhitespace(data["sku.gender"] || "");
-
-        const categoryHint =
-          normalizeWhitespace(data["product.category"] || "") ||
-          normalizeWhitespace(data["product.type"] || "");
+          normalizeWhitespace($tile.attr("data-brand") || "") ||
+          normalizeWhitespace($tile.attr("data-vendor") || "");
 
         const { brand, model } = parseBrandModelFromCanonical(listingName, brandHint);
+
+        const gender = detectGender(listingURL, listingName, flagText);
 
         deals.push(
           buildDeal({
@@ -281,8 +277,8 @@ async function scrapeFleetFeet() {
             store: STORE,
             listingURL,
             imageURL,
-            gender: detectGender(listingURL, listingName, `${genderHint} ${categoryHint}`),
-            shoeType: detectShoeType(listingName, categoryHint),
+            gender,
+            shoeType: detectShoeType(listingName, flagText),
           })
         );
       });
