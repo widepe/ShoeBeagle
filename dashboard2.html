@@ -1003,12 +1003,7 @@ function formatHistoryDuration(duration) {
         return;
       }
 
-      const HIDE_FROM_HISTORY = new Set([
-        "Cheerio (non-Holabird)",
-        "Apify (non-Holabird)",
-        "Brooks Running",
-        "Brooks Sale",
-      ]);
+
 
       const canonicalRowsMap = new Map();
 
@@ -1016,7 +1011,6 @@ function formatHistoryDuration(duration) {
         (day.scrapers || []).forEach(s => {
           const historyName = String(s?.scraper || "").trim();
           if (!historyName) return;
-          if (HIDE_FROM_HISTORY.has(historyName)) return;
 
           const canonicalName = canonicalDisplayNameFromHistoryScraperName(historyName);
           if (!canonicalName) return;
