@@ -1,17 +1,4 @@
-// /api/scrapers/performance-running-json.js
-//
-// Shopify JSON collection scraper
-// Writes blob: pro.json
-//
-// Uses Shopify endpoint:
-// /collections/{collection}/products.json
-//
-// Collections scraped:
-// womens-sale-shoes
-// mens-sale-shoes
-// sale-super-shoes
-//
-// Pagination: ?limit=250&page=N
+// /api/scrapers/performance-running-outfitters.js
 
 import { put } from "@vercel/blob";
 
@@ -29,13 +16,12 @@ const COLLECTIONS = [
   "sale-super-shoes",
 ];
 
-const MAX_PAGES = 20;
+const MAX_PAGES = 15;
 
 export default async function handler(req, res) {
-
   const start = Date.now();
 
-  // CRON auth (disabled for testing)
+  // CRON auth (temporarily commented out for testing)
   /*
   const auth = req.headers.authorization;
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -43,158 +29,298 @@ export default async function handler(req, res) {
   }
   */
 
-  const deals = [];
-  const sourceUrls = [];
+  try {
+    const deals = [];
+    const seen = new Set();
+    const sourceUrls = [];
+    const pageNotes = [];
+    const dealsByCollection = {};
 
-  let pagesFetched = 0;
-  let dealsFound = 0;
+    const dropCounts = {
+      totalProductsSeen: 0,
+      dropped_missingTitle: 0,
+      dropped_missingBrand: 0,
+      dropped_missingHandle: 0,
+      dropped_missingPrice: 0,
+      dropped_notADeal: 0,
+      dropped_duplicate: 0,
+      kept: 0,
+    };
 
-  for (const collection of COLLECTIONS) {
+    let pagesFetched = 0;
+    let dealsFound = 0;
 
-    for (let page = 1; page <= MAX_PAGES; page++) {
+    for (const collection of COLLECTIONS) {
+      dealsByCollection[collection] = 0;
 
-      const url =
-        `${BASE}/collections/${collection}/products.json?limit=250&page=${page}`;
+      let noNewPagesInARow = 0;
 
-      sourceUrls.push(url);
+      for (let page = 1; page <= MAX_PAGES; page++) {
+        const url = `${BASE}/collections/${collection}/products.json?limit=250&page=${page}`;
+        sourceUrls.push(url);
 
-      const resp = await fetch(url);
+        const resp = await fetch(url, {
+          headers: {
+            "user-agent":
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+            "accept": "application/json,text/plain,*/*",
+          },
+        });
 
-      if (!resp.ok) break;
-
-      const data = await resp.json();
-
-      const products = data.products || [];
-
-      if (!products.length) break;
-
-      pagesFetched++;
-
-      for (const p of products) {
-
-        dealsFound++;
-
-        const brand = (p.vendor || "").trim();
-
-        const title = (p.title || "").trim();
-
-        const listingName = `${brand} ${title}`.trim();
-
-        const listingURL = `${BASE}/products/${p.handle}`;
-
-        const imageURL = p.images?.[0]?.src || "";
-
-        const variants = p.variants || [];
-
-        let salePrice = null;
-        let originalPrice = null;
-
-        for (const v of variants) {
-
-          if (!v.available) continue;
-
-          const price = Number(v.price);
-          const compare = Number(v.compare_at_price);
-
-          if (!salePrice || price < salePrice) salePrice = price;
-
-          if (compare) originalPrice = compare;
+        if (!resp.ok) {
+          pageNotes.push({
+            collection,
+            page,
+            url,
+            status: resp.status,
+            productsReturned: 0,
+            uniqueAdded: 0,
+            note: `Stopping collection: HTTP ${resp.status}`,
+          });
+          break;
         }
 
-        if (!salePrice || !originalPrice) continue;
+        const data = await resp.json();
+        const products = Array.isArray(data?.products) ? data.products : [];
 
-        const discountPercent =
-          Math.round((originalPrice - salePrice) / originalPrice * 100);
+        pagesFetched += 1;
+        dealsFound += products.length;
+        dropCounts.totalProductsSeen += products.length;
 
-        const gender = parseGender(title);
+        if (!products.length) {
+          pageNotes.push({
+            collection,
+            page,
+            url,
+            status: resp.status,
+            productsReturned: 0,
+            uniqueAdded: 0,
+            note: "Stopping collection: empty products array",
+          });
+          break;
+        }
 
-        const model = parseModel(title);
+        let uniqueAdded = 0;
 
-        deals.push({
-          schemaVersion: SCHEMA_VERSION,
+        for (const p of products) {
+          const brand = String(p.vendor || "").trim();
+          const title = String(p.title || "").trim();
+          const handle = String(p.handle || "").trim();
 
-          listingName,
+          if (!title) {
+            dropCounts.dropped_missingTitle += 1;
+            continue;
+          }
+          if (!brand) {
+            dropCounts.dropped_missingBrand += 1;
+            continue;
+          }
+          if (!handle) {
+            dropCounts.dropped_missingHandle += 1;
+            continue;
+          }
 
-          brand,
-          model,
+          const listingURL = `${BASE}/products/${handle}`;
 
-          salePrice,
-          originalPrice,
-          discountPercent,
+          if (seen.has(listingURL)) {
+            dropCounts.dropped_duplicate += 1;
+            continue;
+          }
 
-          salePriceLow: null,
-          salePriceHigh: null,
-          originalPriceLow: null,
-          originalPriceHigh: null,
-          discountPercentUpTo: null,
+          const variants = Array.isArray(p.variants) ? p.variants : [];
+          const availableVariants = variants.filter(v => v && v.available);
 
-          store: STORE,
+          let salePrice = null;
+          let originalPrice = null;
 
-          listingURL,
-          imageURL,
+          for (const v of availableVariants) {
+            const price = toNumber(v.price);
+            const compare = toNumber(v.compare_at_price);
 
-          gender,
-          shoeType: "unknown"
+            if (price != null && (salePrice == null || price < salePrice)) {
+              salePrice = price;
+            }
+
+            if (compare != null && (originalPrice == null || compare > originalPrice)) {
+              originalPrice = compare;
+            }
+          }
+
+          if (salePrice == null || originalPrice == null) {
+            dropCounts.dropped_missingPrice += 1;
+            continue;
+          }
+
+          if (!(originalPrice > salePrice)) {
+            dropCounts.dropped_notADeal += 1;
+            continue;
+          }
+
+          const listingName = `${brand} ${title}`.trim();
+          const model = parseModel(title);
+          const gender = parseGender(title);
+          const imageURL = firstImageUrl(p);
+          const discountPercent = calcDiscountPercent(originalPrice, salePrice);
+
+          deals.push({
+            schemaVersion: SCHEMA_VERSION,
+
+            listingName,
+
+            brand,
+            model,
+
+            salePrice,
+            originalPrice,
+            discountPercent,
+
+            salePriceLow: null,
+            salePriceHigh: null,
+            originalPriceLow: null,
+            originalPriceHigh: null,
+            discountPercentUpTo: null,
+
+            store: STORE,
+
+            listingURL,
+            imageURL,
+
+            gender,
+            shoeType: "unknown",
+          });
+
+          seen.add(listingURL);
+          uniqueAdded += 1;
+          dealsByCollection[collection] += 1;
+          dropCounts.kept += 1;
+        }
+
+        pageNotes.push({
+          collection,
+          page,
+          url,
+          status: resp.status,
+          productsReturned: products.length,
+          uniqueAdded,
         });
+
+        if (uniqueAdded === 0) {
+          noNewPagesInARow += 1;
+        } else {
+          noNewPagesInARow = 0;
+        }
+
+        if (noNewPagesInARow >= 2) {
+          pageNotes.push({
+            collection,
+            page,
+            url,
+            status: resp.status,
+            productsReturned: products.length,
+            uniqueAdded,
+            note: "Stopping collection: 2 consecutive pages with no new unique products",
+          });
+          break;
+        }
       }
     }
+
+    const payload = {
+      store: STORE,
+      schemaVersion: SCHEMA_VERSION,
+
+      lastUpdated: new Date().toISOString(),
+      via: VIA,
+
+      sourceUrls,
+      pagesFetched,
+
+      dealsFound,
+      dealsExtracted: deals.length,
+
+      scrapeDurationMs: Date.now() - start,
+
+      ok: true,
+      error: null,
+
+      deals,
+
+      pageNotes,
+      dealsByCollection,
+      dropCounts,
+    };
+
+    const blob = await put(
+      "pro.json",
+      JSON.stringify(payload, null, 2),
+      {
+        access: "public",
+        addRandomSuffix: false,
+        contentType: "application/json",
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      blobUrl: blob.url,
+      deals: deals.length,
+      pagesFetched,
+      durationMs: payload.scrapeDurationMs,
+      dealsByCollection,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error?.message || "Unknown error",
+      durationMs: Date.now() - start,
+    });
   }
+}
 
-  const payload = {
-    store: STORE,
-    schemaVersion: 1,
-
-    lastUpdated: new Date().toISOString(),
-    via: VIA,
-
-    sourceUrls,
-    pagesFetched,
-
-    dealsFound,
-    dealsExtracted: deals.length,
-
-    scrapeDurationMs: Date.now() - start,
-
-    ok: true,
-    error: null,
-
-    deals
-  };
-
-  const blob = await put(
-    "pro.json",
-    JSON.stringify(payload, null, 2),
-    {
-      access: "public",
-      addRandomSuffix: false
-    }
-  );
-
-  res.json({
-    success: true,
-    blobUrl: blob.url,
-    deals: deals.length,
-    pagesFetched,
-    durationMs: payload.scrapeDurationMs
-  });
+function toNumber(v) {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 function parseGender(title) {
-
-  const t = title.toUpperCase();
-
-  if (t.includes("WOMEN")) return "womens";
-  if (t.includes("MEN")) return "mens";
-  if (t.includes("UNISEX")) return "unisex";
-
+  const t = String(title || "").toUpperCase();
+  if (/\bWOMEN'?S\b/.test(t) || /\bWOMENS\b/.test(t)) return "womens";
+  if (/\bMEN'?S\b/.test(t) || /\bMENS\b/.test(t)) return "mens";
+  if (/\bUNISEX\b/.test(t)) return "unisex";
   return "unknown";
 }
 
 function parseModel(title) {
-
-  return title
-    .replace(/WOMEN'?S/i, "")
-    .replace(/MEN'?S/i, "")
-    .replace(/UNISEX/i, "")
+  return String(title || "")
+    .replace(/^WOMEN'?S\s+/i, "")
+    .replace(/^WOMENS\s+/i, "")
+    .replace(/^MEN'?S\s+/i, "")
+    .replace(/^MENS\s+/i, "")
+    .replace(/^UNISEX\s+/i, "")
     .trim();
+}
+
+function calcDiscountPercent(originalPrice, salePrice) {
+  if (
+    !Number.isFinite(originalPrice) ||
+    !Number.isFinite(salePrice) ||
+    originalPrice <= 0 ||
+    salePrice < 0 ||
+    salePrice >= originalPrice
+  ) {
+    return null;
+  }
+
+  return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+}
+
+function firstImageUrl(product) {
+  if (Array.isArray(product?.images) && product.images.length) {
+    const img = product.images[0];
+    if (typeof img === "string") return img;
+    if (img?.src) return img.src;
+  }
+  if (product?.image?.src) return product.image.src;
+  return "";
 }
