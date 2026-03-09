@@ -62,6 +62,7 @@
   "scraperType": "vercel",
   "envVar": "BIGSHOES_DEALS_BLOB_URL",
   "baseUrl": "https://bigshoes.com",
+  "genderCoverage": "mens-only",
   "notes": "Big Shoes running sale shoes via Findify JSON API. Uses one direct request to the smart-collection endpoint with activity=Running and multiple_product_type=Shoes. Mens only, so gender is forced to mens. shoeType is forced to unknown. Writes to bigshoes.json."
 },
   
