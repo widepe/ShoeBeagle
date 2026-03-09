@@ -1,6 +1,5 @@
 // /api/scrapers/running-warehouse-cheerio.js
 
-const axios = require("axios");
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
 const canonicalBrandModels = require("../../lib/canonical-brands-models.json");
@@ -10,7 +9,6 @@ export const config = { maxDuration: 60 };
 const STORE = "Running Warehouse";
 const VIA = "cheerio";
 const SCHEMA_VERSION = 1;
-
 
 function nowIso() {
   return new Date().toISOString();
@@ -89,7 +87,6 @@ function parseBrandModelFromCanonical(listingName, rawBrandHint = "") {
     return { brand: "Unknown", model: "" };
   }
 
-  // First try the structured site-provided brand hint.
   if (brandHint) {
     const matchedHintBrand = findCanonicalBrandMatch(brandHint);
     if (matchedHintBrand) {
@@ -107,7 +104,6 @@ function parseBrandModelFromCanonical(listingName, rawBrandHint = "") {
     }
   }
 
-  // Fallback: parse brand from the title itself.
   const matchedTitleBrand = findCanonicalBrandMatch(rawTitle);
   if (matchedTitleBrand) {
     const escaped = escapeRegExp(matchedTitleBrand);
@@ -196,6 +192,33 @@ function buildDeal({
   };
 }
 
+function parseDollar(txt) {
+  const m = String(txt || "").match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
+  if (!m) return null;
+  const n = parseFloat(m[1].replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+async function fetchTextWithTimeout(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const resp = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status} for ${url}`);
+    }
+
+    return await resp.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function scrapeRunningWarehouse() {
   const base = "https://www.runningwarehouse.com";
 
@@ -213,29 +236,21 @@ async function scrapeRunningWarehouse() {
   const deals = [];
   const seenUrls = new Set();
 
-  const parseDollar = (txt) => {
-    const m = String(txt || "").match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
-    if (!m) return null;
-    const n = parseFloat(m[1].replace(/,/g, ""));
-    return Number.isFinite(n) ? n : null;
-  };
-
   for (const page of pages) {
-    const resp = await axios.get(page.url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
+    const html = await fetchTextWithTimeout(
+      page.url,
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
       },
-      timeout: 30000,
-      maxRedirects: 5,
-      validateStatus: () => true,
-    });
+      30000
+    );
 
-    const html = String(resp.data || "");
     const $ = cheerio.load(html);
-
     pagesFetched++;
 
     $(".cattable-wrap-cell.gtm_impression").each((_, el) => {
@@ -249,7 +264,10 @@ async function scrapeRunningWarehouse() {
       const gtmPrice = parseFloat(String($cell.attr("data-gtm_impression_price") || "").replace(/,/g, ""));
 
       const $infoLink = $cell.find("a.cattable-wrap-cell-info").first();
-      const href = $infoLink.attr("href") || $cell.find("a.cattable-wrap-cell-imgwrap-inner").first().attr("href") || "";
+      const href =
+        $infoLink.attr("href") ||
+        $cell.find("a.cattable-wrap-cell-imgwrap-inner").first().attr("href") ||
+        "";
       if (!href) return;
 
       const listingURL = absolutizeUrl(href, base);
@@ -272,7 +290,6 @@ async function scrapeRunningWarehouse() {
       let salePrice = parseDollar(saleText);
       const originalPrice = parseDollar(msrpText);
 
-      // Fallback to GTM price if needed.
       if (!Number.isFinite(salePrice) && Number.isFinite(gtmPrice)) {
         salePrice = gtmPrice;
       }
@@ -320,11 +337,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-// CRON_SECRET
-const auth = req.headers.authorization;
-if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-  return res.status(401).json({ success: false, error: "Unauthorized" });
-}
+  // CRON_SECRET
+  const auth = req.headers.authorization;
+  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
 
   const start = Date.now();
   const timestamp = nowIso();
