@@ -7,7 +7,7 @@
     "cheerio": "^1.0.0-rc.12",
     "apify-client": "^2.3.0",
     "@mendable/firecrawl-js": "^1.0.0",
-    "@vercel/blob": "^0.23.0",
+    "@vercel/blob": "^0.27.0",
     "@sendgrid/mail": "^8.1.0",
     "xml2js": "^0.6.2",
     "proxy-agent": "^6.5.0"
