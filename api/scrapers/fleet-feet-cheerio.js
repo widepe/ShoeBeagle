@@ -3,6 +3,7 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
+const canonicalBrandModels = require("../../lib/canonical-brands-models.json");
 
 export const config = { maxDuration: 60 };
 
@@ -10,12 +11,12 @@ const STORE = "Fleet Feet";
 const VIA = "cheerio";
 const SCHEMA_VERSION = 1;
 
-const REQUEST_TOGGLES = {
-  REQUIRE_CRON_SECRET: false,
-};
-
 function nowIso() {
   return new Date().toISOString();
+}
+
+function normalizeWhitespace(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
 }
 
 function absolutizeUrl(u, base) {
@@ -31,81 +32,77 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function parseBrandModelRaw(title) {
-  const rawTitle = String(title || "");
-  if (!rawTitle.trim()) return { brand: "Unknown", model: "" };
+function getCanonicalBrandKeys() {
+  return Object.keys(canonicalBrandModels || {})
+    .map((b) => String(b || "").trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+}
 
-  const brands = [
-    "361 Degrees",
-    "adidas",
-    "Allbirds",
-    "Altra",
-    "ASICS",
-    "Brooks",
-    "Craft",
-    "Diadora",
-    "HOKA",
-    "Hylo Athletics",
-    "INOV8",
-    "Inov-8",
-    "Karhu",
-    "La Sportiva",
-    "Lems",
-    "Merrell",
-    "Mizuno",
-    "New Balance",
-    "Newton",
-    "Nike",
-    "norda",
-    "Nnormal",
-    "On Running",
-    "On",
-    "Oofos",
-    "Pearl Izumi",
-    "Puma",
-    "Reebok",
-    "Salomon",
-    "Saucony",
-    "Saysh",
-    "Skechers",
-    "Skora",
-    "The North Face",
-    "Topo Athletic",
-    "Topo",
-    "Tyr",
-    "Under Armour",
-    "Vibram FiveFingers",
-    "Vibram",
-    "Vivobarefoot",
-    "VJ Shoes",
-    "VJ",
-    "X-Bionic",
-    "Xero Shoes",
-    "Xero",
-  ];
+function findCanonicalBrandMatch(rawText) {
+  const text = String(rawText || "");
+  if (!text.trim()) return null;
 
-  const brandsSorted = [...brands].sort((a, b) => b.length - a.length);
+  const canonicalBrands = getCanonicalBrandKeys();
 
-  let brand = "Unknown";
-  let model = rawTitle;
-
-  for (const b of brandsSorted) {
-    const escaped = escapeRegExp(b);
+  for (const brandName of canonicalBrands) {
+    const escaped = escapeRegExp(brandName);
     const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
-    if (regex.test(rawTitle)) {
-      brand = b;
-      model = rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim();
-      break;
+    if (regex.test(text)) return brandName;
+  }
+
+  return null;
+}
+
+function parseBrandModelFromCanonical(listingName, rawBrandHint = "") {
+  const rawTitle = String(listingName || "");
+  const brandHint = String(rawBrandHint || "").trim();
+
+  if (!rawTitle.trim()) {
+    return { brand: "Unknown", model: "" };
+  }
+
+  if (brandHint) {
+    const matchedHintBrand = findCanonicalBrandMatch(brandHint);
+    if (matchedHintBrand) {
+      const escaped = escapeRegExp(matchedHintBrand);
+      const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
+
+      const model = regex.test(rawTitle)
+        ? rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim()
+        : rawTitle;
+
+      return {
+        brand: matchedHintBrand,
+        model: model || rawTitle,
+      };
     }
   }
 
-  return { brand, model: model || rawTitle };
+  const matchedTitleBrand = findCanonicalBrandMatch(rawTitle);
+  if (matchedTitleBrand) {
+    const escaped = escapeRegExp(matchedTitleBrand);
+    const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
+
+    const model = rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim();
+
+    return {
+      brand: matchedTitleBrand,
+      model: model || rawTitle,
+    };
+  }
+
+  return {
+    brand: "Unknown",
+    model: rawTitle,
+  };
 }
 
-function detectGender(listingURL, listingName) {
+function detectGender(listingURL, listingName, extraText = "") {
   const urlLower = (listingURL || "").toLowerCase();
   const nameLower = (listingName || "").toLowerCase();
-  const combined = `${urlLower} ${nameLower}`;
+  const extraLower = (extraText || "").toLowerCase();
+  const combined = `${urlLower} ${nameLower} ${extraLower}`;
 
   if (/\/mens?[\/-]|\/men\/|men-/.test(urlLower)) return "mens";
   if (/\/womens?[\/-]|\/women\/|women-/.test(urlLower)) return "womens";
@@ -117,6 +114,16 @@ function detectGender(listingURL, listingName) {
   return "unknown";
 }
 
+function detectShoeType(listingName, extraText = "") {
+  const combined = `${listingName || ""} ${extraText || ""}`.toLowerCase();
+
+  if (/\b(track|spike|spikes)\b/.test(combined)) return "track";
+  if (/\b(trail|trail running|off[- ]road)\b/.test(combined)) return "trail";
+  if (/\b(road|running shoe|running shoes)\b/.test(combined)) return "road";
+
+  return "unknown";
+}
+
 function computeDiscountPercent(originalPrice, salePrice) {
   if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return null;
   if (originalPrice <= 0 || salePrice <= 0) return null;
@@ -124,7 +131,7 @@ function computeDiscountPercent(originalPrice, salePrice) {
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
-function randomDelay(min = 3000, max = 5000) {
+function randomDelay(min = 1200, max = 2200) {
   const wait = Math.floor(Math.random() * (max - min + 1)) + min;
   return new Promise((resolve) => setTimeout(resolve, wait));
 }
@@ -144,20 +151,27 @@ function buildDeal({
 }) {
   return {
     schemaVersion: 1,
+
     listingName: listingName || "",
+
     brand: brand || "Unknown",
     model: model || "",
+
     salePrice: Number.isFinite(salePrice) ? salePrice : null,
     originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
     discountPercent: Number.isFinite(discountPercent) ? discountPercent : null,
+
     salePriceLow: null,
     salePriceHigh: null,
     originalPriceLow: null,
     originalPriceHigh: null,
     discountPercentUpTo: null,
+
     store: store || "",
+
     listingURL: listingURL || "",
     imageURL: imageURL || null,
+
     gender: gender || "unknown",
     shoeType: shoeType || "unknown",
   };
@@ -197,10 +211,14 @@ async function scrapeFleetFeet() {
       const $ = cheerio.load(response.data);
       pagesFetched++;
 
-      $('div.product-tile script[type="application/json"]').each((_, el) => {
+      $("div.product-tile").each((_, tile) => {
+        const $tile = $(tile);
+        const $jsonEl = $tile.find('script[type="application/json"]').first();
+        if (!$jsonEl.length) return;
+
         let data;
         try {
-          data = JSON.parse($(el).html());
+          data = JSON.parse($jsonEl.html());
         } catch {
           return;
         }
@@ -219,18 +237,38 @@ async function scrapeFleetFeet() {
         const discountPercent = computeDiscountPercent(originalPrice, salePrice);
         if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
 
-        const slug = data["product.slug"] || "";
+        const slug = String(data["product.slug"] || "").trim();
         if (!slug) return;
 
         const listingURL = absolutizeUrl(`/products/${slug}`, base);
+        if (!listingURL) return;
         if (seenUrls.has(listingURL)) return;
         seenUrls.add(listingURL);
 
         const listingName = String(data["product.title"] || "");
         if (!listingName) return;
 
-        const imageURL = data["sku.bestPhoto"] || data["sku.photo"] || null;
-        const { brand, model } = parseBrandModelRaw(listingName);
+        const imageURL =
+          data["sku.bestPhoto"] ||
+          data["sku.photo"] ||
+          data["product.photo"] ||
+          null;
+
+        const brandHint =
+          normalizeWhitespace(data["product.brand"] || "") ||
+          normalizeWhitespace(data["brand.name"] || "") ||
+          normalizeWhitespace(data["product.vendor"] || "");
+
+        const genderHint =
+          normalizeWhitespace(data["product.department"] || "") ||
+          normalizeWhitespace(data["product.gender"] || "") ||
+          normalizeWhitespace(data["sku.gender"] || "");
+
+        const categoryHint =
+          normalizeWhitespace(data["product.category"] || "") ||
+          normalizeWhitespace(data["product.type"] || "");
+
+        const { brand, model } = parseBrandModelFromCanonical(listingName, brandHint);
 
         deals.push(
           buildDeal({
@@ -243,8 +281,8 @@ async function scrapeFleetFeet() {
             store: STORE,
             listingURL,
             imageURL,
-            gender: detectGender(listingURL, listingName),
-            shoeType: "unknown",
+            gender: detectGender(listingURL, listingName, `${genderHint} ${categoryHint}`),
+            shoeType: detectShoeType(listingName, categoryHint),
           })
         );
       });
@@ -252,7 +290,9 @@ async function scrapeFleetFeet() {
       const nextHref = ($("a#browsenext").attr("href") || "").trim();
       nextUrl = nextHref ? absolutizeUrl(nextHref, base) : null;
 
-      await randomDelay();
+      if (nextUrl) {
+        await randomDelay();
+      }
     }
   }
 
@@ -270,14 +310,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  const auth = req.headers.authorization;
-  if (
-    REQUEST_TOGGLES.REQUIRE_CRON_SECRET &&
-    process.env.CRON_SECRET &&
-    auth !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
-    return res.status(401).json({ success: false, error: "Unauthorized" });
-  }
+  // CRON_SECRET
+  // const auth = req.headers.authorization;
+  // if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  //   return res.status(401).json({ success: false, error: "Unauthorized" });
+  // }
 
   const start = Date.now();
   const timestamp = nowIso();
@@ -289,15 +326,21 @@ export default async function handler(req, res) {
     const output = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
+
       lastUpdated: timestamp,
       via: VIA,
+
       sourceUrls: result.sourceUrls,
       pagesFetched: result.pagesFetched,
+
       dealsFound: result.dealsFound,
       dealsExtracted: result.dealsExtracted,
+
       scrapeDurationMs: durationMs,
+
       ok: true,
       error: null,
+
       deals: result.deals,
     };
 
@@ -319,15 +362,21 @@ export default async function handler(req, res) {
     const output = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
+
       lastUpdated: timestamp,
       via: VIA,
+
       sourceUrls: [],
       pagesFetched: null,
+
       dealsFound: null,
       dealsExtracted: 0,
+
       scrapeDurationMs: durationMs,
+
       ok: false,
       error: err?.message || "Unknown error",
+
       deals: [],
     };
 
