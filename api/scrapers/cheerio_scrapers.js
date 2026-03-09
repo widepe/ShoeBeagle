@@ -5,7 +5,7 @@
 export const config = { maxDuration: 60 };
 
 const REQUEST_TOGGLES = {
-  REQUIRE_CRON_SECRET: false,
+  REQUIRE_CRON_SECRET: true,
 };
 
 const SCRAPER_TOGGLES = {
