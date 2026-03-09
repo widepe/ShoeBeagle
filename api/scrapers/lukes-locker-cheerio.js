@@ -2,6 +2,7 @@
 
 const axios = require("axios");
 const { put } = require("@vercel/blob");
+const canonicalBrandModels = require("../../lib/canonical-brands-models.json");
 
 export const config = { maxDuration: 60 };
 
@@ -9,29 +10,115 @@ const STORE = "Luke's Locker";
 const VIA = "cheerio";
 const SCHEMA_VERSION = 1;
 
-const REQUEST_TOGGLES = {
-  REQUIRE_CRON_SECRET: false,
-};
-
 function nowIso() {
   return new Date().toISOString();
+}
+
+function normalizeWhitespace(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
+function absolutizeUrl(u, base) {
+  let url = String(u || "").trim();
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith("//")) return "https:" + url;
+  if (url.startsWith("/")) return base.replace(/\/+$/, "") + url;
+  return base.replace(/\/+$/, "") + "/" + url.replace(/^\/+/, "");
 }
 
 function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function detectGender(listingURL, listingName) {
+function getCanonicalBrandKeys() {
+  return Object.keys(canonicalBrandModels || {})
+    .map((b) => String(b || "").trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+}
+
+function findCanonicalBrandMatch(rawText) {
+  const text = String(rawText || "");
+  if (!text.trim()) return null;
+
+  const canonicalBrands = getCanonicalBrandKeys();
+
+  for (const brandName of canonicalBrands) {
+    const escaped = escapeRegExp(brandName);
+    const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
+    if (regex.test(text)) return brandName;
+  }
+
+  return null;
+}
+
+function parseBrandModelFromCanonical(listingName, rawBrandHint = "") {
+  const rawTitle = String(listingName || "");
+  const brandHint = String(rawBrandHint || "").trim();
+
+  if (!rawTitle.trim()) {
+    return { brand: "Unknown", model: "" };
+  }
+
+  if (brandHint) {
+    const matchedHintBrand = findCanonicalBrandMatch(brandHint);
+    if (matchedHintBrand) {
+      const escaped = escapeRegExp(matchedHintBrand);
+      const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
+
+      const model = regex.test(rawTitle)
+        ? rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim()
+        : rawTitle;
+
+      return {
+        brand: matchedHintBrand,
+        model: model || rawTitle,
+      };
+    }
+  }
+
+  const matchedTitleBrand = findCanonicalBrandMatch(rawTitle);
+  if (matchedTitleBrand) {
+    const escaped = escapeRegExp(matchedTitleBrand);
+    const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
+
+    const model = rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim();
+
+    return {
+      brand: matchedTitleBrand,
+      model: model || rawTitle,
+    };
+  }
+
+  return {
+    brand: "Unknown",
+    model: rawTitle,
+  };
+}
+
+function detectGender(listingURL, listingName, extraText = "") {
   const urlLower = (listingURL || "").toLowerCase();
   const nameLower = (listingName || "").toLowerCase();
-  const combined = `${urlLower} ${nameLower}`;
+  const extraLower = (extraText || "").toLowerCase();
+  const combined = `${urlLower} ${nameLower} ${extraLower}`;
 
   if (/\/mens?[\/-]|\/men\/|men-/.test(urlLower)) return "mens";
   if (/\/womens?[\/-]|\/women\/|women-/.test(urlLower)) return "womens";
 
-  if (/\b(men'?s?|male)\b/i.test(combined)) return "mens";
-  if (/\b(women'?s?|female|ladies)\b/i.test(combined)) return "womens";
+  if (/\b(men'?s?|mens|male)\b/i.test(combined)) return "mens";
+  if (/\b(women'?s?|womens|female|ladies)\b/i.test(combined)) return "womens";
   if (/\bunisex\b/i.test(combined)) return "unisex";
+
+  return "unknown";
+}
+
+function detectShoeType(listingName, extraText = "") {
+  const combined = `${listingName || ""} ${extraText || ""}`.toLowerCase();
+
+  if (/\b(track|spike|spikes)\b/.test(combined)) return "track";
+  if (/\b(trail|trail running|off[- ]road)\b/.test(combined)) return "trail";
+  if (/\b(road|running shoe|running shoes)\b/.test(combined)) return "road";
 
   return "unknown";
 }
@@ -46,6 +133,11 @@ function computeDiscountPercent(originalPrice, salePrice) {
 function randomDelay(min = 800, max = 1400) {
   const wait = Math.floor(Math.random() * (max - min + 1)) + min;
   return new Promise((resolve) => setTimeout(resolve, wait));
+}
+
+function parseMoneyLike(value) {
+  const n = parseFloat(String(value ?? "").replace(/[^0-9.]/g, ""));
+  return Number.isFinite(n) ? n : null;
 }
 
 function buildDeal({
@@ -63,23 +155,53 @@ function buildDeal({
 }) {
   return {
     schemaVersion: 1,
+
     listingName: listingName || "",
+
     brand: brand || "Unknown",
     model: model || "",
+
     salePrice: Number.isFinite(salePrice) ? salePrice : null,
     originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
     discountPercent: Number.isFinite(discountPercent) ? discountPercent : null,
+
     salePriceLow: null,
     salePriceHigh: null,
     originalPriceLow: null,
     originalPriceHigh: null,
     discountPercentUpTo: null,
+
     store: store || "",
+
     listingURL: listingURL || "",
     imageURL: imageURL || null,
+
     gender: gender || "unknown",
     shoeType: shoeType || "unknown",
   };
+}
+
+function pickImageUrl(product, base) {
+  const pickSrc = (img) => {
+    if (!img) return null;
+    if (typeof img === "string") return img;
+    if (typeof img === "object") return img.src || img.url || img.alt || null;
+    return null;
+  };
+
+  let src =
+    pickSrc(product?.image) ||
+    (Array.isArray(product?.images) ? pickSrc(product.images[0]) : null);
+
+  if (!src && Array.isArray(product?.images)) {
+    for (const img of product.images) {
+      src = pickSrc(img);
+      if (src) break;
+    }
+  }
+
+  if (!src) return null;
+  return absolutizeUrl(src, base);
 }
 
 async function scrapeLukesLocker() {
@@ -118,47 +240,23 @@ async function scrapeLukesLocker() {
       const listingName = String(p?.title ?? "");
       if (!listingName) continue;
 
-      const brand = String(p?.vendor || "").trim() || "Unknown";
+      const handleValue = String(p?.handle || "").trim();
+      if (!handleValue) continue;
 
-      if (!p?.handle) continue;
-      const listingURL = `${base}/products/${p.handle}`;
+      const listingURL = absolutizeUrl(`/products/${handleValue}`, base);
+      if (!listingURL) continue;
       if (seenUrls.has(listingURL)) continue;
       seenUrls.add(listingURL);
 
-      let imageURL = null;
-
-      const pickSrc = (img) => {
-        if (!img) return null;
-        if (typeof img === "string") return img;
-        if (typeof img === "object") return img.src || img.url || null;
-        return null;
-      };
-
-      let src = pickSrc(p?.image) || (Array.isArray(p?.images) ? pickSrc(p.images[0]) : null);
-
-      if (!src && Array.isArray(p?.images)) {
-        for (const img of p.images) {
-          src = pickSrc(img);
-          if (src) break;
-        }
-      }
-
-      if (src) {
-        let u = String(src).trim();
-        if (u.startsWith("//")) u = "https:" + u;
-        else if (u.startsWith("/")) u = base + u;
-        else if (/^cdn\.shopify\.com/i.test(u)) u = "https://" + u;
-        if (!/^https?:\/\//i.test(u)) u = null;
-        imageURL = u;
-      }
+      const imageURL = pickImageUrl(p, base);
 
       let bestSale = null;
       let bestOriginal = null;
 
       const variants = Array.isArray(p?.variants) ? p.variants : [];
       for (const v of variants) {
-        const sale = parseFloat(String(v?.price ?? "").replace(/[^0-9.]/g, ""));
-        const orig = parseFloat(String(v?.compare_at_price ?? "").replace(/[^0-9.]/g, ""));
+        const sale = parseMoneyLike(v?.price);
+        const orig = parseMoneyLike(v?.compare_at_price);
 
         if (!Number.isFinite(sale) || !Number.isFinite(orig)) continue;
         if (!(orig > sale && sale > 0)) continue;
@@ -174,12 +272,23 @@ async function scrapeLukesLocker() {
       const discountPercent = computeDiscountPercent(bestOriginal, bestSale);
       if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) continue;
 
-      let model = listingName;
-      if (brand && brand !== "Unknown") {
-        const escaped = escapeRegExp(brand);
-        model = listingName.replace(new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i"), " ");
-        model = model.replace(/\s+/g, " ").trim() || listingName;
-      }
+      const brandHint =
+        normalizeWhitespace(p?.vendor || "") ||
+        normalizeWhitespace(p?.product_type || "") ||
+        normalizeWhitespace(p?.type || "");
+
+      const extraText = [
+        p?.tags,
+        p?.product_type,
+        p?.type,
+        p?.vendor,
+      ]
+        .flat()
+        .filter(Boolean)
+        .map((x) => String(x))
+        .join(" ");
+
+      const { brand, model } = parseBrandModelFromCanonical(listingName, brandHint);
 
       deals.push(
         buildDeal({
@@ -192,8 +301,8 @@ async function scrapeLukesLocker() {
           store: STORE,
           listingURL,
           imageURL,
-          gender: detectGender(listingURL, listingName),
-          shoeType: "unknown",
+          gender: detectGender(listingURL, listingName, extraText),
+          shoeType: detectShoeType(listingName, extraText),
         })
       );
     }
@@ -216,14 +325,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  const auth = req.headers.authorization;
-  if (
-    REQUEST_TOGGLES.REQUIRE_CRON_SECRET &&
-    process.env.CRON_SECRET &&
-    auth !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
-    return res.status(401).json({ success: false, error: "Unauthorized" });
-  }
+  // CRON_SECRET
+  // const auth = req.headers.authorization;
+  // if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  //   return res.status(401).json({ success: false, error: "Unauthorized" });
+  // }
 
   const start = Date.now();
   const timestamp = nowIso();
@@ -235,15 +341,21 @@ export default async function handler(req, res) {
     const output = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
+
       lastUpdated: timestamp,
       via: VIA,
+
       sourceUrls: result.sourceUrls,
       pagesFetched: result.pagesFetched,
+
       dealsFound: result.dealsFound,
       dealsExtracted: result.dealsExtracted,
+
       scrapeDurationMs: durationMs,
+
       ok: true,
       error: null,
+
       deals: result.deals,
     };
 
@@ -265,15 +377,21 @@ export default async function handler(req, res) {
     const output = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
+
       lastUpdated: timestamp,
       via: VIA,
+
       sourceUrls: [],
       pagesFetched: null,
+
       dealsFound: null,
       dealsExtracted: 0,
+
       scrapeDurationMs: durationMs,
+
       ok: false,
       error: err?.message || "Unknown error",
+
       deals: [],
     };
 
