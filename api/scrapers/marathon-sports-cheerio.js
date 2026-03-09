@@ -1,6 +1,5 @@
 // /api/scrapers/marathon-sports-cheerio.js
 
-const axios = require("axios");
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
 const canonicalBrandModels = require("../../lib/canonical-brands-models.json");
@@ -224,6 +223,26 @@ function extractDlItem($tile) {
   }
 }
 
+async function fetchTextWithTimeout(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const resp = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status} for ${url}`);
+    }
+
+    return await resp.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function scrapeMarathonSports() {
   const base = "https://www.marathonsports.com";
 
@@ -241,17 +260,20 @@ async function scrapeMarathonSports() {
   const seenUrls = new Set();
 
   for (const pageUrl of urls) {
-    const response = await axios.get(pageUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
+    const html = await fetchTextWithTimeout(
+      pageUrl,
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
       },
-      timeout: 30000,
-    });
+      30000
+    );
 
-    const $ = cheerio.load(response.data);
+    const $ = cheerio.load(html);
     pagesFetched++;
 
     $(".product-partial.partial").each((_, el) => {
@@ -335,10 +357,10 @@ export default async function handler(req, res) {
   }
 
   // CRON_SECRET
-   const auth = req.headers.authorization;
-   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-     return res.status(401).json({ success: false, error: "Unauthorized" });
-   }
+  const auth = req.headers.authorization;
+  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
 
   const start = Date.now();
   const timestamp = nowIso();
