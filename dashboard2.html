@@ -469,14 +469,15 @@
     .history-cell-warning { background: #fffbf0; color: #856404; }
     .history-cell-failed  { background: #fff5f5; color: #dc3545; }
 
-    .history-duration {
-      display: block;
-      margin-top: 3px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      opacity: 0.75;
-      line-height: 1.15;
-    }
+.history-duration {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  opacity: 0.75;
+  line-height: 1.15;
+  white-space: nowrap;
+}
 
     .history-legend {
       margin-top: 12px;
@@ -870,16 +871,11 @@
       return `${hours.toFixed(1)}h ago`;
     }
 
-    function formatHistoryDuration(duration) {
-      const ms = Number(duration);
-      if (!Number.isFinite(ms) || ms < 0) return "dur: —";
-      if (ms < 1000) return `dur: ${Math.round(ms)}ms`;
-      const secs = ms / 1000;
-      if (secs < 60) return `dur: ${secs.toFixed(1)}s`;
-      const mins = Math.floor(secs / 60);
-      const remSecs = Math.round(secs % 60);
-      return `dur: ${mins}m ${remSecs}s`;
-    }
+function formatHistoryDuration(duration) {
+  const ms = Number(duration);
+  if (!Number.isFinite(ms) || ms < 0) return "—";
+  return `${(ms / 1000).toFixed(1)}s`;
+}
 
     function computeDiscountPercent(originalPrice, salePrice) {
       const o = safeNumber(originalPrice);
