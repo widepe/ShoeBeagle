@@ -45,7 +45,7 @@ const SCHEMA_VERSION = 1;
 
 const SITE_ORIGIN = "https://bigshoes.com";
 const SOURCE_PAGE =
-  "https://bigshoes.com/collections/sale?filters%5Bcustom_fields.activity%5D%5B0%5D=Running";
+  "https://bigshoes.com/collections/sale?filters%5Bcustom_fields.activity%5D%5B0%5D=Running&filters%5Bcustom_fields.multiple_product_type%5D%5B0%5D=Shoes";
 
 const FINDIFY_KEY =
   String(process.env.BIGSHOES_FINDIFY_KEY || "").trim() ||
