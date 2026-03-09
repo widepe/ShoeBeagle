@@ -166,6 +166,13 @@ function randomDelay(min = 1200, max = 2200) {
   return new Promise((resolve) => setTimeout(resolve, wait));
 }
 
+function parseDollar(txt) {
+  const m = String(txt || "").match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
+  if (!m) return null;
+  const n = parseFloat(m[1].replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
 function buildDeal({
   listingName,
   brand,
@@ -207,158 +214,14 @@ function buildDeal({
   };
 }
 
-function extractDollarAmounts(text) {
-  if (!text) return [];
-  const matches = text.match(/\$\s*[\d,]+(?:\.\d{1,2})?/g);
-  if (!matches) return [];
-  return matches
-    .map((m) => parseFloat(m.replace(/[$,\s]/g, "")))
-    .filter((n) => Number.isFinite(n));
-}
-
-function extractSuperscriptPrices($, $element) {
-  const prices = [];
-  if (!$ || !$element || !$element.find) return prices;
-
-  $element.find("sup, .cents, .price-cents, small").each((_, el) => {
-    const $centsEl = $(el);
-    const centsText = $centsEl.text().trim();
-    if (!/^\d{1,2}$/.test(centsText)) return;
-
-    const $parent = $centsEl.parent();
-    const parentTextWithoutChildren = $parent.clone().children().remove().end().text();
-    const dollarMatch = parentTextWithoutChildren.match(/\$\s*(\d+)/);
-    if (!dollarMatch) return;
-
-    const dollars = parseInt(dollarMatch[1], 10);
-    const cents = parseInt(centsText, 10);
-    if (!Number.isFinite(dollars) || !Number.isFinite(cents)) return;
-
-    const price = dollars + cents / 100;
-    if (price >= 10 && price < 1000) prices.push(price);
-  });
-
-  return prices;
-}
-
-function findSaveAmount(text) {
-  if (!text) return null;
-  const match = text.match(/save\s*\$\s*([\d,]+(?:\.\d{1,2})?)/i);
-  if (!match) return null;
-  const amount = parseFloat(match[1].replace(/,/g, ""));
-  return Number.isFinite(amount) ? amount : null;
-}
-
-function findPercentOff(text) {
-  if (!text) return null;
-  const match = text.match(/(\d+)\s*%\s*off/i);
-  if (!match) return null;
-  const percent = parseInt(match[1], 10);
-  return percent > 0 && percent < 100 ? percent : null;
-}
-
-function extractPrices($, $element, fullText) {
-  let prices = extractDollarAmounts(fullText);
-
-  const supPrices = extractSuperscriptPrices($, $element);
-  if (supPrices.length) prices = prices.concat(supPrices);
-
-  prices = prices.filter((p) => Number.isFinite(p) && p >= 10 && p < 1000);
-  if (!prices.length) return { salePrice: null, originalPrice: null, valid: false };
-
-  prices = [...new Set(prices.map((p) => p.toFixed(2)))].map((s) => parseFloat(s));
-
-  if (prices.length < 2) return { salePrice: null, originalPrice: null, valid: false };
-  if (prices.length > 3) return { salePrice: null, originalPrice: null, valid: false };
-
-  prices.sort((a, b) => b - a);
-
-  if (prices.length === 2) {
-    const original = prices[0];
-    const sale = prices[1];
-    if (!(sale < original)) return { salePrice: null, originalPrice: null, valid: false };
-
-    const discountPercent = ((original - sale) / original) * 100;
-    if (discountPercent < 5 || discountPercent > 90) {
-      return { salePrice: null, originalPrice: null, valid: false };
-    }
-    return { salePrice: sale, originalPrice: original, valid: true };
+function extractDlItem($tile) {
+  const raw = $tile.attr("dl-item");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
   }
-
-  if (prices.length === 3) {
-    const original = prices[0];
-    const remaining = prices.slice(1);
-    const [p1, p2] = remaining;
-    const tol = 1;
-
-    const saveAmount = findSaveAmount(fullText);
-    if (saveAmount != null) {
-      const isP1Save = Math.abs(p1 - saveAmount) <= tol;
-      const isP2Save = Math.abs(p2 - saveAmount) <= tol;
-
-      if (isP1Save && !isP2Save) {
-        const sale = p2;
-        const pct = ((original - sale) / original) * 100;
-        if (pct >= 5 && pct <= 90 && sale < original) return { salePrice: sale, originalPrice: original, valid: true };
-      } else if (isP2Save && !isP1Save) {
-        const sale = p1;
-        const pct = ((original - sale) / original) * 100;
-        if (pct >= 5 && pct <= 90 && sale < original) return { salePrice: sale, originalPrice: original, valid: true };
-      }
-    }
-
-    const percentOff = findPercentOff(fullText);
-    if (percentOff != null) {
-      const expectedSale = original * (1 - percentOff / 100);
-      let saleCandidate = null;
-      let bestDiff = Infinity;
-
-      for (const p of remaining) {
-        const diff = Math.abs(p - expectedSale);
-        if (diff <= tol && diff < bestDiff) {
-          bestDiff = diff;
-          saleCandidate = p;
-        }
-      }
-
-      if (saleCandidate != null) {
-        const pct = ((original - saleCandidate) / original) * 100;
-        if (pct >= 5 && pct <= 90 && saleCandidate < original) {
-          return { salePrice: saleCandidate, originalPrice: original, valid: true };
-        }
-      }
-    }
-
-    const sale = Math.max(...remaining);
-    const pct = ((original - sale) / original) * 100;
-    if (pct >= 5 && pct <= 90 && sale < original) return { salePrice: sale, originalPrice: original, valid: true };
-
-    return { salePrice: null, originalPrice: null, valid: false };
-  }
-
-  return { salePrice: null, originalPrice: null, valid: false };
-}
-
-function pickProductContainer($, $link) {
-  const candidates = [
-    ".product-grid-item",
-    ".product-item",
-    ".product",
-    "article",
-    "li",
-    "div",
-  ];
-
-  for (const selector of candidates) {
-    const $container = $link.closest(selector);
-    if ($container.length) {
-      const text = normalizeWhitespace($container.text());
-      if (text.includes("$")) return $container;
-    }
-  }
-
-  const $fallback = $link.closest("div, article, li");
-  return $fallback.length ? $fallback : null;
 }
 
 async function scrapeMarathonSports() {
@@ -391,49 +254,49 @@ async function scrapeMarathonSports() {
     const $ = cheerio.load(response.data);
     pagesFetched++;
 
-    $('a[href^="/products/"]').each((_, el) => {
-      const $link = $(el);
-      const href = ($link.attr("href") || "").trim();
+    $(".product-partial.partial").each((_, el) => {
+      const $tile = $(el);
+
+      const $link = $tile.find("h2.title a.link").first();
+      if (!$link.length) return;
+
+      const saleFlag = normalizeWhitespace($tile.find(".sale").first().text() || "");
+      if (!/\bsale\b/i.test(saleFlag)) return;
+
+      dealsFound++;
+
+      const href = String($link.attr("href") || "").trim();
       if (!href) return;
 
       const listingURL = absolutizeUrl(href, base);
       if (!listingURL) return;
       if (seenUrls.has(listingURL)) return;
 
-      const $container = pickProductContainer($, $link);
-      if (!$container || !$container.length) return;
-
-      const containerText = normalizeWhitespace($container.text());
-      if (!containerText.includes("$")) return;
-
-      dealsFound++;
-
-      let listingName = "";
-      const $titleEl = $container.find("h1, h2, h3, .product-title, .product-name, [class*='title']").first();
-      if ($titleEl.length) listingName = String($titleEl.text() || "");
-      if (!listingName) {
-        listingName = normalizeWhitespace($link.text() || "");
-      }
+      const listingName = String($link.text() || "");
       if (!listingName) return;
 
-      const { salePrice, originalPrice, valid } = extractPrices($, $container, containerText);
-      if (!valid || !Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
+      const $img = $tile.find(".image-wrap img").first();
+      const imageURL = pickBestImgUrl($, $img, base);
+
+      const originalPrice = parseDollar($tile.find(".product-price .num.-compare").first().text());
+      const salePriceFromHtml = parseDollar($tile.find(".product-price .num.-price").first().text());
+
+      const dlItem = extractDlItem($tile);
+      const salePriceFromDl = Number.isFinite(Number(dlItem?.price)) ? Number(dlItem.price) : null;
+      const brandHint = normalizeWhitespace(dlItem?.item_brand || "");
+
+      const salePrice = Number.isFinite(salePriceFromHtml) ? salePriceFromHtml : salePriceFromDl;
+
+      if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
       if (!(originalPrice > salePrice && salePrice > 0)) return;
 
       const discountPercent = computeDiscountPercent(originalPrice, salePrice);
       if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
 
-      let $img = $container.find("img").first();
-      if (!$img.length) $img = $link.find("img").first();
-      const imageURL = pickBestImgUrl($, $img, base);
-
-      const brandHint =
-        normalizeWhitespace($container.attr("data-brand") || "") ||
-        normalizeWhitespace($link.attr("data-brand") || "");
-
+      const typeText = normalizeWhitespace($tile.find(".type").first().text() || "");
       const { brand, model } = parseBrandModelFromCanonical(listingName, brandHint);
-      const gender = detectGender(listingURL, listingName, pageUrl);
-      const shoeType = detectShoeType(listingName, `${model} ${pageUrl}`);
+      const gender = detectGender(listingURL, listingName, `${typeText} ${pageUrl}`);
+      const shoeType = detectShoeType(listingName, `${typeText} ${model} ${pageUrl}`);
 
       seenUrls.add(listingURL);
 
