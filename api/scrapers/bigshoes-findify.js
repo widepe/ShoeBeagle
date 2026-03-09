@@ -288,11 +288,11 @@ async function fetchFindifyProducts() {
 export default async function handler(req, res) {
   const startedAt = Date.now();
 
-  // CRON auth (temporarily commented out for testing):
-  // const auth = req.headers.authorization;
-  // if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-  //   return res.status(401).json({ success: false, error: "Unauthorized" });
-  // }
+  // CRON SECRET
+   const auth = req.headers.authorization;
+   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+     return res.status(401).json({ success: false, error: "Unauthorized" });
+   }
 
   let pagesFetched = 0;
   let dealsFound = 0;
