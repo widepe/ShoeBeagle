@@ -9,6 +9,7 @@ export const config = { maxDuration: 60 };
 const STORE = "Marathon Sports";
 const VIA = "cheerio";
 const SCHEMA_VERSION = 1;
+const MAX_DROPPED_DEALS_LOG = 200;
 
 function nowIso() {
   return new Date().toISOString();
@@ -259,6 +260,30 @@ async function scrapeMarathonSports() {
   const deals = [];
   const seenUrls = new Set();
 
+  const dropCounts = {
+    missingHref: 0,
+    missingListingURL: 0,
+    duplicateUrl: 0,
+    missingListingName: 0,
+    missingPrice: 0,
+    invalidPriceRelation: 0,
+    invalidDiscountPercent: 0,
+  };
+
+  const droppedDeals = [];
+
+  function logDropped(reason, payload = {}) {
+    if (dropCounts[reason] == null) dropCounts[reason] = 0;
+    dropCounts[reason]++;
+
+    if (droppedDeals.length < MAX_DROPPED_DEALS_LOG) {
+      droppedDeals.push({
+        reason,
+        ...payload,
+      });
+    }
+  }
+
   for (const pageUrl of urls) {
     const html = await fetchTextWithTimeout(
       pageUrl,
@@ -287,16 +312,8 @@ async function scrapeMarathonSports() {
 
       dealsFound++;
 
-      const href = String($link.attr("href") || "").trim();
-      if (!href) return;
-
-      const listingURL = absolutizeUrl(href, base);
-      if (!listingURL) return;
-      if (seenUrls.has(listingURL)) return;
-
-      const listingName = String($link.text() || "");
-      if (!listingName) return;
-
+      const rawHref = String($link.attr("href") || "").trim();
+      const rawListingName = normalizeWhitespace($link.text() || "");
       const $img = $tile.find(".image-wrap img").first();
       const imageURL = pickBestImgUrl($, $img, base);
 
@@ -306,14 +323,126 @@ async function scrapeMarathonSports() {
       const dlItem = extractDlItem($tile);
       const salePriceFromDl = Number.isFinite(Number(dlItem?.price)) ? Number(dlItem.price) : null;
       const brandHint = normalizeWhitespace(dlItem?.item_brand || "");
-
       const salePrice = Number.isFinite(salePriceFromHtml) ? salePriceFromHtml : salePriceFromDl;
 
-      if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
-      if (!(originalPrice > salePrice && salePrice > 0)) return;
+      const previewListingURL = rawHref ? absolutizeUrl(rawHref, base) : "";
+
+      if (!rawHref) {
+        logDropped("missingHref", {
+          pageUrl,
+          listingName: rawListingName || "",
+          listingURL: "",
+          imageURL,
+          saleFlag,
+          originalPrice,
+          salePrice,
+          salePriceFromHtml,
+          salePriceFromDl,
+          brandHint,
+        });
+        return;
+      }
+
+      const listingURL = previewListingURL;
+      if (!listingURL) {
+        logDropped("missingListingURL", {
+          pageUrl,
+          listingName: rawListingName || "",
+          rawHref,
+          listingURL: "",
+          imageURL,
+          saleFlag,
+          originalPrice,
+          salePrice,
+          salePriceFromHtml,
+          salePriceFromDl,
+          brandHint,
+        });
+        return;
+      }
+
+      if (seenUrls.has(listingURL)) {
+        logDropped("duplicateUrl", {
+          pageUrl,
+          listingName: rawListingName || "",
+          listingURL,
+          imageURL,
+          saleFlag,
+          originalPrice,
+          salePrice,
+          salePriceFromHtml,
+          salePriceFromDl,
+          brandHint,
+        });
+        return;
+      }
+
+      const listingName = rawListingName;
+      if (!listingName) {
+        logDropped("missingListingName", {
+          pageUrl,
+          listingName: "",
+          listingURL,
+          imageURL,
+          saleFlag,
+          originalPrice,
+          salePrice,
+          salePriceFromHtml,
+          salePriceFromDl,
+          brandHint,
+        });
+        return;
+      }
+
+      if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) {
+        logDropped("missingPrice", {
+          pageUrl,
+          listingName,
+          listingURL,
+          imageURL,
+          saleFlag,
+          originalPrice,
+          salePrice,
+          salePriceFromHtml,
+          salePriceFromDl,
+          brandHint,
+        });
+        return;
+      }
+
+      if (!(originalPrice > salePrice && salePrice > 0)) {
+        logDropped("invalidPriceRelation", {
+          pageUrl,
+          listingName,
+          listingURL,
+          imageURL,
+          saleFlag,
+          originalPrice,
+          salePrice,
+          salePriceFromHtml,
+          salePriceFromDl,
+          brandHint,
+        });
+        return;
+      }
 
       const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-      if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
+      if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) {
+        logDropped("invalidDiscountPercent", {
+          pageUrl,
+          listingName,
+          listingURL,
+          imageURL,
+          saleFlag,
+          originalPrice,
+          salePrice,
+          salePriceFromHtml,
+          salePriceFromDl,
+          discountPercent,
+          brandHint,
+        });
+        return;
+      }
 
       const typeText = normalizeWhitespace($tile.find(".type").first().text() || "");
       const { brand, model } = parseBrandModelFromCanonical(listingName, brandHint);
@@ -348,6 +477,10 @@ async function scrapeMarathonSports() {
     pagesFetched,
     dealsFound,
     dealsExtracted: deals.length,
+    dropCounts,
+    droppedDeals,
+    droppedDealsLogged: droppedDeals.length,
+    droppedDealsLogCapped: dealsFound - deals.length > MAX_DROPPED_DEALS_LOG,
   };
 }
 
@@ -387,6 +520,11 @@ export default async function handler(req, res) {
       ok: true,
       error: null,
 
+      dropCounts: result.dropCounts,
+      droppedDealsLogged: result.droppedDealsLogged,
+      droppedDealsLogCapped: result.droppedDealsLogCapped,
+      droppedDeals: result.droppedDeals,
+
       deals: result.deals,
     };
 
@@ -400,6 +538,7 @@ export default async function handler(req, res) {
       store: STORE,
       blobUrl: blob.url,
       dealsExtracted: output.dealsExtracted,
+      droppedDealsLogged: output.droppedDealsLogged,
       scrapeDurationMs: durationMs,
     });
   } catch (err) {
@@ -422,6 +561,11 @@ export default async function handler(req, res) {
 
       ok: false,
       error: err?.message || "Unknown error",
+
+      dropCounts: null,
+      droppedDealsLogged: 0,
+      droppedDealsLogCapped: false,
+      droppedDeals: [],
 
       deals: [],
     };
