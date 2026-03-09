@@ -16,6 +16,7 @@ const COLLECTIONS = [
 ];
 
 const MAX_PAGES = 15;
+const PAGE_SIZE = 250;
 
 export default async function handler(req, res) {
   const start = Date.now();
@@ -62,7 +63,7 @@ export default async function handler(req, res) {
       let noNewPagesInARow = 0;
 
       for (let page = 1; page <= MAX_PAGES; page++) {
-        const url = `${BASE}/collections/${collection}/products.json?limit=250&page=${page}`;
+        const url = `${BASE}/collections/${collection}/products.json?limit=${PAGE_SIZE}&page=${page}`;
         sourceUrls.push(url);
 
         const resp = await fetch(url, {
@@ -228,6 +229,20 @@ export default async function handler(req, res) {
             productsReturned: products.length,
             uniqueAdded,
             note: "Stopping collection: 2 consecutive pages with no new unique products",
+          });
+          break;
+        }
+
+        // NEW: if the page was not full, do NOT request another page
+        if (products.length < PAGE_SIZE) {
+          pageNotes.push({
+            collection,
+            page,
+            url,
+            status: resp.status,
+            productsReturned: products.length,
+            uniqueAdded,
+            note: `Stopping collection: page returned fewer than ${PAGE_SIZE} products, so this is the last page`,
           });
           break;
         }
