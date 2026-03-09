@@ -3,6 +3,7 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
+const canonicalBrandModels = require("../../lib/canonical-brands-models.json");
 
 export const config = { maxDuration: 60 };
 
@@ -16,6 +17,10 @@ const REQUEST_TOGGLES = {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function normalizeWhitespace(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
 }
 
 function absolutizeUrl(u, base) {
@@ -57,81 +62,79 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function parseBrandModelRaw(title) {
-  const rawTitle = String(title || "");
-  if (!rawTitle.trim()) return { brand: "Unknown", model: "" };
+function getCanonicalBrandKeys() {
+  return Object.keys(canonicalBrandModels || {})
+    .map((b) => String(b || "").trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+}
 
-  const brands = [
-    "361 Degrees",
-    "adidas",
-    "Allbirds",
-    "Altra",
-    "ASICS",
-    "Brooks",
-    "Craft",
-    "Diadora",
-    "HOKA",
-    "Hylo Athletics",
-    "INOV8",
-    "Inov-8",
-    "Karhu",
-    "La Sportiva",
-    "Lems",
-    "Merrell",
-    "Mizuno",
-    "New Balance",
-    "Newton",
-    "Nike",
-    "norda",
-    "Nnormal",
-    "On Running",
-    "On",
-    "Oofos",
-    "Pearl Izumi",
-    "Puma",
-    "Reebok",
-    "Salomon",
-    "Saucony",
-    "Saysh",
-    "Skechers",
-    "Skora",
-    "The North Face",
-    "Topo Athletic",
-    "Topo",
-    "Tyr",
-    "Under Armour",
-    "Vibram FiveFingers",
-    "Vibram",
-    "Vivobarefoot",
-    "VJ Shoes",
-    "VJ",
-    "X-Bionic",
-    "Xero Shoes",
-    "Xero",
-  ];
+function findCanonicalBrandMatch(rawText) {
+  const text = String(rawText || "");
+  if (!text.trim()) return null;
 
-  const brandsSorted = [...brands].sort((a, b) => b.length - a.length);
+  const canonicalBrands = getCanonicalBrandKeys();
 
-  let brand = "Unknown";
-  let model = rawTitle;
-
-  for (const b of brandsSorted) {
-    const escaped = escapeRegExp(b);
+  for (const brandName of canonicalBrands) {
+    const escaped = escapeRegExp(brandName);
     const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
-    if (regex.test(rawTitle)) {
-      brand = b;
-      model = rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim();
-      break;
+    if (regex.test(text)) return brandName;
+  }
+
+  return null;
+}
+
+function parseBrandModelFromCanonical(listingName, rawBrandHint = "") {
+  const rawTitle = String(listingName || "");
+  const brandHint = String(rawBrandHint || "").trim();
+
+  if (!rawTitle.trim()) {
+    return { brand: "Unknown", model: "" };
+  }
+
+  // First try the structured site-provided brand hint.
+  if (brandHint) {
+    const matchedHintBrand = findCanonicalBrandMatch(brandHint);
+    if (matchedHintBrand) {
+      const escaped = escapeRegExp(matchedHintBrand);
+      const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
+
+      const model = regex.test(rawTitle)
+        ? rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim()
+        : rawTitle;
+
+      return {
+        brand: matchedHintBrand,
+        model: model || rawTitle,
+      };
     }
   }
 
-  return { brand, model: model || rawTitle };
+  // Fallback: parse brand from the title itself.
+  const matchedTitleBrand = findCanonicalBrandMatch(rawTitle);
+  if (matchedTitleBrand) {
+    const escaped = escapeRegExp(matchedTitleBrand);
+    const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
+
+    const model = rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim();
+
+    return {
+      brand: matchedTitleBrand,
+      model: model || rawTitle,
+    };
+  }
+
+  return {
+    brand: "Unknown",
+    model: rawTitle,
+  };
 }
 
-function detectGender(listingURL, listingName) {
+function detectGender(listingURL, listingName, extraText = "") {
   const urlLower = (listingURL || "").toLowerCase();
   const nameLower = (listingName || "").toLowerCase();
-  const combined = `${urlLower} ${nameLower}`;
+  const extraLower = (extraText || "").toLowerCase();
+  const combined = `${urlLower} ${nameLower} ${extraLower}`;
 
   if (/\/mens?[\/-]|\/men\/|men-/.test(urlLower)) return "mens";
   if (/\/womens?[\/-]|\/women\/|women-/.test(urlLower)) return "womens";
@@ -150,7 +153,7 @@ function computeDiscountPercent(originalPrice, salePrice) {
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
-function randomDelay(min = 3000, max = 5000) {
+function randomDelay(min = 1200, max = 2200) {
   const wait = Math.floor(Math.random() * (max - min + 1)) + min;
   return new Promise((resolve) => setTimeout(resolve, wait));
 }
@@ -238,19 +241,18 @@ async function scrapeRunningWarehouse() {
 
     pagesFetched++;
 
-    $("a.cattable-wrap-cell-info").each((_, el) => {
-      const $link = $(el);
-      const $cell = $link.closest(".cattable-wrap-cell");
+    $(".cattable-wrap-cell.gtm_impression").each((_, el) => {
+      const $cell = $(el);
       if (!$cell.length) return;
 
       dealsFound++;
 
-      const listingName = String($cell.find(".cattable-wrap-cell-info-name").first().text() || "");
-      if (!listingName) return;
+      const siteBrandHint = normalizeWhitespace($cell.attr("data-gtm_impression_brand") || "");
+      const categoryHint = normalizeWhitespace($cell.attr("data-gtm_impression_category") || "");
+      const gtmPrice = parseFloat(String($cell.attr("data-gtm_impression_price") || "").replace(/,/g, ""));
 
-      const subLine = String($cell.find(".cattable-wrap-cell-info-sub").first().text() || "");
-
-      const href = $link.attr("href") || "";
+      const $infoLink = $cell.find("a.cattable-wrap-cell-info").first();
+      const href = $infoLink.attr("href") || $cell.find("a.cattable-wrap-cell-imgwrap-inner").first().attr("href") || "";
       if (!href) return;
 
       const listingURL = absolutizeUrl(href, base);
@@ -259,14 +261,24 @@ async function scrapeRunningWarehouse() {
       if (seenUrls.has(listingURL)) return;
       seenUrls.add(listingURL);
 
+      const listingName = String($cell.find(".cattable-wrap-cell-info-name").first().text() || "");
+      if (!listingName) return;
+
+      const subLine = String($cell.find(".cattable-wrap-cell-info-sub").first().text() || "");
+
       const $img = $cell.find("img").first();
       const imageURL = pickBestImgUrl($, $img, base);
 
       const saleText = $cell.find(".cattable-wrap-cell-info-price.is-sale").first().text();
       const msrpText = $cell.find(".cattable-wrap-cell-info-price-msrp").first().text();
 
-      const salePrice = parseDollar(saleText);
+      let salePrice = parseDollar(saleText);
       const originalPrice = parseDollar(msrpText);
+
+      // Fallback to GTM price if needed.
+      if (!Number.isFinite(salePrice) && Number.isFinite(gtmPrice)) {
+        salePrice = gtmPrice;
+      }
 
       if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) return;
       if (!(originalPrice > salePrice && salePrice > 0)) return;
@@ -274,8 +286,8 @@ async function scrapeRunningWarehouse() {
       const discountPercent = computeDiscountPercent(originalPrice, salePrice);
       if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
 
-      const { brand, model } = parseBrandModelRaw(listingName);
-      const gender = detectGender(listingURL, `${listingName} ${subLine}`);
+      const { brand, model } = parseBrandModelFromCanonical(listingName, siteBrandHint);
+      const gender = detectGender(listingURL, `${listingName} ${subLine}`, categoryHint);
 
       deals.push(
         buildDeal({
