@@ -45,6 +45,26 @@
     "baseUrl": "https://www.backcountry.com",
     "notes": "Backcountry running shoes sale page via Firecrawl. Excludes cards without an original (strikethrough) price. Supports current-price ranges. Writes to backcountry.json."
   },
+
+{
+  "id": "bigshoes",
+  "displayName": "Big Shoes",
+  "addedAt": "2026-03-08",
+  "lastUpdated": "2026-03-08",
+  "scrapedUrls": [
+    "https://bigshoes.com/collections/sale?filters%5Bcustom_fields.activity%5D%5B0%5D=Running&filters%5Bcustom_fields.multiple_product_type%5D%5B0%5D=Shoes"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/bigshoes.json"
+  ],
+  "aliases": ["bigshoes", "big shoes"],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "BIGSHOES_DEALS_BLOB_URL",
+  "baseUrl": "https://bigshoes.com",
+  "notes": "Big Shoes running sale shoes via Findify JSON API. Uses one direct request to the smart-collection endpoint with activity=Running and multiple_product_type=Shoes. Mens only, so gender is forced to mens. shoeType is forced to unknown. Writes to bigshoes.json."
+},
+  
   {
     "id": "big-peach-running-co",
     "displayName": "Big Peach Running Co",
