@@ -27,7 +27,7 @@ const SCRAPER_TOGGLES = {
 };
 
 const REQUEST_TOGGLES = {
-  REQUIRE_CRON_SECRET: false,
+  REQUIRE_CRON_SECRET: true,
 };
 
 const axios = require("axios");
