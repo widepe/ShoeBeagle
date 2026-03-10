@@ -1,17 +1,14 @@
 // /api/scrapers/newbalance-sale.js
 //
-// New Balance sale running shoes scraper
-// - Scrapes men's + women's sale running shoe pages
-// - Keeps only true sale items with BOTH salePrice and originalPrice,
-//   where salePrice < originalPrice
-// - shoeType is always unknown
-// - brand is always New Balance
-// - writes blob to: newbalance-sale.json
+// New Balance sale running shoes scraper via Demandware Search-UpdateGrid HTML endpoint
 //
-// ENV
+// Writes blob to:
+//   newbalance-sale.json
+//
+// ENV:
 // - BLOB_READ_WRITE_TOKEN
-// - NEWBALANCE_DEALS_BLOB_URL (for merge-deals, not used by this scraper directly)
-// - CRON_SECRET (optional; auth block included below but commented out for testing)
+// - NEWBALANCE_DEALS_BLOB_URL   (used by merge-deals, not by this scraper directly)
+// - CRON_SECRET                 (auth block included below but commented out for testing)
 
 import { put } from "@vercel/blob";
 import * as cheerio from "cheerio";
@@ -20,17 +17,31 @@ export const config = { maxDuration: 60 };
 
 const STORE = "New Balance";
 const SCHEMA_VERSION = 1;
-const VIA = "fetch-html";
+const VIA = "demandware-search-updategrid";
 const BASE_URL = "https://www.newbalance.com";
 const BLOB_PATH = "newbalance-sale.json";
 
-const START_URLS = [
-  "https://www.newbalance.com/sale/men/shoes/?prefn1=category&prefv1=Running",
-  "https://www.newbalance.com/sale/women/shoes/?prefn1=category&prefv1=Running",
-];
-
+const PAGE_SIZE = 18;
 const MAX_PAGES_PER_SOURCE = 12;
 const MAX_DROPPED_LOG = 200;
+
+// Men's and women's sale running shoes
+const SOURCES = [
+  {
+    label: "mens",
+    cgid: "400197",
+    gender: "mens",
+    startUrl:
+      "https://www.newbalance.com/on/demandware.store/Sites-NBUS-Site/en_US/Search-UpdateGrid?cgid=400197&prefn1=category&prefv1=Running&srule=Newness&start=0&sz=18",
+  },
+  {
+    label: "womens",
+    cgid: "400198",
+    gender: "womens",
+    startUrl:
+      "https://www.newbalance.com/on/demandware.store/Sites-NBUS-Site/en_US/Search-UpdateGrid?cgid=400198&prefn1=category&prefv1=Running&srule=Newness&start=0&sz=18",
+  },
+];
 
 function nowIso() {
   return new Date().toISOString();
@@ -67,12 +78,12 @@ function computeDiscountPercent(salePrice, originalPrice) {
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
-function parseGender(text) {
+function parseGender(text, fallbackGender) {
   const s = String(text || "").toLowerCase();
   if (s.includes("women")) return "womens";
   if (s.includes("men")) return "mens";
   if (s.includes("unisex")) return "unisex";
-  return "unknown";
+  return fallbackGender || "unknown";
 }
 
 function pushDropped(droppedDealsSample, item) {
@@ -93,8 +104,10 @@ function parseStylePriceJson(raw) {
 function getSelectedOrFirstSwatchButton($tile) {
   const $selected = $tile.find(".color-swatches button.selected[data-style-price]").first();
   if ($selected.length) return $selected;
+
   const $first = $tile.find(".color-swatches button[data-style-price]").first();
   if ($first.length) return $first;
+
   return null;
 }
 
@@ -160,9 +173,10 @@ function extractImageUrl($tile) {
   return null;
 }
 
-function summarizeTileForDrop($tile, sourceUrl) {
+function summarizeTileForDrop($tile, sourceUrl, sourceLabel) {
   return {
     sourceUrl,
+    sourceLabel,
     listingName: cleanText($tile.find(".pdp-link a.pname, .pdp-link a").first().text()) || null,
     listingURL: extractListingUrl($tile),
     imageURL: extractImageUrl($tile),
@@ -172,7 +186,7 @@ function summarizeTileForDrop($tile, sourceUrl) {
   };
 }
 
-function extractDeal($, el, sourceUrl, dropCounts, droppedDealsSample) {
+function extractDeal($, el, sourceUrl, fallbackGender, sourceLabel, dropCounts, droppedDealsSample) {
   const $tile = $(el);
 
   const listingName = cleanText(
@@ -186,13 +200,13 @@ function extractDeal($, el, sourceUrl, dropCounts, droppedDealsSample) {
   const originalPrice = extractOriginalPrice($tile);
   const discountPercent = computeDiscountPercent(salePrice, originalPrice);
 
-  const gender = parseGender(categoryText);
+  const gender = parseGender(categoryText, fallbackGender);
 
   if (!listingName) {
     dropCounts.dropped_missingListingName++;
     pushDropped(droppedDealsSample, {
       reason: "missingListingName",
-      ...summarizeTileForDrop($tile, sourceUrl),
+      ...summarizeTileForDrop($tile, sourceUrl, sourceLabel),
     });
     return null;
   }
@@ -201,7 +215,7 @@ function extractDeal($, el, sourceUrl, dropCounts, droppedDealsSample) {
     dropCounts.dropped_missingListingURL++;
     pushDropped(droppedDealsSample, {
       reason: "missingListingURL",
-      ...summarizeTileForDrop($tile, sourceUrl),
+      ...summarizeTileForDrop($tile, sourceUrl, sourceLabel),
     });
     return null;
   }
@@ -210,7 +224,7 @@ function extractDeal($, el, sourceUrl, dropCounts, droppedDealsSample) {
     dropCounts.dropped_missingImageURL++;
     pushDropped(droppedDealsSample, {
       reason: "missingImageURL",
-      ...summarizeTileForDrop($tile, sourceUrl),
+      ...summarizeTileForDrop($tile, sourceUrl, sourceLabel),
     });
     return null;
   }
@@ -219,7 +233,7 @@ function extractDeal($, el, sourceUrl, dropCounts, droppedDealsSample) {
     dropCounts.dropped_missingSalePrice++;
     pushDropped(droppedDealsSample, {
       reason: "missingSalePrice",
-      ...summarizeTileForDrop($tile, sourceUrl),
+      ...summarizeTileForDrop($tile, sourceUrl, sourceLabel),
     });
     return null;
   }
@@ -228,7 +242,7 @@ function extractDeal($, el, sourceUrl, dropCounts, droppedDealsSample) {
     dropCounts.dropped_missingOriginalPrice++;
     pushDropped(droppedDealsSample, {
       reason: "missingOriginalPrice",
-      ...summarizeTileForDrop($tile, sourceUrl),
+      ...summarizeTileForDrop($tile, sourceUrl, sourceLabel),
       salePrice,
     });
     return null;
@@ -238,7 +252,7 @@ function extractDeal($, el, sourceUrl, dropCounts, droppedDealsSample) {
     dropCounts.dropped_saleNotLessThanOriginal++;
     pushDropped(droppedDealsSample, {
       reason: "saleNotLessThanOriginal",
-      ...summarizeTileForDrop($tile, sourceUrl),
+      ...summarizeTileForDrop($tile, sourceUrl, sourceLabel),
       salePrice,
       originalPrice,
     });
@@ -249,7 +263,7 @@ function extractDeal($, el, sourceUrl, dropCounts, droppedDealsSample) {
     dropCounts.dropped_invalidDiscountPercent++;
     pushDropped(droppedDealsSample, {
       reason: "invalidDiscountPercent",
-      ...summarizeTileForDrop($tile, sourceUrl),
+      ...summarizeTileForDrop($tile, sourceUrl, sourceLabel),
       salePrice,
       originalPrice,
     });
@@ -284,29 +298,10 @@ function extractDeal($, el, sourceUrl, dropCounts, droppedDealsSample) {
   };
 }
 
-function getNextPageUrl($, currentUrl) {
-  const current = new URL(currentUrl);
-  const currentStart = Number(current.searchParams.get("start") || "0");
-
-  let best = null;
-  let bestStart = currentStart;
-
-  $('a[href*="start="], a[rel="next"], .pagination a').each((_, a) => {
-    const href = $(a).attr("href");
-    if (!href) return;
-
-    try {
-      const abs = absUrl(href);
-      const u = new URL(abs);
-      const nextStart = Number(u.searchParams.get("start") || "0");
-      if (Number.isFinite(nextStart) && nextStart > bestStart) {
-        best = abs;
-        bestStart = nextStart;
-      }
-    } catch {}
-  });
-
-  return best;
+function buildPageUrl(source, start) {
+  return `${BASE_URL}/on/demandware.store/Sites-NBUS-Site/en_US/Search-UpdateGrid?cgid=${encodeURIComponent(
+    source.cgid
+  )}&prefn1=category&prefv1=Running&srule=Newness&start=${start}&sz=${PAGE_SIZE}`;
 }
 
 async function fetchHtml(url) {
@@ -314,9 +309,10 @@ async function fetchHtml(url) {
     method: "GET",
     headers: {
       "user-agent": "Mozilla/5.0",
-      accept: "text/html,application/xhtml+xml",
+      accept: "text/html, */*;q=0.8",
       "accept-language": "en-US,en;q=0.9",
-      referer: BASE_URL,
+      referer: "https://www.newbalance.com/",
+      "x-requested-with": "XMLHttpRequest",
     },
   });
 
@@ -356,34 +352,45 @@ export default async function handler(req, res) {
   const seenListingUrls = new Set();
 
   try {
-    for (const startUrl of START_URLS) {
-      let currentUrl = startUrl;
-      let pagesForThisSource = 0;
+    for (const source of SOURCES) {
+      for (let pageIndex = 0; pageIndex < MAX_PAGES_PER_SOURCE; pageIndex++) {
+        const start = pageIndex * PAGE_SIZE;
+        const url = buildPageUrl(source, start);
 
-      while (currentUrl && pagesForThisSource < MAX_PAGES_PER_SOURCE) {
-        if (sourceUrls.includes(currentUrl)) break;
-
-        const html = await fetchHtml(currentUrl);
-        sourceUrls.push(currentUrl);
-        pagesForThisSource++;
+        const html = await fetchHtml(url);
+        sourceUrls.push(url);
 
         const $ = cheerio.load(html);
 
-        const $tiles = $('.product[role="region"]');
+        // Use product tiles inside the grid fragment
+        const $tiles = $(".product-tile.w-100");
 
-        if (!$tiles.length) break;
+        if (!$tiles.length) {
+          break;
+        }
+
+        let pageAcceptedDeals = 0;
 
         $tiles.each((_, el) => {
           dropCounts.totalTiles++;
 
-          const deal = extractDeal($, el, currentUrl, dropCounts, droppedDealsSample);
+          const deal = extractDeal(
+            $,
+            el,
+            url,
+            source.gender,
+            source.label,
+            dropCounts,
+            droppedDealsSample
+          );
           if (!deal) return;
 
           if (seenListingUrls.has(deal.listingURL)) {
             dropCounts.dropped_duplicateAfterMerge++;
             pushDropped(droppedDealsSample, {
               reason: "duplicateAfterMerge",
-              sourceUrl: currentUrl,
+              sourceUrl: url,
+              sourceLabel: source.label,
               listingName: deal.listingName,
               listingURL: deal.listingURL,
               imageURL: deal.imageURL,
@@ -393,11 +400,16 @@ export default async function handler(req, res) {
 
           seenListingUrls.add(deal.listingURL);
           deals.push(deal);
+          pageAcceptedDeals++;
         });
 
-        const nextUrl = getNextPageUrl($, currentUrl);
-        if (!nextUrl || nextUrl === currentUrl) break;
-        currentUrl = nextUrl;
+        // If this page returned fewer than page size tiles, likely last page
+        if ($tiles.length < PAGE_SIZE) {
+          break;
+        }
+
+        // Safety: if page had tiles but no accepted deals, still continue only one more page naturally
+        // based on tile count; no extra logic needed here.
       }
     }
 
