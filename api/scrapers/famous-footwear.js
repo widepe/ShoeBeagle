@@ -38,7 +38,7 @@ const PER_PAGE = 48;
 
 // Toggle if you want to temporarily bypass CRON auth for testing.
 const REQUEST_TOGGLES = {
-  REQUIRE_CRON_SECRET: true,
+  REQUIRE_CRON_SECRET: false,
 };
 
 function nowIso() {
