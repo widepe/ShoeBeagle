@@ -8,8 +8,9 @@
 
     { "path": "/api/scrapers/cheerio_scrapers_2", "schedule": "30 9 * * *" },
 
+    { "path": "/api/scrapers/cheerio_scrapers_3", "schedule": "40 9 * * *" },
 
-    { "path": "/api/merge-deals", "schedule": "55 9 * * *" },
+    { "path": "/api/merge-deals", "schedule": "50 9 * * *" },
 
     { "path": "/api/cron/check-alerts", "schedule": "5 10 * * *" }
   ]
