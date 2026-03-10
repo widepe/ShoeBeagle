@@ -95,11 +95,6 @@ function computeDiscountPercent(originalPrice, salePrice) {
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
-function randomDelay(min = 1200, max = 2200) {
-  const wait = Math.floor(Math.random() * (max - min + 1)) + min;
-  return new Promise((resolve) => setTimeout(resolve, wait));
-}
-
 function parseDollar(txt) {
   const m = String(txt || "").match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
   if (!m) return null;
@@ -158,7 +153,7 @@ function extractDlItem($tile) {
   }
 }
 
-async function fetchTextWithTimeout(url, options = {}, timeoutMs = 30000) {
+async function fetchTextWithTimeout(url, options = {}, timeoutMs = 20000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -181,23 +176,66 @@ async function fetchTextWithTimeout(url, options = {}, timeoutMs = 30000) {
 async function scrapeMarathonSports() {
   const base = "https://www.marathonsports.com";
 
-  const urls = [
+  const seedUrls = [
     "https://www.marathonsports.com/shop/mens/shoes?sale=1",
     "https://www.marathonsports.com/shop/womens/shoes?sale=1",
-    "https://www.marathonsports.com/shop?q=running%20shoes&sort=discount",
   ];
 
-  const sourceUrls = urls.slice();
-  let pagesFetched = 0;
+  const HEADERS = {
+    "User-Agent":
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+  };
+
+  // Step 1: fetch page 1 of each seed to determine total pages, then build full URL list
+  const allPageUrls = [];
+
+  for (const seedUrl of seedUrls) {
+    const html = await fetchTextWithTimeout(seedUrl, { headers: HEADERS }, 20000);
+    const $ = cheerio.load(html);
+
+    // <div class="total-hits">134 Results</div>
+    const hitsText = normalizeWhitespace($(".total-hits").first().text());
+    const totalHits = parseInt(hitsText) || 0;
+    const hitsPerPage = $(".product-partial.partial").length || 24;
+    const totalPages = Math.max(1, Math.ceil(totalHits / hitsPerPage));
+
+    for (let p = 1; p <= totalPages; p++) {
+      allPageUrls.push(p === 1 ? seedUrl : `${seedUrl}&page=${p}`);
+    }
+  }
+
+  const sourceUrls = [...allPageUrls];
+
+  // Step 2: fetch all pages in parallel (page 1s are re-fetched; simpler than caching)
+  const htmlPages = await Promise.all(
+    allPageUrls.map((url) =>
+      fetchTextWithTimeout(url, { headers: HEADERS }, 20000).catch((err) => {
+        console.error(`Failed to fetch ${url}: ${err.message}`);
+        return null;
+      })
+    )
+  );
+
+  const pagesFetched = htmlPages.filter(Boolean).length;
   let dealsFound = 0;
 
   const deals = [];
   const seenUrls = new Set();
 
+  // firstSeenOnSeed tracks which seed URL a listing was first encountered on,
+  // so we can distinguish same-page dupes from cross-feed dupes (mens vs womens overlap)
+  const firstSeenOnSeed = new Map();
+
+  // duplicatesBySource counts how many dupes were dropped per seed URL
+  const duplicatesBySource = {};
+
   const dropCounts = {
     missingHref: 0,
     missingListingURL: 0,
-    duplicateUrl: 0,
+    duplicateUrl: 0,           // duplicate within the same seed feed
+    duplicateUrlCrossSource: 0, // duplicate first seen on a different seed feed
     missingListingName: 0,
     missingPrice: 0,
     invalidPriceRelation: 0,
@@ -209,226 +247,118 @@ async function scrapeMarathonSports() {
   function logDropped(reason, payload = {}) {
     if (dropCounts[reason] == null) dropCounts[reason] = 0;
     dropCounts[reason]++;
-
     if (droppedDeals.length < MAX_DROPPED_DEALS_LOG) {
-      droppedDeals.push({
-        reason,
-        ...payload,
-      });
+      droppedDeals.push({ reason, ...payload });
     }
   }
 
-  for (const baseUrl of urls) {
-    let currentUrl = baseUrl;
-    let hasMore = true;
+  function getSeedForUrl(pageUrl) {
+    for (const s of seedUrls) {
+      const seedBase = s.split("?")[0];
+      if (pageUrl.startsWith(seedBase)) return s;
+    }
+    return pageUrl;
+  }
 
-    while (hasMore) {
-      const html = await fetchTextWithTimeout(
-        currentUrl,
-        {
-          headers: {
-            "User-Agent":
-              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-          },
-        },
-        30000
-      );
+  for (let i = 0; i < allPageUrls.length; i++) {
+    const currentUrl = allPageUrls[i];
+    const html = htmlPages[i];
+    if (!html) continue;
 
-      const $ = cheerio.load(html);
-      pagesFetched++;
+    const currentSeed = getSeedForUrl(currentUrl);
+    const $ = cheerio.load(html);
 
-      // Detect next page before processing tiles
-      const nextHref = $(".pagination-nav .next").attr("href");
-      if (nextHref) {
-        const nextUrl = absolutizeUrl(nextHref, base);
-        sourceUrls.push(nextUrl);
-        currentUrl = nextUrl;
-      } else {
-        hasMore = false;
+    $(".product-partial.partial").each((_, el) => {
+      const $tile = $(el);
+
+      const $link = $tile.find("h2.title a.link").first();
+      if (!$link.length) return;
+
+      const saleFlag = normalizeWhitespace($tile.find(".sale").first().text() || "");
+      if (!/\bsale\b/i.test(saleFlag)) return;
+
+      dealsFound++;
+
+      const rawHref = String($link.attr("href") || "").trim();
+      const rawListingName = normalizeWhitespace($link.text() || "");
+      const $img = $tile.find(".image-wrap img").first();
+      const imageURL = pickBestImgUrl($, $img, base);
+
+      const compareAtFromHtml = parseDollar($tile.find(".product-price .num.-compare").first().text());
+      const salePriceFromHtml = parseDollar($tile.find(".product-price .num.-price").first().text());
+
+      const dlItem = extractDlItem($tile);
+      const salePriceFromDl = Number.isFinite(Number(dlItem?.price)) ? Number(dlItem.price) : null;
+      const brandHint = normalizeWhitespace(dlItem?.item_brand || "");
+
+      // HTML compare-at is the most reliable original price.
+      // Fall back to dl-item only when it differs from the HTML sale price.
+      const originalPrice = Number.isFinite(compareAtFromHtml)
+        ? compareAtFromHtml
+        : salePriceFromDl !== null && salePriceFromDl !== salePriceFromHtml
+        ? salePriceFromDl
+        : null;
+
+      const salePrice = Number.isFinite(salePriceFromHtml) ? salePriceFromHtml : salePriceFromDl;
+
+      if (!rawHref) {
+        logDropped("missingHref", { currentUrl, listingName: rawListingName || "", listingURL: "", imageURL, saleFlag, originalPrice, salePrice, salePriceFromHtml, salePriceFromDl, brandHint });
+        return;
       }
 
-      $(".product-partial.partial").each((_, el) => {
-        const $tile = $(el);
+      const listingURL = absolutizeUrl(rawHref, base);
+      if (!listingURL) {
+        logDropped("missingListingURL", { currentUrl, listingName: rawListingName || "", rawHref, listingURL: "", imageURL, saleFlag, originalPrice, salePrice, salePriceFromHtml, salePriceFromDl, brandHint });
+        return;
+      }
 
-        const $link = $tile.find("h2.title a.link").first();
-        if (!$link.length) return;
+      if (seenUrls.has(listingURL)) {
+        const firstSeed = firstSeenOnSeed.get(listingURL);
+        const isCrossSource = firstSeed !== undefined && firstSeed !== currentSeed;
+        const reason = isCrossSource ? "duplicateUrlCrossSource" : "duplicateUrl";
 
-        const saleFlag = normalizeWhitespace($tile.find(".sale").first().text() || "");
-        if (!/\bsale\b/i.test(saleFlag)) return;
+        if (!duplicatesBySource[currentSeed]) duplicatesBySource[currentSeed] = 0;
+        duplicatesBySource[currentSeed]++;
 
-        dealsFound++;
+        logDropped(reason, { currentUrl, firstSeenOnSeed: firstSeed || null, listingName: rawListingName || "", listingURL, imageURL, saleFlag, originalPrice, salePrice, salePriceFromHtml, salePriceFromDl, brandHint });
+        return;
+      }
 
-        const rawHref = String($link.attr("href") || "").trim();
-        const rawListingName = normalizeWhitespace($link.text() || "");
-        const $img = $tile.find(".image-wrap img").first();
-        const imageURL = pickBestImgUrl($, $img, base);
+      const listingName = rawListingName;
+      if (!listingName) {
+        logDropped("missingListingName", { currentUrl, listingName: "", listingURL, imageURL, saleFlag, originalPrice, salePrice, salePriceFromHtml, salePriceFromDl, brandHint });
+        return;
+      }
 
-        const compareAtFromHtml = parseDollar($tile.find(".product-price .num.-compare").first().text());
-        const salePriceFromHtml = parseDollar($tile.find(".product-price .num.-price").first().text());
+      if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) {
+        logDropped("missingPrice", { currentUrl, listingName, listingURL, imageURL, saleFlag, originalPrice, salePrice, salePriceFromHtml, salePriceFromDl, brandHint });
+        return;
+      }
 
-        const dlItem = extractDlItem($tile);
-        const salePriceFromDl = Number.isFinite(Number(dlItem?.price)) ? Number(dlItem.price) : null;
-        const brandHint = normalizeWhitespace(dlItem?.item_brand || "");
+      if (!(originalPrice > salePrice && salePrice > 0)) {
+        logDropped("invalidPriceRelation", { currentUrl, listingName, listingURL, imageURL, saleFlag, originalPrice, salePrice, salePriceFromHtml, salePriceFromDl, brandHint });
+        return;
+      }
 
-        // HTML compare-at is the most reliable original price.
-        // If missing, fall back to dl-item price — but only when it differs
-        // from the HTML sale price, meaning dl-item is the pre-discount price.
-        const originalPrice = Number.isFinite(compareAtFromHtml)
-          ? compareAtFromHtml
-          : salePriceFromDl !== null && salePriceFromDl !== salePriceFromHtml
-          ? salePriceFromDl
-          : null;
+      const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+      if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) {
+        logDropped("invalidDiscountPercent", { currentUrl, listingName, listingURL, imageURL, saleFlag, originalPrice, salePrice, salePriceFromHtml, salePriceFromDl, discountPercent, brandHint });
+        return;
+      }
 
-        const salePrice = Number.isFinite(salePriceFromHtml) ? salePriceFromHtml : salePriceFromDl;
+      const typeText = normalizeWhitespace($tile.find(".type").first().text() || "");
+      const { brand, model } = parseBrandModelFromCanonical(listingName, brandHint);
+      const gender = detectGender(listingURL, listingName, `${typeText} ${currentUrl}`);
+      const shoeType = detectShoeType(listingName, `${typeText} ${model} ${currentUrl}`);
 
-        const previewListingURL = rawHref ? absolutizeUrl(rawHref, base) : "";
+      seenUrls.add(listingURL);
+      firstSeenOnSeed.set(listingURL, currentSeed);
 
-        if (!rawHref) {
-          logDropped("missingHref", {
-            currentUrl,
-            listingName: rawListingName || "",
-            listingURL: "",
-            imageURL,
-            saleFlag,
-            originalPrice,
-            salePrice,
-            salePriceFromHtml,
-            salePriceFromDl,
-            brandHint,
-          });
-          return;
-        }
-
-        const listingURL = previewListingURL;
-        if (!listingURL) {
-          logDropped("missingListingURL", {
-            currentUrl,
-            listingName: rawListingName || "",
-            rawHref,
-            listingURL: "",
-            imageURL,
-            saleFlag,
-            originalPrice,
-            salePrice,
-            salePriceFromHtml,
-            salePriceFromDl,
-            brandHint,
-          });
-          return;
-        }
-
-        if (seenUrls.has(listingURL)) {
-          logDropped("duplicateUrl", {
-            currentUrl,
-            listingName: rawListingName || "",
-            listingURL,
-            imageURL,
-            saleFlag,
-            originalPrice,
-            salePrice,
-            salePriceFromHtml,
-            salePriceFromDl,
-            brandHint,
-          });
-          return;
-        }
-
-        const listingName = rawListingName;
-        if (!listingName) {
-          logDropped("missingListingName", {
-            currentUrl,
-            listingName: "",
-            listingURL,
-            imageURL,
-            saleFlag,
-            originalPrice,
-            salePrice,
-            salePriceFromHtml,
-            salePriceFromDl,
-            brandHint,
-          });
-          return;
-        }
-
-        if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) {
-          logDropped("missingPrice", {
-            currentUrl,
-            listingName,
-            listingURL,
-            imageURL,
-            saleFlag,
-            originalPrice,
-            salePrice,
-            salePriceFromHtml,
-            salePriceFromDl,
-            brandHint,
-          });
-          return;
-        }
-
-        if (!(originalPrice > salePrice && salePrice > 0)) {
-          logDropped("invalidPriceRelation", {
-            currentUrl,
-            listingName,
-            listingURL,
-            imageURL,
-            saleFlag,
-            originalPrice,
-            salePrice,
-            salePriceFromHtml,
-            salePriceFromDl,
-            brandHint,
-          });
-          return;
-        }
-
-        const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-        if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) {
-          logDropped("invalidDiscountPercent", {
-            currentUrl,
-            listingName,
-            listingURL,
-            imageURL,
-            saleFlag,
-            originalPrice,
-            salePrice,
-            salePriceFromHtml,
-            salePriceFromDl,
-            discountPercent,
-            brandHint,
-          });
-          return;
-        }
-
-        const typeText = normalizeWhitespace($tile.find(".type").first().text() || "");
-        const { brand, model } = parseBrandModelFromCanonical(listingName, brandHint);
-        const gender = detectGender(listingURL, listingName, `${typeText} ${currentUrl}`);
-        const shoeType = detectShoeType(listingName, `${typeText} ${model} ${currentUrl}`);
-
-        seenUrls.add(listingURL);
-
-        deals.push(
-          buildDeal({
-            listingName,
-            brand,
-            model,
-            salePrice,
-            originalPrice,
-            discountPercent,
-            store: STORE,
-            listingURL,
-            imageURL,
-            gender,
-            shoeType,
-          })
-        );
-      });
-
-      await randomDelay();
-    } // end while
-  } // end for
+      deals.push(
+        buildDeal({ listingName, brand, model, salePrice, originalPrice, discountPercent, store: STORE, listingURL, imageURL, gender, shoeType })
+      );
+    });
+  }
 
   return {
     deals,
@@ -437,6 +367,7 @@ async function scrapeMarathonSports() {
     dealsFound,
     dealsExtracted: deals.length,
     dropCounts,
+    duplicatesBySource,
     droppedDeals,
     droppedDealsLogged: droppedDeals.length,
     droppedDealsLogCapped: dealsFound - deals.length > MAX_DROPPED_DEALS_LOG,
@@ -480,6 +411,7 @@ export default async function handler(req, res) {
       error: null,
 
       dropCounts: result.dropCounts,
+      duplicatesBySource: result.duplicatesBySource,
       droppedDealsLogged: result.droppedDealsLogged,
       droppedDealsLogCapped: result.droppedDealsLogCapped,
       droppedDeals: result.droppedDeals,
@@ -497,6 +429,8 @@ export default async function handler(req, res) {
       store: STORE,
       blobUrl: blob.url,
       dealsExtracted: output.dealsExtracted,
+      dropCounts: output.dropCounts,
+      duplicatesBySource: output.duplicatesBySource,
       droppedDealsLogged: output.droppedDealsLogged,
       scrapeDurationMs: durationMs,
     });
@@ -522,6 +456,7 @@ export default async function handler(req, res) {
       error: err?.message || "Unknown error",
 
       dropCounts: null,
+      duplicatesBySource: null,
       droppedDealsLogged: 0,
       droppedDealsLogCapped: false,
       droppedDeals: [],
