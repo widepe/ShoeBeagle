@@ -401,7 +401,7 @@
   "expectedBlob": [
     "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/on-last-season-shoes.json"
   ],
-  "aliases": ["on"],
+  "aliases": ["on", "on running"],
   "enabled": true,
   "scraperType": "algolia",
   "envVar": "ON_DEALS_BLOB_URL",
