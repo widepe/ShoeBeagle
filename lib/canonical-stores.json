@@ -579,6 +579,26 @@
     "baseUrl": "https://www.shoebacca.com",
     "notes": "no notes"
   },
+
+{
+  "id": "skechers",
+  "displayName": "Skechers",
+  "addedAt": "2026-03-10",
+  "lastUpdated": "2026-03-10",
+  "scrapedUrls": [
+    "https://www.skechers.com/sale/?prefn1=productLine&prefn2=gender&prefn3=cattype&prefn4=categorySport&prefv1=FOOTWEAR&prefv2=W%7CU%7CM&prefv3=Athletic&prefv4=Running&start=0&sz=12"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/skechers-sale.json"
+  ],
+  "aliases": ["skechers"],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "SKECHERS_SALE_BLOB_URL",
+  "baseUrl": "https://www.skechers.com",
+  "notes": "Skechers running sale scraper using direct HTML fetch + Cheerio on the running-filtered sale page. Treats the infinite-load page as offset pagination using start=0,12,24... with sz=12. Reads product-V2 tiles, preserves listingName exactly as scraped, forces brand to Skechers, and keeps shoeType as unknown for all deals. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Gender is parsed from the tile gender label: mens, womens, unisex, else unknown. Special model rule: if listingName begins with 'Skechers Slip-ins:' that prefix is removed before model parsing so merge-deals can normalize GO RUN models better. Writes to skechers-sale.json."
+},
+  
   {
     "id": "track-shack",
     "displayName": "Track Shack",
