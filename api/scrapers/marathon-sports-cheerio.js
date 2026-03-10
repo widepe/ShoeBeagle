@@ -218,9 +218,13 @@ async function scrapeMarathonSports() {
     }
   }
 
-  for (const pageUrl of urls) {
+for (const baseUrl of urls) {
+  let currentUrl = baseUrl;
+  let hasMore = true;
+
+  while (hasMore) {
     const html = await fetchTextWithTimeout(
-      pageUrl,
+      currentUrl,
       {
         headers: {
           "User-Agent":
@@ -231,6 +235,26 @@ async function scrapeMarathonSports() {
       },
       30000
     );
+
+    const $ = cheerio.load(html);
+    pagesFetched++;
+
+    // Detect next page *before* processing tiles
+    const nextHref = $(".pagination-nav .next").attr("href");
+    if (nextHref) {
+      currentUrl = absolutizeUrl(nextHref, base);
+      sourceUrls.push(currentUrl);  // track paginated URLs too
+    } else {
+      hasMore = false;
+    }
+
+    $(".product-partial.partial").each((_, el) => {
+      // ... all your existing tile logic unchanged ...
+    });
+
+    await randomDelay();
+  }  // end while
+}  // end for
 
     const $ = cheerio.load(html);
     pagesFetched++;
