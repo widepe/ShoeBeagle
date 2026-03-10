@@ -561,7 +561,7 @@
   "aliases": ["saucony"],
   "enabled": true,
   "scraperType": "vercel",
-  "envVar": "SAUCONY_SALE_BLOB_URL",
+  "envVar": "SAUCONY_DEALS_BLOB_URL",
   "baseUrl": "https://www.saucony.com",
   "notes": "Saucony running sale scraper using direct HTML fetch + Cheerio on https://www.saucony.com/en/sale-running/. Reads server-rendered product tiles, preserves listingName exactly as scraped, forces brand to Saucony, and derives model by removing a leading Men's/Women's/Unisex prefix from listingName. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Gender is parsed from listingName: mens, womens, unisex, else unknown. shoeType is derived from data-product-attributes surface: trail -> trail; fieldTrack/track/spike/spikes -> track; road or treadmill -> road; otherwise unknown. Supports Load More pagination through button.load-more-cta[data-grid-url] when present. Writes to saucony-sale.json."
 },
@@ -594,7 +594,7 @@
   "aliases": ["skechers"],
   "enabled": true,
   "scraperType": "vercel",
-  "envVar": "SKECHERS_SALE_BLOB_URL",
+  "envVar": "SKECHERS_DEALS_BLOB_URL",
   "baseUrl": "https://www.skechers.com",
   "notes": "Skechers running sale scraper using direct HTML fetch + Cheerio on the running-filtered sale page. Treats the infinite-load page as offset pagination using start=0,12,24... with sz=12. Reads product-V2 tiles, preserves listingName exactly as scraped, forces brand to Skechers, and keeps shoeType as unknown for all deals. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Gender is parsed from the tile gender label: mens, womens, unisex, else unknown. Special model rule: if listingName begins with 'Skechers Slip-ins:' that prefix is removed before model parsing so merge-deals can normalize GO RUN models better. Writes to skechers-sale.json."
 },
