@@ -44,7 +44,7 @@ const BLOB_PATH = "going-going-gone.json";
 const PAGE_SIZE = 24;
 
 const REQUEST_TOGGLES = {
-  REQUIRE_CRON_SECRET: true,
+  REQUIRE_CRON_SECRET: false,
 };
 
 const SOURCES = [
