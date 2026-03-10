@@ -218,228 +218,217 @@ async function scrapeMarathonSports() {
     }
   }
 
-for (const baseUrl of urls) {
-  let currentUrl = baseUrl;
-  let hasMore = true;
+  for (const baseUrl of urls) {
+    let currentUrl = baseUrl;
+    let hasMore = true;
 
-  while (hasMore) {
-    const html = await fetchTextWithTimeout(
-      currentUrl,
-      {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.9",
+    while (hasMore) {
+      const html = await fetchTextWithTimeout(
+        currentUrl,
+        {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+          },
         },
-      },
-      30000
-    );
-
-    const $ = cheerio.load(html);
-    pagesFetched++;
-
-    // Detect next page *before* processing tiles
-    const nextHref = $(".pagination-nav .next").attr("href");
-    if (nextHref) {
-      currentUrl = absolutizeUrl(nextHref, base);
-      sourceUrls.push(currentUrl);  // track paginated URLs too
-    } else {
-      hasMore = false;
-    }
-
-    $(".product-partial.partial").each((_, el) => {
-      // ... all your existing tile logic unchanged ...
-    });
-
-    await randomDelay();
-  }  // end while
-}  // end for
-
-    const $ = cheerio.load(html);
-    pagesFetched++;
-
-    $(".product-partial.partial").each((_, el) => {
-      const $tile = $(el);
-
-      const $link = $tile.find("h2.title a.link").first();
-      if (!$link.length) return;
-
-      const saleFlag = normalizeWhitespace($tile.find(".sale").first().text() || "");
-      if (!/\bsale\b/i.test(saleFlag)) return;
-
-      dealsFound++;
-
-      const rawHref = String($link.attr("href") || "").trim();
-      const rawListingName = normalizeWhitespace($link.text() || "");
-      const $img = $tile.find(".image-wrap img").first();
-      const imageURL = pickBestImgUrl($, $img, base);
-
-      // --- PRICING FIX START ---
-      const compareAtFromHtml = parseDollar($tile.find(".product-price .num.-compare").first().text());
-      const salePriceFromHtml = parseDollar($tile.find(".product-price .num.-price").first().text());
-
-      const dlItem = extractDlItem($tile);
-      const salePriceFromDl = Number.isFinite(Number(dlItem?.price)) ? Number(dlItem.price) : null;
-      const brandHint = normalizeWhitespace(dlItem?.item_brand || "");
-
-      // HTML compare-at is the most reliable original price.
-      // If missing, fall back to dl-item price — but only when it differs
-      // from the HTML sale price, meaning dl-item is the pre-discount price.
-      const originalPrice = Number.isFinite(compareAtFromHtml)
-        ? compareAtFromHtml
-        : salePriceFromDl !== null && salePriceFromDl !== salePriceFromHtml
-        ? salePriceFromDl
-        : null;
-
-      const salePrice = Number.isFinite(salePriceFromHtml) ? salePriceFromHtml : salePriceFromDl;
-      // --- PRICING FIX END ---
-
-      const previewListingURL = rawHref ? absolutizeUrl(rawHref, base) : "";
-
-      if (!rawHref) {
-        logDropped("missingHref", {
-          pageUrl,
-          listingName: rawListingName || "",
-          listingURL: "",
-          imageURL,
-          saleFlag,
-          originalPrice,
-          salePrice,
-          salePriceFromHtml,
-          salePriceFromDl,
-          brandHint,
-        });
-        return;
-      }
-
-      const listingURL = previewListingURL;
-      if (!listingURL) {
-        logDropped("missingListingURL", {
-          pageUrl,
-          listingName: rawListingName || "",
-          rawHref,
-          listingURL: "",
-          imageURL,
-          saleFlag,
-          originalPrice,
-          salePrice,
-          salePriceFromHtml,
-          salePriceFromDl,
-          brandHint,
-        });
-        return;
-      }
-
-      if (seenUrls.has(listingURL)) {
-        logDropped("duplicateUrl", {
-          pageUrl,
-          listingName: rawListingName || "",
-          listingURL,
-          imageURL,
-          saleFlag,
-          originalPrice,
-          salePrice,
-          salePriceFromHtml,
-          salePriceFromDl,
-          brandHint,
-        });
-        return;
-      }
-
-      const listingName = rawListingName;
-      if (!listingName) {
-        logDropped("missingListingName", {
-          pageUrl,
-          listingName: "",
-          listingURL,
-          imageURL,
-          saleFlag,
-          originalPrice,
-          salePrice,
-          salePriceFromHtml,
-          salePriceFromDl,
-          brandHint,
-        });
-        return;
-      }
-
-      if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) {
-        logDropped("missingPrice", {
-          pageUrl,
-          listingName,
-          listingURL,
-          imageURL,
-          saleFlag,
-          originalPrice,
-          salePrice,
-          salePriceFromHtml,
-          salePriceFromDl,
-          brandHint,
-        });
-        return;
-      }
-
-      if (!(originalPrice > salePrice && salePrice > 0)) {
-        logDropped("invalidPriceRelation", {
-          pageUrl,
-          listingName,
-          listingURL,
-          imageURL,
-          saleFlag,
-          originalPrice,
-          salePrice,
-          salePriceFromHtml,
-          salePriceFromDl,
-          brandHint,
-        });
-        return;
-      }
-
-      const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-      if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) {
-        logDropped("invalidDiscountPercent", {
-          pageUrl,
-          listingName,
-          listingURL,
-          imageURL,
-          saleFlag,
-          originalPrice,
-          salePrice,
-          salePriceFromHtml,
-          salePriceFromDl,
-          discountPercent,
-          brandHint,
-        });
-        return;
-      }
-
-      const typeText = normalizeWhitespace($tile.find(".type").first().text() || "");
-      const { brand, model } = parseBrandModelFromCanonical(listingName, brandHint);
-      const gender = detectGender(listingURL, listingName, `${typeText} ${pageUrl}`);
-      const shoeType = detectShoeType(listingName, `${typeText} ${model} ${pageUrl}`);
-
-      seenUrls.add(listingURL);
-
-      deals.push(
-        buildDeal({
-          listingName,
-          brand,
-          model,
-          salePrice,
-          originalPrice,
-          discountPercent,
-          store: STORE,
-          listingURL,
-          imageURL,
-          gender,
-          shoeType,
-        })
+        30000
       );
-    });
 
-    await randomDelay();
-  }
+      const $ = cheerio.load(html);
+      pagesFetched++;
+
+      // Detect next page before processing tiles
+      const nextHref = $(".pagination-nav .next").attr("href");
+      if (nextHref) {
+        const nextUrl = absolutizeUrl(nextHref, base);
+        sourceUrls.push(nextUrl);
+        currentUrl = nextUrl;
+      } else {
+        hasMore = false;
+      }
+
+      $(".product-partial.partial").each((_, el) => {
+        const $tile = $(el);
+
+        const $link = $tile.find("h2.title a.link").first();
+        if (!$link.length) return;
+
+        const saleFlag = normalizeWhitespace($tile.find(".sale").first().text() || "");
+        if (!/\bsale\b/i.test(saleFlag)) return;
+
+        dealsFound++;
+
+        const rawHref = String($link.attr("href") || "").trim();
+        const rawListingName = normalizeWhitespace($link.text() || "");
+        const $img = $tile.find(".image-wrap img").first();
+        const imageURL = pickBestImgUrl($, $img, base);
+
+        const compareAtFromHtml = parseDollar($tile.find(".product-price .num.-compare").first().text());
+        const salePriceFromHtml = parseDollar($tile.find(".product-price .num.-price").first().text());
+
+        const dlItem = extractDlItem($tile);
+        const salePriceFromDl = Number.isFinite(Number(dlItem?.price)) ? Number(dlItem.price) : null;
+        const brandHint = normalizeWhitespace(dlItem?.item_brand || "");
+
+        // HTML compare-at is the most reliable original price.
+        // If missing, fall back to dl-item price — but only when it differs
+        // from the HTML sale price, meaning dl-item is the pre-discount price.
+        const originalPrice = Number.isFinite(compareAtFromHtml)
+          ? compareAtFromHtml
+          : salePriceFromDl !== null && salePriceFromDl !== salePriceFromHtml
+          ? salePriceFromDl
+          : null;
+
+        const salePrice = Number.isFinite(salePriceFromHtml) ? salePriceFromHtml : salePriceFromDl;
+
+        const previewListingURL = rawHref ? absolutizeUrl(rawHref, base) : "";
+
+        if (!rawHref) {
+          logDropped("missingHref", {
+            currentUrl,
+            listingName: rawListingName || "",
+            listingURL: "",
+            imageURL,
+            saleFlag,
+            originalPrice,
+            salePrice,
+            salePriceFromHtml,
+            salePriceFromDl,
+            brandHint,
+          });
+          return;
+        }
+
+        const listingURL = previewListingURL;
+        if (!listingURL) {
+          logDropped("missingListingURL", {
+            currentUrl,
+            listingName: rawListingName || "",
+            rawHref,
+            listingURL: "",
+            imageURL,
+            saleFlag,
+            originalPrice,
+            salePrice,
+            salePriceFromHtml,
+            salePriceFromDl,
+            brandHint,
+          });
+          return;
+        }
+
+        if (seenUrls.has(listingURL)) {
+          logDropped("duplicateUrl", {
+            currentUrl,
+            listingName: rawListingName || "",
+            listingURL,
+            imageURL,
+            saleFlag,
+            originalPrice,
+            salePrice,
+            salePriceFromHtml,
+            salePriceFromDl,
+            brandHint,
+          });
+          return;
+        }
+
+        const listingName = rawListingName;
+        if (!listingName) {
+          logDropped("missingListingName", {
+            currentUrl,
+            listingName: "",
+            listingURL,
+            imageURL,
+            saleFlag,
+            originalPrice,
+            salePrice,
+            salePriceFromHtml,
+            salePriceFromDl,
+            brandHint,
+          });
+          return;
+        }
+
+        if (!Number.isFinite(salePrice) || !Number.isFinite(originalPrice)) {
+          logDropped("missingPrice", {
+            currentUrl,
+            listingName,
+            listingURL,
+            imageURL,
+            saleFlag,
+            originalPrice,
+            salePrice,
+            salePriceFromHtml,
+            salePriceFromDl,
+            brandHint,
+          });
+          return;
+        }
+
+        if (!(originalPrice > salePrice && salePrice > 0)) {
+          logDropped("invalidPriceRelation", {
+            currentUrl,
+            listingName,
+            listingURL,
+            imageURL,
+            saleFlag,
+            originalPrice,
+            salePrice,
+            salePriceFromHtml,
+            salePriceFromDl,
+            brandHint,
+          });
+          return;
+        }
+
+        const discountPercent = computeDiscountPercent(originalPrice, salePrice);
+        if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) {
+          logDropped("invalidDiscountPercent", {
+            currentUrl,
+            listingName,
+            listingURL,
+            imageURL,
+            saleFlag,
+            originalPrice,
+            salePrice,
+            salePriceFromHtml,
+            salePriceFromDl,
+            discountPercent,
+            brandHint,
+          });
+          return;
+        }
+
+        const typeText = normalizeWhitespace($tile.find(".type").first().text() || "");
+        const { brand, model } = parseBrandModelFromCanonical(listingName, brandHint);
+        const gender = detectGender(listingURL, listingName, `${typeText} ${currentUrl}`);
+        const shoeType = detectShoeType(listingName, `${typeText} ${model} ${currentUrl}`);
+
+        seenUrls.add(listingURL);
+
+        deals.push(
+          buildDeal({
+            listingName,
+            brand,
+            model,
+            salePrice,
+            originalPrice,
+            discountPercent,
+            store: STORE,
+            listingURL,
+            imageURL,
+            gender,
+            shoeType,
+          })
+        );
+      });
+
+      await randomDelay();
+    } // end while
+  } // end for
 
   return {
     deals,
