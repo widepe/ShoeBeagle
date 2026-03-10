@@ -24,6 +24,15 @@ function cleanText(value) {
     .trim();
 }
 
+function decodeHtmlEntities(str) {
+  return String(str || "")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
 function toAbsoluteUrl(url) {
   const s = String(url || "").trim();
   if (!s) return null;
@@ -121,13 +130,50 @@ function extractListingUrl($, $card) {
   return toAbsoluteUrl(directHref);
 }
 
+function firstUrlFromSrcset(srcset) {
+  const s = String(srcset || "").trim();
+  if (!s) return null;
+  const firstPart = s.split(",")[0]?.trim() || "";
+  const firstUrl = firstPart.split(/\s+/)[0]?.trim() || "";
+  return toAbsoluteUrl(firstUrl);
+}
+
 function extractImageUrl($, $card) {
-  const src =
-    $card.find("img").first().attr("src") ||
-    $card.find("img").first().attr("data-src") ||
+  const $img = $card.find("img").first();
+
+  const direct =
+    toAbsoluteUrl($img.attr("src")) ||
+    toAbsoluteUrl($img.attr("data-src")) ||
+    firstUrlFromSrcset($img.attr("srcset")) ||
+    firstUrlFromSrcset($img.attr("data-srcset"));
+
+  if (direct) return direct;
+
+  const analyticsImage =
+    $card.find("a[data-analytics-collection-product-grid-image-name]").first().attr("data-analytics-collection-product-grid-image-name") ||
+    $card.find("a[data-product-link]").first().attr("data-analytics-collection-product-grid-image-name") ||
     "";
 
-  return toAbsoluteUrl(src);
+  if (analyticsImage) {
+    const cleaned = analyticsImage.split("&")[0].trim();
+    const abs = toAbsoluteUrl(cleaned);
+    if (abs) return abs;
+  }
+
+  const productImageJson = $card.find("input[data-product-image]").first().attr("data-product-image");
+  if (productImageJson) {
+    try {
+      const decoded = decodeHtmlEntities(productImageJson);
+      const parsed = JSON.parse(decoded);
+      const src = parsed?.src || parsed?.image?.src || "";
+      const abs = toAbsoluteUrl(src);
+      if (abs) return abs;
+    } catch {
+      // ignore and continue
+    }
+  }
+
+  return null;
 }
 
 function extractPrices($, $card) {
