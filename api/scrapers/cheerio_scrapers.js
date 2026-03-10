@@ -5,6 +5,8 @@
 // - it uses the Coveo Commerce API directly from its own Vercel scraper endpoint.
 // Going, Going, Gone is also NOT a Cheerio scraper:
 // - it uses the DSG Catalog Product API directly from its own Vercel scraper endpoint.
+// Big Shoes is also NOT a Cheerio scraper:
+// - it uses the Findify API directly from its own Vercel scraper endpoint.
 // Each scraper runs in its own file and writes its own blob.
 
 export const config = { maxDuration: 60 };
@@ -20,6 +22,7 @@ const SCRAPER_TOGGLES = {
   MARATHON_SPORTS: true,
   FAMOUS_FOOTWEAR: true, // Coveo API scraper, not Cheerio
   GOING_GOING_GONE: true, // DSG Catalog Product API scraper, not Cheerio
+  BIGSHOES: true, // Findify API scraper, not Cheerio
 };
 
 function nowIso() {
@@ -167,11 +170,26 @@ export default async function handler(req, res) {
         "/api/scrapers/going-going-gone",
         auth
       );
+      await sleep(1000);
     } else {
       results["Going, Going, Gone"] = {
         ok: true,
         skipped: true,
         path: "/api/scrapers/going-going-gone",
+      };
+    }
+
+    if (SCRAPER_TOGGLES.BIGSHOES) {
+      results["Big Shoes"] = await triggerEndpoint(
+        baseUrl,
+        "/api/scrapers/bigshoes-findify",
+        auth
+      );
+    } else {
+      results["Big Shoes"] = {
+        ok: true,
+        skipped: true,
+        path: "/api/scrapers/bigshoes-findify",
       };
     }
 
@@ -185,7 +203,7 @@ export default async function handler(req, res) {
       },
       stores: results,
       note:
-        "This runner triggers independent scraper endpoints. Each scraper writes its own blob. Famous Footwear uses the Coveo Commerce API and Going, Going, Gone uses the DSG Catalog Product API, so neither are Cheerio scrapers.",
+        "This runner triggers independent scraper endpoints. Each scraper writes its own blob. Famous Footwear uses the Coveo Commerce API, Going, Going, Gone uses the DSG Catalog Product API, and Big Shoes uses the Findify API, so those are not Cheerio scrapers.",
     });
   } catch (error) {
     return res.status(500).json({
