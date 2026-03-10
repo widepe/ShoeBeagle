@@ -1563,13 +1563,26 @@ if (qInput) qInput.addEventListener("input", updateFetchReady);
 // ------------------------------
 let brandModels = {};     // { "ASICS": ["GT-2000 12", ...], ... }
 let brands = [];          // ["ASICS", "Brooks", ...]
-let BRAND_CANON = new Map(); // norm -> canonical display key
+let BRAND_CANON = new Map(); // norm (canonical/alias) -> canonical display key
 
 function normKey(s) {
   return String(s || "")
     .toLowerCase()
     .replace(/[\u00AE\u2122\u2120]/g, "") // ® ™ ℠
     .replace(/[^a-z0-9]/g, "");          // remove spaces/punct
+}
+
+function getModelsForBrandKey(brandKey) {
+  const entry = brandModels[brandKey];
+  if (Array.isArray(entry)) return entry;
+  if (entry && typeof entry === "object" && Array.isArray(entry.models)) return entry.models;
+  return [];
+}
+
+function getAliasesForBrandKey(brandKey) {
+  const entry = brandModels[brandKey];
+  if (entry && typeof entry === "object" && Array.isArray(entry.aliases)) return entry.aliases;
+  return [brandKey];
 }
 
 async function loadCanonicalBrandModels() {
@@ -1586,6 +1599,9 @@ async function loadCanonicalBrandModels() {
   BRAND_CANON = new Map();
   for (const b of brands) {
     BRAND_CANON.set(normKey(b), b);
+    for (const alias of getAliasesForBrandKey(b)) {
+      BRAND_CANON.set(normKey(alias), b);
+    }
   }
 }
 
@@ -1806,7 +1822,7 @@ function resolveBrandKey(input) {
         const m = sanitize(modelEl.value);
         if (!m) return false;
 
-        const pool = Array.isArray(brandModels[bk]) ? brandModels[bk] : [];
+        const pool = getModelsForBrandKey(bk);
         const mNorm = String(m).trim().toLowerCase();
 
         return pool.some((x) => String(x).trim().toLowerCase() === mNorm);
@@ -2004,7 +2020,7 @@ function resolveBrandKey(input) {
         }
 
         const bk = resolveBrandKey(brandEl.value);
-        const pool = Array.isArray(brandModels[bk]) ? brandModels[bk] : [];
+        const pool = getModelsForBrandKey(bk);
 
         const t = modelEl.value.trim();
         if (!t) {

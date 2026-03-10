@@ -30,10 +30,21 @@
   // brandModels.js (root) should define: window.brandModels = { ... }
   const brandModels = window.brandModels || {};
   const brands = Object.keys(brandModels).sort((a, b) => a.localeCompare(b));
+  function modelsForBrandKey(brandKey) {
+    const entry = brandModels[brandKey];
+    if (Array.isArray(entry)) return entry;
+    if (entry && typeof entry === "object" && Array.isArray(entry.models)) return entry.models;
+    return [];
+  }
+  function aliasesForBrandKey(brandKey) {
+    const entry = brandModels[brandKey];
+    if (entry && typeof entry === "object" && Array.isArray(entry.aliases)) return entry.aliases;
+    return [brandKey];
+  }
   const allModels = (() => {
     const flat = [];
     for (const b of Object.keys(brandModels)) {
-      const arr = brandModels[b];
+      const arr = modelsForBrandKey(b);
       if (Array.isArray(arr)) flat.push(...arr);
     }
     return Array.from(new Set(flat)).sort((a, b) => a.localeCompare(b));
@@ -226,7 +237,13 @@
 
   function resolveBrandKey(input) {
     const n = norm(input);
-    return brands.find((b) => norm(b) === n) || "";
+    for (const b of brands) {
+      if (norm(b) === n) return b;
+      for (const alias of aliasesForBrandKey(b)) {
+        if (norm(alias) === n) return b;
+      }
+    }
+    return "";
   }
 
   brandEl.addEventListener("input", () => {
@@ -247,7 +264,7 @@
     if (!t) return closeSuggestions("model");
 
     const bk = resolveBrandKey(brandEl.value);
-    const pool = (bk && Array.isArray(brandModels[bk])) ? brandModels[bk] : allModels;
+    const pool = bk ? modelsForBrandKey(bk) : allModels;
 
     renderSug(modelSug, topMatches(pool, t, 12), "model", (v) => {
       modelEl.value = v;

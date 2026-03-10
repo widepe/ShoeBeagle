@@ -37,7 +37,7 @@ const { put } = require("@vercel/blob");
 const { assertDealSchema } = require("../lib/dealSchema");
 
 // ✅ Canonical Brand + Models dictionary (single source of truth)
-const canonicalBrandModels = require("../lib/canonical-brands-models.json");
+const { canonicalBrandModelHelper } = require("../lib/canonical-brand-models");
 
 // ✅ Canonical store list (single source of truth for stores)
 const storeList = require("../lib/canonical-stores.json");
@@ -96,21 +96,6 @@ function parseDurationMs(dur) {
 
 /** ------------ Brand canonicalization ------------ **/
 
-function squashBrandKey(str) {
-  return String(str || "")
-    .toLowerCase()
-    .replace(/[\u00AE\u2122\u2120]/g, "")
-    .replace(/[^a-z0-9]/g, "");
-}
-
-const CANONICAL_BRAND_MAP = (() => {
-  const map = new Map();
-  for (const displayBrand of Object.keys(canonicalBrandModels || {})) {
-    map.set(squashBrandKey(displayBrand), displayBrand);
-  }
-  return map;
-})();
-
 function normalizeBrand(rawBrand) {
   const cleaned = String(rawBrand || "")
     .replace(/[\u00AE\u2122\u2120]/g, "")
@@ -119,8 +104,7 @@ function normalizeBrand(rawBrand) {
 
   if (!cleaned) return "Unknown";
 
-  const key = squashBrandKey(cleaned);
-  return CANONICAL_BRAND_MAP.get(key) || cleaned;
+  return canonicalBrandModelHelper.resolveCanonicalBrand(cleaned) || cleaned;
 }
 
 /** ------------ Freshness helpers ------------ **/
