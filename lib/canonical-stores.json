@@ -375,6 +375,29 @@
     "baseUrl": "https://usa.mizuno.com",
     "notes": "Mizuno USA running sale pages (mens + womens). Writes to mizuno.json via APIFY + Vercel Blob."
   },
+
+
+{
+  "id": "new-balance",
+  "displayName": "New Balance",
+  "addedAt": "2026-03-10",
+  "lastUpdated": "2026-03-10",
+  "scrapedUrls": [
+    "https://www.newbalance.com/sale/men/shoes/?prefn1=category&prefv1=Running",
+    "https://www.newbalance.com/sale/women/shoes/?prefn1=category&prefv1=Running"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/newbalance-sale.json"
+  ],
+  "aliases": ["new balance", "newbalance", "nb"],
+  "enabled": true,
+  "scraperType": "apify",
+  "envVar": "NEWBALANCE_DEALS_BLOB_URL",
+  "baseUrl": "https://www.newbalance.com",
+  "notes": "New Balance sale running shoes scraper via Apify Playwright + Camoufox. Scrapes mens and womens sale running pages. Uses residential proxies to bypass Akamai bot protection. Extracts pricing from visible sale/strike-through price elements with swatch JSON fallback. Keeps only true sale items where salePrice < originalPrice. Gender parsed from category-name tile text. shoeType forced to unknown. Writes to newbalance-sale.json."
+},
+
+  
   {
     "id": "nike",
     "displayName": "Nike",
