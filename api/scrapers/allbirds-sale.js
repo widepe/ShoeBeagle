@@ -1,7 +1,6 @@
 // /api/scrapers/allbirds-sale.js
 
 import { put } from "@vercel/blob";
-import * as cheerio from "cheerio";
 
 export const config = { maxDuration: 60 };
 
@@ -19,6 +18,12 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function cleanText(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function toAbsoluteUrl(url) {
   const s = String(url || "").trim();
   if (!s) return null;
@@ -28,27 +33,11 @@ function toAbsoluteUrl(url) {
   return `${BASE}/${s.replace(/^\/+/, "")}`;
 }
 
-function cleanText(value) {
-  return String(value || "")
-    .replace(/\s+/g, " ")
-    .replace(/&amp;/g, "&")
-    .trim();
-}
-
-function decodeHtmlEntities(str) {
-  return String(str || "")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
-}
-
 function parsePriceText(text) {
   const s = cleanText(text);
   if (!s) return null;
-  const m = s.match(/\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/);
-  return m ? Number(m[1]) : null;
+  const match = s.match(/\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/);
+  return match ? Number(match[1]) : null;
 }
 
 function computeDiscountPercent(salePrice, originalPrice) {
@@ -73,31 +62,27 @@ function inferGender(listingName) {
   return "unknown";
 }
 
+function extractModel(listingName) {
+  let s = cleanText(listingName);
+  s = s.replace(/^men'?s\s+/i, "");
+  s = s.replace(/^women'?s\s+/i, "");
+  s = s.replace(/^unisex\s+/i, "");
+  return s || "Unknown";
+}
+
 function inferShoeType(listingName) {
   const s = String(listingName || "").toLowerCase();
 
   if (/\btrail\b/.test(s)) return "trail";
   if (/\btrack\b/.test(s) || /\bspike\b/.test(s) || /\bspikes\b/.test(s)) return "track";
 
-  // Because these collection URLs are already filtered to Running Shoes,
-  // non-trail/non-track items here are best treated as road.
+  // These collection pages are already filtered to Running Shoes.
   return "road";
-}
-
-function extractModel(listingName) {
-  let s = cleanText(listingName);
-
-  s = s.replace(/^men'?s\s+/i, "");
-  s = s.replace(/^women'?s\s+/i, "");
-  s = s.replace(/^unisex\s+/i, "");
-
-  return s || "Unknown";
 }
 
 function makeDropCounts() {
   return {
     totalTiles: 0,
-    dropped_notProductCard: 0,
     dropped_missingListingName: 0,
     dropped_missingListingURL: 0,
     dropped_missingImageURL: 0,
@@ -105,12 +90,11 @@ function makeDropCounts() {
     dropped_missingOriginalPrice: 0,
     dropped_saleNotLessThanOriginal: 0,
     dropped_duplicateAfterMerge: 0,
-    dropped_notRunningShoe: 0,
     dropped_parseError: 0,
   };
 }
 
-function pickMainAnchor($card) {
+function pickBestProductAnchor($, $card) {
   const anchors = $card.find('a[href*="/products/"]');
   if (!anchors.length) return null;
 
@@ -118,12 +102,12 @@ function pickMainAnchor($card) {
   let bestScore = -1;
 
   anchors.each((_, el) => {
-    const $a = $card.find(el).first();
+    const $a = $(el);
     const href = $a.attr("href") || "";
     let score = 0;
 
-    if (/^https?:\/\/www\.allbirds\.com\/products\//i.test(href)) score += 4;
-    if (/^\/products\//i.test(href)) score += 4;
+    if (/^https?:\/\/www\.allbirds\.com\/products\//i.test(href)) score += 5;
+    if (/^\/products\//i.test(href)) score += 5;
     if ($a.find("img").length) score += 2;
     if (($a.text() || "").trim()) score += 1;
 
@@ -136,27 +120,32 @@ function pickMainAnchor($card) {
   return best;
 }
 
-function extractCardData($, el, pageUrl, dropCounts, seenKeys) {
+function extractDealFromCard($, el, seenKeys, dropCounts) {
   const $card = $(el);
   dropCounts.totalTiles += 1;
 
   try {
-    const rawListingName =
+    const listingName =
       cleanText($card.attr("data-product-name")) ||
       cleanText($card.find('[data-product-link] p').first().text()) ||
-      cleanText($card.find("p").first().text());
+      cleanText($card.find("p").first().text()) ||
+      null;
 
-    if (!rawListingName) {
+    if (!listingName) {
       dropCounts.dropped_missingListingName += 1;
       return null;
     }
 
-    const listingName = rawListingName;
-
-    const $mainAnchor = pickMainAnchor($card);
-    const listingURL = toAbsoluteUrl($mainAnchor?.attr("href"));
+    const $anchor = pickBestProductAnchor($, $card);
+    const listingURL = toAbsoluteUrl($anchor?.attr("href"));
     if (!listingURL) {
       dropCounts.dropped_missingListingURL += 1;
+      return null;
+    }
+
+    const dedupeKey = `${STORE}||${listingURL}`;
+    if (seenKeys.has(dedupeKey)) {
+      dropCounts.dropped_duplicateAfterMerge += 1;
       return null;
     }
 
@@ -166,19 +155,6 @@ function extractCardData($, el, pageUrl, dropCounts, seenKeys) {
       null;
 
     if (!imageURL) {
-      const imageJson = $card.find("input[data-product-image]").first().attr("data-product-image");
-      if (imageJson) {
-        try {
-          const decoded = decodeHtmlEntities(imageJson);
-          const parsed = JSON.parse(decoded);
-          imageURL = toAbsoluteUrl(parsed?.src);
-        } catch {
-          // keep null
-        }
-      }
-    }
-
-    if (!imageURL) {
       dropCounts.dropped_missingImageURL += 1;
       return null;
     }
@@ -186,17 +162,17 @@ function extractCardData($, el, pageUrl, dropCounts, seenKeys) {
     let salePrice = null;
     let originalPrice = null;
 
-    const swatchInput = $card.find("input[data-product-price][data-product-compare-at-price]").first();
-    if (swatchInput.length) {
-      salePrice = parsePriceText(swatchInput.attr("data-product-price"));
-      originalPrice = parsePriceText(swatchInput.attr("data-product-compare-at-price"));
+    const $priceInput = $card.find("input[data-product-price][data-product-compare-at-price]").first();
+    if ($priceInput.length) {
+      salePrice = parsePriceText($priceInput.attr("data-product-price"));
+      originalPrice = parsePriceText($priceInput.attr("data-product-compare-at-price"));
     }
 
     if (salePrice == null || originalPrice == null) {
-      const priceSpans = $card.find("p span");
-      if (priceSpans.length >= 2) {
-        salePrice = salePrice ?? parsePriceText($(priceSpans[0]).text());
-        originalPrice = originalPrice ?? parsePriceText($(priceSpans[1]).text());
+      const spans = $card.find("p span");
+      if (spans.length >= 2) {
+        salePrice = salePrice ?? parsePriceText($(spans[0]).text());
+        originalPrice = originalPrice ?? parsePriceText($(spans[1]).text());
       }
     }
 
@@ -215,35 +191,19 @@ function extractCardData($, el, pageUrl, dropCounts, seenKeys) {
       return null;
     }
 
-    const brand = "Allbirds";
-    const gender = inferGender(listingName);
-    const model = extractModel(listingName);
-    const shoeType = inferShoeType(listingName);
-    const discountPercent = computeDiscountPercent(salePrice, originalPrice);
-
-    if (!["road", "trail", "track", "unknown"].includes(shoeType)) {
-      dropCounts.dropped_notRunningShoe += 1;
-      return null;
-    }
-
-    const dedupeKey = `${STORE}||${listingURL}`;
-    if (seenKeys.has(dedupeKey)) {
-      dropCounts.dropped_duplicateAfterMerge += 1;
-      return null;
-    }
     seenKeys.add(dedupeKey);
 
-    return {
+    const deal = {
       schemaVersion: SCHEMA_VERSION,
 
       listingName,
 
-      brand,
-      model,
+      brand: "Allbirds",
+      model: extractModel(listingName),
 
       salePrice,
       originalPrice,
-      discountPercent,
+      discountPercent: computeDiscountPercent(salePrice, originalPrice),
 
       salePriceLow: null,
       salePriceHigh: null,
@@ -256,9 +216,11 @@ function extractCardData($, el, pageUrl, dropCounts, seenKeys) {
       listingURL,
       imageURL,
 
-      gender,
-      shoeType,
+      gender: inferGender(listingName),
+      shoeType: inferShoeType(listingName),
     };
+
+    return deal;
   } catch (err) {
     dropCounts.dropped_parseError += 1;
     return null;
@@ -267,18 +229,19 @@ function extractCardData($, el, pageUrl, dropCounts, seenKeys) {
 
 async function fetchHtml(url) {
   const resp = await fetch(url, {
+    method: "GET",
     headers: {
       "user-agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
       accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "accept-language": "en-US,en;q=0.9",
       referer: "https://www.allbirds.com/",
-      cache-control: "no-cache",
+      "cache-control": "no-cache",
     },
   });
 
   if (!resp.ok) {
-    throw new Error(`HTTP ${resp.status} for ${url}`);
+    throw new Error(`Fetch failed for ${url}: HTTP ${resp.status}`);
   }
 
   return await resp.text();
@@ -298,26 +261,28 @@ export default async function handler(req, res) {
   const dropCounts = makeDropCounts();
   const seenKeys = new Set();
   const deals = [];
-  const pagesFetched = [];
-  let error = null;
+  let pagesFetched = 0;
 
   try {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error("Missing BLOB_READ_WRITE_TOKEN");
+    }
+
+    const cheerio = await import("cheerio");
+
     for (const url of SOURCE_URLS) {
       const html = await fetchHtml(url);
-      pagesFetched.push(url);
+      pagesFetched += 1;
 
       const $ = cheerio.load(html);
 
-      // Primary selector from your sample
       let $cards = $('[data-product-card]');
-
-      // Fallback if needed
       if (!$cards.length) {
         $cards = $('div[data-testid^="product-card-"]');
       }
 
       $cards.each((_, el) => {
-        const deal = extractCardData($, el, url, dropCounts, seenKeys);
+        const deal = extractDealFromCard($, el, seenKeys, dropCounts);
         if (deal) deals.push(deal);
       });
     }
@@ -330,7 +295,7 @@ export default async function handler(req, res) {
       via: VIA,
 
       sourceUrls: SOURCE_URLS,
-      pagesFetched: pagesFetched.length,
+      pagesFetched,
 
       dealsFound: dropCounts.totalTiles,
       dealsExtracted: deals.length,
@@ -373,8 +338,6 @@ export default async function handler(req, res) {
       blobUrl: blob.url,
     });
   } catch (err) {
-    error = err?.message || "Unknown error";
-
     return res.status(500).json({
       success: false,
       store: STORE,
@@ -384,7 +347,7 @@ export default async function handler(req, res) {
       via: VIA,
 
       sourceUrls: SOURCE_URLS,
-      pagesFetched: pagesFetched.length,
+      pagesFetched,
 
       dealsFound: dropCounts.totalTiles,
       dealsExtracted: deals.length,
@@ -392,7 +355,8 @@ export default async function handler(req, res) {
       scrapeDurationMs: Date.now() - startedAt,
 
       ok: false,
-      error,
+      error: err?.message || "Unknown error",
+      stack: err?.stack || null,
 
       dropCounts,
     });
