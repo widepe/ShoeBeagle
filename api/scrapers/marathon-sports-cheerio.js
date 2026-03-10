@@ -72,8 +72,6 @@ function detectGender(listingName, typeText = "", itemName = "") {
   return "unknown";
 }
 
-const shoeType = "unknown";
-
 function computeDiscountPercent(originalPrice, salePrice) {
   if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return null;
   if (originalPrice <= 0 || salePrice <= 0) return null;
@@ -339,13 +337,12 @@ async function scrapeMarathonSports() {
       // Gender from tile content only: .type div + item_name from dl-item + listing name.
       // Feed URL is not used — the same shoe can appear in both mens and womens feeds.
       const gender = detectGender(listingName, typeText, itemName);
-      const shoeType = "unknown";
 
       seenUrls.add(listingURL);
       firstSeenOnSeed.set(listingURL, currentSeed);
 
       deals.push(
-        buildDeal({ listingName, brand, model, salePrice, originalPrice, discountPercent, store: STORE, listingURL, imageURL, gender, shoeType })
+        buildDeal({ listingName, brand, model, salePrice, originalPrice, discountPercent, store: STORE, listingURL, imageURL, gender, shoeType: "unknown" })
       );
     });
   }
