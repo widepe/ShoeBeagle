@@ -33,6 +33,7 @@ export default async function handler(req, res) {
     language: "en",
     country: "US",
     currency: "USD",
+    query: "",
     page: 1,
     perPage: 12,
     facets: [
@@ -132,6 +133,17 @@ export default async function handler(req, res) {
       requestBodySent: body,
       responseJson: json,
       responseTextPreview: text.slice(0, 4000),
+      productsLength: json && Array.isArray(json.products) ? json.products.length : null,
+      firstProduct:
+        json && Array.isArray(json.products) && json.products[0]
+          ? {
+              ec_name: json.products[0].ec_name,
+              ec_brand: json.products[0].ec_brand,
+              ec_price: json.products[0].ec_price,
+              ec_promo_price: json.products[0].ec_promo_price,
+              clickUri: json.products[0].clickUri,
+            }
+          : null,
     });
   } catch (err) {
     return res.status(500).json({
