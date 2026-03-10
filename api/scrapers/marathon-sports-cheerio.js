@@ -58,14 +58,12 @@ function parseBrandModelFromCanonical(listingName, rawBrandHint = "") {
   return canonicalBrandModelHelper.parseBrandModelFromText(listingName, rawBrandHint);
 }
 
-function detectGender(listingURL, listingName, extraText = "") {
-  const urlLower = (listingURL || "").toLowerCase();
-  const nameLower = (listingName || "").toLowerCase();
-  const extraLower = (extraText || "").toLowerCase();
-  const combined = `${urlLower} ${nameLower} ${extraLower}`;
-
-  if (/\/mens?[\/-]|\/men\/|men-/.test(urlLower)) return "mens";
-  if (/\/womens?[\/-]|\/women\/|women-/.test(urlLower)) return "womens";
+// Gender is derived exclusively from tile content: the .type div, item_name from
+// dl-item, and the listing name. The feed/browse URL is intentionally excluded —
+// the same shoe can appear in both mens and womens feeds, so the tile itself is
+// the authoritative source.
+function detectGender(listingName, typeText = "", itemName = "") {
+  const combined = `${listingName || ""} ${typeText || ""} ${itemName || ""}`.toLowerCase();
 
   if (/\b(men'?s?|mens|male)\b/i.test(combined)) return "mens";
   if (/\b(women'?s?|womens|female|ladies)\b/i.test(combined)) return "womens";
@@ -74,19 +72,7 @@ function detectGender(listingURL, listingName, extraText = "") {
   return "unknown";
 }
 
-function detectShoeType(listingName, extraText = "") {
-  const combined = `${listingName || ""} ${extraText || ""}`.toLowerCase();
-
-  if (/\b(track|spike|spikes|dragonfly|victory|ja fly|ld|md)\b/.test(combined)) return "track";
-  if (/\b(trail|speedgoat|peregrine|hierro|wildcat|terraventure|speedcross|summit|off[- ]road)\b/.test(combined)) {
-    return "trail";
-  }
-  if (/\b(road|kayano|clifton|ghost|pegasus|nimbus|cumulus|gel|glycerin|kinvara|ride|triumph|novablast|running shoe|running shoes)\b/.test(combined)) {
-    return "road";
-  }
-
-  return "unknown";
-}
+const shoeType = "unknown";
 
 function computeDiscountPercent(originalPrice, salePrice) {
   if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice)) return null;
@@ -224,8 +210,8 @@ async function scrapeMarathonSports() {
   const deals = [];
   const seenUrls = new Set();
 
-  // firstSeenOnSeed tracks which seed URL a listing was first encountered on,
-  // so we can distinguish same-page dupes from cross-feed dupes (mens vs womens overlap)
+  // firstSeenOnSeed tracks which seed a listing was first encountered on,
+  // so we can distinguish same-feed pagination dupes from cross-feed dupes.
   const firstSeenOnSeed = new Map();
 
   // duplicatesBySource counts how many dupes were dropped per seed URL
@@ -234,7 +220,7 @@ async function scrapeMarathonSports() {
   const dropCounts = {
     missingHref: 0,
     missingListingURL: 0,
-    duplicateUrl: 0,           // duplicate within the same seed feed
+    duplicateUrl: 0,            // duplicate within the same seed feed
     duplicateUrlCrossSource: 0, // duplicate first seen on a different seed feed
     missingListingName: 0,
     missingPrice: 0,
@@ -290,6 +276,7 @@ async function scrapeMarathonSports() {
       const dlItem = extractDlItem($tile);
       const salePriceFromDl = Number.isFinite(Number(dlItem?.price)) ? Number(dlItem.price) : null;
       const brandHint = normalizeWhitespace(dlItem?.item_brand || "");
+      const itemName = normalizeWhitespace(dlItem?.item_name || "");
 
       // HTML compare-at is the most reliable original price.
       // Fall back to dl-item only when it differs from the HTML sale price.
@@ -348,8 +335,11 @@ async function scrapeMarathonSports() {
 
       const typeText = normalizeWhitespace($tile.find(".type").first().text() || "");
       const { brand, model } = parseBrandModelFromCanonical(listingName, brandHint);
-      const gender = detectGender(listingURL, listingName, `${typeText} ${currentUrl}`);
-      const shoeType = detectShoeType(listingName, `${typeText} ${model} ${currentUrl}`);
+
+      // Gender from tile content only: .type div + item_name from dl-item + listing name.
+      // Feed URL is not used — the same shoe can appear in both mens and womens feeds.
+      const gender = detectGender(listingName, typeText, itemName);
+      const shoeType = "unknown";
 
       seenUrls.add(listingURL);
       firstSeenOnSeed.set(listingURL, currentSeed);
