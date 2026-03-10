@@ -546,6 +546,25 @@
     "baseUrl": "https://rununited.com",
     "notes": "Searchanise (searchserverapi*/getresults) direct JSON/JSONP pagination. Drops all out-of-stock. shoeType forced per source URL: road/trail/track."
   },
+
+{
+  "id": "saucony",
+  "displayName": "Saucony",
+  "addedAt": "2026-03-10",
+  "lastUpdated": "2026-03-10",
+  "scrapedUrls": [
+    "https://www.saucony.com/en/sale-running/"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/saucony-sale.json"
+  ],
+  "aliases": ["saucony"],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "SAUCONY_SALE_BLOB_URL",
+  "baseUrl": "https://www.saucony.com",
+  "notes": "Saucony running sale scraper using direct HTML fetch + Cheerio on https://www.saucony.com/en/sale-running/. Reads server-rendered product tiles, preserves listingName exactly as scraped, forces brand to Saucony, and derives model by removing a leading Men's/Women's/Unisex prefix from listingName. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Gender is parsed from listingName: mens, womens, unisex, else unknown. shoeType is derived from data-product-attributes surface: trail -> trail; fieldTrack/track/spike/spikes -> track; road or treadmill -> road; otherwise unknown. Supports Load More pagination through button.load-more-cta[data-grid-url] when present. Writes to saucony-sale.json."
+},
   {
     "id": "shoebacca",
     "displayName": "Shoebacca",
