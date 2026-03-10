@@ -1388,11 +1388,20 @@ module.exports = async (req, res) => {
     unique.sort(() => Math.random() - 0.5);
     unique.sort((a, b) => discountForSort(b) - discountForSort(a));
 
-    const dealsByStore = {};
-    for (const d of unique) {
-      const s = d.store || "Unknown";
-      dealsByStore[s] = (dealsByStore[s] || 0) + 1;
-    }
+    // Count deals per store
+const dealsByStoreCounts = {};
+for (const d of unique) {
+  const s = d.store || "Unknown";
+  dealsByStoreCounts[s] = (dealsByStoreCounts[s] || 0) + 1;
+}
+
+// Sort stores alphabetically
+const dealsByStore = Object.keys(dealsByStoreCounts)
+  .sort((a, b) => a.localeCompare(b))
+  .reduce((acc, store) => {
+    acc[store] = dealsByStoreCounts[store];
+    return acc;
+  }, {});
 
     const sourceFreshness = Object.keys(storeMetadata)
       .sort((a, b) => String(a).localeCompare(String(b)))
