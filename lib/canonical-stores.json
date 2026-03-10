@@ -389,6 +389,26 @@
     "baseUrl": "https://www.nike.com",
     "notes": "Nike sale running shoes page via Firecrawl. Uses scroll actions to load more tiles (infinite scroll). Drops 'See Price in Bag' items and counts drops. ShoeType inferred from title keywords: road/trail/track; gender inferred from title: Women's/Men's/Unisex else unknown. Writes to nike.json."
   },
+
+{
+  "id": "on",
+  "displayName": "On",
+  "addedAt": "2026-03-10",
+  "lastUpdated": "2026-03-10",
+  "scrapedUrls": [
+    "https://www.on.com/en-us/shop/classics/mens~womens/shoes/competition~marathon~road-running~track-and-field~trail-running"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/on-last-season-shoes.json"
+  ],
+  "aliases": ["on"],
+  "enabled": true,
+  "scraperType": "algolia",
+  "envVar": "ON_DEALS_BLOB_URL",
+  "baseUrl": "https://www.on.com",
+  "notes": "On last-season/classics running shoes scraper via Algolia product search API. Uses the US_products_production_v3 index with filters for discounted visible shoes on the classics page across competition, marathon, road running, track and field, and trail running. Preserves listingName exactly from Algolia name, forces brand to On, sets model equal to listingName, maps gender only to mens/womens/unisex/unknown from the Algolia gender field, and maps shoeType from productSubtype/productSubtypes: road_running -> road, trail_running -> trail, track or track_and_field -> track, else unknown. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Dedupe by listingURL. Writes to on-last-season-shoes.json."
+},
+  
   {
     "id": "puma",
     "displayName": "PUMA",
