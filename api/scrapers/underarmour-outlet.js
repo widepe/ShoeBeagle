@@ -49,12 +49,26 @@ function decodeHtml(str) {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#8217;/g, "’")
+    .replace(/&#39;/g, "'")
+    .replace(/&lsquo;/g, "‘")
+    .replace(/&rsquo;/g, "’")
+    .replace(/&ldquo;/g, "“")
+    .replace(/&rdquo;/g, "”")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">");
 }
 
 function stripTags(html) {
   return cleanText(String(html || "").replace(/<[^>]*>/g, " "));
+}
+
+function normalizeApostrophes(s) {
+  return String(s || "")
+    .replace(/[\u2018\u2019\u2032\u00B4]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function parsePrice(text) {
@@ -78,16 +92,16 @@ function computeDiscountPercent(originalPrice, salePrice) {
 }
 
 function inferGender(subHeader) {
-  const s = String(subHeader || "").toLowerCase();
+  const s = normalizeApostrophes(subHeader).toLowerCase();
 
-  if (s.includes("men's") || s.includes("mens")) return "mens";
-  if (s.includes("women's") || s.includes("womens")) return "womens";
-  if (s.includes("unisex")) return "unisex";
+  if (/\bmen'?s\b/.test(s) || /\bmens\b/.test(s)) return "mens";
+  if (/\bwomen'?s\b/.test(s) || /\bwomens\b/.test(s)) return "womens";
+  if (/\bunisex\b/.test(s)) return "unisex";
   return "unknown";
 }
 
 function inferShoeType(subHeader) {
-  const s = String(subHeader || "").toLowerCase();
+  const s = normalizeApostrophes(subHeader).toLowerCase();
 
   if (s.includes("trail")) return "trail";
   if (s.includes("track") || s.includes("spike")) return "track";
@@ -100,18 +114,21 @@ function modelFromListingName(listingName) {
   return raw.replace(/^UA\s+/i, "").trim() || raw;
 }
 
-function uniqBy(arr, keyFn) {
-  const seen = new Set();
-  const out = [];
+function incrementCounter(obj, key, by = 1) {
+  obj[key] = (obj[key] || 0) + by;
+}
 
-  for (const item of arr) {
-    const key = keyFn(item);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(item);
-  }
-
-  return out;
+function initDropCounts() {
+  return {
+    totalTiles: 0,
+    dropped_missingListingName: 0,
+    dropped_missingListingURL: 0,
+    dropped_missingImageURL: 0,
+    dropped_missingOriginalPrice: 0,
+    dropped_missingSalePrice: 0,
+    dropped_saleNotLessThanOriginal: 0,
+    dropped_duplicateAfterMerge: 0,
+  };
 }
 
 async function fetchHtml(url) {
@@ -134,8 +151,8 @@ async function fetchHtml(url) {
 
 function extractTiles(html) {
   const tiles = [];
-
-  const regex = /<div[^>]+id="product-[^"]+"[\s\S]*?<section[^>]+product-details-container[\s\S]*?<\/section>\s*<\/div>/gi;
+  const regex =
+    /<div[^>]+id="product-[^"]+"[\s\S]*?<section[^>]+ProductTile-module-scss-module__[^"]*product-details-container[\s\S]*?<\/section>\s*<\/div>/gi;
 
   let match;
   while ((match = regex.exec(html)) !== null) {
@@ -150,7 +167,24 @@ function extractAttr(html, regex) {
   return m ? decodeHtml(m[1]) : null;
 }
 
-function extractDealFromTile(tileHtml) {
+function extractSubHeader(tileHtml) {
+  const raw =
+    extractAttr(
+      tileHtml,
+      /<span[^>]+class="[^"]*ProductTile-module-scss-module__[^"]*product-sub-header[^"]*"[^>]*>([\s\S]*?)<\/span>/i
+    ) ||
+    extractAttr(
+      tileHtml,
+      /<span[^>]*>\s*((?:Men|Women|Unisex)[\s\S]*?Shoes?)\s*<\/span>/i
+    ) ||
+    "";
+
+  return stripTags(raw);
+}
+
+function extractDealFromTile(tileHtml, dropCounts) {
+  incrementCounter(dropCounts, "totalTiles");
+
   const listingURL = absoluteUrl(
     extractAttr(
       tileHtml,
@@ -163,10 +197,8 @@ function extractDealFromTile(tileHtml) {
   );
 
   const imageURL = absoluteUrl(
-    extractAttr(
-      tileHtml,
-      /<img[^>]+data-testid="tile-image"[^>]+src="([^"]+)"/i
-    )
+    extractAttr(tileHtml, /<img[^>]+data-testid="tile-image"[^>]+src="([^"]+)"/i) ||
+      extractAttr(tileHtml, /<img[^>]+src="([^"]*underarmour\.scene7\.com[^"]*)"/i)
   );
 
   const listingName =
@@ -177,13 +209,7 @@ function extractDealFromTile(tileHtml) {
       )
     ) || null;
 
-  const subHeader =
-    stripTags(
-      extractAttr(
-        tileHtml,
-        /<span[^>]+class="[^"]*ProductTile-module-scss-module__[^"]*product-sub-header[^"]*"[^>]*>([\s\S]*?)<\/span>/i
-      )
-    ) || "";
+  const subHeader = extractSubHeader(tileHtml);
 
   const srPriceText =
     stripTags(
@@ -220,8 +246,35 @@ function extractDealFromTile(tileHtml) {
     );
   }
 
-  if (!listingName || !listingURL || !imageURL) return null;
-  if (salePrice == null || originalPrice == null) return null;
+  if (!listingName) {
+    incrementCounter(dropCounts, "dropped_missingListingName");
+    return null;
+  }
+
+  if (!listingURL) {
+    incrementCounter(dropCounts, "dropped_missingListingURL");
+    return null;
+  }
+
+  if (!imageURL) {
+    incrementCounter(dropCounts, "dropped_missingImageURL");
+    return null;
+  }
+
+  if (originalPrice == null) {
+    incrementCounter(dropCounts, "dropped_missingOriginalPrice");
+    return null;
+  }
+
+  if (salePrice == null) {
+    incrementCounter(dropCounts, "dropped_missingSalePrice");
+    return null;
+  }
+
+  if (!(salePrice < originalPrice)) {
+    incrementCounter(dropCounts, "dropped_saleNotLessThanOriginal");
+    return null;
+  }
 
   const deal = {
     schemaVersion: SCHEMA_VERSION,
@@ -269,6 +322,7 @@ async function scrapeCategory(startUrl) {
   const visited = new Set();
   const sourceUrls = [];
   const deals = [];
+  const dropCounts = initDropCounts();
 
   let url = startUrl;
   let pagesFetched = 0;
@@ -278,11 +332,14 @@ async function scrapeCategory(startUrl) {
     sourceUrls.push(url);
 
     const html = await fetchHtml(url);
-    pagesFetched += 1;
-
     const tiles = extractTiles(html);
+
+    if (tiles.length > 0) {
+      pagesFetched += 1;
+    }
+
     for (const tileHtml of tiles) {
-      const deal = extractDealFromTile(tileHtml);
+      const deal = extractDealFromTile(tileHtml, dropCounts);
       if (deal) deals.push(deal);
     }
 
@@ -293,6 +350,7 @@ async function scrapeCategory(startUrl) {
     sourceUrls,
     pagesFetched,
     deals,
+    dropCounts,
   };
 }
 
@@ -319,7 +377,25 @@ export default async function handler(req, res) {
     const rawDeals = perCategory.flatMap((x) => x.deals);
     const dealsFound = rawDeals.length;
 
-    const deals = uniqBy(rawDeals, (d) => `${d.listingURL}__${d.salePrice}__${d.originalPrice}`);
+    const combinedDropCounts = initDropCounts();
+    for (const result of perCategory) {
+      for (const [key, value] of Object.entries(result.dropCounts || {})) {
+        combinedDropCounts[key] = (combinedDropCounts[key] || 0) + (value || 0);
+      }
+    }
+
+    const seen = new Set();
+    const deals = [];
+    for (const deal of rawDeals) {
+      const key = `${deal.listingURL}__${deal.salePrice}__${deal.originalPrice}`;
+      if (seen.has(key)) {
+        incrementCounter(combinedDropCounts, "dropped_duplicateAfterMerge");
+        continue;
+      }
+      seen.add(key);
+      deals.push(deal);
+    }
+
     const dealsExtracted = deals.length;
 
     const payload = {
@@ -341,6 +417,8 @@ export default async function handler(req, res) {
       ok: true,
       error: null,
 
+      dropCounts: combinedDropCounts,
+
       deals,
     };
 
@@ -353,7 +431,18 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
-      ...payload,
+      store: payload.store,
+      schemaVersion: payload.schemaVersion,
+      lastUpdated: payload.lastUpdated,
+      via: payload.via,
+      sourceUrls: payload.sourceUrls,
+      pagesFetched: payload.pagesFetched,
+      dealsFound: payload.dealsFound,
+      dealsExtracted: payload.dealsExtracted,
+      scrapeDurationMs: payload.scrapeDurationMs,
+      ok: payload.ok,
+      error: payload.error,
+      dropCounts: payload.dropCounts,
       blobUrl: blob.url,
     });
   } catch (err) {
@@ -375,12 +464,25 @@ export default async function handler(req, res) {
       ok: false,
       error: err?.message || "Unknown error",
 
+      dropCounts: initDropCounts(),
+
       deals: [],
     };
 
     return res.status(500).json({
       success: false,
-      ...payload,
+      store: payload.store,
+      schemaVersion: payload.schemaVersion,
+      lastUpdated: payload.lastUpdated,
+      via: payload.via,
+      sourceUrls: payload.sourceUrls,
+      pagesFetched: payload.pagesFetched,
+      dealsFound: payload.dealsFound,
+      dealsExtracted: payload.dealsExtracted,
+      scrapeDurationMs: payload.scrapeDurationMs,
+      ok: payload.ok,
+      error: payload.error,
+      dropCounts: payload.dropCounts,
     });
   }
 }
