@@ -1,4 +1,26 @@
 [
+
+{
+  "id": "allbirds",
+  "displayName": "Allbirds",
+  "addedAt": "2026-03-09",
+  "lastUpdated": "2026-03-09",
+  "scrapedUrls": [
+    "https://www.allbirds.com/collections/sale-mens?sort_by=manual&filter.p.m.allbirds_v2.category_subtypes=Running+Shoes",
+    "https://www.allbirds.com/collections/sale-womens?sort_by=manual&filter.p.m.allbirds_v2.category_subtypes=Running+Shoes"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/allbirds-sale.json"
+  ],
+  "aliases": ["allbirds", "all birds"],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "ALLBIRDS_DEALS_BLOB_URL",
+  "baseUrl": "https://www.allbirds.com",
+  "notes": "Allbirds sale running shoes scraper using direct HTML fetch on mens + womens filtered sale pages. Brand is forced to Allbirds. listingName is taken directly from data-product-name. Gender is parsed from listingName: mens, womens, unisex, else unknown. Model is listingName with the leading gender removed. shoeType is trail if listingName contains trail, track if it contains track/spike/spikes, otherwise road because the collection pages are already filtered to Running Shoes. Uses product card link, image, and compare-at price data from the returned HTML. Writes to allbirds-sale.json."
+},
+
+  
   {
     "id": "als",
     "displayName": "ALS",
