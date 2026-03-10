@@ -163,7 +163,6 @@ async function scrapeMarathonSports() {
   const seedUrls = [
     "https://www.marathonsports.com/shop/mens/shoes?sale=1",
     "https://www.marathonsports.com/shop/womens/shoes?sale=1",
-     "https://www.marathonsports.com/shop?q=running%20shoes&sort=discount",
   ];
 
   const HEADERS = {
