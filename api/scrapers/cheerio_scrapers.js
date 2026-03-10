@@ -22,6 +22,7 @@ const SCRAPER_TOGGLES = {
   FLEET_FEET: true,
   LUKES_LOCKER: true,
   MARATHON_SPORTS: true,
+  SAUCONY: true,
   FAMOUS_FOOTWEAR: true, // Coveo API scraper, not Cheerio
   GOING_GOING_GONE: true, // DSG Catalog Product API scraper, not Cheerio
   BIGSHOES: true, // Findify API scraper, not Cheerio
@@ -152,6 +153,21 @@ export default async function handler(req, res) {
       };
     }
 
+    if (SCRAPER_TOGGLES.SAUCONY) {
+      results["Saucony"] = await triggerEndpoint(
+        baseUrl,
+        "/api/scrapers/saucony-sale",
+        auth
+      );
+      await sleep(1000);
+    } else {
+      results["Saucony"] = {
+        ok: true,
+        skipped: true,
+        path: "/api/scrapers/saucony-sale",
+      };
+    }
+
     if (SCRAPER_TOGGLES.FAMOUS_FOOTWEAR) {
       results["Famous Footwear"] = await triggerEndpoint(
         baseUrl,
@@ -221,7 +237,7 @@ export default async function handler(req, res) {
       },
       stores: results,
       note:
-        "This runner triggers independent scraper endpoints. Each scraper writes its own blob. Famous Footwear uses the Coveo Commerce API, Going, Going, Gone uses the DSG Catalog Product API, Big Shoes uses the Findify API, and Adidas uses Firecrawl raw HTML + Cheerio parsing, so those are not direct Cheerio scrapers.",
+        "This runner triggers independent scraper endpoints. Each scraper writes its own blob. Saucony uses direct HTML fetch + Cheerio in its own Vercel scraper endpoint. Famous Footwear uses the Coveo Commerce API, Going, Going, Gone uses the DSG Catalog Product API, Big Shoes uses the Findify API, and Adidas uses Firecrawl raw HTML + Cheerio parsing, so those are not all direct Cheerio scrapers.",
     });
   } catch (error) {
     return res.status(500).json({
