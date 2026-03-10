@@ -32,7 +32,7 @@ const BASE_URL = "https://www.on.com";
 const BLOB_PATH = "on-last-season-shoes.json";
 
 // Toggle CRON auth here if needed
-const REQUIRE_CRON_SECRET = true;
+const REQUIRE_CRON_SECRET = false;
 
 // Algolia config discovered from On site requests
 const ALGOLIA_URL =
