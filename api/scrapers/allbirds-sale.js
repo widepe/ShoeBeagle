@@ -72,11 +72,8 @@ function extractModel(listingName) {
 
 function inferShoeType(listingName) {
   const s = String(listingName || "").toLowerCase();
-
   if (/\btrail\b/.test(s)) return "trail";
   if (/\btrack\b/.test(s) || /\bspike\b/.test(s) || /\bspikes\b/.test(s)) return "track";
-
-  // These collection pages are already filtered to Running Shoes.
   return "road";
 }
 
@@ -94,30 +91,64 @@ function makeDropCounts() {
   };
 }
 
-function pickBestProductAnchor($, $card) {
-  const anchors = $card.find('a[href*="/products/"]');
-  if (!anchors.length) return null;
-
-  let best = null;
-  let bestScore = -1;
-
-  anchors.each((_, el) => {
-    const $a = $(el);
-    const href = $a.attr("href") || "";
-    let score = 0;
-
-    if (/^https?:\/\/www\.allbirds\.com\/products\//i.test(href)) score += 5;
-    if (/^\/products\//i.test(href)) score += 5;
-    if ($a.find("img").length) score += 2;
-    if (($a.text() || "").trim()) score += 1;
-
-    if (score > bestScore) {
-      bestScore = score;
-      best = $a;
-    }
+async function fetchHtml(url) {
+  const resp = await fetch(url, {
+    method: "GET",
+    headers: {
+      "user-agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+      accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "accept-language": "en-US,en;q=0.9",
+      referer: "https://www.allbirds.com/",
+      "cache-control": "no-cache",
+    },
   });
 
-  return best;
+  if (!resp.ok) {
+    throw new Error(`Fetch failed for ${url}: HTTP ${resp.status}`);
+  }
+
+  return await resp.text();
+}
+
+function extractListingUrl($, $card) {
+  const directHref =
+    $card.find("a[data-product-link]").first().attr("href") ||
+    $card.find('a[href*="/products/"]').first().attr("href") ||
+    $card.find("input[data-product-url]").first().attr("data-product-url") ||
+    "";
+
+  return toAbsoluteUrl(directHref);
+}
+
+function extractImageUrl($, $card) {
+  const src =
+    $card.find("img").first().attr("src") ||
+    $card.find("img").first().attr("data-src") ||
+    "";
+
+  return toAbsoluteUrl(src);
+}
+
+function extractPrices($, $card) {
+  let salePrice = null;
+  let originalPrice = null;
+
+  const $priceInput = $card.find("input[data-product-price][data-product-compare-at-price]").first();
+  if ($priceInput.length) {
+    salePrice = parsePriceText($priceInput.attr("data-product-price"));
+    originalPrice = parsePriceText($priceInput.attr("data-product-compare-at-price"));
+  }
+
+  if (salePrice == null || originalPrice == null) {
+    const spans = $card.find("p span");
+    if (spans.length >= 2) {
+      salePrice = salePrice ?? parsePriceText($(spans[0]).text());
+      originalPrice = originalPrice ?? parsePriceText($(spans[1]).text());
+    }
+  }
+
+  return { salePrice, originalPrice };
 }
 
 function extractDealFromCard($, el, seenKeys, dropCounts) {
@@ -125,19 +156,14 @@ function extractDealFromCard($, el, seenKeys, dropCounts) {
   dropCounts.totalTiles += 1;
 
   try {
-    const listingName =
-      cleanText($card.attr("data-product-name")) ||
-      cleanText($card.find('[data-product-link] p').first().text()) ||
-      cleanText($card.find("p").first().text()) ||
-      null;
+    const listingName = cleanText($card.attr("data-product-name"));
 
     if (!listingName) {
       dropCounts.dropped_missingListingName += 1;
       return null;
     }
 
-    const $anchor = pickBestProductAnchor($, $card);
-    const listingURL = toAbsoluteUrl($anchor?.attr("href"));
+    const listingURL = extractListingUrl($, $card);
     if (!listingURL) {
       dropCounts.dropped_missingListingURL += 1;
       return null;
@@ -149,32 +175,13 @@ function extractDealFromCard($, el, seenKeys, dropCounts) {
       return null;
     }
 
-    let imageURL =
-      toAbsoluteUrl($card.find("img").first().attr("src")) ||
-      toAbsoluteUrl($card.find("img").first().attr("data-src")) ||
-      null;
-
+    const imageURL = extractImageUrl($, $card);
     if (!imageURL) {
       dropCounts.dropped_missingImageURL += 1;
       return null;
     }
 
-    let salePrice = null;
-    let originalPrice = null;
-
-    const $priceInput = $card.find("input[data-product-price][data-product-compare-at-price]").first();
-    if ($priceInput.length) {
-      salePrice = parsePriceText($priceInput.attr("data-product-price"));
-      originalPrice = parsePriceText($priceInput.attr("data-product-compare-at-price"));
-    }
-
-    if (salePrice == null || originalPrice == null) {
-      const spans = $card.find("p span");
-      if (spans.length >= 2) {
-        salePrice = salePrice ?? parsePriceText($(spans[0]).text());
-        originalPrice = originalPrice ?? parsePriceText($(spans[1]).text());
-      }
-    }
+    const { salePrice, originalPrice } = extractPrices($, $card);
 
     if (salePrice == null) {
       dropCounts.dropped_missingSalePrice += 1;
@@ -193,7 +200,7 @@ function extractDealFromCard($, el, seenKeys, dropCounts) {
 
     seenKeys.add(dedupeKey);
 
-    const deal = {
+    return {
       schemaVersion: SCHEMA_VERSION,
 
       listingName,
@@ -219,32 +226,10 @@ function extractDealFromCard($, el, seenKeys, dropCounts) {
       gender: inferGender(listingName),
       shoeType: inferShoeType(listingName),
     };
-
-    return deal;
   } catch (err) {
     dropCounts.dropped_parseError += 1;
     return null;
   }
-}
-
-async function fetchHtml(url) {
-  const resp = await fetch(url, {
-    method: "GET",
-    headers: {
-      "user-agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-      accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "accept-language": "en-US,en;q=0.9",
-      referer: "https://www.allbirds.com/",
-      "cache-control": "no-cache",
-    },
-  });
-
-  if (!resp.ok) {
-    throw new Error(`Fetch failed for ${url}: HTTP ${resp.status}`);
-  }
-
-  return await resp.text();
 }
 
 export default async function handler(req, res) {
@@ -276,10 +261,7 @@ export default async function handler(req, res) {
 
       const $ = cheerio.load(html);
 
-      let $cards = $('[data-product-card]');
-      if (!$cards.length) {
-        $cards = $('div[data-testid^="product-card-"]');
-      }
+      const $cards = $('[data-product-card][data-product-name]');
 
       $cards.each((_, el) => {
         const deal = extractDealFromCard($, el, seenKeys, dropCounts);
