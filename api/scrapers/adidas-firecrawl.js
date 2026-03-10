@@ -23,7 +23,7 @@
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
 
-const STORE = "Adidas";
+const STORE = "adidas";
 const OUT_BLOB_NAME = "adidas.json";
 const SCHEMA_VERSION = 1;
 
