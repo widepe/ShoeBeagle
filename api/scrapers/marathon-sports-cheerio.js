@@ -251,13 +251,25 @@ async function scrapeMarathonSports() {
       const $img = $tile.find(".image-wrap img").first();
       const imageURL = pickBestImgUrl($, $img, base);
 
-      const originalPrice = parseDollar($tile.find(".product-price .num.-compare").first().text());
+      // --- PRICING FIX START ---
+      const compareAtFromHtml = parseDollar($tile.find(".product-price .num.-compare").first().text());
       const salePriceFromHtml = parseDollar($tile.find(".product-price .num.-price").first().text());
 
       const dlItem = extractDlItem($tile);
       const salePriceFromDl = Number.isFinite(Number(dlItem?.price)) ? Number(dlItem.price) : null;
       const brandHint = normalizeWhitespace(dlItem?.item_brand || "");
+
+      // HTML compare-at is the most reliable original price.
+      // If missing, fall back to dl-item price — but only when it differs
+      // from the HTML sale price, meaning dl-item is the pre-discount price.
+      const originalPrice = Number.isFinite(compareAtFromHtml)
+        ? compareAtFromHtml
+        : salePriceFromDl !== null && salePriceFromDl !== salePriceFromHtml
+        ? salePriceFromDl
+        : null;
+
       const salePrice = Number.isFinite(salePriceFromHtml) ? salePriceFromHtml : salePriceFromDl;
+      // --- PRICING FIX END ---
 
       const previewListingURL = rawHref ? absolutizeUrl(rawHref, base) : "";
 
