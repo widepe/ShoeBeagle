@@ -55,6 +55,10 @@ const ENABLED = {
   footlocker: true,
   journeys: true,
   mizuno: true,
+  // New Balance — Playwright + Camoufox actor to bypass Akamai bot protection.
+  // Scrapes mens + womens sale running pages and writes directly to
+  // newbalance-sale.json blob using BLOB_READ_WRITE_TOKEN set inside the actor.
+  newbalance: true,
   puma: true,
   rei: true,
   rnj: true,
@@ -66,15 +70,17 @@ const ENABLED = {
 // ACTOR DEFINITIONS
 // ===========================
 const TARGETS = [
-  { key: "brooks", name: "Brooks Running", actorEnv: "APIFY_BROOKS_ACTOR_ID", inputEnv: "APIFY_BROOKS_INPUT_JSON" },
-  { key: "footlocker", name: "Foot Locker", actorEnv: "APIFY_FOOTLOCKER_ACTOR_ID", inputEnv: "APIFY_FOOTLOCKER_INPUT_JSON" },
-  { key: "journeys", name: "Journeys", actorEnv: "APIFY_JOURNEYS_ACTOR_ID", inputEnv: "APIFY_JOURNEYS_INPUT_JSON" },
-  { key: "mizuno", name: "Mizuno", actorEnv: "APIFY_MIZUNO_ACTOR_ID", inputEnv: "APIFY_MIZUNO_INPUT_JSON" },
-  { key: "puma", name: "PUMA", actorEnv: "APIFY_PUMA_ACTOR_ID", inputEnv: "APIFY_PUMA_INPUT_JSON" },
-  { key: "rei", name: "REI Outlet", actorEnv: "APIFY_REI_ACTOR_ID", inputEnv: "APIFY_REI_INPUT_JSON" },
-  { key: "roadrunner", name: "Road Runner Sports", actorEnv: "APIFY_ROADRUNNER_ACTOR_ID", inputEnv: "APIFY_ROADRUNNER_INPUT_JSON" },
-  { key: "rnj", name: "RnJ Sports", actorEnv: "APIFY_RNJSPORTS_ACTOR_ID", inputEnv: "APIFY_RNJSPORTS_INPUT_JSON" },
-  { key: "zappos", name: "Zappos", actorEnv: "APIFY_ZAPPOS_ACTOR_ID", inputEnv: "APIFY_ZAPPOS_INPUT_JSON" },
+  { key: "brooks",      name: "Brooks Running",      actorEnv: "APIFY_BROOKS_ACTOR_ID",      inputEnv: "APIFY_BROOKS_INPUT_JSON" },
+  { key: "footlocker",  name: "Foot Locker",          actorEnv: "APIFY_FOOTLOCKER_ACTOR_ID",  inputEnv: "APIFY_FOOTLOCKER_INPUT_JSON" },
+  { key: "journeys",    name: "Journeys",              actorEnv: "APIFY_JOURNEYS_ACTOR_ID",    inputEnv: "APIFY_JOURNEYS_INPUT_JSON" },
+  { key: "mizuno",      name: "Mizuno",                actorEnv: "APIFY_MIZUNO_ACTOR_ID",      inputEnv: "APIFY_MIZUNO_INPUT_JSON" },
+  // New Balance — Playwright + Camoufox actor.   No input JSON needed — sources and blob token are hardcoded in the actor.
+  { key: "newbalance",  name: "New Balance",           actorEnv: "APIFY_NEWBALANCE_ACTOR_ID",  inputEnv: "APIFY_NEWBALANCE_INPUT_JSON" },
+  { key: "puma",        name: "PUMA",                  actorEnv: "APIFY_PUMA_ACTOR_ID",        inputEnv: "APIFY_PUMA_INPUT_JSON" },
+  { key: "rei",         name: "REI Outlet",            actorEnv: "APIFY_REI_ACTOR_ID",         inputEnv: "APIFY_REI_INPUT_JSON" },
+  { key: "roadrunner",  name: "Road Runner Sports",    actorEnv: "APIFY_ROADRUNNER_ACTOR_ID",  inputEnv: "APIFY_ROADRUNNER_INPUT_JSON" },
+  { key: "rnj",         name: "RnJ Sports",            actorEnv: "APIFY_RNJSPORTS_ACTOR_ID",   inputEnv: "APIFY_RNJSPORTS_INPUT_JSON" },
+  { key: "zappos",      name: "Zappos",                actorEnv: "APIFY_ZAPPOS_ACTOR_ID",      inputEnv: "APIFY_ZAPPOS_INPUT_JSON" },
 ];
 
 module.exports = async (req, res) => {
