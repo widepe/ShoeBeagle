@@ -3,6 +3,8 @@
 // Most are Cheerio scrapers.
 // Famous Footwear is NOT a Cheerio scraper:
 // - it uses the Coveo Commerce API directly from its own Vercel scraper endpoint.
+// Going, Going, Gone is also NOT a Cheerio scraper:
+// - it uses the DSG Catalog Product API directly from its own Vercel scraper endpoint.
 // Each scraper runs in its own file and writes its own blob.
 
 export const config = { maxDuration: 60 };
@@ -17,6 +19,7 @@ const SCRAPER_TOGGLES = {
   LUKES_LOCKER: true,
   MARATHON_SPORTS: true,
   FAMOUS_FOOTWEAR: true, // Coveo API scraper, not Cheerio
+  GOING_GOING_GONE: true, // DSG Catalog Product API scraper, not Cheerio
 };
 
 function nowIso() {
@@ -149,11 +152,26 @@ export default async function handler(req, res) {
         "/api/scrapers/famous-footwear",
         auth
       );
+      await sleep(1000);
     } else {
       results["Famous Footwear"] = {
         ok: true,
         skipped: true,
         path: "/api/scrapers/famous-footwear",
+      };
+    }
+
+    if (SCRAPER_TOGGLES.GOING_GOING_GONE) {
+      results["Going, Going, Gone"] = await triggerEndpoint(
+        baseUrl,
+        "/api/scrapers/going-going-gone",
+        auth
+      );
+    } else {
+      results["Going, Going, Gone"] = {
+        ok: true,
+        skipped: true,
+        path: "/api/scrapers/going-going-gone",
       };
     }
 
@@ -167,7 +185,7 @@ export default async function handler(req, res) {
       },
       stores: results,
       note:
-        "This runner triggers independent scraper endpoints. Each scraper writes its own blob. Famous Footwear is included here for convenience, but it is a Coveo API scraper, not a Cheerio scraper.",
+        "This runner triggers independent scraper endpoints. Each scraper writes its own blob. Famous Footwear uses the Coveo Commerce API and Going, Going, Gone uses the DSG Catalog Product API, so neither are Cheerio scrapers.",
     });
   } catch (error) {
     return res.status(500).json({
