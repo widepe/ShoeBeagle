@@ -504,7 +504,7 @@
   "envVar": "UNDERARMOUROUTLET_DEALS_BLOB_URL",
   "baseUrl": "https://www.underarmour.com",
   "notes": "Under Armour outlet running shoes scraper using direct HTML fetch on mens + womens outlet running pages. Brand is forced to Under Armour. Gender is parsed from each tile subtitle: mens, womens, unisex, else unknown. shoeType is parsed from tile subtitle: trail if it contains trail, track if it contains track or spike, road if it contains running, else unknown. Follows next-page links. Writes to underarmour-outlet.json."
-}  
+},
   {
     "id": "zappos",
     "displayName": "Zappos",
