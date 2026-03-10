@@ -480,6 +480,31 @@
     "baseUrl": "https://shop.trackshack.com",
     "notes": "Track Shack clearance running shoes. Writes to trackshack.json via Cheerio scraper."
   },
+
+{
+  "id": "underarmour-outlet",
+  "displayName": "Under Armour Outlet",
+  "addedAt": "2026-03-09",
+  "lastUpdated": "2026-03-09",
+  "scrapedUrls": [
+    "https://www.underarmour.com/en-us/c/outlet/mens/shoes/running/",
+    "https://www.underarmour.com/en-us/c/outlet/womens/shoes/running/"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/underarmour-outlet.json"
+  ],
+  "aliases": [
+    "under armour",
+    "under armour outlet",
+    "underarmour",
+    "ua"
+  ],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "UNDERARMOUROUTLET_DEALS_BLOB_URL",
+  "baseUrl": "https://www.underarmour.com",
+  "notes": "Under Armour outlet running shoes scraper using direct HTML fetch on mens + womens outlet running pages. Brand is forced to Under Armour. Gender is parsed from each tile subtitle: mens, womens, unisex, else unknown. shoeType is parsed from tile subtitle: trail if it contains trail, track if it contains track or spike, road if it contains running, else unknown. Follows next-page links. Writes to underarmour-outlet.json."
+}  
   {
     "id": "zappos",
     "displayName": "Zappos",
