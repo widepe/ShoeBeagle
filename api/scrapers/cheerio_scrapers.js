@@ -1,5 +1,8 @@
 // /api/cheerio_scrapers.js
-// Trigger-only runner for independent cheerio scraper endpoints.
+// Trigger-only runner for independent scraper endpoints.
+// Most are Cheerio scrapers.
+// Famous Footwear is NOT a Cheerio scraper:
+// - it uses the Coveo Commerce API directly from its own Vercel scraper endpoint.
 // Each scraper runs in its own file and writes its own blob.
 
 export const config = { maxDuration: 60 };
@@ -13,6 +16,7 @@ const SCRAPER_TOGGLES = {
   FLEET_FEET: true,
   LUKES_LOCKER: true,
   MARATHON_SPORTS: true,
+  FAMOUS_FOOTWEAR: true, // Coveo API scraper, not Cheerio
 };
 
 function nowIso() {
@@ -130,11 +134,26 @@ export default async function handler(req, res) {
         "/api/scrapers/marathon-sports-cheerio",
         auth
       );
+      await sleep(1000);
     } else {
       results["Marathon Sports"] = {
         ok: true,
         skipped: true,
         path: "/api/scrapers/marathon-sports-cheerio",
+      };
+    }
+
+    if (SCRAPER_TOGGLES.FAMOUS_FOOTWEAR) {
+      results["Famous Footwear"] = await triggerEndpoint(
+        baseUrl,
+        "/api/scrapers/famous-footwear",
+        auth
+      );
+    } else {
+      results["Famous Footwear"] = {
+        ok: true,
+        skipped: true,
+        path: "/api/scrapers/famous-footwear",
       };
     }
 
@@ -147,7 +166,8 @@ export default async function handler(req, res) {
         request: REQUEST_TOGGLES,
       },
       stores: results,
-      note: "This runner triggers independent scraper endpoints. Each scraper writes its own blob.",
+      note:
+        "This runner triggers independent scraper endpoints. Each scraper writes its own blob. Famous Footwear is included here for convenience, but it is a Coveo API scraper, not a Cheerio scraper.",
     });
   } catch (error) {
     return res.status(500).json({
