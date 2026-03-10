@@ -133,15 +133,16 @@ async function fetchHtml(url) {
 }
 
 function extractTiles(html) {
-  const matches = [...html.matchAll(/<div[^>]+id="product-[^"]+"[\s\S]*?<\/section><\/div>/gi)];
-  if (matches.length) return matches.map((m) => m[0]);
+  const tiles = [];
 
-  // fallback: tile container class
-  return [
-    ...html.matchAll(
-      /<div[^>]+data-testid="product-tile-container"[\s\S]*?<\/section><\/div>/gi
-    ),
-  ].map((m) => m[0]);
+  const regex = /<div[^>]+id="product-[^"]+"[\s\S]*?<section[^>]+product-details-container[\s\S]*?<\/section>\s*<\/div>/gi;
+
+  let match;
+  while ((match = regex.exec(html)) !== null) {
+    tiles.push(match[0]);
+  }
+
+  return tiles;
 }
 
 function extractAttr(html, regex) {
