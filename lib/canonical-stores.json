@@ -116,6 +116,24 @@
     "baseUrl": "https://www.brooksrunning.com",
     "notes": "no notes"
   },
+{
+  "id": "famous-footwear",
+  "displayName": "Famous Footwear",
+  "addedAt": "2026-03-09",
+  "lastUpdated": "2026-03-09",
+  "scrapedUrls": [
+    "https://www.famousfootwear.com/browse/sale?icid=sdd_vwall#sortCriteria=relevance&f-webgenders=Women's,Men's&cf-categories=Sneakers%20and%20Athletic%20Shoes,Running%20Shoes"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/famous-footwear.json"
+  ],
+  "aliases": ["famous footwear", "famousfootwear"],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "FAMOUSFOOTWEAR_DEALS_BLOB_URL",
+  "baseUrl": "https://www.famousfootwear.com",
+  "notes": "Famous Footwear running shoes scraper via Coveo Commerce API. Mens + womens only, running shoes category only. Skips MAP / See Price in Cart items and keeps only true sale items where salePrice < originalPrice. Gender is parsed from API webgenders, then falls back to listingName: mens, womens, unisex, else unknown. shoeType forced to unknown. Writes to famous-footwear.json."
+},
   {
     "id": "finishline",
     "displayName": "Finish Line",
