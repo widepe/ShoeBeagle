@@ -16,14 +16,6 @@ const START_URLS = [
 
 const MAX_PAGES = 10;
 
-// CRON auth (temporarily commented out for testing)
-/*
-const auth = req.headers.authorization;
-if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-  return res.status(401).json({ success: false, error: "Unauthorized" });
-}
-*/
-
 function nowIso() {
   return new Date().toISOString();
 }
@@ -50,12 +42,12 @@ function decodeHtml(str) {
     .replace(/&#39;/g, "'")
     .replace(/&apos;/g, "'")
     .replace(/&nbsp;/g, " ")
-    .replace(/&#8217;/g, "’")
+    .replace(/&#8217;/g, "'")
     .replace(/&#39;/g, "'")
-    .replace(/&lsquo;/g, "‘")
-    .replace(/&rsquo;/g, "’")
-    .replace(/&ldquo;/g, "“")
-    .replace(/&rdquo;/g, "”")
+    .replace(/&lsquo;/g, "'")
+    .replace(/&rsquo;/g, "'")
+    .replace(/&ldquo;/g, "\u201C")
+    .replace(/&rdquo;/g, "\u201D")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">");
 }
@@ -91,12 +83,21 @@ function computeDiscountPercent(originalPrice, salePrice) {
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
-function inferGender(subHeader) {
+function inferGender(subHeader, listingURL = "") {
+  // Primary: parse the sub-header span text directly from the tile
   const s = normalizeApostrophes(subHeader).toLowerCase();
 
-  if (/\bmen'?s\b/.test(s) || /\bmens\b/.test(s)) return "mens";
-  if (/\bwomen'?s\b/.test(s) || /\bwomens\b/.test(s)) return "womens";
-  if (/\bunisex\b/.test(s)) return "unisex";
+  if (s.includes("women's") || s.includes("womens")) return "womens";
+  if (s.includes("men's") || s.includes("mens")) return "mens";
+  if (s.includes("unisex")) return "unisex";
+
+  // Fallback: parse the listing URL (e.g. /ua_charged_assert_10_mens_running_shoes/)
+  const url = listingURL.toLowerCase();
+
+  if (url.includes("_womens_") || url.includes("/womens/")) return "womens";
+  if (url.includes("_mens_") || url.includes("/mens/")) return "mens";
+  if (url.includes("_unisex_") || url.includes("/unisex/")) return "unisex";
+
   return "unknown";
 }
 
@@ -299,7 +300,7 @@ function extractDealFromTile(tileHtml, dropCounts) {
     listingURL,
     imageURL,
 
-    gender: inferGender(subHeader),
+    gender: inferGender(subHeader, listingURL),
     shoeType: inferShoeType(subHeader),
   };
 
