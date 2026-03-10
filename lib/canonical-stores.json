@@ -1,5 +1,31 @@
 [
 
+
+{
+  "id": "adidas",
+  "displayName": "Adidas",
+  "addedAt": "2026-03-10",
+  "lastUpdated": "2026-03-10",
+  "scrapedUrls": [
+    "https://www.adidas.com/us/women-running-shoes-sale",
+    "https://www.adidas.com/us/women-running-shoes-sale?start=48",
+    "https://www.adidas.com/us/men-running-shoes-sale",
+    "https://www.adidas.com/us/men-running-shoes-sale?start=48"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/adidas.json"
+  ],
+  "aliases": ["adidas"],
+  "enabled": true,
+  "scraperType": "firecrawl-cheerio",
+  "envVar": "ADIDAS_DEALS_BLOB_URL",
+  "baseUrl": "https://www.adidas.com",
+  "notes": "Adidas running shoes sale scraper via Firecrawl raw HTML + Cheerio parse. Scrapes womens and mens sale running pages with pagination using ?start=48, capped at 2 pages per base for Vercel stability. Extracts listingName directly from tile title/image alt, preserves listingName exactly, sets model equal to listingName for downstream merge normalization, parses gender from tile subtitle, and keeps shoeType as unknown for downstream processing. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Dedupe by listingURL. Writes to adidas.json."
+},
+
+
+
+  
 {
   "id": "allbirds",
   "displayName": "Allbirds",
