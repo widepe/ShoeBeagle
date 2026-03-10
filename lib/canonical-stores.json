@@ -193,6 +193,30 @@
     "baseUrl": "https://gazellesports.com",
     "notes": "Shopify products.json collection scraper (mens + womens sale)"
   },
+
+{
+  "id": "going-going-gone",
+  "displayName": "Going, Going, Gone",
+  "addedAt": "2026-03-09",
+  "lastUpdated": "2026-03-09",
+  "scrapedUrls": [
+    "https://www.goinggoinggone.com/f/shop-all-mens-sale?filterFacets=4285%253ARunning%253B5382%253AAthletic%2520%2526%2520Sneakers",
+    "https://www.goinggoinggone.com/f/shop-all-womens-sale?filterFacets=4285%253ARunning%253B5382%253AAthletic%2520%2526%2520Sneakers"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/going-going-gone.json"
+  ],
+  "aliases": [
+    "going going gone",
+    "going-going-gone",
+    "ggg"
+  ],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "GOINGGOINGGONE_DEALS_BLOB_URL",
+  "baseUrl": "https://www.goinggoinggone.com",
+  "notes": "Going, Going, Gone sale running shoes scraper via DSG catalog product API. Scrapes mens + womens sale running athletic & sneakers pages through the direct search API. Uses parent productDetails pricing for honest range support when available; otherwise falls back to active floatFacets exact pricing. Keeps only deals with both sale and original pricing where sale is less than original. Gender is parsed from attributes first, then title, else unknown. shoeType is parsed from attribute 5066 first (Road/Trail/Track), then strict title fallback: road only for 'road running', trail only for 'trail running', track for 'track' or 'spike/spikes', else unknown. Writes to going-going-gone.json."
+},
   {
     "id": "hoka",
     "displayName": "HOKA",
