@@ -563,6 +563,17 @@
     };
 
     const brands = Object.keys(brandModels).sort((a,b) => a.localeCompare(b));
+    function modelsForBrandKey(brandKey) {
+      const entry = brandModels[brandKey];
+      if (Array.isArray(entry)) return entry;
+      if (entry && typeof entry === "object" && Array.isArray(entry.models)) return entry.models;
+      return [];
+    }
+    function aliasesForBrandKey(brandKey) {
+      const entry = brandModels[brandKey];
+      if (entry && typeof entry === "object" && Array.isArray(entry.aliases)) return entry.aliases;
+      return [brandKey];
+    }
     const allModels = (() => {
       const flat = [];
       for (const b of Object.keys(brandModels)) {
@@ -952,7 +963,7 @@
       const text = alertModel.value.trim();
       if (text.length < 1) { closeSuggestions("model"); return; }
       const brandKey = resolveBrand();
-      const pool = (brandKey && Array.isArray(brandModels[brandKey])) ? brandModels[brandKey] : allModels;
+      const pool = brandKey ? modelsForBrandKey(brandKey) : allModels;
       const matches = filterSuggestions(pool, text, 12);
       renderSuggestions(alertModelSuggestions, matches, "model", (value) => {
         alertModel.value = value;

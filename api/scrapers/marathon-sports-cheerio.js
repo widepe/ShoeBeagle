@@ -2,7 +2,7 @@
 
 const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
-const canonicalBrandModels = require("../../lib/canonical-brands-models.json");
+const { canonicalBrandModelHelper } = require("../../lib/canonical-brand-models");
 
 export const config = { maxDuration: 60 };
 
@@ -54,74 +54,8 @@ function pickBestImgUrl($, $img, base) {
   return absolutizeUrl(candidate, base);
 }
 
-function escapeRegExp(str) {
-  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function getCanonicalBrandKeys() {
-  return Object.keys(canonicalBrandModels || {})
-    .map((b) => String(b || "").trim())
-    .filter(Boolean)
-    .sort((a, b) => b.length - a.length);
-}
-
-function findCanonicalBrandMatch(rawText) {
-  const text = String(rawText || "");
-  if (!text.trim()) return null;
-
-  const canonicalBrands = getCanonicalBrandKeys();
-
-  for (const brandName of canonicalBrands) {
-    const escaped = escapeRegExp(brandName);
-    const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
-    if (regex.test(text)) return brandName;
-  }
-
-  return null;
-}
-
 function parseBrandModelFromCanonical(listingName, rawBrandHint = "") {
-  const rawTitle = String(listingName || "");
-  const brandHint = String(rawBrandHint || "").trim();
-
-  if (!rawTitle.trim()) {
-    return { brand: "Unknown", model: "" };
-  }
-
-  if (brandHint) {
-    const matchedHintBrand = findCanonicalBrandMatch(brandHint);
-    if (matchedHintBrand) {
-      const escaped = escapeRegExp(matchedHintBrand);
-      const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
-
-      const model = regex.test(rawTitle)
-        ? rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim()
-        : rawTitle;
-
-      return {
-        brand: matchedHintBrand,
-        model: model || rawTitle,
-      };
-    }
-  }
-
-  const matchedTitleBrand = findCanonicalBrandMatch(rawTitle);
-  if (matchedTitleBrand) {
-    const escaped = escapeRegExp(matchedTitleBrand);
-    const regex = new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, "i");
-
-    const model = rawTitle.replace(regex, " ").replace(/\s+/g, " ").trim();
-
-    return {
-      brand: matchedTitleBrand,
-      model: model || rawTitle,
-    };
-  }
-
-  return {
-    brand: "Unknown",
-    model: rawTitle,
-  };
+  return canonicalBrandModelHelper.parseBrandModelFromText(listingName, rawBrandHint);
 }
 
 function detectGender(listingURL, listingName, extraText = "") {
