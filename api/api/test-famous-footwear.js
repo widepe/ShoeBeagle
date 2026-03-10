@@ -15,8 +15,6 @@ export default async function handler(req, res) {
   const url =
     "https://caleresproduction4uzryqju.org.coveo.com/rest/organizations/caleresproduction4uzryqju/commerce/v2/search";
 
-  // Hand-built test body based on what you found in DevTools.
-  // This route is ONLY for debugging whether the token/body works server-side.
   const body = {
     trackingId: "FamousFootwear",
     clientId: "test-client-id",
@@ -30,7 +28,7 @@ export default async function handler(req, res) {
       },
       capture: true,
       cart: [],
-      source: ["vercel-test"],
+      source: ["@coveo/headless@3.42.1"],
     },
     language: "en",
     country: "US",
