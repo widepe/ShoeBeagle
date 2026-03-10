@@ -66,25 +66,38 @@ function computeDiscountPercent(originalPrice, salePrice) {
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
+function normalizeGenderValue(v) {
+  return String(v || "")
+    .trim()
+    .toLowerCase()
+    .replace(/['’]/g, "");
+}
+
 function parseGenderFromName(name) {
-  const s = String(name || "").trim().toLowerCase();
+  const s = normalizeGenderValue(name);
   if (!s) return "unknown";
-  if (s.includes("women's") || s.includes("womens")) return "womens";
-  if (s.includes("men's") || s.includes("mens")) return "mens";
-  if (s.includes("unisex")) return "unisex";
+
+  if (/\bunisex\b/.test(s)) return "unisex";
+  if (/\bwomens\b/.test(s) || /\bwomen\b/.test(s) || /\bwoman\b/.test(s)) return "womens";
+  if (/\bmens\b/.test(s) || /\bmen\b/.test(s) || /\bman\b/.test(s)) return "mens";
+
   return "unknown";
 }
 
 function parseGender(result) {
   const arr = result?.additionalFields?.webgenders;
+
   if (Array.isArray(arr) && arr.length) {
-    const lowered = arr.map((x) => String(x || "").trim().toLowerCase());
-    const hasWomen = lowered.some((x) => x.includes("women"));
-    const hasMen = lowered.some((x) => x.includes("men"));
+    const normalized = arr.map(normalizeGenderValue);
+
+    const hasWomen = normalized.includes("womens") || normalized.includes("women");
+    const hasMen = normalized.includes("mens") || normalized.includes("men");
+
     if (hasWomen && hasMen) return "unisex";
     if (hasWomen) return "womens";
     if (hasMen) return "mens";
   }
+
   return parseGenderFromName(result?.ec_name || result?.additionalFields?.name || "");
 }
 
@@ -104,8 +117,6 @@ function isMapSeePriceInCart(result) {
   const isMapEligible = String(af.ismapeligible || "").toLowerCase() === "true";
   const isMapPolicyCart = String(af.ismappolicycart || "").toLowerCase() === "true";
 
-  // For this site, MAP/cart-policy items are the closest reliable API proxy
-  // for "See Price in Cart" tiles.
   return isMapEligible || isMapPolicyCart;
 }
 
@@ -311,7 +322,6 @@ export default async function handler(req, res) {
   const startedAt = Date.now();
 
   try {
-    // CRON auth
     if (REQUEST_TOGGLES.REQUIRE_CRON_SECRET) {
       const auth = req.headers.authorization;
       if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -347,6 +357,13 @@ export default async function handler(req, res) {
       dropped_saleNotLessThanOriginal: 0,
       dropped_invalidGender: 0,
       dropped_duplicateAfterMerge: 0,
+    };
+
+    const extractedGenderCounts = {
+      mens: 0,
+      womens: 0,
+      unisex: 0,
+      unknown: 0,
     };
 
     let page = 1;
@@ -428,6 +445,9 @@ export default async function handler(req, res) {
         }
         seen.add(dedupeKey);
 
+        extractedGenderCounts[deal.gender] =
+          (extractedGenderCounts[deal.gender] || 0) + 1;
+
         deals.push(deal);
       }
 
@@ -437,6 +457,34 @@ export default async function handler(req, res) {
       page += 1;
       await sleep(125);
     }
+
+    const totalDropped =
+      dropCounts.dropped_notRunningCategory +
+      dropCounts.dropped_mapOrSeePriceInCart +
+      dropCounts.dropped_missingListingName +
+      dropCounts.dropped_missingBrand +
+      dropCounts.dropped_missingListingURL +
+      dropCounts.dropped_missingImageURL +
+      dropCounts.dropped_missingOriginalPrice +
+      dropCounts.dropped_missingSalePrice +
+      dropCounts.dropped_saleNotLessThanOriginal +
+      dropCounts.dropped_invalidGender +
+      dropCounts.dropped_duplicateAfterMerge;
+
+    const metadata = {
+      genderCounts: {
+        mens: extractedGenderCounts.mens,
+        womens: extractedGenderCounts.womens,
+        unisex: extractedGenderCounts.unisex,
+        unknown: extractedGenderCounts.unknown,
+      },
+      dropSummary: {
+        totalResultsSeen: dropCounts.totalResults,
+        totalDropped,
+        totalKept: deals.length,
+        reasons: { ...dropCounts },
+      },
+    };
 
     const output = {
       store: STORE,
@@ -456,6 +504,7 @@ export default async function handler(req, res) {
       ok: true,
       error: null,
 
+      metadata,
       deals,
     };
 
@@ -472,7 +521,8 @@ export default async function handler(req, res) {
       pagesFetched,
       dealsFound,
       dealsExtracted: deals.length,
-      dropCounts,
+      genderCounts: metadata.genderCounts,
+      dropSummary: metadata.dropSummary,
       scrapeDurationMs: output.scrapeDurationMs,
     });
   } catch (err) {
