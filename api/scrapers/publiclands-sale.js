@@ -1,6 +1,6 @@
 // /api/scrapers/publiclands-sale.js
 
-import FirecrawlApp from "@mendable/firecrawl-js";
+import { FirecrawlApp } from "@mendable/firecrawl-js";
 
 export const config = { maxDuration: 60 };
 
