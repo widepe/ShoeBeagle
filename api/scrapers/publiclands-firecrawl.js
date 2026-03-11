@@ -157,13 +157,41 @@ function extractFirstMatch(str, regex, group = 1) {
 function splitTiles(html) {
   const src = String(html || "");
 
-  const matches = [
-    ...src.matchAll(
-      /<div[^>]*class="[^"]*\bproduct-card\b[^"]*"[\s\S]*?(?=<div[^>]*class="[^"]*\bproduct-card\b[^"]*"|$)/gi
-    ),
-  ].map((m) => m[0]);
+  const titleTagRegex =
+    /<a[^>]*class="[^"]*\bproduct-title-link\b[^"]*"[^>]*>[\s\S]*?<\/a>/gi;
 
-  return matches;
+  const titleMatches = [...src.matchAll(titleTagRegex)];
+  if (!titleMatches.length) return [];
+
+  const tiles = [];
+
+  for (let i = 0; i < titleMatches.length; i++) {
+    const match = titleMatches[i];
+    const titleStart = match.index ?? -1;
+    if (titleStart < 0) continue;
+
+    // Walk backward to nearest product-card wrapper before this title link
+    const before = src.slice(0, titleStart);
+    const wrapperMatch = before.match(/<div[^>]*class="[^"]*\bproduct-card\b[^"]*"[^>]*>[^<]*$/i);
+
+    let start = titleStart;
+    if (wrapperMatch && typeof wrapperMatch.index === "number") {
+      start = wrapperMatch.index;
+    } else {
+      // fallback: capture some context before title link
+      start = Math.max(0, titleStart - 4000);
+    }
+
+    const nextTitleStart =
+      i + 1 < titleMatches.length && typeof titleMatches[i + 1].index === "number"
+        ? titleMatches[i + 1].index
+        : src.length;
+
+    const chunk = src.slice(start, nextTitleStart);
+    tiles.push(chunk);
+  }
+
+  return tiles;
 }
 
 function countPaginationPages(html) {
