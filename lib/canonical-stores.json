@@ -243,6 +243,28 @@
   "baseUrl": "https://www.goinggoinggone.com",
   "notes": "Going, Going, Gone sale running shoes scraper via DSG catalog product API. Scrapes mens + womens sale running athletic & sneakers pages through the direct search API. Uses parent productDetails pricing for honest range support when available; otherwise falls back to active floatFacets exact pricing. Keeps only deals with both sale and original pricing where sale is less than original. Gender is parsed from attributes first, then title, else unknown. shoeType is parsed from attribute 5066 first (Road/Trail/Track), then strict title fallback: road only for 'road running', trail only for 'trail running', track for 'track' or 'spike/spikes', else unknown. Writes to going-going-gone.json."
 },
+
+
+{
+  "id": "hibbett",
+  "displayName": "Hibbett",
+  "addedAt": "2026-03-11",
+  "lastUpdated": "2026-03-11",
+  "scrapedUrls": [
+    "https://www.hibbett.com/men/mens-shoes/running-shoes/?prefn1=sale&prefv1=Sale",
+    "https://www.hibbett.com/women/womens-shoes/running-shoes/?prefn1=sale&prefv1=Sale"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/hibbett-sale.json"
+  ],
+  "aliases": ["hibbett"],
+  "enabled": true,
+  "scraperType": "firecrawl-cheerio",
+  "envVar": "HIBBETT_DEALS_BLOB_URL",
+  "baseUrl": "https://www.hibbett.com",
+  "notes": "Hibbett sale running shoes scraper via Firecrawl raw HTML + Cheerio parse. Scrapes mens and womens sale running pages. Reads results count and conditionally paginates with start/sz only when the root page does not already contain the full result set returned by Firecrawl. Preserves listingName exactly as scraped, parses brand from tile GTM data with listingName fallback, derives model from listingName, parses gender from tile GTM data with listingName fallback, and forces shoeType to unknown for all deals. Skips See Price In Bag / See Price In Cart items. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Dedupe by listingURL. Metadata includes dropCounts, droppedDealsSample, and pageSummaries. Writes to hibbett-sale.json."
+},
+  
   {
     "id": "hoka",
     "displayName": "HOKA",
