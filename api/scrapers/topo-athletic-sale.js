@@ -410,7 +410,12 @@ function normalizeItem(item) {
 
         listingName,
         brand: "Topo Athletic",
-        model: listingName,
+        // Topo API prefixes models with gender codes like "M-" and "W-"
+// Example: "M-Phantom 3", "W-Pursuit 2"
+// The storefront HTML does NOT show these prefixes.
+// We keep listingName untouched (raw source truth) but normalize
+// the model field so canonical brand/model matching works correctly.
+model: stripTopoModelPrefix(listingName),
 
         salePrice,
         originalPrice,
@@ -599,4 +604,12 @@ function roundPct(n) {
 function cleanText(value) {
   if (value === null || value === undefined) return "";
   return String(value).replace(/\s+/g, " ").trim();
+}
+function stripTopoModelPrefix(value) {
+  const s = cleanText(value);
+  if (!s) return "";
+
+  // Remove leading "M-" or "W-" used in Topo's internal catalog naming
+  // but not shown on the storefront product name.
+  return s.replace(/^(M|W)-\s*/i, "").trim();
 }
