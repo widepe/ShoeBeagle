@@ -31,7 +31,7 @@ if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
 
 import { put } from "@vercel/blob";
 
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 300 };
 
 const STORE = "Public Lands";
 const SCHEMA_VERSION = 1;
@@ -45,9 +45,9 @@ const SOURCE_URLS = [
   "https://www.publiclands.com/f/mens-footwear-sale?filterFacets=4285%253ARunning%253B5382%253AAthletic%2520%2526%2520Sneakers%253BfacetStore%253ASHIP",
 ];
 
-const MAX_PAGES_PER_SOURCE = 8;
-const FIRECRAWL_TIMEOUT_MS = 45000;
-const FIRECRAWL_WAIT_MS = 3000;
+const MAX_PAGES_PER_SOURCE = 5;
+const FIRECRAWL_TIMEOUT_MS = 20000;
+const FIRECRAWL_WAIT_MS = 1000;
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
