@@ -25,6 +25,7 @@ const ENABLED = {
   backcountry: true,
   bigpeach: true,
   finishline: true,
+  hibbett: true,
   hoka: true,
   kohls: true,
   nike: true,
@@ -59,6 +60,12 @@ const TARGETS = [
     key: "finishline",
     name: "Finish Line Firecrawl",
     path: "/api/scrapers/finishline-firecrawl",
+  },
+
+  {
+    key: "hibbett",
+    name: "Hibbett Firecrawl",
+    path: "/api/scrapers/hibbett-firecrawl",
   },
 
   {
