@@ -45,7 +45,7 @@ const SOURCE_URLS = [
   "https://www.publiclands.com/f/mens-footwear-sale?filterFacets=4285%253ARunning%253B5382%253AAthletic%2520%2526%2520Sneakers%253BfacetStore%253ASHIP",
 ];
 
-const MAX_PAGES_PER_SOURCE = 2;
+const MAX_PAGES_PER_SOURCE = 8;
 const FIRECRAWL_TIMEOUT_MS = 45000;
 const FIRECRAWL_WAIT_MS = 3000;
 
