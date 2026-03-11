@@ -73,6 +73,7 @@ module.exports = async function handler(req, res) {
     underarmour_outlet: true,
     allbirds_sale: true,
     topo_athletic_sale: true,
+    champs_sale: true,
   };
 
   const TARGETS = [];
@@ -88,6 +89,9 @@ module.exports = async function handler(req, res) {
 
   // Topo Athletic sale running shoes pages.
   if (ENABLED.topo_athletic_sale) TARGETS.push("/api/scrapers/topo-athletic-sale");
+
+  // Champs Sports sale running shoes page.
+  if (ENABLED.champs_sale) TARGETS.push("/api/scrapers/champs-sale");
 
   try {
     const results = [];
