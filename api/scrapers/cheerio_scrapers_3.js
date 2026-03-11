@@ -1,6 +1,6 @@
 // /api/scrapers/cheerio_scrapers_3.js  (CommonJS)
 //
-// Runner to trigger ONLY the On scraper for now.
+// Runner to trigger a small set of scraper endpoints.
 //
 // Notes:
 // - This runner only TRIGGERS the internal endpoint; the endpoint does its own scrape + blob write.
@@ -70,12 +70,20 @@ module.exports = async function handler(req, res) {
   // ==========================================================
   const ENABLED = {
     on_algolia: true,
+    underarmour_outlet: true,
+    allbirds_sale: true,
   };
 
   const TARGETS = [];
 
   // On — NOT Cheerio. Uses Algolia Search API.
   if (ENABLED.on_algolia) TARGETS.push("/api/scrapers/on-algolia");
+
+  // Under Armour outlet running shoes pages.
+  if (ENABLED.underarmour_outlet) TARGETS.push("/api/scrapers/underarmour-outlet");
+
+  // Allbirds sale running shoes pages.
+  if (ENABLED.allbirds_sale) TARGETS.push("/api/scrapers/allbirds-sale");
 
   try {
     const results = [];
