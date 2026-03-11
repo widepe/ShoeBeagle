@@ -332,19 +332,14 @@ function pushDropped(droppedDeals, reason, context) {
   }
 }
 
-const tilesSeenThisPage = parseTilesFromPage({
+function parseTilesFromPage({
   $,
   deals,
   dropCounts,
   droppedDeals,
   seenDealKeys,
-});
-
-pageSummaries.push({
-  url: currentUrl,
-  tilesSeen: tilesSeenThisPage,
-});
-const $tiles = $("li.grid-tile > .product-tile");
+}) {
+  const $tiles = $("li.grid-tile > .product-tile");
 
   if (!$tiles.length) {
     return 0;
@@ -531,13 +526,13 @@ export default async function handler(req, res) {
     });
   }
 
-const dropCounts = makeDropCounts();
-const droppedDeals = [];
-const deals = [];
-const sourceUrls = [];
-const pageSummaries = [];   // ADD THIS
-const seenPageUrls = new Set();
-const seenDealKeys = new Set();
+  const dropCounts = makeDropCounts();
+  const droppedDeals = [];
+  const deals = [];
+  const sourceUrls = [];
+  const pageSummaries = [];
+  const seenPageUrls = new Set();
+  const seenDealKeys = new Set();
 
   try {
     for (const rootUrl of START_URLS) {
@@ -558,32 +553,38 @@ const seenDealKeys = new Set();
         seenPageUrls.add(currentUrl);
         sourceUrls.push(currentUrl);
 
-        const html = i === 0 ? firstHtml : await fetchFirecrawlHtmlWithRetry(currentUrl);
+        const html =
+          i === 0 ? firstHtml : await fetchFirecrawlHtmlWithRetry(currentUrl);
         const $ = i === 0 ? $first : cheerio.load(html);
 
-        parseTilesFromPage({
+        const tilesSeenThisPage = parseTilesFromPage({
           $,
           deals,
           dropCounts,
           droppedDeals,
           seenDealKeys,
         });
+
+        pageSummaries.push({
+          url: currentUrl,
+          tilesSeen: tilesSeenThisPage,
+        });
       }
     }
 
-   const output = {
-  store: STORE,
-  schemaVersion: SCHEMA_VERSION,
+    const output = {
+      store: STORE,
+      schemaVersion: SCHEMA_VERSION,
 
-  lastUpdated: nowIso(),
-  via: VIA,
+      lastUpdated: nowIso(),
+      via: VIA,
 
-  sourceUrls,
-  pageSummaries,   // ADD THIS
-  pagesFetched: sourceUrls.length,
+      sourceUrls,
+      pageSummaries,
+      pagesFetched: sourceUrls.length,
 
-  dealsFound: dropCounts.totalTiles,
-  dealsExtracted: deals.length,
+      dealsFound: dropCounts.totalTiles,
+      dealsExtracted: deals.length,
 
       scrapeDurationMs: Date.now() - startedAt,
 
@@ -609,6 +610,7 @@ const seenDealKeys = new Set();
       store: STORE,
       blobUrl: blob.url,
       pagesFetched: output.pagesFetched,
+      pageSummaries: output.pageSummaries,
       dealsFound: output.dealsFound,
       dealsExtracted: output.dealsExtracted,
       scrapeDurationMs: output.scrapeDurationMs,
