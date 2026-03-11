@@ -17,21 +17,14 @@
 // ENV:
 //   - BLOB_READ_WRITE_TOKEN
 //   - FIRECRAWL_API_KEY
+//   - CRON_SECRET
 //
 // TEST:
 //   /api/scrapers/publiclands-sale
-//
-// CRON auth (temporarily commented out for testing)
-
-const auth = req.headers.authorization;
-if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-  return res.status(401).json({ success: false, error: "Unauthorized" });
-}
-
 
 const { put } = require("@vercel/blob");
 
-export const config = { maxDuration: 300 };
+const config = { maxDuration: 300 };
 
 const STORE = "Public Lands";
 const SCHEMA_VERSION = 1;
@@ -609,16 +602,13 @@ async function getFirecrawlHtml(url) {
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
-module.exports = async function handler(req, res) {
+async function handler(req, res) {
   const startedAt = Date.now();
 
-  // CRON auth (temporarily commented out for testing)
-  /*
   const auth = req.headers.authorization;
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
   }
-  */
 
   const dropCounts = {
     totalTiles: 0,
@@ -709,13 +699,11 @@ module.exports = async function handler(req, res) {
       scrapeDurationMs: Date.now() - startedAt,
       ok: true,
       error: null,
-
       dealsByGender,
       droppedByReason: {
         seePriceInCart: dropCounts.dropped_seePriceInCart,
         duplicateAfterMerge: dropCounts.dropped_duplicateAfterMerge,
       },
-
       dropCounts,
       droppedDealsLogged: droppedDealsSample.length,
       droppedDealsSample,
@@ -759,3 +747,6 @@ module.exports = async function handler(req, res) {
     });
   }
 }
+
+module.exports = handler;
+module.exports.config = config;
