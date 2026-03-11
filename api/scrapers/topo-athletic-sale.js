@@ -24,9 +24,8 @@
 // - otherwise              -> "unknown"
 //
 // This scraper infers shoeType from:
-// - collection
-// - bestfor
-// - activity text fallbacks if present
+// - custitem_collection
+// - custitem_bestfor_activity
 //
 // PRICING / HONESTY RULES:
 // - Include deal only if BOTH sale and original price exist
@@ -330,14 +329,7 @@ function normalizeItem(item) {
       });
     }
 
-    const imageURL = normalizeImageUrl(
-      item?.storedisplayimage ||
-        item?.primary_image ||
-        item?.thumbnailurl ||
-        item?.imageurl ||
-        firstMatrixImage(item?.matrixchilditems_detail) ||
-        null
-    );
+    const imageURL = buildTopoImageUrl(item);
 
     if (!imageURL) {
       return fail("dropped_missingImageURL", {
@@ -345,6 +337,11 @@ function normalizeItem(item) {
         itemid: item?.itemid || null,
         listingName,
         listingURL,
+        rawColorTopLevel: item?.custitem_sca_shoe_colors ?? null,
+        rawColorMatrixFirst:
+          Array.isArray(item?.matrixchilditems_detail) && item.matrixchilditems_detail[0]
+            ? item.matrixchilditems_detail[0]?.custitem_sca_shoe_colors ?? null
+            : null,
       });
     }
 
@@ -399,10 +396,8 @@ function normalizeItem(item) {
     }
 
     const gender = parseGender(
-      item?.gender ||
-        item?.custitem_gender ||
-        item?.activity ||
-        item?.collection ||
+      item?.custitem_gender ||
+        item?.gender ||
         ""
     );
 
@@ -479,20 +474,52 @@ function pickOriginalPrice(item) {
   return null;
 }
 
-function firstMatrixImage(matrix) {
+function buildTopoImageUrl(item) {
+  const code = cleanText(item?.itemid);
+  if (!code) return null;
+
+  const color =
+    firstTopoColor(item?.custitem_sca_shoe_colors) ||
+    firstMatrixTopoColor(item?.matrixchilditems_detail) ||
+    null;
+
+  if (!color) return null;
+
+  return `${BASE}/sca-product-images/${code}.${topoImageColorSlug(color)}_00.jpg`;
+}
+
+function firstTopoColor(value) {
+  const s = cleanText(value);
+  if (!s) return null;
+
+  return (
+    s
+      .split(",")
+      .map((x) => cleanText(x))
+      .filter(Boolean)[0] || null
+  );
+}
+
+function firstMatrixTopoColor(matrix) {
   if (!Array.isArray(matrix)) return null;
 
   for (const child of matrix) {
-    const candidate =
-      child?.storedisplayimage ||
-      child?.primary_image ||
-      child?.thumbnailurl ||
-      child?.imageurl ||
-      null;
-    if (candidate) return candidate;
+    const c = cleanText(child?.custitem_sca_shoe_colors);
+    if (c) return c;
   }
 
   return null;
+}
+
+function topoImageColorSlug(color) {
+  const s = cleanText(color);
+  if (!s) return null;
+
+  return s
+    .split("-")
+    .map((part) => cleanText(part).replace(/\s+/g, ""))
+    .filter(Boolean)
+    .join("-");
 }
 
 function parseGender(raw) {
@@ -506,11 +533,9 @@ function parseGender(raw) {
 
 function parseShoeType(item) {
   const text = [
-    cleanText(item?.collection),
-    cleanText(item?.bestfor),
-    cleanText(item?.activity),
-    cleanText(item?.custitem_activity),
-    `${cleanText(item?.gender)} ${cleanText(item?.collection)}`.trim(),
+    cleanText(item?.custitem_collection),
+    cleanText(item?.custitem_bestfor_activity),
+    `${cleanText(item?.custitem_gender)} ${cleanText(item?.custitem_collection)}`.trim(),
   ]
     .filter(Boolean)
     .join(" | ")
@@ -527,16 +552,6 @@ function normalizeListingUrl(rawUrl) {
   if (!s) return null;
 
   if (s.startsWith("http://") || s.startsWith("https://")) return s;
-  if (s.startsWith("/")) return `${BASE}${s}`;
-  return `${BASE}/${s}`;
-}
-
-function normalizeImageUrl(rawImage) {
-  const s = cleanText(rawImage);
-  if (!s) return null;
-
-  if (s.startsWith("http://") || s.startsWith("https://")) return s;
-  if (s.startsWith("//")) return `https:${s}`;
   if (s.startsWith("/")) return `${BASE}${s}`;
   return `${BASE}/${s}`;
 }
