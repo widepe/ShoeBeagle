@@ -332,13 +332,18 @@ function pushDropped(droppedDeals, reason, context) {
   }
 }
 
-function parseTilesFromPage({
+const tilesSeenThisPage = parseTilesFromPage({
   $,
   deals,
   dropCounts,
   droppedDeals,
   seenDealKeys,
-}) {
+});
+
+pageSummaries.push({
+  url: currentUrl,
+  tilesSeen: tilesSeenThisPage,
+});
 const $tiles = $("li.grid-tile > .product-tile");
 
   if (!$tiles.length) {
@@ -566,18 +571,19 @@ const seenDealKeys = new Set();
       }
     }
 
-    const output = {
-      store: STORE,
-      schemaVersion: SCHEMA_VERSION,
+   const output = {
+  store: STORE,
+  schemaVersion: SCHEMA_VERSION,
 
-      lastUpdated: nowIso(),
-      via: VIA,
+  lastUpdated: nowIso(),
+  via: VIA,
 
-      sourceUrls,
-      pagesFetched: sourceUrls.length,
+  sourceUrls,
+  pageSummaries,   // ADD THIS
+  pagesFetched: sourceUrls.length,
 
-      dealsFound: dropCounts.totalTiles,
-      dealsExtracted: deals.length,
+  dealsFound: dropCounts.totalTiles,
+  dealsExtracted: deals.length,
 
       scrapeDurationMs: Date.now() - startedAt,
 
