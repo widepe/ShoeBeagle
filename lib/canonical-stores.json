@@ -686,7 +686,26 @@
   "baseUrl": "https://www.skechers.com",
   "notes": "Skechers running sale scraper using direct HTML fetch + Cheerio on the running-filtered sale page. Treats the infinite-load page as offset pagination using start=0,12,24... with sz=12. Reads product-V2 tiles, preserves listingName exactly as scraped, forces brand to Skechers, and keeps shoeType as unknown for all deals. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Gender is parsed from the tile gender label: mens, womens, unisex, else unknown. Special model rule: if listingName begins with 'Skechers Slip-ins:' that prefix is removed before model parsing so merge-deals can normalize GO RUN models better. Writes to skechers-sale.json."
 },
-  
+
+  {
+  "id": "topo-athletic",
+  "displayName": "Topo Athletic",
+  "addedAt": "2026-03-11",
+  "lastUpdated": "2026-03-11",
+  "scrapedUrls": [
+    "https://www.topoathletic.com/women/womens-shoes/promo/Sale",
+    "https://www.topoathletic.com/men/mens-shoes/promo/Sale"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/topoathletic-sale.json"
+  ],
+  "aliases": ["topo", "topo athletic"],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "TOPOATHLETIC_DEALS_BLOB_URL",
+  "baseUrl": "https://www.topoathletic.com",
+  "notes": "Topo Athletic sale running shoes scraper using the NetSuite items API endpoint (api/cacheable/items). Scrapes womens and mens sale running pages using c=3583691 with commercecategoryurl separation. listingName is preserved exactly from displayname and model is set equal to listingName. Brand is forced to Topo Athletic. Gender is parsed from the API gender field (mens/womens/unisex else unknown). shoeType is derived from collection/bestfor text: trail -> trail, road -> road, track/spike -> track, otherwise unknown. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Supports pricing fallback from matrixchilditems_detail if needed. Dedupe by listingURL. Metadata includes dropCounts, droppedDealsSample, and pageSummaries. Writes to topoathletic-sale.json."
+},  
   {
     "id": "track-shack",
     "displayName": "Track Shack",
