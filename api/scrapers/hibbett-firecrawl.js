@@ -5,7 +5,7 @@
 // - Scrapes exactly 2 category roots:
 //   1) men's sale running shoes
 //   2) women's sale running shoes
-// - Follows pagination when detectable, with a safety cap
+// - Derives pagination from results count + sz param
 // - Skips "See Price In Bag" / "See Price In Cart"
 // - shoeType = "unknown" for all deals
 // - Writes hibbett-sale.json to Vercel Blob
@@ -35,11 +35,17 @@ const START_URLS = [
 const BASE_URL = "https://www.hibbett.com";
 const MAX_PAGES_PER_ROOT = 8;
 const FIRECRAWL_TIMEOUT_MS = 45000;
-const FIRECRAWL_WAIT_MS = 2500;
+const FIRECRAWL_WAIT_MS = 6000;
 const FIRECRAWL_RETRY_LIMIT = 2;
+const DEFAULT_PAGE_SIZE = 24;
+const MAX_DROPPED_LOGS = 200;
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function absoluteUrl(url) {
@@ -125,19 +131,14 @@ function inferGender(listingName, gtmData) {
 
 function deriveModel(listingName, brand) {
   let model = cleanText(listingName);
-
   if (!model) return "";
 
-  // remove brand at start
   if (brand) {
     const escaped = brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     model = model.replace(new RegExp(`^${escaped}\\s+`, "i"), "");
   }
 
-  // remove quoted color blocks
   model = model.replace(/"[^"]*"/g, " ");
-
-  // remove trailing gender + shoe wording
   model = model.replace(/\bMen'?s Running Shoe\b/gi, " ");
   model = model.replace(/\bWomen'?s Running Shoe\b/gi, " ");
   model = model.replace(/\bUnisex Running Shoe\b/gi, " ");
@@ -197,55 +198,62 @@ function extractPrices($tile) {
   return { originalPrice, salePrice, standardText, saleText };
 }
 
-function extractNextPageUrl($, currentUrl) {
-  // Try standard rel=next first
-  const relNext = $('link[rel="next"]').attr("href");
-  if (relNext) return absoluteUrl(relNext);
+function parseResultsCount($) {
+  const texts = $(".results-hits h2")
+    .map((_, el) => cleanText($(el).text()))
+    .get();
 
-  // Common pagination anchors
-  const candidateSelectors = [
-    "a.next",
-    "a.next-page",
-    ".pagination a.next",
-    ".pagination-next a",
-    "a[aria-label='Next']",
-    "a[title='Next']",
-  ];
-
-  for (const sel of candidateSelectors) {
-    const href = $(sel).first().attr("href");
-    if (href) return absoluteUrl(href);
-  }
-
-  // Fallback: look for page-number params greater than current page
-  const allAnchors = $("a[href]")
-    .map((_, el) => $(el).attr("href"))
-    .get()
-    .filter(Boolean)
-    .map((href) => absoluteUrl(href))
-    .filter(Boolean);
-
-  const current = new URL(currentUrl);
-  const currentPage =
-    Number(current.searchParams.get("start")) ||
-    Number(current.searchParams.get("page")) ||
-    0;
-
-  for (const href of allAnchors) {
-    try {
-      const u = new URL(href);
-      if (u.origin !== current.origin) continue;
-      if (u.pathname !== current.pathname) continue;
-
-      const startVal = Number(u.searchParams.get("start"));
-      const pageVal = Number(u.searchParams.get("page"));
-
-      if (Number.isFinite(startVal) && startVal > currentPage) return u.toString();
-      if (Number.isFinite(pageVal) && pageVal > currentPage) return u.toString();
-    } catch {}
+  for (const text of texts) {
+    const m = text.match(/(\d+)\s+Results?/i);
+    if (m) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
   }
 
   return null;
+}
+
+function parsePageSizeFromDocument($, rootUrl) {
+  const optionValues = $("select.grid-paging-header option, select.grid-sort-header option")
+    .map((_, el) => $(el).attr("value"))
+    .get()
+    .filter(Boolean);
+
+  for (const val of optionValues) {
+    try {
+      const u = new URL(val, BASE_URL);
+      const sz = Number(u.searchParams.get("sz"));
+      if (Number.isFinite(sz) && sz > 0) return sz;
+    } catch {}
+  }
+
+  try {
+    const u = new URL(rootUrl);
+    const sz = Number(u.searchParams.get("sz"));
+    if (Number.isFinite(sz) && sz > 0) return sz;
+  } catch {}
+
+  return DEFAULT_PAGE_SIZE;
+}
+
+function buildPagedUrls(rootUrl, totalResults, pageSize) {
+  const urls = [];
+  const total =
+    Number.isFinite(totalResults) && totalResults > 0 ? totalResults : 0;
+  const size =
+    Number.isFinite(pageSize) && pageSize > 0 ? pageSize : DEFAULT_PAGE_SIZE;
+
+  if (total === 0) return [rootUrl];
+
+  for (let start = 0; start < total; start += size) {
+    const u = new URL(rootUrl);
+    u.searchParams.set("start", String(start));
+    u.searchParams.set("sz", String(size));
+    urls.push(u.toString());
+  }
+
+  return urls.length ? urls : [rootUrl];
 }
 
 async function fetchFirecrawlHtml(url) {
@@ -266,7 +274,9 @@ async function fetchFirecrawlHtml(url) {
 
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");
-    throw new Error(`Firecrawl HTTP ${resp.status} for ${url} :: ${text.slice(0, 300)}`);
+    throw new Error(
+      `Firecrawl HTTP ${resp.status} for ${url} :: ${text.slice(0, 300)}`
+    );
   }
 
   const json = await resp.json();
@@ -288,7 +298,7 @@ async function fetchFirecrawlHtmlWithRetry(url) {
     } catch (err) {
       lastErr = err;
       if (i < FIRECRAWL_RETRY_LIMIT) {
-        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+        await sleep(1000 * (i + 1));
       }
     }
   }
@@ -314,12 +324,179 @@ function makeDropCounts() {
 }
 
 function pushDropped(droppedDeals, reason, context) {
-  if (droppedDeals.length < 200) {
+  if (droppedDeals.length < MAX_DROPPED_LOGS) {
     droppedDeals.push({
       reason,
       ...context,
     });
   }
+}
+
+function parseTilesFromPage({
+  $,
+  deals,
+  dropCounts,
+  droppedDeals,
+  seenDealKeys,
+}) {
+  const $tiles = $(".grid-tile .product-tile, .product-tile");
+
+  if (!$tiles.length) {
+    return 0;
+  }
+
+  let tilesSeenThisPage = 0;
+
+  $tiles.each((_, el) => {
+    const $tile = $(el);
+    tilesSeenThisPage += 1;
+    dropCounts.totalTiles += 1;
+
+    const listingName = getListingName($tile);
+    const listingURL = getListingUrl($tile);
+    const imageURL = getImageUrl($tile);
+    const gtmData = parseJsonAttr($tile.attr("data-gtmdata"));
+    const brand = extractBrand(gtmData, listingName);
+    const model = deriveModel(listingName, brand);
+    const gender = inferGender(listingName, gtmData);
+    const shoeType = "unknown";
+
+    if (shouldDropForBagPrice($tile)) {
+      dropCounts.dropped_seePriceInBagOrCart += 1;
+      pushDropped(droppedDeals, "see_price_in_bag_or_cart", {
+        listingName,
+        listingURL,
+      });
+      return;
+    }
+
+    if (!listingName) {
+      dropCounts.dropped_missingListingName += 1;
+      pushDropped(droppedDeals, "missing_listingName", {
+        listingURL,
+      });
+      return;
+    }
+
+    if (!brand) {
+      dropCounts.dropped_missingBrand += 1;
+      pushDropped(droppedDeals, "missing_brand", {
+        listingName,
+        listingURL,
+      });
+      return;
+    }
+
+    if (!model) {
+      dropCounts.dropped_missingModel += 1;
+      pushDropped(droppedDeals, "missing_model", {
+        listingName,
+        listingURL,
+      });
+      return;
+    }
+
+    if (!listingURL) {
+      dropCounts.dropped_missingListingURL += 1;
+      pushDropped(droppedDeals, "missing_listingURL", {
+        listingName,
+      });
+      return;
+    }
+
+    if (!imageURL) {
+      dropCounts.dropped_missingImageURL += 1;
+      pushDropped(droppedDeals, "missing_imageURL", {
+        listingName,
+        listingURL,
+      });
+      return;
+    }
+
+    const { originalPrice, salePrice } = extractPrices($tile);
+
+    if (!Number.isFinite(originalPrice)) {
+      dropCounts.dropped_missingOriginalPrice += 1;
+      pushDropped(droppedDeals, "missing_originalPrice", {
+        listingName,
+        listingURL,
+      });
+      return;
+    }
+
+    if (!Number.isFinite(salePrice)) {
+      dropCounts.dropped_missingSalePrice += 1;
+      pushDropped(droppedDeals, "missing_salePrice", {
+        listingName,
+        listingURL,
+      });
+      return;
+    }
+
+    if (!(salePrice < originalPrice)) {
+      dropCounts.dropped_saleNotLessThanOriginal += 1;
+      pushDropped(droppedDeals, "sale_not_less_than_original", {
+        listingName,
+        listingURL,
+        salePrice,
+        originalPrice,
+      });
+      return;
+    }
+
+    const discountPercent = toPercent(originalPrice, salePrice);
+    if (!Number.isFinite(discountPercent) || discountPercent <= 0) {
+      dropCounts.dropped_invalidDiscountPercent += 1;
+      pushDropped(droppedDeals, "invalid_discountPercent", {
+        listingName,
+        listingURL,
+        salePrice,
+        originalPrice,
+        discountPercent,
+      });
+      return;
+    }
+
+    const dedupeKey = listingURL;
+    if (seenDealKeys.has(dedupeKey)) {
+      dropCounts.dropped_duplicateAfterMerge += 1;
+      pushDropped(droppedDeals, "duplicate_listingURL", {
+        listingName,
+        listingURL,
+      });
+      return;
+    }
+    seenDealKeys.add(dedupeKey);
+
+    deals.push({
+      schemaVersion: SCHEMA_VERSION,
+
+      listingName,
+
+      brand,
+      model,
+
+      salePrice,
+      originalPrice,
+      discountPercent,
+
+      salePriceLow: null,
+      salePriceHigh: null,
+      originalPriceLow: null,
+      originalPriceHigh: null,
+      discountPercentUpTo: null,
+
+      store: STORE,
+
+      listingURL,
+      imageURL,
+
+      gender,
+      shoeType,
+    });
+  });
+
+  return tilesSeenThisPage;
 }
 
 export default async function handler(req, res) {
@@ -358,176 +535,33 @@ export default async function handler(req, res) {
 
   try {
     for (const rootUrl of START_URLS) {
-      let currentUrl = rootUrl;
-      let pagesForRoot = 0;
+      const firstHtml = await fetchFirecrawlHtmlWithRetry(rootUrl);
+      const $first = cheerio.load(firstHtml);
 
-      while (currentUrl && pagesForRoot < MAX_PAGES_PER_ROOT) {
-        if (seenPageUrls.has(currentUrl)) break;
+      const totalResults = parseResultsCount($first);
+      const pageSize = parsePageSizeFromDocument($first, rootUrl);
+      const pagedUrls = buildPagedUrls(rootUrl, totalResults, pageSize).slice(
+        0,
+        MAX_PAGES_PER_ROOT
+      );
+
+      for (let i = 0; i < pagedUrls.length; i += 1) {
+        const currentUrl = pagedUrls[i];
+        if (seenPageUrls.has(currentUrl)) continue;
+
         seenPageUrls.add(currentUrl);
         sourceUrls.push(currentUrl);
-        pagesForRoot += 1;
 
-        const html = await fetchFirecrawlHtmlWithRetry(currentUrl);
-        const $ = cheerio.load(html);
+        const html = i === 0 ? firstHtml : await fetchFirecrawlHtmlWithRetry(currentUrl);
+        const $ = i === 0 ? $first : cheerio.load(html);
 
-        const $tiles = $(".product-tile");
-        if (!$tiles.length) {
-          // If a page has no tiles, stop this root
-          break;
-        }
-
-        $tiles.each((_, el) => {
-          const $tile = $(el);
-          dropCounts.totalTiles += 1;
-
-          const listingName = getListingName($tile);
-          const listingURL = getListingUrl($tile);
-          const imageURL = getImageUrl($tile);
-          const gtmData = parseJsonAttr($tile.attr("data-gtmdata"));
-          const brand = extractBrand(gtmData, listingName);
-          const model = deriveModel(listingName, brand);
-          const gender = inferGender(listingName, gtmData);
-          const shoeType = "unknown";
-
-          if (shouldDropForBagPrice($tile)) {
-            dropCounts.dropped_seePriceInBagOrCart += 1;
-            pushDropped(droppedDeals, "see_price_in_bag_or_cart", {
-              listingName,
-              listingURL,
-            });
-            return;
-          }
-
-          if (!listingName) {
-            dropCounts.dropped_missingListingName += 1;
-            pushDropped(droppedDeals, "missing_listingName", { listingURL });
-            return;
-          }
-
-          if (!brand) {
-            dropCounts.dropped_missingBrand += 1;
-            pushDropped(droppedDeals, "missing_brand", {
-              listingName,
-              listingURL,
-            });
-            return;
-          }
-
-          if (!model) {
-            dropCounts.dropped_missingModel += 1;
-            pushDropped(droppedDeals, "missing_model", {
-              listingName,
-              listingURL,
-            });
-            return;
-          }
-
-          if (!listingURL) {
-            dropCounts.dropped_missingListingURL += 1;
-            pushDropped(droppedDeals, "missing_listingURL", { listingName });
-            return;
-          }
-
-          if (!imageURL) {
-            dropCounts.dropped_missingImageURL += 1;
-            pushDropped(droppedDeals, "missing_imageURL", {
-              listingName,
-              listingURL,
-            });
-            return;
-          }
-
-          const { originalPrice, salePrice } = extractPrices($tile);
-
-          if (!Number.isFinite(originalPrice)) {
-            dropCounts.dropped_missingOriginalPrice += 1;
-            pushDropped(droppedDeals, "missing_originalPrice", {
-              listingName,
-              listingURL,
-            });
-            return;
-          }
-
-          if (!Number.isFinite(salePrice)) {
-            dropCounts.dropped_missingSalePrice += 1;
-            pushDropped(droppedDeals, "missing_salePrice", {
-              listingName,
-              listingURL,
-            });
-            return;
-          }
-
-          if (!(salePrice < originalPrice)) {
-            dropCounts.dropped_saleNotLessThanOriginal += 1;
-            pushDropped(droppedDeals, "sale_not_less_than_original", {
-              listingName,
-              listingURL,
-              salePrice,
-              originalPrice,
-            });
-            return;
-          }
-
-          const discountPercent = toPercent(originalPrice, salePrice);
-          if (!Number.isFinite(discountPercent) || discountPercent <= 0) {
-            dropCounts.dropped_invalidDiscountPercent += 1;
-            pushDropped(droppedDeals, "invalid_discountPercent", {
-              listingName,
-              listingURL,
-              salePrice,
-              originalPrice,
-              discountPercent,
-            });
-            return;
-          }
-
-          const dedupeKey = listingURL;
-          if (seenDealKeys.has(dedupeKey)) {
-            dropCounts.dropped_duplicateAfterMerge += 1;
-            pushDropped(droppedDeals, "duplicate_listingURL", {
-              listingName,
-              listingURL,
-            });
-            return;
-          }
-          seenDealKeys.add(dedupeKey);
-
-          deals.push({
-            schemaVersion: SCHEMA_VERSION,
-
-            listingName,
-
-            brand,
-            model,
-
-            salePrice,
-            originalPrice,
-            discountPercent,
-
-            salePriceLow: null,
-            salePriceHigh: null,
-            originalPriceLow: null,
-            originalPriceHigh: null,
-            discountPercentUpTo: null,
-
-            store: STORE,
-
-            listingURL,
-            imageURL,
-
-            gender,
-            shoeType,
-          });
+        parseTilesFromPage({
+          $,
+          deals,
+          dropCounts,
+          droppedDeals,
+          seenDealKeys,
         });
-
-        const nextPageUrl = extractNextPageUrl($, currentUrl);
-
-        // stop if next page is missing or repeated
-        if (!nextPageUrl || seenPageUrls.has(nextPageUrl)) {
-          break;
-        }
-
-        currentUrl = nextPageUrl;
       }
     }
 
