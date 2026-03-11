@@ -142,6 +142,26 @@
     "baseUrl": "https://www.brooksrunning.com",
     "notes": "no notes"
   },
+
+{
+  "id": "champs-sports",
+  "displayName": "Champs Sports",
+  "addedAt": "2026-03-11",
+  "lastUpdated": "2026-03-11",
+  "scrapedUrls": [
+    "https://www.champssports.com/category/sport/running/sale/shoes.html?query=%3Arelevance%3Acollection_id%3Asale-running-shoes%3Astyle%3APerformance+Running+Shoes"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/champs-sale.json"
+  ],
+  "aliases": ["champs", "champs sports"],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "CHAMPS_DEALS_BLOB_URL",
+  "baseUrl": "https://www.champssports.com",
+  "notes": "Champs Sports running shoes sale scraper using direct HTML fetch + Cheerio on the sale running shoes page. Parses product cards from returned HTML, preserving listingName exactly as scraped, deriving brand/model from listingName, parsing gender from the tile secondary line, and forcing shoeType to unknown unless strict trail/track keywords appear in the listing name. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Dedupe by listingURL. Metadata includes dropCounts, droppedDealsSample, and pageSummaries. Writes to champs-sale.json."
+},
+  
 {
   "id": "famous-footwear",
   "displayName": "Famous Footwear",
