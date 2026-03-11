@@ -29,7 +29,7 @@ if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
 }
 
 
-import { put } from "@vercel/blob";
+const { put } = require("@vercel/blob");
 
 export const config = { maxDuration: 300 };
 
@@ -609,7 +609,7 @@ async function getFirecrawlHtml(url) {
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const startedAt = Date.now();
 
   // CRON auth (temporarily commented out for testing)
