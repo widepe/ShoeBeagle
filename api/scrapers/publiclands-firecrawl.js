@@ -22,12 +22,12 @@
 //   /api/scrapers/publiclands-sale
 //
 // CRON auth (temporarily commented out for testing)
-/*
+
 const auth = req.headers.authorization;
 if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
   return res.status(401).json({ success: false, error: "Unauthorized" });
 }
-*/
+
 
 import { put } from "@vercel/blob";
 
@@ -88,10 +88,6 @@ function buildPageUrl(baseUrl, pageNumber) {
   const url = new URL(baseUrl);
   url.searchParams.set("pageNumber", String(pageNumber));
   return url.toString();
-}
-
-function countMatches(haystack, regex) {
-  return (String(haystack || "").match(regex) || []).length;
 }
 
 // ─── Parsing Helpers ─────────────────────────────────────────────────────────
@@ -170,15 +166,15 @@ function splitTiles(html) {
     const titleStart = match.index ?? -1;
     if (titleStart < 0) continue;
 
-    // Walk backward to nearest product-card wrapper before this title link
     const before = src.slice(0, titleStart);
-    const wrapperMatch = before.match(/<div[^>]*class="[^"]*\bproduct-card\b[^"]*"[^>]*>[^<]*$/i);
+    const wrapperMatch = before.match(
+      /<div[^>]*class="[^"]*\bproduct-card\b[^"]*"[^>]*>[^<]*$/i
+    );
 
     let start = titleStart;
     if (wrapperMatch && typeof wrapperMatch.index === "number") {
       start = wrapperMatch.index;
     } else {
-      // fallback: capture some context before title link
       start = Math.max(0, titleStart - 4000);
     }
 
@@ -531,6 +527,7 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
   seenUrls.add(listingURL);
 
   const { brand, model } = parseBrandAndModel(listingName);
+  const gender = parseGender(listingName);
 
   return {
     schemaVersion: SCHEMA_VERSION,
@@ -548,7 +545,7 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
     store: STORE,
     listingURL,
     imageURL,
-    gender: parseGender(listingName),
+    gender,
     shoeType: "unknown",
   };
 }
@@ -610,31 +607,6 @@ async function getFirecrawlHtml(url) {
   }
 }
 
-// ─── Debug Logs ──────────────────────────────────────────────────────────────
-
-function logHtmlDiagnostics(label, html) {
-  const src = String(html || "");
-  const sample = src.slice(0, 3000).replace(/\s+/g, " ");
-
-  console.log(`[Public Lands] ${label} htmlLength=${src.length}`);
-  console.log(
-    `[Public Lands] ${label} count product-card=${countMatches(src, /product-card/g)}`
-  );
-  console.log(
-    `[Public Lands] ${label} count product-title-link=${countMatches(src, /product-title-link/g)}`
-  );
-  console.log(
-    `[Public Lands] ${label} count price-sale=${countMatches(src, /price-sale/g)}`
-  );
-  console.log(
-    `[Public Lands] ${label} count line-through=${countMatches(src, /hmf-text-decoration-linethrough/g)}`
-  );
-  console.log(
-    `[Public Lands] ${label} count Page Number=${countMatches(src, /aria-label="Page Number\s+\d+"/g)}`
-  );
-  console.log(`[Public Lands] ${label} htmlSample=${sample}`);
-}
-
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -666,29 +638,21 @@ export default async function handler(req, res) {
   const seenUrls = new Set();
   const fetchedUrls = [];
 
+  const dealsByGender = {
+    mens: 0,
+    womens: 0,
+    unisex: 0,
+    unknown: 0,
+  };
+
   try {
     for (const sourceUrl of SOURCE_URLS) {
       const page1Url = buildPageUrl(sourceUrl, 1);
-      console.log(`[Public Lands] Fetching first page: ${page1Url}`);
-
       const firstHtml = await getFirecrawlHtml(page1Url);
       fetchedUrls.push(page1Url);
 
-      logHtmlDiagnostics(`page1 ${page1Url}`, firstHtml);
-
       const totalPages = countPaginationPages(firstHtml);
       const firstTiles = splitTiles(firstHtml);
-
-      console.log(
-        `[Public Lands] page1 ${page1Url} totalPages=${totalPages} firstTiles=${firstTiles.length}`
-      );
-
-      if (firstTiles[0]) {
-        console.log(
-          `[Public Lands] page1 firstTileSample=${String(firstTiles[0]).slice(0, 2000).replace(/\s+/g, " ")}`
-        );
-      }
-
       dropCounts.totalTiles += firstTiles.length;
 
       for (const tileHtml of firstTiles) {
@@ -698,29 +662,21 @@ export default async function handler(req, res) {
           droppedDealsSample,
           seenUrls
         );
-        if (deal) deals.push(deal);
+        if (deal) {
+          deals.push(deal);
+          if (deal.gender === "mens") dealsByGender.mens++;
+          else if (deal.gender === "womens") dealsByGender.womens++;
+          else if (deal.gender === "unisex") dealsByGender.unisex++;
+          else dealsByGender.unknown++;
+        }
       }
 
       for (let page = 2; page <= totalPages; page++) {
         const pageUrl = buildPageUrl(sourceUrl, page);
-        console.log(`[Public Lands] Fetching page ${page}/${totalPages}: ${pageUrl}`);
-
         const html = await getFirecrawlHtml(pageUrl);
         fetchedUrls.push(pageUrl);
 
-        logHtmlDiagnostics(`page${page} ${pageUrl}`, html);
-
         const tiles = splitTiles(html);
-        console.log(
-          `[Public Lands] page${page} ${pageUrl} tiles=${tiles.length}`
-        );
-
-        if (tiles[0]) {
-          console.log(
-            `[Public Lands] page${page} firstTileSample=${String(tiles[0]).slice(0, 2000).replace(/\s+/g, " ")}`
-          );
-        }
-
         dropCounts.totalTiles += tiles.length;
 
         for (const tileHtml of tiles) {
@@ -730,17 +686,16 @@ export default async function handler(req, res) {
             droppedDealsSample,
             seenUrls
           );
-          if (deal) deals.push(deal);
+          if (deal) {
+            deals.push(deal);
+            if (deal.gender === "mens") dealsByGender.mens++;
+            else if (deal.gender === "womens") dealsByGender.womens++;
+            else if (deal.gender === "unisex") dealsByGender.unisex++;
+            else dealsByGender.unknown++;
+          }
         }
       }
     }
-
-    console.log(
-      `[Public Lands] done pagesFetched=${fetchedUrls.length} totalTiles=${dropCounts.totalTiles} dealsExtracted=${deals.length}`
-    );
-    console.log(
-      `[Public Lands] dropCounts=${JSON.stringify(dropCounts)}`
-    );
 
     const payload = {
       store: STORE,
@@ -754,6 +709,13 @@ export default async function handler(req, res) {
       scrapeDurationMs: Date.now() - startedAt,
       ok: true,
       error: null,
+
+      dealsByGender,
+      droppedByReason: {
+        seePriceInCart: dropCounts.dropped_seePriceInCart,
+        duplicateAfterMerge: dropCounts.dropped_duplicateAfterMerge,
+      },
+
       dropCounts,
       droppedDealsLogged: droppedDealsSample.length,
       droppedDealsSample,
@@ -779,12 +741,13 @@ export default async function handler(req, res) {
       scrapeDurationMs: payload.scrapeDurationMs,
       ok: true,
       error: null,
+      dealsByGender,
+      droppedByReason: payload.droppedByReason,
       dropCounts,
       droppedDealsLogged: droppedDealsSample.length,
       blobUrl: blob.url,
     });
   } catch (err) {
-    console.log(`[Public Lands] ERROR=${err?.message || err}`);
     return res.status(500).json({
       success: false,
       store: STORE,
