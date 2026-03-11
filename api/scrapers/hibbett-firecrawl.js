@@ -339,7 +339,7 @@ function parseTilesFromPage({
   droppedDeals,
   seenDealKeys,
 }) {
-  const $tiles = $(".grid-tile .product-tile, .product-tile");
+const $tiles = $("li.grid-tile > .product-tile");
 
   if (!$tiles.length) {
     return 0;
@@ -526,12 +526,13 @@ export default async function handler(req, res) {
     });
   }
 
-  const dropCounts = makeDropCounts();
-  const droppedDeals = [];
-  const deals = [];
-  const sourceUrls = [];
-  const seenPageUrls = new Set();
-  const seenDealKeys = new Set();
+const dropCounts = makeDropCounts();
+const droppedDeals = [];
+const deals = [];
+const sourceUrls = [];
+const pageSummaries = [];   // ADD THIS
+const seenPageUrls = new Set();
+const seenDealKeys = new Set();
 
   try {
     for (const rootUrl of START_URLS) {
