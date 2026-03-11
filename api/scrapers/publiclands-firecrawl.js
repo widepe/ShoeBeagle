@@ -1,25 +1,25 @@
 // /api/scrapers/publiclands-sale.js
 //
 // Public Lands sale running shoes scraper
-// - Uses Firecrawl raw HTML to bypass direct-fetch 403
+// - Uses Firecrawl raw HTML via REST endpoint to bypass direct-fetch 403
 // - Scrapes exactly 2 listing roots:
-//    1) womens-footwear-sale filtered to running
-//    2) mens-footwear-sale filtered to running
-// - Reads up to 2 pages per root (based on page-number controls in HTML)
+//   1) womens-footwear-sale filtered to running
+//   2) mens-footwear-sale filtered to running
+// - Reads all pages exposed by site pagination, capped at 8 pages per root
 // - Drops "See Price In Cart" / "See Price In Bag"
 // - Keeps shoeType = "unknown" for all shoes
 // - Supports:
-//    * single sale + single original
-//    * sale range + single original
-//    * sale range + original range
+//   * single sale + single original
+//   * sale range + single original
+//   * sale range + original range
 // - Writes publiclands-sale.json to Vercel Blob
 //
 // ENV:
-// - BLOB_READ_WRITE_TOKEN
-// - FIRECRAWL_API_KEY
+//   - BLOB_READ_WRITE_TOKEN
+//   - FIRECRAWL_API_KEY
 //
 // TEST:
-// /api/scrapers/publiclands-sale
+//   /api/scrapers/publiclands-sale
 //
 // CRON auth (temporarily commented out for testing)
 /*
@@ -30,15 +30,15 @@ if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
 */
 
 import { put } from "@vercel/blob";
-import FirecrawlApp from "@mendable/firecrawl-js";
 
 export const config = { maxDuration: 60 };
 
 const STORE = "Public Lands";
 const SCHEMA_VERSION = 1;
-const VIA = "firecrawl-raw-html";
+const VIA = "firecrawl-rest-html";
 const BASE_URL = "https://www.publiclands.com";
 const OUTPUT_BLOB = "publiclands-sale.json";
+const FIRECRAWL_ENDPOINT = "https://api.firecrawl.dev/v1/scrape";
 
 const SOURCE_URLS = [
   "https://www.publiclands.com/f/womens-footwear-sale?filterFacets=4285%253ARunning%253B5382%253AAthletic%2520%2526%2520Sneakers%253BfacetStore%253ASHIP",
@@ -48,6 +48,8 @@ const SOURCE_URLS = [
 const MAX_PAGES_PER_SOURCE = 8;
 const FIRECRAWL_TIMEOUT_MS = 45000;
 const FIRECRAWL_WAIT_MS = 3000;
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
 
 function nowIso() {
   return new Date().toISOString();
@@ -88,6 +90,8 @@ function buildPageUrl(baseUrl, pageNumber) {
   return url.toString();
 }
 
+// ─── Parsing Helpers ──────────────────────────────────────────────────────────
+
 function parseGender(listingName) {
   const s = cleanText(listingName).toLowerCase();
   if (/\bmen'?s\b/.test(s)) return "mens";
@@ -115,11 +119,7 @@ function parseBrandAndModel(listingName) {
 
   const brand = parts[0];
   const model = cleanText(s.slice(brand.length));
-
-  return {
-    brand: brand || "",
-    model: model || "",
-  };
+  return { brand: brand || "", model: model || "" };
 }
 
 function roundDiscountPercent(original, sale) {
@@ -148,6 +148,8 @@ function extractFirstMatch(str, regex, group = 1) {
   return m ? m[group] : null;
 }
 
+// ─── HTML Splitting ───────────────────────────────────────────────────────────
+
 function splitTiles(html) {
   const src = String(html || "");
   const marker = '<div class="product-card hmf-position-relative';
@@ -157,12 +159,14 @@ function splitTiles(html) {
 }
 
 function countPaginationPages(html) {
-  const labels = [...String(html || "").matchAll(/aria-label="Page Number\s+(\d+)"/gi)].map(
-    (m) => Number(m[1])
-  );
+  const labels = [
+    ...String(html || "").matchAll(/aria-label="Page Number\s+(\d+)"/gi),
+  ].map((m) => Number(m[1]));
   const maxPage = labels.length ? Math.max(...labels) : 1;
   return Math.max(1, Math.min(MAX_PAGES_PER_SOURCE, maxPage));
 }
+
+// ─── Tile Filters ─────────────────────────────────────────────────────────────
 
 function tileHasSeePriceInCart(tileHtml) {
   const s = cleanText(String(tileHtml || "")).toLowerCase();
@@ -176,7 +180,7 @@ function tileHasSeePriceInCart(tileHtml) {
 
 function getTitleAnchor(tileHtml) {
   const m = String(tileHtml).match(
-    /<a[^>]*class="[^"]*\bproduct-title-link\b[^"]*"[^>]*>/i
+    /<a[^>]*class="[^"]*\bproduct-title-link\b[^"]*"[^>]*>/i,
   );
   return m ? m[0] : null;
 }
@@ -186,18 +190,22 @@ function getPrimaryImageTag(tileHtml) {
   return m ? m[0] : null;
 }
 
+// ─── Pricing ──────────────────────────────────────────────────────────────────
+
 function extractAriaLabelPriceRanges(ariaLabel) {
   const label = cleanText(ariaLabel);
-
   let saleLow = null;
   let saleHigh = null;
   let originalLow = null;
   let originalHigh = null;
 
-  const saleRangeMatch = label.match(/New Lower Price:\s*\$([\d.,]+)\s*to\s*\$([\d.,]+)/i);
+  const saleRangeMatch = label.match(
+    /New Lower Price:\s*\$([\d.,]+)\s*to\s*\$([\d.,]+)/i,
+  );
   const saleSingleMatch = label.match(/New Lower Price:\s*\$([\d.,]+)/i);
-
-  const originalRangeMatch = label.match(/Previous Price:\s*\$([\d.,]+)\s*to\s*\$([\d.,]+)/i);
+  const originalRangeMatch = label.match(
+    /Previous Price:\s*\$([\d.,]+)\s*to\s*\$([\d.,]+)/i,
+  );
   const originalSingleMatch = label.match(/Previous Price:\s*\$([\d.,]+)/i);
 
   if (saleRangeMatch) {
@@ -229,25 +237,27 @@ function extractPricing(tileHtml, ariaLabel) {
   let originalHigh = null;
 
   const saleBlockMatch = html.match(
-    /class="[^"]*\bprice-sale\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i
+    /class="[^"]*\bprice-sale\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
   );
   const originalBlockMatch = html.match(
-    /class="[^"]*\bhmf-text-decoration-linethrough\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i
+    /class="[^"]*\bhmf-text-decoration-linethrough\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
   );
 
   const saleBlockText = cleanText(
-    decodeHtmlEntities((saleBlockMatch?.[1] || "").replace(/<[^>]+>/g, " "))
+    decodeHtmlEntities((saleBlockMatch?.[1] || "").replace(/<[^>]+>/g, " ")),
   );
   const originalBlockText = cleanText(
-    decodeHtmlEntities((originalBlockMatch?.[1] || "").replace(/<[^>]+>/g, " "))
+    decodeHtmlEntities(
+      (originalBlockMatch?.[1] || "").replace(/<[^>]+>/g, " "),
+    ),
   );
 
-  const saleNums = [...saleBlockText.matchAll(/\$?\s*(\d+(?:\.\d{1,2})?)/g)].map((m) =>
-    Number(m[1])
-  );
-  const originalNums = [...originalBlockText.matchAll(/\$?\s*(\d+(?:\.\d{1,2})?)/g)].map(
-    (m) => Number(m[1])
-  );
+  const saleNums = [
+    ...saleBlockText.matchAll(/\$?\s*(\d+(?:\.\d{1,2})?)/g),
+  ].map((m) => Number(m[1]));
+  const originalNums = [
+    ...originalBlockText.matchAll(/\$?\s*(\d+(?:\.\d{1,2})?)/g),
+  ].map((m) => Number(m[1]));
 
   if (saleNums.length >= 2) {
     saleLow = saleNums[0];
@@ -266,11 +276,14 @@ function extractPricing(tileHtml, ariaLabel) {
   }
 
   const ariaParsed = extractAriaLabelPriceRanges(label);
-
-  if (saleLow == null && ariaParsed.saleLow != null) saleLow = ariaParsed.saleLow;
-  if (saleHigh == null && ariaParsed.saleHigh != null) saleHigh = ariaParsed.saleHigh;
-  if (originalLow == null && ariaParsed.originalLow != null) originalLow = ariaParsed.originalLow;
-  if (originalHigh == null && ariaParsed.originalHigh != null) originalHigh = ariaParsed.originalHigh;
+  if (saleLow == null && ariaParsed.saleLow != null)
+    saleLow = ariaParsed.saleLow;
+  if (saleHigh == null && ariaParsed.saleHigh != null)
+    saleHigh = ariaParsed.saleHigh;
+  if (originalLow == null && ariaParsed.originalLow != null)
+    originalLow = ariaParsed.originalLow;
+  if (originalHigh == null && ariaParsed.originalHigh != null)
+    originalHigh = ariaParsed.originalHigh;
 
   const saleIsRange =
     saleLow != null && saleHigh != null && Number(saleLow) !== Number(saleHigh);
@@ -306,19 +319,28 @@ function extractPricing(tileHtml, ariaLabel) {
     }
   }
 
-  if (!saleIsRange && !originalIsRange && salePrice != null && originalPrice != null) {
+  if (
+    !saleIsRange &&
+    !originalIsRange &&
+    salePrice != null &&
+    originalPrice != null
+  ) {
     discountPercent = roundDiscountPercent(originalPrice, salePrice);
   } else {
     const honestOriginalHigh =
       originalPriceHigh ?? originalPrice ?? originalLow ?? originalHigh ?? null;
-    const honestSaleLow = salePriceLow ?? salePrice ?? saleLow ?? saleHigh ?? null;
+    const honestSaleLow =
+      salePriceLow ?? salePrice ?? saleLow ?? saleHigh ?? null;
 
     if (
       typeof honestOriginalHigh === "number" &&
       typeof honestSaleLow === "number" &&
       honestOriginalHigh > honestSaleLow
     ) {
-      discountPercentUpTo = roundDiscountPercent(honestOriginalHigh, honestSaleLow);
+      discountPercentUpTo = roundDiscountPercent(
+        honestOriginalHigh,
+        honestSaleLow,
+      );
     }
   }
 
@@ -334,6 +356,8 @@ function extractPricing(tileHtml, ariaLabel) {
   };
 }
 
+// ─── Tile Parser ──────────────────────────────────────────────────────────────
+
 function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
   const titleAnchor = getTitleAnchor(tileHtml);
   const imageTag = getPrimaryImageTag(tileHtml);
@@ -344,12 +368,12 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
       decodeHtmlEntities(
         extractFirstMatch(
           tileHtml,
-          /<a[^>]*class="[^"]*\bproduct-title-link\b[^"]*"[^>]*>([\s\S]*?)<\/a>/i
-        )?.replace(/<[^>]+>/g, " ") || ""
-      )
+          /<a[^>]*class="[^"]*\bproduct-title-link\b[^"]*"[^>]*>([\s\S]*?)<\/a>/i,
+        )?.replace(/<[^>]+>/g, " ") || "",
+      ),
     );
-
   const listingName = cleanText(rawListingName);
+
   if (!listingName) {
     dropCounts.dropped_missingListingName++;
     if (droppedDealsSample.length < 100) {
@@ -360,9 +384,12 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
 
   const rawHref =
     extractAttr(titleAnchor, "href") ||
-    extractFirstMatch(tileHtml, /<a[^>]*class="[^"]*\bimage\b[^"]*"[^>]*href="([^"]+)"/i);
-
+    extractFirstMatch(
+      tileHtml,
+      /<a[^>]*class="[^"]*\bimage\b[^"]*"[^>]*href="([^"]+)"/i,
+    );
   const listingURL = absoluteUrl(rawHref);
+
   if (!listingURL) {
     dropCounts.dropped_missingListingURL++;
     if (droppedDealsSample.length < 100) {
@@ -372,10 +399,15 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
   }
 
   const imageURL = absoluteUrl(extractAttr(imageTag, "src"));
+
   if (!imageURL) {
     dropCounts.dropped_missingImageURL++;
     if (droppedDealsSample.length < 100) {
-      droppedDealsSample.push({ reason: "missingImageURL", listingName, listingURL });
+      droppedDealsSample.push({
+        reason: "missingImageURL",
+        listingName,
+        listingURL,
+      });
     }
     return null;
   }
@@ -383,7 +415,11 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
   if (tileHasSeePriceInCart(tileHtml)) {
     dropCounts.dropped_seePriceInCart++;
     if (droppedDealsSample.length < 100) {
-      droppedDealsSample.push({ reason: "seePriceInCart", listingName, listingURL });
+      droppedDealsSample.push({
+        reason: "seePriceInCart",
+        listingName,
+        listingURL,
+      });
     }
     return null;
   }
@@ -394,7 +430,6 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
   const hasAnySale =
     pricing.salePrice != null ||
     (pricing.salePriceLow != null && pricing.salePriceHigh != null);
-
   const hasAnyOriginal =
     pricing.originalPrice != null ||
     (pricing.originalPriceLow != null && pricing.originalPriceHigh != null);
@@ -402,7 +437,11 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
   if (!hasAnySale) {
     dropCounts.dropped_missingSalePrice++;
     if (droppedDealsSample.length < 100) {
-      droppedDealsSample.push({ reason: "missingSalePrice", listingName, listingURL });
+      droppedDealsSample.push({
+        reason: "missingSalePrice",
+        listingName,
+        listingURL,
+      });
     }
     return null;
   }
@@ -410,13 +449,18 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
   if (!hasAnyOriginal) {
     dropCounts.dropped_missingOriginalPrice++;
     if (droppedDealsSample.length < 100) {
-      droppedDealsSample.push({ reason: "missingOriginalPrice", listingName, listingURL });
+      droppedDealsSample.push({
+        reason: "missingOriginalPrice",
+        listingName,
+        listingURL,
+      });
     }
     return null;
   }
 
   const honestSaleLow = pricing.salePriceLow ?? pricing.salePrice ?? null;
-  const honestOriginalHigh = pricing.originalPriceHigh ?? pricing.originalPrice ?? null;
+  const honestOriginalHigh =
+    pricing.originalPriceHigh ?? pricing.originalPrice ?? null;
 
   if (
     typeof honestSaleLow !== "number" ||
@@ -458,55 +502,83 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
 
   return {
     schemaVersion: SCHEMA_VERSION,
-
     listingName,
-
     brand,
     model,
-
     salePrice: pricing.salePrice,
     originalPrice: pricing.originalPrice,
     discountPercent: pricing.discountPercent,
-
     salePriceLow: pricing.salePriceLow,
     salePriceHigh: pricing.salePriceHigh,
     originalPriceLow: pricing.originalPriceLow,
     originalPriceHigh: pricing.originalPriceHigh,
     discountPercentUpTo: pricing.discountPercentUpTo,
-
     store: STORE,
-
     listingURL,
     imageURL,
-
     gender: parseGender(listingName),
     shoeType: "unknown",
   };
 }
 
-async function getFirecrawlHtml(app, url) {
-  const result = await app.scrapeUrl(url, {
-    formats: ["html"],
-    onlyMainContent: false,
-    timeout: FIRECRAWL_TIMEOUT_MS,
-    waitFor: FIRECRAWL_WAIT_MS,
-  });
+// ─── Firecrawl ────────────────────────────────────────────────────────────────
 
-  if (!result?.success) {
-    throw new Error(result?.error || `Firecrawl failed for ${url}`);
+async function getFirecrawlHtml(url) {
+  const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
+  if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FIRECRAWL_TIMEOUT_MS);
+
+  try {
+    const resp = await fetch(FIRECRAWL_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        url,
+        formats: ["html"],
+        onlyMainContent: false,
+        waitFor: FIRECRAWL_WAIT_MS,
+        proxy: "auto",
+        timeout: FIRECRAWL_TIMEOUT_MS,
+      }),
+    });
+
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => "");
+      throw new Error(
+        `Firecrawl scrape failed (${resp.status}): ${txt.slice(0, 800)}`,
+      );
+    }
+
+    const data = await resp.json();
+    const html = data?.data?.html || data?.data?.[0]?.html || data?.html || "";
+
+    if (!html || typeof html !== "string") {
+      const keys = Object.keys(data || {});
+      throw new Error(
+        `Firecrawl returned no html. Top-level keys: ${keys.join(", ")}`,
+      );
+    }
+
+    return html;
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      throw new Error(
+        `Firecrawl fetch aborted after ${FIRECRAWL_TIMEOUT_MS}ms`,
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-
-  const html =
-    result?.html ||
-    result?.data?.html ||
-    (Array.isArray(result?.data) ? result.data.find((x) => x?.html)?.html : null);
-
-  if (!html || typeof html !== "string") {
-    throw new Error(`Firecrawl returned no HTML for ${url}`);
-  }
-
-  return html;
 }
+
+// ─── Handler ──────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
   const startedAt = Date.now();
@@ -518,17 +590,6 @@ export default async function handler(req, res) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
   }
   */
-
-  if (!process.env.FIRECRAWL_API_KEY) {
-    return res.status(500).json({
-      success: false,
-      store: STORE,
-      error: "Missing FIRECRAWL_API_KEY",
-      scrapeDurationMs: Date.now() - startedAt,
-    });
-  }
-
-  const firecrawl = new FirecrawlApp({ apiKey: process.env.FIRECRAWL_API_KEY });
 
   const dropCounts = {
     totalTiles: 0,
@@ -551,29 +612,38 @@ export default async function handler(req, res) {
   try {
     for (const sourceUrl of SOURCE_URLS) {
       const page1Url = buildPageUrl(sourceUrl, 1);
-      const firstHtml = await getFirecrawlHtml(firecrawl, page1Url);
+      const firstHtml = await getFirecrawlHtml(page1Url);
       fetchedUrls.push(page1Url);
 
       const totalPages = countPaginationPages(firstHtml);
-
       const firstTiles = splitTiles(firstHtml);
       dropCounts.totalTiles += firstTiles.length;
 
       for (const tileHtml of firstTiles) {
-        const deal = parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls);
+        const deal = parseTile(
+          tileHtml,
+          dropCounts,
+          droppedDealsSample,
+          seenUrls,
+        );
         if (deal) deals.push(deal);
       }
 
       for (let page = 2; page <= totalPages; page++) {
         const pageUrl = buildPageUrl(sourceUrl, page);
-        const html = await getFirecrawlHtml(firecrawl, pageUrl);
+        const html = await getFirecrawlHtml(pageUrl);
         fetchedUrls.push(pageUrl);
 
         const tiles = splitTiles(html);
         dropCounts.totalTiles += tiles.length;
 
         for (const tileHtml of tiles) {
-          const deal = parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls);
+          const deal = parseTile(
+            tileHtml,
+            dropCounts,
+            droppedDealsSample,
+            seenUrls,
+          );
           if (deal) deals.push(deal);
         }
       }
@@ -582,25 +652,18 @@ export default async function handler(req, res) {
     const payload = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
-
       lastUpdated: nowIso(),
       via: VIA,
-
       sourceUrls: SOURCE_URLS,
       pagesFetched: fetchedUrls.length,
-
       dealsFound: dropCounts.totalTiles,
       dealsExtracted: deals.length,
-
       scrapeDurationMs: Date.now() - startedAt,
-
       ok: true,
       error: null,
-
       dropCounts,
       droppedDealsLogged: droppedDealsSample.length,
       droppedDealsSample,
-
       deals,
     };
 
