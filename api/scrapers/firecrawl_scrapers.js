@@ -29,6 +29,8 @@ const ENABLED = {
   kohls: true,
   nike: true,
   publiclands: true,
+  adidas: true,
+  newbalance: true,
 };
 
 // ===========================
@@ -81,6 +83,18 @@ const TARGETS = [
     key: "publiclands",
     name: "Public Lands Firecrawl",
     path: "/api/scrapers/publiclands-firecrawl",
+  },
+
+  {
+    key: "adidas",
+    name: "Adidas Firecrawl",
+    path: "/api/scrapers/adidas-firecrawl",
+  },
+
+  {
+    key: "newbalance",
+    name: "New Balance Firecrawl",
+    path: "/api/scrapers/newbalance-sale",
   },
 ];
 
