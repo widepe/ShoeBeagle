@@ -689,6 +689,27 @@
   },
 
 {
+  "id": "sierra",
+  "displayName": "Sierra",
+  "addedAt": "2026-03-11",
+  "lastUpdated": "2026-03-11",
+  "scrapedUrls": [
+    "https://www.sierra.com/clearance~1/shoes~d~4/shoes-by-activity~d~15010/running~d~15016/",
+    "https://www.sierra.com/clearance~1/shoes~d~4/shoes-by-activity~d~15010/running~d~15016/2/",
+    "https://www.sierra.com/clearance~1/shoes~d~4/shoes-by-activity~d~15010/running~d~15016/3/"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/sierra.json"
+  ],
+  "aliases": ["sierra"],
+  "enabled": true,
+  "scraperType": "firecrawl-cheerio",
+  "envVar": "SIERRA_DEALS_BLOB_URL",
+  "baseUrl": "https://www.sierra.com",
+  "notes": "Sierra clearance running shoes scraper via Firecrawl raw HTML + Cheerio parse. Scrapes the running clearance listing pages and detects pagination from the listing page. Current observed run fetched 3 pages from the running clearance path. Preserves listingName exactly as scraped from the tile, parses brand from tile data-brand/brand link, derives model from listingName by removing a leading brand and trailing gender parenthetical, parses gender from tile title/department text: mens, womens, unisex, else unknown, and maps shoeType from tile text: trail -> trail, track/spike/spikes -> track, running -> road, else unknown. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Dedupe by listingURL. Metadata includes dropCounts, droppedDealsSample, and pageSummaries. Writes to sierra.json."
+},  
+
+{
   "id": "skechers",
   "displayName": "Skechers",
   "addedAt": "2026-03-10",
