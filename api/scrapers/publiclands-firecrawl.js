@@ -1,13 +1,44 @@
 // /api/scrapers/publiclands-sale.js
+//
+// Public Lands sale running shoes scraper
+// - Uses Firecrawl raw HTML to bypass direct-fetch 403
+// - Scrapes exactly 2 listing roots:
+//    1) womens-footwear-sale filtered to running
+//    2) mens-footwear-sale filtered to running
+// - Reads up to 2 pages per root (based on page-number controls in HTML)
+// - Drops "See Price In Cart" / "See Price In Bag"
+// - Keeps shoeType = "unknown" for all shoes
+// - Supports:
+//    * single sale + single original
+//    * sale range + single original
+//    * sale range + original range
+// - Writes publiclands-sale.json to Vercel Blob
+//
+// ENV:
+// - BLOB_READ_WRITE_TOKEN
+// - FIRECRAWL_API_KEY
+//
+// TEST:
+// /api/scrapers/publiclands-sale
+//
+// CRON auth (temporarily commented out for testing)
+/*
+const auth = req.headers.authorization;
+if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  return res.status(401).json({ success: false, error: "Unauthorized" });
+}
+*/
 
 import { put } from "@vercel/blob";
+import FirecrawlApp from "@mendable/firecrawl-js";
 
 export const config = { maxDuration: 60 };
 
 const STORE = "Public Lands";
 const SCHEMA_VERSION = 1;
-const VIA = "fetch-html";
+const VIA = "firecrawl-raw-html";
 const BASE_URL = "https://www.publiclands.com";
+const OUTPUT_BLOB = "publiclands-sale.json";
 
 const SOURCE_URLS = [
   "https://www.publiclands.com/f/womens-footwear-sale?filterFacets=4285%253ARunning%253B5382%253AAthletic%2520%2526%2520Sneakers%253BfacetStore%253ASHIP",
@@ -15,7 +46,8 @@ const SOURCE_URLS = [
 ];
 
 const MAX_PAGES_PER_SOURCE = 2;
-const OUTPUT_BLOB = "publiclands-sale.json";
+const FIRECRAWL_TIMEOUT_MS = 45000;
+const FIRECRAWL_WAIT_MS = 3000;
 
 function nowIso() {
   return new Date().toISOString();
@@ -28,14 +60,6 @@ function cleanText(s) {
     .trim();
 }
 
-function absoluteUrl(url) {
-  const s = String(url || "").trim();
-  if (!s) return null;
-  if (/^https?:\/\//i.test(s)) return s;
-  if (s.startsWith("/")) return `${BASE_URL}${s}`;
-  return `${BASE_URL}/${s}`;
-}
-
 function decodeHtmlEntities(str) {
   return String(str || "")
     .replace(/&amp;/g, "&")
@@ -46,14 +70,56 @@ function decodeHtmlEntities(str) {
     .replace(/&gt;/g, ">");
 }
 
+function absoluteUrl(url) {
+  const s = String(url || "").trim();
+  if (!s) return null;
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("/")) return `${BASE_URL}${s}`;
+  return `${BASE_URL}/${s}`;
+}
+
 function escapeRegex(s) {
   return String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function parsePriceNumber(str) {
-  if (str == null) return null;
-  const m = String(str).replace(/,/g, "").match(/\$?\s*(\d+(?:\.\d{1,2})?)/);
-  return m ? Number(m[1]) : null;
+function buildPageUrl(baseUrl, pageNumber) {
+  const url = new URL(baseUrl);
+  url.searchParams.set("pageNumber", String(pageNumber));
+  return url.toString();
+}
+
+function parseGender(listingName) {
+  const s = cleanText(listingName).toLowerCase();
+  if (/\bmen'?s\b/.test(s)) return "mens";
+  if (/\bwomen'?s\b/.test(s)) return "womens";
+  if (/\bunisex\b/.test(s)) return "unisex";
+  return "unknown";
+}
+
+function parseBrandAndModel(listingName) {
+  const raw = cleanText(listingName);
+  if (!raw) return { brand: "", model: "" };
+
+  let s = raw;
+  s = s.replace(/\bmen'?s\b/gi, "");
+  s = s.replace(/\bwomen'?s\b/gi, "");
+  s = s.replace(/\bunisex\b/gi, "");
+  s = s.replace(/\btrail running shoes?\b/gi, "");
+  s = s.replace(/\brunning shoes?\b/gi, "");
+  s = s.replace(/\btrack shoes?\b/gi, "");
+  s = s.replace(/\bshoes?\b/gi, "");
+  s = cleanText(s);
+
+  const parts = s.split(/\s+/).filter(Boolean);
+  if (!parts.length) return { brand: "", model: "" };
+
+  const brand = parts[0];
+  const model = cleanText(s.slice(brand.length));
+
+  return {
+    brand: brand || "",
+    model: model || "",
+  };
 }
 
 function roundDiscountPercent(original, sale) {
@@ -71,39 +137,53 @@ function roundDiscountPercent(original, sale) {
   return Math.round(((original - sale) / original) * 100);
 }
 
-function parseGender(listingName) {
-  const s = cleanText(listingName).toLowerCase();
-  if (/\bmen'?s\b/.test(s)) return "mens";
-  if (/\bwomen'?s\b/.test(s)) return "womens";
-  if (/\bunisex\b/.test(s)) return "unisex";
-  return "unknown";
+function extractAttr(tagHtml, attrName) {
+  const re = new RegExp(`${escapeRegex(attrName)}="([^"]*)"`, "i");
+  const m = String(tagHtml || "").match(re);
+  return m ? decodeHtmlEntities(m[1]) : null;
 }
 
-function parseBrandAndModel(listingName) {
-  const raw = cleanText(listingName);
-  if (!raw) return { brand: "", model: "" };
+function extractFirstMatch(str, regex, group = 1) {
+  const m = String(str || "").match(regex);
+  return m ? m[group] : null;
+}
 
-  let s = raw;
+function splitTiles(html) {
+  const src = String(html || "");
+  const marker = '<div class="product-card hmf-position-relative';
+  const parts = src.split(marker);
+  if (parts.length <= 1) return [];
+  return parts.slice(1).map((part) => marker + part);
+}
 
-  s = s.replace(/\bmen'?s\b/gi, "");
-  s = s.replace(/\bwomen'?s\b/gi, "");
-  s = s.replace(/\bunisex\b/gi, "");
-  s = s.replace(/\brunning shoes?\b/gi, "");
-  s = s.replace(/\btrail running shoes?\b/gi, "");
-  s = s.replace(/\btrack shoes?\b/gi, "");
-  s = s.replace(/\bshoes?\b/gi, "");
-  s = cleanText(s);
+function countPaginationPages(html) {
+  const labels = [...String(html || "").matchAll(/aria-label="Page Number\s+(\d+)"/gi)].map(
+    (m) => Number(m[1])
+  );
+  const maxPage = labels.length ? Math.max(...labels) : 1;
+  return Math.max(1, Math.min(MAX_PAGES_PER_SOURCE, maxPage));
+}
 
-  const parts = s.split(/\s+/).filter(Boolean);
-  if (!parts.length) return { brand: "", model: "" };
+function tileHasSeePriceInCart(tileHtml) {
+  const s = cleanText(String(tileHtml || "")).toLowerCase();
+  return (
+    s.includes("see price in cart") ||
+    s.includes("see price in bag") ||
+    s.includes("price in cart") ||
+    s.includes("price in bag")
+  );
+}
 
-  const brand = parts[0];
-  const model = cleanText(s.slice(brand.length));
+function getTitleAnchor(tileHtml) {
+  const m = String(tileHtml).match(
+    /<a[^>]*class="[^"]*\bproduct-title-link\b[^"]*"[^>]*>/i
+  );
+  return m ? m[0] : null;
+}
 
-  return {
-    brand: brand || "",
-    model: model || "",
-  };
+function getPrimaryImageTag(tileHtml) {
+  const m = String(tileHtml).match(/<img[^>]+itemprop="image"[^>]*>/i);
+  return m ? m[0] : null;
 }
 
 function extractAriaLabelPriceRanges(ariaLabel) {
@@ -165,8 +245,8 @@ function extractPricing(tileHtml, ariaLabel) {
   const saleNums = [...saleBlockText.matchAll(/\$?\s*(\d+(?:\.\d{1,2})?)/g)].map((m) =>
     Number(m[1])
   );
-  const originalNums = [...originalBlockText.matchAll(/\$?\s*(\d+(?:\.\d{1,2})?)/g)].map((m) =>
-    Number(m[1])
+  const originalNums = [...originalBlockText.matchAll(/\$?\s*(\d+(?:\.\d{1,2})?)/g)].map(
+    (m) => Number(m[1])
   );
 
   if (saleNums.length >= 2) {
@@ -231,8 +311,7 @@ function extractPricing(tileHtml, ariaLabel) {
   } else {
     const honestOriginalHigh =
       originalPriceHigh ?? originalPrice ?? originalLow ?? originalHigh ?? null;
-    const honestSaleLow =
-      salePriceLow ?? salePrice ?? saleLow ?? saleHigh ?? null;
+    const honestSaleLow = salePriceLow ?? salePrice ?? saleLow ?? saleHigh ?? null;
 
     if (
       typeof honestOriginalHigh === "number" &&
@@ -255,68 +334,12 @@ function extractPricing(tileHtml, ariaLabel) {
   };
 }
 
-function buildPageUrl(baseUrl, pageNumber) {
-  const url = new URL(baseUrl);
-  url.searchParams.set("pageNumber", String(pageNumber));
-  return url.toString();
-}
-
-function countPaginationPages(html) {
-  const labels = [...String(html || "").matchAll(/aria-label="Page Number\s+(\d+)"/gi)].map(
-    (m) => Number(m[1])
-  );
-  const maxPage = labels.length ? Math.max(...labels) : 1;
-  return Math.max(1, Math.min(MAX_PAGES_PER_SOURCE, maxPage));
-}
-
-function splitTiles(html) {
-  const src = String(html || "");
-  const marker = '<div class="product-card hmf-position-relative';
-  const rawParts = src.split(marker);
-
-  if (rawParts.length <= 1) return [];
-
-  return rawParts.slice(1).map((part) => marker + part);
-}
-
-function extractAttr(tagHtml, attrName) {
-  const re = new RegExp(`${escapeRegex(attrName)}="([^"]*)"`, "i");
-  const m = String(tagHtml || "").match(re);
-  return m ? decodeHtmlEntities(m[1]) : null;
-}
-
-function extractFirstMatch(str, regex, group = 1) {
-  const m = String(str || "").match(regex);
-  return m ? m[group] : null;
-}
-
-function getTitleAnchor(tileHtml) {
-  const m = String(tileHtml).match(
-    /<a[^>]*class="[^"]*\bproduct-title-link\b[^"]*"[^>]*>/i
-  );
-  return m ? m[0] : null;
-}
-
-function getPrimaryImageTag(tileHtml) {
-  const m = String(tileHtml).match(/<img[^>]+itemprop="image"[^>]*>/i);
-  return m ? m[0] : null;
-}
-
-function tileHasSeePriceInCart(tileHtml) {
-  const s = cleanText(String(tileHtml || "")).toLowerCase();
-  return (
-    s.includes("see price in cart") ||
-    s.includes("see price in bag") ||
-    s.includes("price in cart") ||
-    s.includes("price in bag")
-  );
-}
-
 function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
   const titleAnchor = getTitleAnchor(tileHtml);
   const imageTag = getPrimaryImageTag(tileHtml);
 
-  const rawListingName = extractAttr(titleAnchor, "title") ||
+  const rawListingName =
+    extractAttr(titleAnchor, "title") ||
     cleanText(
       decodeHtmlEntities(
         extractFirstMatch(
@@ -412,10 +435,7 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
     return null;
   }
 
-  if (
-    pricing.discountPercent == null &&
-    pricing.discountPercentUpTo == null
-  ) {
+  if (pricing.discountPercent == null && pricing.discountPercentUpTo == null) {
     dropCounts.dropped_invalidDiscountPercent++;
     if (droppedDealsSample.length < 100) {
       droppedDealsSample.push({
@@ -464,25 +484,28 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
   };
 }
 
-async function fetchHtml(url) {
-  const resp = await fetch(url, {
-    method: "GET",
-    headers: {
-      "user-agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-      accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-      "accept-language": "en-US,en;q=0.9",
-      "cache-control": "no-cache",
-      pragma: "no-cache",
-    },
+async function getFirecrawlHtml(app, url) {
+  const result = await app.scrapeUrl(url, {
+    formats: ["html"],
+    onlyMainContent: false,
+    timeout: FIRECRAWL_TIMEOUT_MS,
+    waitFor: FIRECRAWL_WAIT_MS,
   });
 
-  if (!resp.ok) {
-    throw new Error(`HTTP ${resp.status} for ${url}`);
+  if (!result?.success) {
+    throw new Error(result?.error || `Firecrawl failed for ${url}`);
   }
 
-  return await resp.text();
+  const html =
+    result?.html ||
+    result?.data?.html ||
+    (Array.isArray(result?.data) ? result.data.find((x) => x?.html)?.html : null);
+
+  if (!html || typeof html !== "string") {
+    throw new Error(`Firecrawl returned no HTML for ${url}`);
+  }
+
+  return html;
 }
 
 export default async function handler(req, res) {
@@ -495,6 +518,17 @@ export default async function handler(req, res) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
   }
   */
+
+  if (!process.env.FIRECRAWL_API_KEY) {
+    return res.status(500).json({
+      success: false,
+      store: STORE,
+      error: "Missing FIRECRAWL_API_KEY",
+      scrapeDurationMs: Date.now() - startedAt,
+    });
+  }
+
+  const firecrawl = new FirecrawlApp({ apiKey: process.env.FIRECRAWL_API_KEY });
 
   const dropCounts = {
     totalTiles: 0,
@@ -516,8 +550,9 @@ export default async function handler(req, res) {
 
   try {
     for (const sourceUrl of SOURCE_URLS) {
-      const firstHtml = await fetchHtml(buildPageUrl(sourceUrl, 1));
-      fetchedUrls.push(buildPageUrl(sourceUrl, 1));
+      const page1Url = buildPageUrl(sourceUrl, 1);
+      const firstHtml = await getFirecrawlHtml(firecrawl, page1Url);
+      fetchedUrls.push(page1Url);
 
       const totalPages = countPaginationPages(firstHtml);
 
@@ -531,7 +566,7 @@ export default async function handler(req, res) {
 
       for (let page = 2; page <= totalPages; page++) {
         const pageUrl = buildPageUrl(sourceUrl, page);
-        const html = await fetchHtml(pageUrl);
+        const html = await getFirecrawlHtml(firecrawl, pageUrl);
         fetchedUrls.push(pageUrl);
 
         const tiles = splitTiles(html);
