@@ -5,7 +5,7 @@
 // - Scrapes exactly 2 listing roots:
 //   1) womens-footwear-sale filtered to running
 //   2) mens-footwear-sale filtered to running
-// - Reads all pages exposed by site pagination, capped at 8 pages per root
+// - Reads all pages exposed by site pagination, capped at 5 pages per root
 // - Drops "See Price In Cart" / "See Price In Bag"
 // - Keeps shoeType = "unknown" for all shoes
 // - Supports:
@@ -90,7 +90,11 @@ function buildPageUrl(baseUrl, pageNumber) {
   return url.toString();
 }
 
-// ─── Parsing Helpers ──────────────────────────────────────────────────────────
+function countMatches(haystack, regex) {
+  return (String(haystack || "").match(regex) || []).length;
+}
+
+// ─── Parsing Helpers ─────────────────────────────────────────────────────────
 
 function parseGender(listingName) {
   const s = cleanText(listingName).toLowerCase();
@@ -148,14 +152,18 @@ function extractFirstMatch(str, regex, group = 1) {
   return m ? m[group] : null;
 }
 
-// ─── HTML Splitting ───────────────────────────────────────────────────────────
+// ─── HTML Splitting ──────────────────────────────────────────────────────────
 
 function splitTiles(html) {
   const src = String(html || "");
-  const marker = '<div class="product-card hmf-position-relative';
-  const parts = src.split(marker);
-  if (parts.length <= 1) return [];
-  return parts.slice(1).map((part) => marker + part);
+
+  const matches = [
+    ...src.matchAll(
+      /<div[^>]*class="[^"]*\bproduct-card\b[^"]*"[\s\S]*?(?=<div[^>]*class="[^"]*\bproduct-card\b[^"]*"|$)/gi
+    ),
+  ].map((m) => m[0]);
+
+  return matches;
 }
 
 function countPaginationPages(html) {
@@ -166,7 +174,7 @@ function countPaginationPages(html) {
   return Math.max(1, Math.min(MAX_PAGES_PER_SOURCE, maxPage));
 }
 
-// ─── Tile Filters ─────────────────────────────────────────────────────────────
+// ─── Tile Filters ────────────────────────────────────────────────────────────
 
 function tileHasSeePriceInCart(tileHtml) {
   const s = cleanText(String(tileHtml || "")).toLowerCase();
@@ -180,7 +188,7 @@ function tileHasSeePriceInCart(tileHtml) {
 
 function getTitleAnchor(tileHtml) {
   const m = String(tileHtml).match(
-    /<a[^>]*class="[^"]*\bproduct-title-link\b[^"]*"[^>]*>/i,
+    /<a[^>]*class="[^"]*\bproduct-title-link\b[^"]*"[^>]*>/i
   );
   return m ? m[0] : null;
 }
@@ -190,7 +198,7 @@ function getPrimaryImageTag(tileHtml) {
   return m ? m[0] : null;
 }
 
-// ─── Pricing ──────────────────────────────────────────────────────────────────
+// ─── Pricing ─────────────────────────────────────────────────────────────────
 
 function extractAriaLabelPriceRanges(ariaLabel) {
   const label = cleanText(ariaLabel);
@@ -200,11 +208,11 @@ function extractAriaLabelPriceRanges(ariaLabel) {
   let originalHigh = null;
 
   const saleRangeMatch = label.match(
-    /New Lower Price:\s*\$([\d.,]+)\s*to\s*\$([\d.,]+)/i,
+    /New Lower Price:\s*\$([\d.,]+)\s*to\s*\$([\d.,]+)/i
   );
   const saleSingleMatch = label.match(/New Lower Price:\s*\$([\d.,]+)/i);
   const originalRangeMatch = label.match(
-    /Previous Price:\s*\$([\d.,]+)\s*to\s*\$([\d.,]+)/i,
+    /Previous Price:\s*\$([\d.,]+)\s*to\s*\$([\d.,]+)/i
   );
   const originalSingleMatch = label.match(/Previous Price:\s*\$([\d.,]+)/i);
 
@@ -237,19 +245,19 @@ function extractPricing(tileHtml, ariaLabel) {
   let originalHigh = null;
 
   const saleBlockMatch = html.match(
-    /class="[^"]*\bprice-sale\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /class="[^"]*\bprice-sale\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i
   );
   const originalBlockMatch = html.match(
-    /class="[^"]*\bhmf-text-decoration-linethrough\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /class="[^"]*\bhmf-text-decoration-linethrough\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i
   );
 
   const saleBlockText = cleanText(
-    decodeHtmlEntities((saleBlockMatch?.[1] || "").replace(/<[^>]+>/g, " ")),
+    decodeHtmlEntities((saleBlockMatch?.[1] || "").replace(/<[^>]+>/g, " "))
   );
   const originalBlockText = cleanText(
     decodeHtmlEntities(
-      (originalBlockMatch?.[1] || "").replace(/<[^>]+>/g, " "),
-    ),
+      (originalBlockMatch?.[1] || "").replace(/<[^>]+>/g, " ")
+    )
   );
 
   const saleNums = [
@@ -276,14 +284,10 @@ function extractPricing(tileHtml, ariaLabel) {
   }
 
   const ariaParsed = extractAriaLabelPriceRanges(label);
-  if (saleLow == null && ariaParsed.saleLow != null)
-    saleLow = ariaParsed.saleLow;
-  if (saleHigh == null && ariaParsed.saleHigh != null)
-    saleHigh = ariaParsed.saleHigh;
-  if (originalLow == null && ariaParsed.originalLow != null)
-    originalLow = ariaParsed.originalLow;
-  if (originalHigh == null && ariaParsed.originalHigh != null)
-    originalHigh = ariaParsed.originalHigh;
+  if (saleLow == null && ariaParsed.saleLow != null) saleLow = ariaParsed.saleLow;
+  if (saleHigh == null && ariaParsed.saleHigh != null) saleHigh = ariaParsed.saleHigh;
+  if (originalLow == null && ariaParsed.originalLow != null) originalLow = ariaParsed.originalLow;
+  if (originalHigh == null && ariaParsed.originalHigh != null) originalHigh = ariaParsed.originalHigh;
 
   const saleIsRange =
     saleLow != null && saleHigh != null && Number(saleLow) !== Number(saleHigh);
@@ -339,7 +343,7 @@ function extractPricing(tileHtml, ariaLabel) {
     ) {
       discountPercentUpTo = roundDiscountPercent(
         honestOriginalHigh,
-        honestSaleLow,
+        honestSaleLow
       );
     }
   }
@@ -356,7 +360,7 @@ function extractPricing(tileHtml, ariaLabel) {
   };
 }
 
-// ─── Tile Parser ──────────────────────────────────────────────────────────────
+// ─── Tile Parser ─────────────────────────────────────────────────────────────
 
 function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
   const titleAnchor = getTitleAnchor(tileHtml);
@@ -368,9 +372,9 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
       decodeHtmlEntities(
         extractFirstMatch(
           tileHtml,
-          /<a[^>]*class="[^"]*\bproduct-title-link\b[^"]*"[^>]*>([\s\S]*?)<\/a>/i,
-        )?.replace(/<[^>]+>/g, " ") || "",
-      ),
+          /<a[^>]*class="[^"]*\bproduct-title-link\b[^"]*"[^>]*>([\s\S]*?)<\/a>/i
+        )?.replace(/<[^>]+>/g, " ") || ""
+      )
     );
   const listingName = cleanText(rawListingName);
 
@@ -386,7 +390,7 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
     extractAttr(titleAnchor, "href") ||
     extractFirstMatch(
       tileHtml,
-      /<a[^>]*class="[^"]*\bimage\b[^"]*"[^>]*href="([^"]+)"/i,
+      /<a[^>]*class="[^"]*\bimage\b[^"]*"[^>]*href="([^"]+)"/i
     );
   const listingURL = absoluteUrl(rawHref);
 
@@ -521,7 +525,7 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
   };
 }
 
-// ─── Firecrawl ────────────────────────────────────────────────────────────────
+// ─── Firecrawl ───────────────────────────────────────────────────────────────
 
 async function getFirecrawlHtml(url) {
   const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
@@ -551,7 +555,7 @@ async function getFirecrawlHtml(url) {
     if (!resp.ok) {
       const txt = await resp.text().catch(() => "");
       throw new Error(
-        `Firecrawl scrape failed (${resp.status}): ${txt.slice(0, 800)}`,
+        `Firecrawl scrape failed (${resp.status}): ${txt.slice(0, 800)}`
       );
     }
 
@@ -561,7 +565,7 @@ async function getFirecrawlHtml(url) {
     if (!html || typeof html !== "string") {
       const keys = Object.keys(data || {});
       throw new Error(
-        `Firecrawl returned no html. Top-level keys: ${keys.join(", ")}`,
+        `Firecrawl returned no html. Top-level keys: ${keys.join(", ")}`
       );
     }
 
@@ -569,7 +573,7 @@ async function getFirecrawlHtml(url) {
   } catch (err) {
     if (err?.name === "AbortError") {
       throw new Error(
-        `Firecrawl fetch aborted after ${FIRECRAWL_TIMEOUT_MS}ms`,
+        `Firecrawl fetch aborted after ${FIRECRAWL_TIMEOUT_MS}ms`
       );
     }
     throw err;
@@ -578,7 +582,32 @@ async function getFirecrawlHtml(url) {
   }
 }
 
-// ─── Handler ──────────────────────────────────────────────────────────────────
+// ─── Debug Logs ──────────────────────────────────────────────────────────────
+
+function logHtmlDiagnostics(label, html) {
+  const src = String(html || "");
+  const sample = src.slice(0, 3000).replace(/\s+/g, " ");
+
+  console.log(`[Public Lands] ${label} htmlLength=${src.length}`);
+  console.log(
+    `[Public Lands] ${label} count product-card=${countMatches(src, /product-card/g)}`
+  );
+  console.log(
+    `[Public Lands] ${label} count product-title-link=${countMatches(src, /product-title-link/g)}`
+  );
+  console.log(
+    `[Public Lands] ${label} count price-sale=${countMatches(src, /price-sale/g)}`
+  );
+  console.log(
+    `[Public Lands] ${label} count line-through=${countMatches(src, /hmf-text-decoration-linethrough/g)}`
+  );
+  console.log(
+    `[Public Lands] ${label} count Page Number=${countMatches(src, /aria-label="Page Number\s+\d+"/g)}`
+  );
+  console.log(`[Public Lands] ${label} htmlSample=${sample}`);
+}
+
+// ─── Handler ─────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
   const startedAt = Date.now();
@@ -612,11 +641,26 @@ export default async function handler(req, res) {
   try {
     for (const sourceUrl of SOURCE_URLS) {
       const page1Url = buildPageUrl(sourceUrl, 1);
+      console.log(`[Public Lands] Fetching first page: ${page1Url}`);
+
       const firstHtml = await getFirecrawlHtml(page1Url);
       fetchedUrls.push(page1Url);
 
+      logHtmlDiagnostics(`page1 ${page1Url}`, firstHtml);
+
       const totalPages = countPaginationPages(firstHtml);
       const firstTiles = splitTiles(firstHtml);
+
+      console.log(
+        `[Public Lands] page1 ${page1Url} totalPages=${totalPages} firstTiles=${firstTiles.length}`
+      );
+
+      if (firstTiles[0]) {
+        console.log(
+          `[Public Lands] page1 firstTileSample=${String(firstTiles[0]).slice(0, 2000).replace(/\s+/g, " ")}`
+        );
+      }
+
       dropCounts.totalTiles += firstTiles.length;
 
       for (const tileHtml of firstTiles) {
@@ -624,17 +668,31 @@ export default async function handler(req, res) {
           tileHtml,
           dropCounts,
           droppedDealsSample,
-          seenUrls,
+          seenUrls
         );
         if (deal) deals.push(deal);
       }
 
       for (let page = 2; page <= totalPages; page++) {
         const pageUrl = buildPageUrl(sourceUrl, page);
+        console.log(`[Public Lands] Fetching page ${page}/${totalPages}: ${pageUrl}`);
+
         const html = await getFirecrawlHtml(pageUrl);
         fetchedUrls.push(pageUrl);
 
+        logHtmlDiagnostics(`page${page} ${pageUrl}`, html);
+
         const tiles = splitTiles(html);
+        console.log(
+          `[Public Lands] page${page} ${pageUrl} tiles=${tiles.length}`
+        );
+
+        if (tiles[0]) {
+          console.log(
+            `[Public Lands] page${page} firstTileSample=${String(tiles[0]).slice(0, 2000).replace(/\s+/g, " ")}`
+          );
+        }
+
         dropCounts.totalTiles += tiles.length;
 
         for (const tileHtml of tiles) {
@@ -642,12 +700,19 @@ export default async function handler(req, res) {
             tileHtml,
             dropCounts,
             droppedDealsSample,
-            seenUrls,
+            seenUrls
           );
           if (deal) deals.push(deal);
         }
       }
     }
+
+    console.log(
+      `[Public Lands] done pagesFetched=${fetchedUrls.length} totalTiles=${dropCounts.totalTiles} dealsExtracted=${deals.length}`
+    );
+    console.log(
+      `[Public Lands] dropCounts=${JSON.stringify(dropCounts)}`
+    );
 
     const payload = {
       store: STORE,
@@ -691,6 +756,7 @@ export default async function handler(req, res) {
       blobUrl: blob.url,
     });
   } catch (err) {
+    console.log(`[Public Lands] ERROR=${err?.message || err}`);
     return res.status(500).json({
       success: false,
       store: STORE,
