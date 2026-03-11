@@ -536,15 +536,19 @@ export default async function handler(req, res) {
 
   try {
     for (const rootUrl of START_URLS) {
-      const firstHtml = await fetchFirecrawlHtmlWithRetry(rootUrl);
-      const $first = cheerio.load(firstHtml);
+const firstHtml = await fetchFirecrawlHtmlWithRetry(rootUrl);
+const $first = cheerio.load(firstHtml);
 
-      const totalResults = parseResultsCount($first);
-      const pageSize = parsePageSizeFromDocument($first, rootUrl);
-      const pagedUrls = buildPagedUrls(rootUrl, totalResults, pageSize).slice(
-        0,
-        MAX_PAGES_PER_ROOT
-      );
+const totalResults = parseResultsCount($first);
+const pageSize = parsePageSizeFromDocument($first, rootUrl);
+const firstPageTileCount = $first("li.grid-tile > .product-tile").length;
+
+const pagedUrls =
+  Number.isFinite(totalResults) &&
+  totalResults > 0 &&
+  firstPageTileCount >= totalResults
+    ? [rootUrl]
+    : buildPagedUrls(rootUrl, totalResults, pageSize).slice(0, MAX_PAGES_PER_ROOT);
 
       for (let i = 0; i < pagedUrls.length; i += 1) {
         const currentUrl = pagedUrls[i];
