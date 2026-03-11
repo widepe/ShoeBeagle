@@ -1,10 +1,10 @@
-// /api/scrapers/sierra-clearance.js
+// /api/scrapers/sierra-firecrawl.js
 //
 // Sierra clearance running shoes scraper
 // Saves blob as: sierra.json
 //
 // Notes:
-// - Simple HTML + Cheerio scrape
+// - Uses Firecrawl raw HTML to avoid direct-fetch 403
 // - Pulls only from the running clearance listing pages
 // - Reads page count from pagination if available, otherwise falls back to MAX_PAGES
 // - Tracks why deals are dropped
@@ -12,6 +12,7 @@
 //
 // ENV:
 // - BLOB_READ_WRITE_TOKEN
+// - FIRECRAWL_API_KEY
 //
 // TEST:
 // /api/scrapers/sierra-clearance
@@ -25,7 +26,7 @@ export const config = { maxDuration: 60 };
 
 const STORE = "Sierra";
 const SCHEMA_VERSION = 1;
-const VIA = "fetch-html";
+const VIA = "firecrawl-html";
 const BASE = "https://www.sierra.com";
 
 const START_URL =
@@ -33,6 +34,7 @@ const START_URL =
 
 const MAX_PAGES = 10;
 const BLOB_PATH = "sierra.json";
+const MAX_DROPPED_SAMPLE = 200;
 
 export default async function handler(req, res) {
   const startedAt = Date.now();
@@ -45,20 +47,7 @@ export default async function handler(req, res) {
   }
   */
 
-  const dropCounts = {
-    totalTiles: 0,
-    dropped_missingListingName: 0,
-    dropped_missingBrand: 0,
-    dropped_missingModel: 0,
-    dropped_missingListingURL: 0,
-    dropped_missingImageURL: 0,
-    dropped_missingSalePrice: 0,
-    dropped_missingOriginalPrice: 0,
-    dropped_saleNotLessThanOriginal: 0,
-    dropped_invalidDiscountPercent: 0,
-    dropped_duplicateListingURL: 0,
-  };
-
+  const dropCounts = createDropCounts();
   const droppedDealsSample = [];
   const pageSummaries = [];
   const sourceUrls = [];
@@ -69,9 +58,9 @@ export default async function handler(req, res) {
     const firstHtml = await fetchHtml(START_URL);
     const first$ = cheerio.load(firstHtml);
 
-    const totalItems = parseItemsCount(first$);
-    const discoveredPageCount = detectTotalPages(first$, START_URL);
-    const totalPages = Math.min(discoveredPageCount || 1, MAX_PAGES);
+    const totalItemsReported = parseItemsCount(first$);
+    const discoveredPageCount = detectTotalPages(first$);
+    const totalPages = Math.max(1, Math.min(discoveredPageCount || 1, MAX_PAGES));
 
     for (let pageNum = 1; pageNum <= totalPages; pageNum += 1) {
       const pageUrl = buildPageUrl(pageNum);
@@ -82,21 +71,10 @@ export default async function handler(req, res) {
       const $ = cheerio.load(html);
 
       const $tiles = $(".productThumbnailContainer.js-productThumbnailParent");
+      const pageDropCounts = createPerPageDropCounts();
+
       let pageFound = 0;
       let pageExtracted = 0;
-
-      const pageDropCounts = {
-        dropped_missingListingName: 0,
-        dropped_missingBrand: 0,
-        dropped_missingModel: 0,
-        dropped_missingListingURL: 0,
-        dropped_missingImageURL: 0,
-        dropped_missingSalePrice: 0,
-        dropped_missingOriginalPrice: 0,
-        dropped_saleNotLessThanOriginal: 0,
-        dropped_invalidDiscountPercent: 0,
-        dropped_duplicateListingURL: 0,
-      };
 
       $tiles.each((_, el) => {
         dropCounts.totalTiles += 1;
@@ -156,7 +134,7 @@ export default async function handler(req, res) {
       sourceUrls,
       pagesFetched: sourceUrls.length,
 
-      totalItemsReported: totalItems,
+      totalItemsReported,
       dealsFound: dropCounts.totalTiles,
       dealsExtracted: deals.length,
 
@@ -206,21 +184,38 @@ export default async function handler(req, res) {
 }
 
 async function fetchHtml(url) {
-  const resp = await fetch(url, {
+  const apiKey = process.env.FIRECRAWL_API_KEY;
+  if (!apiKey) {
+    throw new Error("Missing FIRECRAWL_API_KEY");
+  }
+
+  const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
+    method: "POST",
     headers: {
-      "user-agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-      accept: "text/html,application/xhtml+xml",
-      "accept-language": "en-US,en;q=0.9",
-      referer: BASE + "/",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
     },
+    body: JSON.stringify({
+      url,
+      formats: ["html"],
+      onlyMainContent: false,
+      waitFor: 1500,
+    }),
   });
 
   if (!resp.ok) {
-    throw new Error(`HTTP ${resp.status} for ${url}`);
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Firecrawl HTTP ${resp.status} for ${url} :: ${text}`);
   }
 
-  return await resp.text();
+  const json = await resp.json();
+  const html = json?.data?.html || json?.html || "";
+
+  if (!html || typeof html !== "string") {
+    throw new Error(`No HTML returned by Firecrawl for ${url}`);
+  }
+
+  return html;
 }
 
 function buildPageUrl(pageNum) {
@@ -237,7 +232,7 @@ function parseItemsCount($) {
   return m ? Number(m[1]) : null;
 }
 
-function detectTotalPages($, fallbackUrl) {
+function detectTotalPages($) {
   let maxPage = 1;
 
   $('.productListingPagination a.pageLink[href]').each((_, el) => {
@@ -247,19 +242,16 @@ function detectTotalPages($, fallbackUrl) {
 
     if (!href || href === "javascript:void(0)") return;
 
-    const candidates = [href, aria, text].join(" ");
-    const matches = candidates.match(/(?:page\s+)?(\d+)/gi) || [];
-
-    for (const token of matches) {
-      const numMatch = token.match(/(\d+)/);
-      if (!numMatch) continue;
-      const n = Number(numMatch[1]);
-      if (Number.isFinite(n) && n > maxPage) maxPage = n;
-    }
-
     const pathMatch = href.match(/\/(\d+)\/?$/);
     if (pathMatch) {
       const n = Number(pathMatch[1]);
+      if (Number.isFinite(n) && n > maxPage) maxPage = n;
+    }
+
+    const combined = `${aria} ${text}`;
+    const numMatch = combined.match(/(\d+)/);
+    if (numMatch) {
+      const n = Number(numMatch[1]);
       if (Number.isFinite(n) && n > maxPage) maxPage = n;
     }
   });
@@ -284,11 +276,12 @@ function extractDeal($tile) {
 
   const rawDepartment =
     cleanText(ga.attr("data-department")) ||
-    cleanText(ga.attr("data-Department"));
+    cleanText(ga.attr("data-Department")) ||
+    "";
 
   const href =
-    $tile.find('.productCard-title-name a[href]').first().attr("href") ||
-    $tile.find('a.js-productThumbnail[href]').first().attr("href") ||
+    $tile.find(".productCard-title-name a[href]").first().attr("href") ||
+    $tile.find("a.js-productThumbnail[href]").first().attr("href") ||
     "";
 
   const imgSrc =
@@ -298,7 +291,6 @@ function extractDeal($tile) {
 
   const saleText = cleanText($tile.find(".ourPrice.text-sale").first().text());
   const compareText = cleanText($tile.find(".savingsBlock .retailPrice").first().text());
-  const saveText = cleanText($tile.find(".productSavings .retailPrice").first().text());
 
   partial.brand = normalizeWhitespace(rawBrand);
   partial.listingName = normalizeWhitespace(rawName);
@@ -315,6 +307,7 @@ function extractDeal($tile) {
 
   const model = deriveModel(partial.listingName, partial.brand);
   partial.model = model;
+
   if (!model) {
     return { ok: false, reason: "dropped_missingModel", partial };
   }
@@ -332,7 +325,7 @@ function extractDeal($tile) {
     return { ok: false, reason: "dropped_missingSalePrice", partial };
   }
 
-  const originalPrice = parseMoney(compareText);
+  const originalPrice = parseCompareAt(compareText);
   if (originalPrice == null) {
     return { ok: false, reason: "dropped_missingOriginalPrice", partial };
   }
@@ -377,10 +370,6 @@ function extractDeal($tile) {
     shoeType,
   };
 
-  // Optional cross-check: if visible save text exists and is wildly different, keep our computed value.
-  // We trust computed discountPercent more than scraped "Save XX%".
-  void saveText;
-
   return { ok: true, deal };
 }
 
@@ -404,7 +393,14 @@ function deriveModel(listingName, brand) {
 function deriveGender(listingName, departmentText) {
   const hay = `${listingName || ""} ${departmentText || ""}`.toLowerCase();
 
-  if (/\bfor men and women\b/.test(hay) || /\bunisex\b/.test(hay)) return "unisex";
+  if (
+    /\bfor men and women\b/.test(hay) ||
+    /\bmen and women\b/.test(hay) ||
+    /\bunisex\b/.test(hay)
+  ) {
+    return "unisex";
+  }
+
   if (/\bmen'?s\b/.test(hay) || /\bfor men\b/.test(hay)) return "mens";
   if (/\bwomen'?s\b/.test(hay) || /\bfor women\b/.test(hay)) return "womens";
 
@@ -428,8 +424,13 @@ function parseMoney(text) {
   const m = cleaned.match(/\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/);
 
   if (!m) return null;
+
   const n = Number(m[1]);
   return Number.isFinite(n) ? n : null;
+}
+
+function parseCompareAt(text) {
+  return parseMoney(text);
 }
 
 function absolutizeUrl(url) {
@@ -464,11 +465,44 @@ function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function createDropCounts() {
+  return {
+    totalTiles: 0,
+    dropped_missingListingName: 0,
+    dropped_missingBrand: 0,
+    dropped_missingModel: 0,
+    dropped_missingListingURL: 0,
+    dropped_missingImageURL: 0,
+    dropped_missingSalePrice: 0,
+    dropped_missingOriginalPrice: 0,
+    dropped_saleNotLessThanOriginal: 0,
+    dropped_invalidDiscountPercent: 0,
+    dropped_duplicateListingURL: 0,
+  };
+}
+
+function createPerPageDropCounts() {
+  return {
+    dropped_missingListingName: 0,
+    dropped_missingBrand: 0,
+    dropped_missingModel: 0,
+    dropped_missingListingURL: 0,
+    dropped_missingImageURL: 0,
+    dropped_missingSalePrice: 0,
+    dropped_missingOriginalPrice: 0,
+    dropped_saleNotLessThanOriginal: 0,
+    dropped_invalidDiscountPercent: 0,
+    dropped_duplicateListingURL: 0,
+  };
+}
+
 function incrementDrop(reason, totalCounts, pageCounts) {
   if (reason in totalCounts) totalCounts[reason] += 1;
   if (reason in pageCounts) pageCounts[reason] += 1;
 }
 
 function addDroppedSample(arr, item) {
-  if (arr.length < 200) arr.push(item);
+  if (arr.length < MAX_DROPPED_SAMPLE) {
+    arr.push(item);
+  }
 }
