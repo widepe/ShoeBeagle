@@ -72,6 +72,7 @@ module.exports = async function handler(req, res) {
     on_algolia: true,
     underarmour_outlet: true,
     allbirds_sale: true,
+    topo_athletic_sale: true,
   };
 
   const TARGETS = [];
@@ -84,6 +85,9 @@ module.exports = async function handler(req, res) {
 
   // Allbirds sale running shoes pages.
   if (ENABLED.allbirds_sale) TARGETS.push("/api/scrapers/allbirds-sale");
+
+  // Topo Athletic sale running shoes pages.
+  if (ENABLED.topo_athletic_sale) TARGETS.push("/api/scrapers/topo-athletic-sale");
 
   try {
     const results = [];
