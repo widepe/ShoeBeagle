@@ -503,12 +503,12 @@ export default async function handler(req, res) {
   const startedAt = Date.now();
 
   // CRON auth (temporarily commented out for testing)
-  /*
+  
   const auth = req.headers.authorization;
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
   }
-  */
+  
 
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return res.status(500).json({
