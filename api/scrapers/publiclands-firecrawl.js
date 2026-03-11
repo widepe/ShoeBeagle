@@ -161,7 +161,7 @@ function countPaginationPages(html) {
     (m) => Number(m[1])
   );
   const maxPage = labels.length ? Math.max(...labels) : 1;
-  return Math.max(1, maxPage);
+  return Math.max(1, Math.min(MAX_PAGES_PER_SOURCE, maxPage));
 }
 
 function tileHasSeePriceInCart(tileHtml) {
