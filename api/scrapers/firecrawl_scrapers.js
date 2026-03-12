@@ -32,7 +32,7 @@ const ENABLED = {
   publiclands: true,
   adidas: true,
   sierra: true,
-  maycs: true,
+  macys: true,
 };
 
 // ===========================
@@ -106,9 +106,9 @@ const TARGETS = [
   },
 
   {
-    key: "maycs",
+    key: "macys",
     name: "Macy's Firecrawl",
-    path: "/api/scrapers/maycs-firecrawl",
+    path: "/api/scrapers/macys-firecrawl",
   },
 ];
 
