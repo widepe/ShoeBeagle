@@ -370,7 +370,7 @@
   "envVar": "KARHU_DEALS_BLOB_URL",
   "baseUrl": "https://us.karhu.com",
   "notes": "Karhu sale running shoes scraper using direct HTML fetch + Cheerio parse. Scrapes filtered mens and womens shoe sale searches. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Sets shoeType to unknown for all deals. Metadata includes dropCounts, droppedDealsSample, and pageSummaries. Writes to karhu-sale.json."
-}
+},
   
   {
     "id": "kohls",
