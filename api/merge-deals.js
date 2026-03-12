@@ -420,118 +420,225 @@ function sanitizeDeal(raw) {
   return canonical;
 }
 
-function isValidRunningShoe(deal) {
-  if (!deal) return false;
+/** ------------ Exclusion tracking ------------ **/
+
+function createExclusionTracker() {
+  return {
+    totalExcludedDeals: 0,
+    reasons: Object.create(null),
+  };
+}
+
+function trackExclusion(tracker, reason, store, deal) {
+  if (!tracker || !reason) return;
+
+  tracker.totalExcludedDeals += 1;
+
+  if (!tracker.reasons[reason]) {
+    tracker.reasons[reason] = {
+      count: 0,
+      stores: new Set(),
+      examples: [],
+    };
+  }
+
+  const bucket = tracker.reasons[reason];
+  bucket.count += 1;
+
+  const storeName = String(store || deal?.store || "Unknown").trim() || "Unknown";
+  bucket.stores.add(storeName);
+
+  if (bucket.examples.length < 5) {
+    bucket.examples.push({
+      store: storeName,
+      listingName: String(deal?.listingName || "").trim() || null,
+      brand: String(deal?.brand || "").trim() || null,
+      model: String(deal?.model || "").trim() || null,
+      listingURL: String(deal?.listingURL || "").trim() || null,
+    });
+  }
+}
+
+function finalizeExclusionTracker(tracker) {
+  const byReason = Object.entries(tracker?.reasons || {})
+    .map(([reason, data]) => ({
+      reason,
+      count: data.count,
+      stores: Array.from(data.stores).sort((a, b) => a.localeCompare(b)),
+      examples: data.examples,
+    }))
+    .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
+
+  const storesIndex = Object.create(null);
+  for (const item of byReason) {
+    for (const store of item.stores) {
+      if (!storesIndex[store]) storesIndex[store] = 0;
+      storesIndex[store] += item.count;
+    }
+  }
+
+  const excludedStores = Object.keys(storesIndex)
+    .sort((a, b) => a.localeCompare(b))
+    .map((store) => ({
+      store,
+      exclusions: storesIndex[store],
+    }));
+
+  return {
+    totalExcludedDeals: tracker?.totalExcludedDeals || 0,
+    excludedReasonCount: byReason.length,
+    byReason,
+    excludedStores,
+  };
+}
+
+const TITLE_MODEL_EXCLUDE_PATTERNS = [
+  "accessories",
+  "accessory",
+  "apparel",
+  "arm warmer",
+  "backpack",
+  "bag",
+  "bags",
+  "beanie",
+  "bottle",
+  "bra",
+  "bras",
+  "brief",
+  "cap",
+  "compression sleeve",
+  "crosskix",
+  "crew neck",
+  "earwarmer",
+  "ear warmer",
+  "equipment",
+  "eyewear",
+  "flask",
+  "gear",
+  "gloves",
+  "hat",
+  "headband",
+  "headwarmer",
+  "head warmer",
+  "hoodie",
+  "hydration",
+  "insole",
+  "insoles",
+  "jacket",
+  "jackets",
+  "junior",
+  "juniors",
+  "kid",
+  "kids",
+  "lace",
+  "laces",
+  "leg warmer",
+  "leggings",
+  "mitt",
+  "out of stock",
+  "pack",
+  "pants",
+  "pullover",
+  "shirt",
+  "shorts",
+  "sleeve",
+  "sleeves",
+  "sock",
+  "socks",
+  "sunglasses",
+  "tank top",
+  "tank-top",
+  "tanktop",
+  "throw",
+  "throws",
+  "tights",
+  "underwear",
+  "vest",
+  "watch",
+  "windbreaker",
+  "wristband",
+  "yaktrax",
+  "youth",
+  "youths",
+];
+
+function getKeywordExclusionReason(listingName, model) {
+  const haystack = `${String(listingName || "")} ${String(model || "")}`.toLowerCase();
+
+  for (const pattern of TITLE_MODEL_EXCLUDE_PATTERNS) {
+    const regex = new RegExp(`\\b${pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    if (regex.test(haystack)) {
+      return `"${pattern}" in title/model`;
+    }
+  }
+
+  return null;
+}
+
+function getDealExclusionReasons(deal) {
+  const reasons = [];
+  if (!deal) {
+    reasons.push("deal could not be normalized");
+    return reasons;
+  }
 
   const listingURL = String(deal.listingURL || "").trim();
   const listingName = String(deal.listingName || "").trim();
-  if (!listingURL || !listingName) return false;
+  const brand = String(deal.brand || "").trim();
+  const model = String(deal.model || "").trim();
 
-  // Sale pricing is required
-  if (!hasSalePriceShape(deal)) return false;
+  const brandLc = brand.toLowerCase();
+
+  if (!brand || brandLc === "unknown" || brandLc === "null") {
+    reasons.push("brand is null/unknown");
+  }
+
+  if (!listingURL) {
+    reasons.push("missing listingURL");
+  }
+
+  if (!listingName) {
+    reasons.push("missing listingName");
+  }
+
+  if (!hasSalePriceShape(deal)) {
+    reasons.push("missing sale price");
+  }
 
   const saleLow = toNumber(deal.salePriceLow) ?? toNumber(deal.salePrice);
   const saleHigh = toNumber(deal.salePriceHigh);
 
-  if (!Number.isFinite(saleLow)) return false;
-  if (saleLow < 10 || saleLow > 1000) return false;
-  if (saleHigh != null && Number.isFinite(saleHigh) && saleHigh < saleLow) return false;
+  if (!Number.isFinite(saleLow)) {
+    reasons.push("sale price could not be parsed");
+  } else {
+    if (saleLow < 10) reasons.push("sale price below minimum");
+    if (saleLow > 1000) reasons.push("sale price above maximum");
+  }
 
-  // Original pricing is optional.
-  // If present, it must make sense.
+  if (saleHigh != null && Number.isFinite(saleHigh) && Number.isFinite(saleLow) && saleHigh < saleLow) {
+    reasons.push("sale price range invalid");
+  }
+
   const origSingle = toNumber(deal.originalPrice);
   const origLow = toNumber(deal.originalPriceLow);
   const origHigh = toNumber(deal.originalPriceHigh);
 
-  if (Number.isFinite(origSingle) && origSingle <= 0) return false;
-  if (Number.isFinite(origLow) && origLow <= 0) return false;
-  if (Number.isFinite(origHigh) && origHigh <= 0) return false;
-  if (Number.isFinite(origLow) && Number.isFinite(origHigh) && origHigh < origLow) return false;
+  if (Number.isFinite(origSingle) && origSingle <= 0) reasons.push("original price invalid");
+  if (Number.isFinite(origLow) && origLow <= 0) reasons.push("original price range invalid");
+  if (Number.isFinite(origHigh) && origHigh <= 0) reasons.push("original price range invalid");
+  if (Number.isFinite(origLow) && Number.isFinite(origHigh) && origHigh < origLow) {
+    reasons.push("original price range invalid");
+  }
 
   const bestKnownOrig = origHigh ?? origSingle ?? origLow ?? null;
-  if (Number.isFinite(bestKnownOrig) && saleLow >= bestKnownOrig) {
-    return false;
+  if (Number.isFinite(bestKnownOrig) && Number.isFinite(saleLow) && saleLow >= bestKnownOrig) {
+    reasons.push("sale price is not less than original price");
   }
 
-  const title = listingName.toLowerCase();
+  const keywordReason = getKeywordExclusionReason(listingName, model);
+  if (keywordReason) reasons.push(keywordReason);
 
-  const excludePatterns = [
-    "accessories",
-    "accessory",
-    "apparel",
-    "arm warmer",
-    "backpack",
-    "bag",
-    "bags",
-    "beanie",
-    "bottle",
-    "bra",
-    "bras",
-    "brief",
-    "cap",
-    "compression sleeve",
-    "crosskix", // Shoebrand for water shoes
-    "crew neck",
-    "earwarmer",
-    "ear warmer",
-    "equipment",
-    "eyewear",
-    "flask",
-    "gear",
-    "gloves",
-    "hat",
-    "headband",
-    "headwarmer",
-    "head warmer",
-    "hoodie",
-    "hydration",
-    "insole",
-    "insoles",
-    "jacket",
-    "jackets",
-    "junior",
-    "juniors",
-    "kid",
-    "kids",
-    "lace",
-    "laces",
-    "leg warmer",
-    "leggings",
-    "mitt",
-    "oofos", // Shoe brand makes recovery shoes
-    "out of stock",
-    "pack",
-    "pants",
-    "pullover",
-    "shirt",
-    "shorts",
-    "sleeve",
-    "sleeves",
-    "sock",
-    "socks",
-    "sunglasses",
-    "tank top",
-    "tank-top",
-    "tanktop",
-    "throw",
-    "throws",
-    "tights",
-    "underwear",
-    "vest",
-    "watch",
-    "windbreaker",
-    "wristband",
-    "yaktrax", // Brand specializing in snow and ice shoes
-    "youth",
-    "youths",
-  ];
-
-  for (const pattern of excludePatterns) {
-    const regex = new RegExp(`\\b${pattern}\\b`, "i");
-    if (regex.test(title)) return false;
-  }
-
-  return true;
+  return Array.from(new Set(reasons));
 }
 
 function normalizeDeal(d) {
@@ -577,7 +684,7 @@ function normalizeDeal(d) {
   };
 }
 
-function dedupeDeals(deals) {
+function dedupeDealsWithTracking(deals, exclusionTracker) {
   const unique = [];
   const seen = new Set();
 
@@ -593,7 +700,10 @@ function dedupeDeals(deals) {
     }
 
     const key = `${storeKey}|${urlKey}`;
-    if (seen.has(key)) continue;
+    if (seen.has(key)) {
+      trackExclusion(exclusionTracker, "duplicate store+listingURL after merge", storeKey, d);
+      continue;
+    }
 
     seen.add(key);
     unique.push(d);
@@ -734,7 +844,7 @@ function dealSummary(deal) {
   };
 }
 
-function computeStats(deals, storeMetadata) {
+function computeStats(deals, storeMetadata, mergeExclusions) {
   const nowIsoStr = new Date().toISOString();
 
   const stores = Object.create(null);
@@ -980,6 +1090,12 @@ function computeStats(deals, storeMetadata) {
     },
 
     scraperMetadata: storeMetadata || {},
+    mergeExclusions: mergeExclusions || {
+      totalExcludedDeals: 0,
+      excludedReasonCount: 0,
+      byReason: [],
+      excludedStores: [],
+    },
   };
 }
 
@@ -1298,6 +1414,9 @@ module.exports = async (req, res) => {
     // groups (handles holabird triple-blob cleanly in storeCoverage)
     const SOURCE_GROUPS = buildSourceGroupsById(sources);
 
+    // NEW: detailed exclusion tracker
+    const exclusionTracker = createExclusionTracker();
+
     // Load all blobs in parallel (this does NOT scrape; it only fetches JSON)
     const settled = await Promise.allSettled(sources.map((s) => loadDealsFromBlobOnly(s)));
 
@@ -1359,6 +1478,18 @@ module.exports = async (req, res) => {
             ageDays: ageDays != null ? ageDays : null,
             note: `Excluded: source data older than ${MAX_STORE_DATA_AGE_DAYS} days`,
           };
+
+          for (const rawDeal of safeArray(deals)) {
+            const storeForDeal =
+              rawDeal?.store || rawDeal?.retailer || rawDeal?.site || src.name || src.id || "Unknown";
+            trackExclusion(
+              exclusionTracker,
+              `source data older than ${MAX_STORE_DATA_AGE_DAYS} days`,
+              storeForDeal,
+              rawDeal
+            );
+          }
+
           console.log(
             `[MERGE] EXCLUDING SOURCE (too old): ${name} | id=${key} | ageDays=${ageDays ?? "unknown"} | ts=${
               timestamp ?? "none"
@@ -1383,18 +1514,31 @@ module.exports = async (req, res) => {
     console.log("[MERGE] Source counts:", perSource);
     console.log("[MERGE] Total raw deals (after staleness exclusion):", allDealsRaw.length);
 
-    const unalteredPayload = {
-      lastUpdated: new Date().toISOString(),
-      totalDealsRaw: allDealsRaw.length,
-      scraperResults: perSource,
-      storeMetadata,
-      deals: allDealsRaw,
-    };
+    // Normalize -> filter with detailed reasons -> dedupe with detailed reasons
+    const normalized = [];
+    for (const rawDeal of allDealsRaw) {
+      const n = normalizeDeal(rawDeal);
+      if (!n) {
+        const store = rawDeal?.store || rawDeal?.retailer || rawDeal?.site || "Unknown";
+        trackExclusion(exclusionTracker, "deal could not be normalized", store, rawDeal);
+        continue;
+      }
+      normalized.push(n);
+    }
 
-    // Normalize -> filter -> dedupe
-    const normalized = allDealsRaw.map(normalizeDeal).filter(Boolean);
-    const filtered = normalized.filter(isValidRunningShoe);
-    const unique = dedupeDeals(filtered);
+    const filtered = [];
+    for (const deal of normalized) {
+      const reasons = getDealExclusionReasons(deal);
+      if (reasons.length) {
+        for (const reason of reasons) {
+          trackExclusion(exclusionTracker, reason, deal.store, deal);
+        }
+        continue;
+      }
+      filtered.push(deal);
+    }
+
+    const unique = dedupeDealsWithTracking(filtered, exclusionTracker);
 
     for (const d of unique) {
       const storeName = String(d?.store || "").trim();
@@ -1402,6 +1546,8 @@ module.exports = async (req, res) => {
       const key = id || storeName || "unknown";
       keptCountsById[key] = (keptCountsById[key] || 0) + 1;
     }
+
+    const mergeExclusions = finalizeExclusionTracker(exclusionTracker);
 
     // Schema validation warnings (do not fail build; only log)
     let schemaWarnings = 0;
@@ -1483,18 +1629,31 @@ module.exports = async (req, res) => {
     const output = {
       lastUpdated: new Date().toISOString(),
       totalDeals: unique.length,
+      totalDealsRaw: allDealsRaw.length,
+      totalDealsExcluded: mergeExclusions.totalExcludedDeals,
 
       dealsByStore,
       scraperResults: perSource,
 
       sourceFreshness,
       storeCoverage,
+      mergeExclusions,
 
       deals: unique,
     };
 
+    const unalteredPayload = {
+      lastUpdated: output.lastUpdated,
+      totalDealsRaw: allDealsRaw.length,
+      totalDealsExcluded: mergeExclusions.totalExcludedDeals,
+      scraperResults: perSource,
+      storeMetadata,
+      mergeExclusions,
+      deals: allDealsRaw,
+    };
+
     // Derived payloads
-    const stats = computeStats(unique, storeMetadata);
+    const stats = computeStats(unique, storeMetadata, mergeExclusions);
     stats.lastUpdated = output.lastUpdated;
 
     const dailySeedUTC = getDateSeedStringUTC();
@@ -1559,11 +1718,13 @@ module.exports = async (req, res) => {
       success: true,
       totalDeals: unique.length,
       totalRawDeals: allDealsRaw.length,
+      totalExcludedDeals: mergeExclusions.totalExcludedDeals,
       dealsByStore,
       scraperResults: perSource,
       storeMetadata,
       sourceFreshness,
       storeCoverage,
+      mergeExclusions,
 
       dealsBlobUrl: dealsBlob.url,
       unalteredBlobUrl: unalteredBlob.url,
