@@ -33,6 +33,7 @@ const ENABLED = {
   adidas: true,
   sierra: true,
   macys: true,
+  dsw: true,
 };
 
 // ===========================
@@ -110,6 +111,13 @@ const TARGETS = [
     name: "Macy's Firecrawl",
     path: "/api/scrapers/macys-firecrawl",
   },
+
+  {
+    key: "dsw",
+    name: "DSW Firecrawl",
+    path: "/api/scrapers/dsw-firecrawl",
+  },
+  
 ];
 
 // -----------------------------
