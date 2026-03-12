@@ -120,30 +120,32 @@ function inferGenderFromTitleAndHandle(title, handle = "") {
   const h = cleanText(handle).toLowerCase();
 
   if (
-    t.startsWith("men's ") ||
-    t.startsWith("mens ") ||
-    t.startsWith("men ") ||
-    h.startsWith("mens-") ||
-    h.startsWith("mens_") ||
-    h.includes("/mens-") ||
-    h.includes("mens-")
-  ) return "mens";
-
-  if (
     t.startsWith("women's ") ||
     t.startsWith("womens ") ||
     t.startsWith("women ") ||
     h.startsWith("womens-") ||
     h.startsWith("womens_") ||
-    h.includes("/womens-") ||
-    h.includes("womens-")
+    h === "womens" ||
+    /^womens(?:-|_|$)/.test(h)
   ) return "womens";
+
+  if (
+    t.startsWith("men's ") ||
+    t.startsWith("mens ") ||
+    t.startsWith("men ") ||
+    h.startsWith("mens-") ||
+    h.startsWith("mens_") ||
+    h === "mens" ||
+    /^mens(?:-|_|$)/.test(h)
+  ) return "mens";
 
   if (
     t.startsWith("unisex ") ||
     t.includes(" unisex ") ||
     h.startsWith("unisex-") ||
-    h.includes("unisex-")
+    h.startsWith("unisex_") ||
+    h === "unisex" ||
+    /^unisex(?:-|_|$)/.test(h)
   ) return "unisex";
 
   return "unknown";
@@ -484,7 +486,6 @@ export default async function handler(req, res) {
 
     for (let page = 1; page <= MAX_PAGES; page += 1) {
       const pageUrl = page === 1 ? COLLECTION_URL : `${COLLECTION_URL}?page=${page}`;
-      sourceUrls.push(pageUrl);
 
       const html = await fetchHtml(pageUrl);
       const $ = cheerio.load(html);
@@ -494,6 +495,7 @@ export default async function handler(req, res) {
         break;
       }
 
+      sourceUrls.push(pageUrl);
       pagesFetched += 1;
 
       const pageSummary = {
@@ -667,6 +669,7 @@ export default async function handler(req, res) {
         };
 
         deals.push(deal);
+
         if (handle) {
           seenHandles.add(handle);
         }
