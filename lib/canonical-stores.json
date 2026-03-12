@@ -726,7 +726,7 @@
   "envVar": "RUNPACERS_DEALS_BLOB_URL",
   "baseUrl": "https://runpacers.com",
   "notes": "Pacers Running sale shoes scraper for https://runpacers.com/collections/sale-all. Follows collection pagination with ?page=2, ?page=3, etc. Preserves listingName exactly as scraped, parses gender only as mens, womens, unisex, else unknown, and forces shoeType to unknown for all deals. Skips hidden-price tiles such as See Price in Cart / Add to Bag to See Price / See Price in Bag. Tracks dropped reasons, page summaries, and gender counts in top-level metadata. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Writes to the blob URL from RUNPACERS_DEALS_BLOB_URL."
-}
+},
 
   
   {
