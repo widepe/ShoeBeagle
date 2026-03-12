@@ -137,7 +137,7 @@
     "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/brooks/deals.json"],
     "aliases": ["brooks", "brooks running"],
     "enabled": true,
-    "scraperType": "cheerio",
+    "scraperType": "apify",
     "envVar": "BROOKS_DEALS_BLOB_URL",
     "baseUrl": "https://www.brooksrunning.com",
     "notes": "no notes"
@@ -568,7 +568,7 @@
     "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/rei/deals.json"],
     "aliases": ["REI", "REI Co-op", "REI Co-op Outlet", "REI Outlet", "REI Garage", "REI-Garage", "REI.com"],
     "enabled": true,
-    "scraperType": "playwright",
+    "scraperType": "apify",
     "envVar": "REI_DEALS_BLOB_URL",
     "baseUrl": "https://www.rei.com",
     "notes": "Uses REI JSON endpoint via Playwright to bypass 403 and paginate deals"
@@ -582,7 +582,7 @@
     "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/rnjsports.json"],
     "aliases": ["rnj", "rnj sports", "rnjsports"],
     "enabled": true,
-    "scraperType": "cheerio",
+    "scraperType": "apify",
     "envVar": "RNJSPORTS_DEALS_BLOB_URL",
     "baseUrl": "https://www.rnjsports.com",
     "notes": "no notes"
