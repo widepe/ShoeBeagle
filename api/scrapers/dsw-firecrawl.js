@@ -17,6 +17,9 @@
 // ✅ Scroll actions trigger lazy-loaded images before HTML capture
 // ✅ waitFor: 3000ms per page to allow image population
 // ✅ Pagination stops when a page has fewer than 60 tiles
+// ✅ Improved image extraction targeting DSW Angular app-picture structure
+// ✅ Filters swatch images (_ss_sw), prefers main product images (_ss_01)
+// ✅ DEBUG_IMAGES=true logs image candidates + tile structure for first tile on page 1
 //
 // ENV required:
 // - FIRECRAWL_API_KEY
@@ -40,6 +43,9 @@ const SOURCE_URL =
 
 const PAGE_SIZE = 60;
 const MAX_PAGES = 20;
+
+// Set to true to log image candidate debug info for the first tile of page 1
+const DEBUG_IMAGES = true;
 
 const HIDDEN_PRICE_PATTERNS = [
   /see\s+price\s+in\s+cart/i,
@@ -256,7 +262,7 @@ function isBadImageUrl(url) {
   return false;
 }
 
-function extractImageURL($tile) {
+function extractImageURL($, $tile, debug = false) {
   const candidates = [];
 
   const pushCandidate = (raw) => {
@@ -266,23 +272,61 @@ function extractImageURL($tile) {
     if (normalized) candidates.push(normalized);
   };
 
+  // Primary: target DSW's Angular app-picture > picture > source + img
+  $tile.find("app-picture picture source").each((_, el) => {
+    const $el = $(el);
+    pushCandidate(firstUrlFromSrcset($el.attr("srcset")));
+    pushCandidate($el.attr("srcset"));
+    pushCandidate(firstUrlFromSrcset($el.attr("data-srcset")));
+  });
+
+  $tile.find("app-picture picture img").each((_, el) => {
+    const $el = $(el);
+    pushCandidate($el.attr("src"));
+    pushCandidate(firstUrlFromSrcset($el.attr("srcset")));
+    pushCandidate($el.attr("data-src"));
+  });
+
+  // Fallback: all img tags anywhere in tile
   $tile.find("img").each((_, el) => {
-    const $img = $tile.find(el);
-    pushCandidate($img.attr("src"));
-    pushCandidate(firstUrlFromSrcset($img.attr("srcset")));
-    pushCandidate($img.attr("data-src"));
-    pushCandidate(firstUrlFromSrcset($img.attr("data-srcset")));
-    pushCandidate($img.attr("data-lazy-src"));
-    pushCandidate(firstUrlFromSrcset($img.attr("data-lazy-srcset")));
-    pushCandidate($img.attr("ng-src"));
+    const $el = $(el);
+    pushCandidate($el.attr("src"));
+    pushCandidate(firstUrlFromSrcset($el.attr("srcset")));
+    pushCandidate($el.attr("data-src"));
+    pushCandidate(firstUrlFromSrcset($el.attr("data-srcset")));
+    pushCandidate($el.attr("data-lazy-src"));
+    pushCandidate(firstUrlFromSrcset($el.attr("data-lazy-srcset")));
+    pushCandidate($el.attr("ng-src"));
   });
 
+  // Fallback: all source tags anywhere in tile
   $tile.find("source").each((_, el) => {
-    const $source = $tile.find(el);
-    pushCandidate(firstUrlFromSrcset($source.attr("srcset")));
-    pushCandidate(firstUrlFromSrcset($source.attr("data-srcset")));
+    const $el = $(el);
+    pushCandidate(firstUrlFromSrcset($el.attr("srcset")));
+    pushCandidate(firstUrlFromSrcset($el.attr("data-srcset")));
   });
 
+  if (debug) {
+    console.log("[DEBUG] img count:", $tile.find("img").length);
+    console.log("[DEBUG] source count:", $tile.find("source").length);
+    console.log("[DEBUG] app-picture count:", $tile.find("app-picture").length);
+    console.log("[DEBUG] picture count:", $tile.find("picture").length);
+    console.log("[DEBUG] all candidates:", candidates);
+  }
+
+  // Prefer main product images (_ss_01), exclude swatch images (_ss_sw)
+  const mainCandidates = candidates.filter((c) => c.includes("_ss_01"));
+  for (const candidate of mainCandidates) {
+    if (!isBadImageUrl(candidate)) return candidate;
+  }
+
+  // Fall back to any non-swatch, non-bad candidate
+  const nonSwatchCandidates = candidates.filter((c) => !c.includes("_ss_sw"));
+  for (const candidate of nonSwatchCandidates) {
+    if (!isBadImageUrl(candidate)) return candidate;
+  }
+
+  // Last resort: any non-bad candidate
   for (const candidate of candidates) {
     if (!isBadImageUrl(candidate)) return candidate;
   }
@@ -290,7 +334,11 @@ function extractImageURL($tile) {
   return "";
 }
 
-function parseTile($tile) {
+// Tracks whether we've already logged debug info for the first tile
+let debugImageLogged = false;
+
+function parseTile($, el) {
+  const $tile = $(el);
   const tileText = cleanText($tile.text());
 
   if (hasHiddenPriceText(tileText)) {
@@ -315,7 +363,15 @@ function parseTile($tile) {
     return { ok: false, reason: "dropped_missingListingURL" };
   }
 
-  const imageURL = extractImageURL($tile);
+  const shouldDebug = DEBUG_IMAGES && !debugImageLogged;
+  if (shouldDebug) {
+    debugImageLogged = true;
+    console.log("[DEBUG] parseTile first tile listingName:", listingName);
+    console.log("[DEBUG] parseTile first tile listingURL:", listingURL);
+    console.log("[DEBUG] parseTile first tile HTML (first 800 chars):", $.html(el).slice(0, 800));
+  }
+
+  const imageURL = extractImageURL($, $tile, shouldDebug);
   if (!imageURL) {
     return { ok: false, reason: "dropped_missingImageURL" };
   }
@@ -430,6 +486,8 @@ export default async function handler(req, res) {
   //   return res.status(401).json({ success: false, error: "Unauthorized" });
   // }
 
+  debugImageLogged = false; // reset per request
+
   const t0 = Date.now();
   const drop = makeDropTracker();
   const genderCounts = initGenderCounts();
@@ -502,7 +560,7 @@ export default async function handler(req, res) {
       $tiles.each((_, el) => {
         drop.bump("totalTiles");
 
-        const result = parseTile($(el));
+        const result = parseTile($, el);
 
         if (!result.ok) {
           if (result.reason === "dropped_missingListingName") pageDropCounts.missingListingName += 1;
