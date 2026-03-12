@@ -3,10 +3,13 @@
 // Pacers Running sale footwear scraper
 // - Scrapes: https://runpacers.com/collections/sale-all
 // - Follows pagination: ?page=2, ?page=3, etc.
+// - Uses visible original price when present
+// - If original price is not visible but a visible "Save $X" amount exists,
+//   computes originalPrice = salePrice + saveAmount
+// - Keeps deals even when only salePrice is visible
 // - Skips true hidden-price tiles ("see price in cart", "add to bag to see price", etc.)
 // - Sets shoeType = "unknown" for all kept deals
-// - Tracks dropped reasons and store names in top-level metadata
-// - Includes page summaries and gender counts
+// - Tracks dropped reasons and page summaries in top-level metadata
 // - Writes clean top-level JSON + deals array to Vercel Blob
 //
 // ENV:
@@ -17,7 +20,6 @@
 //
 // Notes:
 // - CRON auth is included below but commented out for testing.
-// - This scraper intentionally does NOT create a nested meta object.
 // - Output structure is top-level fields + deals array only.
 
 import * as cheerio from "cheerio";
@@ -84,17 +86,37 @@ function computeDiscountPercent(sale, original) {
 }
 
 function normalizeGender(raw) {
-  const s = cleanText(raw).toLowerCase();
+  const s = cleanText(raw)
+    .toLowerCase()
+    .replace(/[’']/g, "'");
 
-  if (s.startsWith("men's ") || s.startsWith("mens ") || s.startsWith("men ")) return "mens";
-  if (s.startsWith("women's ") || s.startsWith("womens ") || s.startsWith("women ")) return "womens";
-  if (s.startsWith("unisex ") || s.includes(" unisex ")) return "unisex";
+  if (
+    s === "mens" ||
+    s === "men" ||
+    s.startsWith("men's ") ||
+    s.startsWith("mens ") ||
+    s.startsWith("men ")
+  ) return "mens";
+
+  if (
+    s === "womens" ||
+    s === "women" ||
+    s.startsWith("women's ") ||
+    s.startsWith("womens ") ||
+    s.startsWith("women ")
+  ) return "womens";
+
+  if (
+    s === "unisex" ||
+    s.startsWith("unisex ") ||
+    s.includes(" unisex ")
+  ) return "unisex";
 
   return "unknown";
 }
 
 function inferGenderFromTitleAndHandle(title, handle = "") {
-  const t = cleanText(title).toLowerCase();
+  const t = cleanText(title).toLowerCase().replace(/[’']/g, "'");
   const h = cleanText(handle).toLowerCase();
 
   if (
@@ -274,11 +296,13 @@ function getProductLinkFromCard($, $card) {
 }
 
 function getImageUrlFromCard($, $card) {
+  const img = $card.find("img").first();
+
   const raw =
-    $card.find("img").first().attr("src") ||
-    $card.find("img").first().attr("data-src") ||
-    $card.find("img").first().attr("srcset") ||
-    $card.find("img").first().attr("data-srcset") ||
+    img.attr("src") ||
+    img.attr("data-src") ||
+    img.attr("srcset") ||
+    img.attr("data-srcset") ||
     null;
 
   if (!raw) return null;
@@ -338,13 +362,13 @@ function extractPriceInfoFromCard($, $card) {
     salePrice = parseMoney(saleNodeText);
   }
 
-  const regularCompareText =
+  const compareText =
     cleanText($card.find(".price__sale s.price-item--regular").first().text()) ||
     cleanText($card.find(".price__compare s").first().text()) ||
     null;
 
-  if (regularCompareText) {
-    originalPrice = parseMoney(regularCompareText);
+  if (compareText) {
+    originalPrice = parseMoney(compareText);
   }
 
   if (!Number.isFinite(salePrice)) {
@@ -466,7 +490,9 @@ export default async function handler(req, res) {
       const $ = cheerio.load(html);
 
       const cards = extractProductCards($);
-      if (!cards.length) break;
+      if (!cards.length) {
+        break;
+      }
 
       pagesFetched += 1;
 
@@ -599,7 +625,7 @@ export default async function handler(req, res) {
           continue;
         }
 
-        const gender = inferGenderFromTitleAndHandle(listingName, handle);
+        const gender = normalizeGender(inferGenderFromTitleAndHandle(listingName, handle));
         const brand = deriveBrand(listingName);
 
         if (!brand || /^unknown$/i.test(brand)) {
@@ -636,28 +662,22 @@ export default async function handler(req, res) {
           listingURL,
           imageURL,
 
-          gender: normalizeGender(gender),
+          gender,
           shoeType: "unknown",
         };
 
         deals.push(deal);
-        if (handle) seenHandles.add(handle);
+        if (handle) {
+          seenHandles.add(handle);
+        }
 
-        const g = deal.gender || "unknown";
-        if (genderCounts[g] == null) genderCounts[g] = 0;
-        genderCounts[g] += 1;
-
-        if (pageSummary.genderKept[g] == null) pageSummary.genderKept[g] = 0;
-        pageSummary.genderKept[g] += 1;
-
+        genderCounts[gender] = (genderCounts[gender] || 0) + 1;
+        pageSummary.genderKept[gender] = (pageSummary.genderKept[gender] || 0) + 1;
         pageSummary.kept += 1;
       }
 
+      pageSummary.dropped = pageSummary.tilesSeen - pageSummary.kept;
       pageSummaries.push(pageSummary);
-
-      if (cards.length < 12) {
-        break;
-      }
     }
 
     const output = {
