@@ -3,6 +3,7 @@
 // DSW clearance running shoes scraper
 //
 // What this does
+// - Uses Firecrawl raw HTML to fetch rendered page HTML
 // - Scrapes all pages from exactly 1 category path:
 //   https://www.dsw.com/category/clearance/shoes/athletic-sneakers/running?gender=Men,Women
 // - Uses DSW pagination offsets like &No=60, &No=120, etc.
@@ -15,10 +16,11 @@
 //     "add to bag to see price"
 //     "see price in bag"
 //     and similar
-// - Writes dsw-clearance.json to Vercel Blob
+// - Writes dsw-firecrawl.json to Vercel Blob
 //
 // ENV:
 //   - BLOB_READ_WRITE_TOKEN
+//   - FIRECRAWL_API_KEY
 //
 // TEST:
 //   /api/scrapers/dsw
@@ -30,8 +32,8 @@ export const config = { maxDuration: 60 };
 
 const STORE = "DSW";
 const SCHEMA_VERSION = 1;
-const VIA = "fetch-html";
-const BLOB_PATH = "dsw-clearance.json";
+const VIA = "firecrawl-raw-html";
+const BLOB_PATH = "dsw-firecrawl.json";
 
 const SOURCE_URL =
   "https://www.dsw.com/category/clearance/shoes/athletic-sneakers/running?gender=Men,Women";
@@ -93,22 +95,50 @@ function hasHiddenPriceText(text) {
 
 function inferGender(listingName) {
   const s = cleanText(listingName).toLowerCase();
-
   if (/\bmen'?s\b/.test(s) || /\bmens\b/.test(s)) return "mens";
   if (/\bwomen'?s\b/.test(s) || /\bwomens\b/.test(s)) return "womens";
   if (/\bunisex\b/.test(s)) return "unisex";
-
   return "unknown";
 }
 
 function extractBrandAndModel(listingName) {
   const cleaned = cleanText(listingName);
-
   if (!cleaned) return { brand: "Unknown", model: "" };
 
   const base = cleaned
     .replace(/\s*-\s*(men'?s|women'?s|womens|mens|unisex)\s*$/i, "")
     .trim();
+
+  const multiWordBrands = [
+    "Under Armour",
+    "New Balance",
+    "On",
+    "Brooks",
+    "ASICS",
+    "Saucony",
+    "HOKA",
+    "Nike",
+    "adidas",
+    "PUMA",
+    "Mizuno",
+    "Altra",
+    "Topo",
+    "Merrell",
+    "Salomon",
+    "Reebok",
+    "Skechers",
+  ];
+
+  const matchedBrand = multiWordBrands.find(
+    (b) => base.toLowerCase() === b.toLowerCase() || base.toLowerCase().startsWith(b.toLowerCase() + " ")
+  );
+
+  if (matchedBrand) {
+    return {
+      brand: matchedBrand,
+      model: base.slice(matchedBrand.length).trim(),
+    };
+  }
 
   const parts = base.split(/\s+/).filter(Boolean);
   if (!parts.length) return { brand: "Unknown", model: "" };
@@ -155,7 +185,6 @@ function bumpDrop(dropCounts, reason) {
     hidden_price_text: "dropped_hidden_price_text",
     duplicateAfterMerge: "dropped_duplicateAfterMerge",
   };
-
   const key = map[reason];
   if (key) dropCounts[key] += 1;
 }
@@ -182,6 +211,43 @@ function makePageUrl(baseUrl, offset) {
   const url = new URL(baseUrl);
   url.searchParams.set("No", String(offset));
   return url.toString();
+}
+
+async function fetchFirecrawlHtml(url) {
+  const apiKey = process.env.FIRECRAWL_API_KEY;
+  if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
+
+  const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      url,
+      formats: ["html"],
+      onlyMainContent: false,
+      waitFor: 2000,
+    }),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Firecrawl HTTP ${resp.status} for ${url} | ${text.slice(0, 300)}`);
+  }
+
+  const json = await resp.json();
+
+  const html =
+    json?.data?.html ||
+    json?.html ||
+    "";
+
+  if (!html || typeof html !== "string") {
+    throw new Error(`Firecrawl returned no HTML for ${url}`);
+  }
+
+  return html;
 }
 
 function parseTile($tile) {
@@ -262,51 +328,24 @@ function parseTile($tile) {
     ok: true,
     deal: {
       schemaVersion: SCHEMA_VERSION,
-
       listingName,
-
       brand,
       model,
-
       salePrice,
       originalPrice,
       discountPercent: null,
-
       salePriceLow: null,
       salePriceHigh: null,
       originalPriceLow: null,
       originalPriceHigh: null,
       discountPercentUpTo: null,
-
       store: STORE,
-
       listingURL,
       imageURL,
-
       gender,
       shoeType: "unknown",
     },
   };
-}
-
-async function fetchHtml(url) {
-  const res = await fetch(url, {
-    headers: {
-      "user-agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-      accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-      "accept-language": "en-US,en;q=0.9",
-      "cache-control": "no-cache",
-      pragma: "no-cache",
-    },
-  });
-
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} for ${url}`);
-  }
-
-  return await res.text();
 }
 
 export default async function handler(req, res) {
@@ -324,7 +363,7 @@ export default async function handler(req, res) {
   const fetchedPageUrls = [];
 
   try {
-    const firstHtml = await fetchHtml(SOURCE_URL);
+    const firstHtml = await fetchFirecrawlHtml(SOURCE_URL);
     const $first = cheerio.load(firstHtml);
 
     const resultsCount = parseResultsCount($first);
@@ -338,7 +377,7 @@ export default async function handler(req, res) {
 
       let html;
       try {
-        html = pageNum === 1 ? firstHtml : await fetchHtml(pageUrl);
+        html = pageNum === 1 ? firstHtml : await fetchFirecrawlHtml(pageUrl);
       } catch (err) {
         pageSummaries.push({
           sourceUrl: SOURCE_URL,
@@ -434,25 +473,18 @@ export default async function handler(req, res) {
     const payload = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
-
       lastUpdated: nowIso(),
       via: VIA,
-
       sourceUrls: [SOURCE_URL],
       pagesFetched: fetchedPageUrls.length,
-
       dealsFound: dropCounts.totalTiles,
       dealsExtracted: deals.length,
-
       scrapeDurationMs: Date.now() - startedAt,
-
       ok: true,
       error: null,
-
       dropCounts,
       genderCounts,
       pageSummaries,
-
       deals,
     };
 
