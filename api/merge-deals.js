@@ -470,7 +470,7 @@ function isValidRunningShoe(deal) {
     "brief",
     "cap",
     "compression sleeve",
-    "crosskix",
+    "crosskix", // Shoebrand for water shoes
     "crew neck",
     "earwarmer",
     "ear warmer",
@@ -498,6 +498,7 @@ function isValidRunningShoe(deal) {
     "leg warmer",
     "leggings",
     "mitt",
+    "oofos", // Shoe brand makes recovery shoes
     "out of stock",
     "pack",
     "pants",
@@ -520,7 +521,7 @@ function isValidRunningShoe(deal) {
     "watch",
     "windbreaker",
     "wristband",
-    "yaktrax",
+    "yaktrax", // Brand specializing in snow and ice shoes
     "youth",
     "youths",
   ];
