@@ -9,7 +9,7 @@
 // - Supports pricing patterns like:
 //     "Now $60.00"
 //     "$139.30" (no "Now", but discounted)
-// - Writes maycs-sale.json to Vercel Blob
+// - Writes macys-sale.json to Vercel Blob
 //
 // ENV:
 //   - BLOB_READ_WRITE_TOKEN
@@ -19,8 +19,8 @@
 //   /api/scrapers/maycs-firecrawl
 //
 // Notes:
-// - File name intentionally matches your requested spelling: maycs-firecrawl.js
-// - Blob path intentionally matches your requested spelling: maycs-sale.json
+// - File name intentionally remains maycs-firecrawl.js if you want
+// - Blob path is corrected to macys-sale.json
 
 import * as cheerio from "cheerio";
 import { put } from "@vercel/blob";
@@ -31,7 +31,7 @@ const STORE = "Macy's";
 const SCHEMA_VERSION = 1;
 const VIA = "firecrawl-raw-html";
 const BASE = "https://www.macys.com";
-const BLOB_PATH = "maycs-sale.json";
+const BLOB_PATH = "macys-sale.json";
 
 const SOURCE_URLS = [
   "https://www.macys.com/shop/featured/men%27s-running-shoes/Special_offers,Sport/Limited-Time%20Special%7CClearance%7CLast%20Act%7CSales%20%26%20Discounts,Running?ss=true",
