@@ -33,21 +33,12 @@ html{ -webkit-text-size-adjust:100%; }
   --btn-h:  calc(56px * var(--top-scale));
   --btn-eq-w:calc(78px * var(--top-scale));
 
-<<<<<<< HEAD
-  /* =========================
-     ONE KNOB: scale the entire grid/cards UI
-     (desktop/tablet only; mobile portrait overrides below)
-     Examples:
-       0.90 = smaller cards/text/padding
-       1.00 = default
-       1.10 = bigger
-  ========================== */
-  --grid-scale: 0.7;
-=======
+  /* One knob to scale desktop/tablet cards UI. */
+  --grid-scale:0.7;
+
   --input-font:calc(1.5rem * var(--top-scale));
   --btn-font:  calc(1.15rem * var(--top-scale));
   --menu-icon-size:calc(1.75rem * var(--top-scale));
->>>>>>> 3c9373cc21594bbfb2a228cf748bbe0ce305dea9
 
   --logo-scale:calc(2 * var(--top-scale));
 
