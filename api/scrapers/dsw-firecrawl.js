@@ -32,7 +32,7 @@ export const config = { maxDuration: 60 };
 const STORE = "DSW";
 const SCHEMA_VERSION = 1;
 const VIA = "firecrawl-raw-html";
-const BLOB_PATH = "dsw-firecrawl.json";
+const BLOB_PATH = "dsw-clearance.json";
 
 const SOURCE_URL =
   "https://www.dsw.com/category/clearance/shoes/athletic-sneakers/running?gender=Men,Women";
