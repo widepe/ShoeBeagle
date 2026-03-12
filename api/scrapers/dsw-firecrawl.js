@@ -5,7 +5,7 @@
 // ✅ Uses Firecrawl raw HTML
 // ✅ Scrapes all pages from exactly 1 category path:
 //    https://www.dsw.com/category/clearance/shoes/athletic-sneakers/running?gender=Men,Women
-// ✅ Uses DSW pagination offsets like &No=60, &No=120, etc.
+// ✅ Uses DSW page params like &No=2, &No=3, &No=4
 // ✅ Price rule:
 //    - one visible price  -> salePrice only
 //    - two visible prices -> salePrice = first/lower, originalPrice = second/higher
@@ -14,6 +14,8 @@
 //    "see price in cart", "see price in bag", "add to bag to see price", etc.
 // ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: dsw-firecrawl.json
 // ✅ Returns LIGHTWEIGHT response (no deals array) + blobUrl
+// ✅ Faster Firecrawl settings
+// ✅ Pagination stops when a page has fewer than 60 tiles
 //
 // ENV required:
 // - FIRECRAWL_API_KEY
@@ -144,12 +146,6 @@ function deriveBrandModel(listingName) {
   return { brand, model };
 }
 
-function parseResultsCount($) {
-  const text = cleanText($(".product-listing__products--total-count").first().text());
-  const match = text.match(/\b(\d{1,6})\s+Results\b/i);
-  return match ? Number(match[1]) : null;
-}
-
 function makePageUrl(baseUrl, pageNum) {
   if (pageNum <= 1) return baseUrl;
   const url = new URL(baseUrl);
@@ -212,17 +208,16 @@ async function fetchFirecrawlHtml(url) {
       url,
       formats: ["html"],
       onlyMainContent: false,
-      waitFor: 2000,
+      waitFor: 750,
+      timeout: 15000,
+      mobile: false,
     }),
   });
 
   const json = await resp.json().catch(() => null);
 
   if (!resp.ok) {
-    const msg =
-      json?.error ||
-      json?.message ||
-      `Firecrawl HTTP ${resp.status}`;
+    const msg = json?.error || json?.message || `Firecrawl HTTP ${resp.status}`;
     throw new Error(`${msg} for ${url}`);
   }
 
@@ -238,10 +233,7 @@ function parseTile($tile) {
   const tileText = cleanText($tile.text());
 
   if (hasHiddenPriceText(tileText)) {
-    return {
-      ok: false,
-      reason: "dropped_hidden_price_text",
-    };
+    return { ok: false, reason: "dropped_hidden_price_text" };
   }
 
   const listingName = cleanText(
@@ -249,10 +241,7 @@ function parseTile($tile) {
   );
 
   if (!listingName) {
-    return {
-      ok: false,
-      reason: "dropped_missingListingName",
-    };
+    return { ok: false, reason: "dropped_missingListingName" };
   }
 
   const rawHref =
@@ -262,10 +251,7 @@ function parseTile($tile) {
 
   const listingURL = toAbsoluteUrl(rawHref);
   if (!listingURL) {
-    return {
-      ok: false,
-      reason: "dropped_missingListingURL",
-    };
+    return { ok: false, reason: "dropped_missingListingURL" };
   }
 
   let imageURL =
@@ -280,10 +266,7 @@ function parseTile($tile) {
 
   imageURL = decodeHtmlEntities(toAbsoluteUrl(imageURL));
   if (!imageURL) {
-    return {
-      ok: false,
-      reason: "dropped_missingImageURL",
-    };
+    return { ok: false, reason: "dropped_missingImageURL" };
   }
 
   const priceText = cleanText(
@@ -291,18 +274,12 @@ function parseTile($tile) {
   );
 
   if (hasHiddenPriceText(priceText)) {
-    return {
-      ok: false,
-      reason: "dropped_hidden_price_text",
-    };
+    return { ok: false, reason: "dropped_hidden_price_text" };
   }
 
   const moneyValues = parseAllMoney(priceText);
   if (!moneyValues.length) {
-    return {
-      ok: false,
-      reason: "dropped_missingSalePrice",
-    };
+    return { ok: false, reason: "dropped_missingSalePrice" };
   }
 
   let salePrice = null;
@@ -411,14 +388,9 @@ export default async function handler(req, res) {
     const fetchedPageUrls = [];
 
     const firstHtml = await fetchFirecrawlHtml(SOURCE_URL);
-    const $first = cheerio.load(firstHtml);
 
-    const resultsCount = parseResultsCount($first);
-    const totalPages = resultsCount
-      ? Math.min(Math.ceil(resultsCount / PAGE_SIZE), MAX_PAGES)
-      : 1;
-for (let page = 1; page <= totalPages; page++) {
-  const pageUrl = makePageUrl(SOURCE_URL, page);
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const pageUrl = makePageUrl(SOURCE_URL, page);
 
       let html;
       try {
@@ -520,6 +492,10 @@ for (let page = 1; page <= totalPages; page++) {
         unknownDeals: pageGenderCounts.unknown,
         dropCounts: pageDropCounts,
       });
+
+      if ($tiles.length < PAGE_SIZE) {
+        break;
+      }
     }
 
     const deals = dedupeDeals(rawDeals, drop);
