@@ -488,11 +488,11 @@ export default async function handler(req, res) {
       deals,
     };
 
-    const blob = await put(BLOB_PATH, JSON.stringify(payload, null, 2), {
-      access: "public",
-      contentType: "application/json; charset=utf-8",
-      addRandomSuffix: false,
-    });
+const blob = await put(BLOB_PATH, JSON.stringify(payload, null, 2), {
+  access: "public",
+  contentType: "text/plain; charset=utf-8",
+  addRandomSuffix: false,
+});
 
     return res.status(200).json({
       success: true,
