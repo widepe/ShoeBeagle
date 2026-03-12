@@ -3,10 +3,11 @@
 // Fast Shoe Carnival scraper
 // - Uses Algolia directly
 // - Scrapes ONLY these two searches:
-//   1) womens running shoes + on_sale
-//   2) men's running shoes + on_sale
+//   1) womens running shoes + sale
+//   2) men's running shoes + sale
 // - Then filters locally for:
-//   * correct running category
+//   * correct gender
+//   * running category (using primary category OR assigned categories)
 //   * styleType includes Performance
 //   * not walking shoes
 //   * not hidden/MAP price
@@ -42,8 +43,6 @@ const ALGOLIA_API_KEY = "23d75c51c43c0ea2995b94bd56048224";
 const ALGOLIA_INDEX =
   "production_na02_shoecarnival_demandware_net__shoecarnival__products__default";
 
-// Keep this high so the scraper is fast.
-// If Algolia ever truncates, the fallback loop below will fetch remaining pages.
 const HITS_PER_PAGE = 1000;
 
 const WOMENS_RUNNING_ID = "193";
@@ -246,11 +245,40 @@ function mapHitToDeal(hit) {
   };
 }
 
+function hasAssignedCategoryId(hit, id) {
+  const wanted = String(id);
+  return asArray(hit?.assignedCategories).some((c) => String(c?.id || "") === wanted);
+}
+
+function hasAssignedCategoryName(hit, name) {
+  const wanted = lc(name);
+  return asArray(hit?.assignedCategories).some((c) => lc(c?.name) === wanted);
+}
+
+function hasRunningAssignedCategory(hit) {
+  return (
+    hasAssignedCategoryName(hit, "Running Shoes") ||
+    hasAssignedCategoryId(hit, "running") ||
+    hasAssignedCategoryId(hit, WOMENS_RUNNING_ID) ||
+    hasAssignedCategoryId(hit, MENS_RUNNING_ID)
+  );
+}
+
+function isAllowedRunningHit(hit, requiredPrimaryCategoryId, requiredGender) {
+  const primaryId = String(hit?.primary_category_id || "");
+  const genders = asArray(hit?.gender).map((g) => lc(g));
+  const requiredGenderLc = lc(requiredGender);
+
+  if (!genders.includes(requiredGenderLc)) return false;
+
+  if (primaryId === String(requiredPrimaryCategoryId)) return true;
+  if (hasAssignedCategoryId(hit, requiredPrimaryCategoryId)) return true;
+  if (hasRunningAssignedCategory(hit)) return true;
+
+  return false;
+}
+
 async function fetchAlgoliaPage({ query, page }) {
-  // This matches what you found in Chrome much more closely:
-  // facetFilters only uses on_sale:true
-  // query differs for mens vs womens
-  // styleType=Performance is filtered locally afterward
   const body = {
     requests: [
       {
@@ -317,7 +345,6 @@ async function collectAllHits(query) {
   const nbHits = toNumber(firstPage?.nbHits) || 0;
   const firstHits = asArray(firstPage?.hits);
 
-  // Usually this will be enough: one call per search.
   if (firstHits.length >= nbHits || nbHits <= HITS_PER_PAGE) {
     return {
       nbHits,
@@ -326,7 +353,6 @@ async function collectAllHits(query) {
     };
   }
 
-  // Fallback if Algolia returns more hits than one page.
   const totalPages = Math.ceil(nbHits / HITS_PER_PAGE);
   const allHits = [...firstHits];
   let pagesFetched = 1;
@@ -349,6 +375,7 @@ function summarizeSearchHits({
   pageUrl,
   hits,
   requiredPrimaryCategoryId,
+  requiredGender,
   deals,
   seen,
   dropCounts,
@@ -360,9 +387,8 @@ function summarizeSearchHits({
 
   for (const hit of hits) {
     const title = cleanText(hit?.name);
-    const primaryCategoryId = String(hit?.primary_category_id || "");
 
-    if (primaryCategoryId !== requiredPrimaryCategoryId) {
+    if (!isAllowedRunningHit(hit, requiredPrimaryCategoryId, requiredGender)) {
       inc(dropCounts, "dropped_nonRunningCategory");
       inc(pageDropCounts, "dropped_nonRunningCategory");
       continue;
@@ -452,6 +478,7 @@ export default async function handler(req, res) {
         pageUrl: WOMENS_PAGE_URL,
         hits: womens.hits,
         requiredPrimaryCategoryId: WOMENS_RUNNING_ID,
+        requiredGender: "Women",
         deals,
         seen,
         dropCounts,
@@ -465,6 +492,7 @@ export default async function handler(req, res) {
         pageUrl: MENS_PAGE_URL,
         hits: mens.hits,
         requiredPrimaryCategoryId: MENS_RUNNING_ID,
+        requiredGender: "Men",
         deals,
         seen,
         dropCounts,
