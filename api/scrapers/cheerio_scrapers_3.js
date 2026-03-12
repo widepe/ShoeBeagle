@@ -68,13 +68,14 @@ module.exports = async function handler(req, res) {
   // ==========================================================
   // EASY TOGGLES
   // ==========================================================
-  const ENABLED = {
-    on_algolia: true,
-    underarmour_outlet: true,
-    allbirds_sale: true,
-    topo_athletic_sale: true,
-    champs_sale: true,
-  };
+const ENABLED = {
+  on_algolia: true,
+  underarmour_outlet: true,
+  allbirds_sale: true,
+  topo_athletic_sale: true,
+  champs_sale: true,
+  karhu_sale: true,
+};
 
   const TARGETS = [];
 
@@ -93,6 +94,9 @@ module.exports = async function handler(req, res) {
   // Champs Sports sale running shoes page.
   if (ENABLED.champs_sale) TARGETS.push("/api/scrapers/champs-sale");
 
+  // Karhu sale running shoes pages.
+  if (ENABLED.karhu_sale) TARGETS.push("/api/scrapers/karhu-sale");
+  
   try {
     const results = [];
 
