@@ -14,7 +14,8 @@
 //    "see price in cart", "see price in bag", "add to bag to see price", etc.
 // ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: dsw-clearance.json
 // ✅ Returns LIGHTWEIGHT response (no deals array) + blobUrl
-// ✅ Faster Firecrawl settings
+// ✅ Scroll actions trigger lazy-loaded images before HTML capture
+// ✅ waitFor: 3000ms per page to allow image population
 // ✅ Pagination stops when a page has fewer than 60 tiles
 //
 // ENV required:
@@ -27,7 +28,7 @@
 import * as cheerio from "cheerio";
 import { put } from "@vercel/blob";
 
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 300 };
 
 const STORE = "DSW";
 const SCHEMA_VERSION = 1;
@@ -208,9 +209,19 @@ async function fetchFirecrawlHtml(url) {
       url,
       formats: ["html"],
       onlyMainContent: false,
-      waitFor: 750,
-      timeout: 15000,
+      waitFor: 3000,
+      timeout: 25000,
       mobile: false,
+      actions: [
+        { type: "scroll", direction: "down", amount: 2500 },
+        { type: "wait", milliseconds: 500 },
+        { type: "scroll", direction: "down", amount: 2500 },
+        { type: "wait", milliseconds: 500 },
+        { type: "scroll", direction: "down", amount: 2500 },
+        { type: "wait", milliseconds: 500 },
+        { type: "scroll", direction: "up", amount: 99999 },
+        { type: "wait", milliseconds: 1000 },
+      ],
     }),
   });
 
