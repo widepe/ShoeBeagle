@@ -1,29 +1,26 @@
-// /api/scrapers/dsw.js
+// /api/scrapers/dsw-firecrawl.js
 //
 // DSW clearance running shoes scraper
 //
-// What this does
-// - Uses Firecrawl raw HTML to fetch rendered page HTML
-// - Scrapes all pages from exactly 1 category path:
-//   https://www.dsw.com/category/clearance/shoes/athletic-sneakers/running?gender=Men,Women
-// - Uses DSW pagination offsets like &No=60, &No=120, etc.
-// - Sets shoeType = "unknown" for all deals
-// - Price rule:
-//   * one visible price  -> salePrice only
-//   * two visible prices -> salePrice = first/lower, originalPrice = second/higher
-// - Skips hidden-price phrases like:
-//     "see price in cart"
-//     "add to bag to see price"
-//     "see price in bag"
-//     and similar
-// - Writes dsw-firecrawl.json to Vercel Blob
+// ✅ Uses Firecrawl raw HTML
+// ✅ Scrapes all pages from exactly 1 category path:
+//    https://www.dsw.com/category/clearance/shoes/athletic-sneakers/running?gender=Men,Women
+// ✅ Uses DSW pagination offsets like &No=60, &No=120, etc.
+// ✅ Price rule:
+//    - one visible price  -> salePrice only
+//    - two visible prices -> salePrice = first/lower, originalPrice = second/higher
+// ✅ Sets shoeType = "unknown" for all deals
+// ✅ Skips hidden-price phrases like:
+//    "see price in cart", "see price in bag", "add to bag to see price", etc.
+// ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: dsw-firecrawl.json
+// ✅ Returns LIGHTWEIGHT response (no deals array) + blobUrl
 //
-// ENV:
-//   - BLOB_READ_WRITE_TOKEN
-//   - FIRECRAWL_API_KEY
+// ENV required:
+// - FIRECRAWL_API_KEY
+// - BLOB_READ_WRITE_TOKEN
 //
-// TEST:
-//   /api/scrapers/dsw
+// Optional:
+// - CRON_SECRET
 
 import * as cheerio from "cheerio";
 import { put } from "@vercel/blob";
@@ -101,13 +98,16 @@ function inferGender(listingName) {
   return "unknown";
 }
 
-function extractBrandAndModel(listingName) {
-  const cleaned = cleanText(listingName);
-  if (!cleaned) return { brand: "Unknown", model: "" };
+// IMPORTANT: Never edit listingName; only derive brand/model.
+function deriveBrandModel(listingName) {
+  let s = cleanText(listingName);
 
-  const base = cleaned
-    .replace(/\s*-\s*(men'?s|women'?s|womens|mens|unisex)\s*$/i, "")
-    .trim();
+  s = s.replace(/\s*-\s*(Women's|Men's|Unisex|Womens|Mens)\s*$/i, "");
+  s = s.replace(/\s+Running\s+Shoe\s*$/i, "");
+  s = s.replace(/\s+Running\s+Shoes\s*$/i, "");
+  s = cleanText(s);
+
+  if (!s) return { brand: "unknown", model: "unknown" };
 
   const multiWordBrands = [
     "Under Armour",
@@ -129,24 +129,19 @@ function extractBrandAndModel(listingName) {
     "Skechers",
   ];
 
-  const matchedBrand = multiWordBrands.find(
-    (b) => base.toLowerCase() === b.toLowerCase() || base.toLowerCase().startsWith(b.toLowerCase() + " ")
-  );
-
-  if (matchedBrand) {
-    return {
-      brand: matchedBrand,
-      model: base.slice(matchedBrand.length).trim(),
-    };
+  for (const b of multiWordBrands) {
+    const bl = b.toLowerCase();
+    const sl = s.toLowerCase();
+    if (sl === bl) return { brand: b, model: "unknown" };
+    if (sl.startsWith(bl + " ")) {
+      return { brand: b, model: cleanText(s.slice(b.length)) || "unknown" };
+    }
   }
 
-  const parts = base.split(/\s+/).filter(Boolean);
-  if (!parts.length) return { brand: "Unknown", model: "" };
-
-  return {
-    brand: parts[0],
-    model: parts.slice(1).join(" ").trim(),
-  };
+  const parts = s.split(" ");
+  const brand = parts[0] ? cleanText(parts[0]) : "unknown";
+  const model = parts.length > 1 ? cleanText(parts.slice(1).join(" ")) : "unknown";
+  return { brand, model };
 }
 
 function parseResultsCount($) {
@@ -155,8 +150,15 @@ function parseResultsCount($) {
   return match ? Number(match[1]) : null;
 }
 
-function initDropCounts() {
-  return {
+function makePageUrl(baseUrl, offset) {
+  if (!offset) return baseUrl;
+  const url = new URL(baseUrl);
+  url.searchParams.set("No", String(offset));
+  return url.toString();
+}
+
+function makeDropTracker() {
+  const counts = {
     totalTiles: 0,
     dropped_missingListingName: 0,
     dropped_missingListingURL: 0,
@@ -164,7 +166,27 @@ function initDropCounts() {
     dropped_missingSalePrice: 0,
     dropped_hidden_price_text: 0,
     dropped_duplicateAfterMerge: 0,
+    kept: 0,
   };
+
+  const bump = (key) => {
+    if (Object.prototype.hasOwnProperty.call(counts, key)) counts[key] += 1;
+  };
+
+  function toSummaryArray() {
+    const rows = [
+      { reason: "dropped_missingListingName", count: counts.dropped_missingListingName, note: "Missing product name on tile" },
+      { reason: "dropped_missingListingURL", count: counts.dropped_missingListingURL, note: "Missing product URL on tile" },
+      { reason: "dropped_missingImageURL", count: counts.dropped_missingImageURL, note: "Missing product image URL on tile" },
+      { reason: "dropped_missingSalePrice", count: counts.dropped_missingSalePrice, note: "No visible parseable sale price found" },
+      { reason: "dropped_hidden_price_text", count: counts.dropped_hidden_price_text, note: "Tile contained hidden-price messaging like see price in cart/bag" },
+      { reason: "dropped_duplicateAfterMerge", count: counts.dropped_duplicateAfterMerge, note: "Duplicate listingURL already seen" },
+      { reason: "kept", count: counts.kept, note: "Included in deals[]" },
+    ];
+    return rows.filter((r) => r.count > 0 || r.reason === "kept");
+  }
+
+  return { counts, bump, toSummaryArray };
 }
 
 function initGenderCounts() {
@@ -176,45 +198,8 @@ function initGenderCounts() {
   };
 }
 
-function bumpDrop(dropCounts, reason) {
-  const map = {
-    missingListingName: "dropped_missingListingName",
-    missingListingURL: "dropped_missingListingURL",
-    missingImageURL: "dropped_missingImageURL",
-    missingSalePrice: "dropped_missingSalePrice",
-    hidden_price_text: "dropped_hidden_price_text",
-    duplicateAfterMerge: "dropped_duplicateAfterMerge",
-  };
-  const key = map[reason];
-  if (key) dropCounts[key] += 1;
-}
-
-function dedupeDeals(deals, dropCounts) {
-  const seen = new Set();
-  const out = [];
-
-  for (const deal of deals) {
-    const key = deal.listingURL;
-    if (seen.has(key)) {
-      bumpDrop(dropCounts, "duplicateAfterMerge");
-      continue;
-    }
-    seen.add(key);
-    out.push(deal);
-  }
-
-  return out;
-}
-
-function makePageUrl(baseUrl, offset) {
-  if (!offset) return baseUrl;
-  const url = new URL(baseUrl);
-  url.searchParams.set("No", String(offset));
-  return url.toString();
-}
-
 async function fetchFirecrawlHtml(url) {
-  const apiKey = process.env.FIRECRAWL_API_KEY;
+  const apiKey = String(process.env.FIRECRAWL_API_KEY || "").trim();
   if (!apiKey) throw new Error("Missing FIRECRAWL_API_KEY");
 
   const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
@@ -231,18 +216,17 @@ async function fetchFirecrawlHtml(url) {
     }),
   });
 
+  const json = await resp.json().catch(() => null);
+
   if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`Firecrawl HTTP ${resp.status} for ${url} | ${text.slice(0, 300)}`);
+    const msg =
+      json?.error ||
+      json?.message ||
+      `Firecrawl HTTP ${resp.status}`;
+    throw new Error(`${msg} for ${url}`);
   }
 
-  const json = await resp.json();
-
-  const html =
-    json?.data?.html ||
-    json?.html ||
-    "";
-
+  const html = json?.data?.html || json?.html || "";
   if (!html || typeof html !== "string") {
     throw new Error(`Firecrawl returned no HTML for ${url}`);
   }
@@ -256,8 +240,7 @@ function parseTile($tile) {
   if (hasHiddenPriceText(tileText)) {
     return {
       ok: false,
-      reason: "hidden_price_text",
-      detail: tileText.slice(0, 220),
+      reason: "dropped_hidden_price_text",
     };
   }
 
@@ -266,7 +249,10 @@ function parseTile($tile) {
   );
 
   if (!listingName) {
-    return { ok: false, reason: "missingListingName", detail: null };
+    return {
+      ok: false,
+      reason: "dropped_missingListingName",
+    };
   }
 
   const rawHref =
@@ -276,7 +262,10 @@ function parseTile($tile) {
 
   const listingURL = toAbsoluteUrl(rawHref);
   if (!listingURL) {
-    return { ok: false, reason: "missingListingURL", detail: listingName };
+    return {
+      ok: false,
+      reason: "dropped_missingListingURL",
+    };
   }
 
   let imageURL =
@@ -291,7 +280,10 @@ function parseTile($tile) {
 
   imageURL = decodeHtmlEntities(toAbsoluteUrl(imageURL));
   if (!imageURL) {
-    return { ok: false, reason: "missingImageURL", detail: listingName };
+    return {
+      ok: false,
+      reason: "dropped_missingImageURL",
+    };
   }
 
   const priceText = cleanText(
@@ -299,15 +291,17 @@ function parseTile($tile) {
   );
 
   if (hasHiddenPriceText(priceText)) {
-    return { ok: false, reason: "hidden_price_text", detail: listingName };
+    return {
+      ok: false,
+      reason: "dropped_hidden_price_text",
+    };
   }
 
   const moneyValues = parseAllMoney(priceText);
   if (!moneyValues.length) {
     return {
       ok: false,
-      reason: "missingSalePrice",
-      detail: `${listingName} | ${priceText.slice(0, 200)}`,
+      reason: "dropped_missingSalePrice",
     };
   }
 
@@ -322,15 +316,15 @@ function parseTile($tile) {
   }
 
   const gender = inferGender(listingName);
-  const { brand, model } = extractBrandAndModel(listingName);
+  const derived = deriveBrandModel(listingName);
 
   return {
     ok: true,
     deal: {
-      schemaVersion: SCHEMA_VERSION,
+      schemaVersion: 1,
       listingName,
-      brand,
-      model,
+      brand: derived.brand,
+      model: derived.model,
       salePrice,
       originalPrice,
       discountPercent: null,
@@ -348,21 +342,74 @@ function parseTile($tile) {
   };
 }
 
-export default async function handler(req, res) {
-  const startedAt = Date.now();
+function dedupeDeals(deals, drop) {
+  const seen = new Set();
+  const out = [];
 
+  for (const deal of deals) {
+    const key = deal.listingURL;
+    if (seen.has(key)) {
+      drop.bump("dropped_duplicateAfterMerge");
+      continue;
+    }
+    seen.add(key);
+    out.push(deal);
+  }
+
+  return out;
+}
+
+async function writeBlobJson(key, obj) {
+  const token = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
+  if (!token) throw new Error("Missing BLOB_READ_WRITE_TOKEN");
+
+  const result = await put(key, JSON.stringify(obj, null, 2), {
+    access: "public",
+    token,
+    contentType: "application/json",
+    addRandomSuffix: false,
+  });
+
+  return result?.url || null;
+}
+
+function toLightweightResponse(output) {
+  return {
+    store: output.store,
+    schemaVersion: output.schemaVersion,
+    lastUpdated: output.lastUpdated,
+    via: output.via,
+    sourceUrls: output.sourceUrls,
+    pagesFetched: output.pagesFetched,
+    dealsFound: output.dealsFound,
+    dealsExtracted: output.dealsExtracted,
+    scrapeDurationMs: output.scrapeDurationMs,
+    ok: output.ok,
+    error: output.error,
+    dropCounts: output.dropCounts || null,
+    dropReasons: output.dropReasons || null,
+    genderCounts: output.genderCounts || null,
+    pageSummaries: output.pageSummaries || null,
+    blobUrl: output.blobUrl || null,
+  };
+}
+
+export default async function handler(req, res) {
+  // CRON_SECRET
   // const auth = req.headers.authorization;
   // if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
   //   return res.status(401).json({ success: false, error: "Unauthorized" });
   // }
 
-  const dropCounts = initDropCounts();
+  const t0 = Date.now();
+  const drop = makeDropTracker();
   const genderCounts = initGenderCounts();
-  const pageSummaries = [];
-  const rawDeals = [];
-  const fetchedPageUrls = [];
 
   try {
+    const rawDeals = [];
+    const pageSummaries = [];
+    const fetchedPageUrls = [];
+
     const firstHtml = await fetchFirecrawlHtml(SOURCE_URL);
     const $first = cheerio.load(firstHtml);
 
@@ -371,21 +418,21 @@ export default async function handler(req, res) {
       ? Math.min(Math.ceil(resultsCount / PAGE_SIZE), MAX_PAGES)
       : 1;
 
-    for (let pageNum = 1; pageNum <= totalPages; pageNum += 1) {
-      const offset = (pageNum - 1) * PAGE_SIZE;
+    for (let page = 1; page <= totalPages; page++) {
+      const offset = (page - 1) * PAGE_SIZE;
       const pageUrl = makePageUrl(SOURCE_URL, offset);
 
       let html;
       try {
-        html = pageNum === 1 ? firstHtml : await fetchFirecrawlHtml(pageUrl);
+        html = page === 1 ? firstHtml : await fetchFirecrawlHtml(pageUrl);
       } catch (err) {
         pageSummaries.push({
           sourceUrl: SOURCE_URL,
-          page: pageNum,
+          page,
           pageUrl,
           shoeType: "unknown",
           ok: false,
-          error: err?.message || String(err),
+          error: String(err?.message || err),
           totalTiles: 0,
           extractedDealsBeforeDedupe: 0,
           extractedDeals: 0,
@@ -404,10 +451,14 @@ export default async function handler(req, res) {
         continue;
       }
 
-      fetchedPageUrls.push(pageUrl);
-
       const $ = cheerio.load(html);
       const $tiles = $("app-product-tile");
+
+      if ($tiles.length === 0) {
+        break;
+      }
+
+      fetchedPageUrls.push(pageUrl);
 
       const pageDropCounts = {
         missingListingName: 0,
@@ -424,99 +475,107 @@ export default async function handler(req, res) {
         unknown: 0,
       };
 
+      const pageDeals = [];
+
       $tiles.each((_, el) => {
-        dropCounts.totalTiles += 1;
+        drop.bump("totalTiles");
 
         const result = parseTile($(el));
 
         if (!result.ok) {
-          pageDropCounts[result.reason] = (pageDropCounts[result.reason] || 0) + 1;
-          bumpDrop(dropCounts, result.reason);
+          if (result.reason === "dropped_missingListingName") pageDropCounts.missingListingName += 1;
+          if (result.reason === "dropped_missingListingURL") pageDropCounts.missingListingURL += 1;
+          if (result.reason === "dropped_missingImageURL") pageDropCounts.missingImageURL += 1;
+          if (result.reason === "dropped_missingSalePrice") pageDropCounts.missingSalePrice += 1;
+          if (result.reason === "dropped_hidden_price_text") pageDropCounts.hidden_price_text += 1;
+
+          drop.bump(result.reason);
           return;
         }
 
         const deal = result.deal;
+        pageDeals.push(deal);
         rawDeals.push(deal);
+        drop.bump("kept");
 
-        if (pageGenderCounts[deal.gender] !== undefined) pageGenderCounts[deal.gender] += 1;
-        if (genderCounts[deal.gender] !== undefined) genderCounts[deal.gender] += 1;
+        if (Object.prototype.hasOwnProperty.call(pageGenderCounts, deal.gender)) {
+          pageGenderCounts[deal.gender] += 1;
+        }
+        if (Object.prototype.hasOwnProperty.call(genderCounts, deal.gender)) {
+          genderCounts[deal.gender] += 1;
+        }
       });
 
       pageSummaries.push({
         sourceUrl: SOURCE_URL,
-        page: pageNum,
+        page,
         pageUrl,
         shoeType: "unknown",
         ok: true,
         error: null,
         totalTiles: $tiles.length,
-        extractedDealsBeforeDedupe: rawDeals.length,
-        extractedDeals: null,
+        extractedDealsBeforeDedupe: pageDeals.length,
+        extractedDeals: pageDeals.length,
         mensDeals: pageGenderCounts.mens,
         womensDeals: pageGenderCounts.womens,
         unisexDeals: pageGenderCounts.unisex,
         unknownDeals: pageGenderCounts.unknown,
         dropCounts: pageDropCounts,
       });
-
-      if ($tiles.length === 0) break;
     }
 
-    const deals = dedupeDeals(rawDeals, dropCounts);
+    const deals = dedupeDeals(rawDeals, drop);
+    const scrapeDurationMs = Date.now() - t0;
 
-    for (const summary of pageSummaries) {
-      if (summary.ok && summary.extractedDeals === null) {
-        summary.extractedDeals = summary.extractedDealsBeforeDedupe;
-      }
-    }
-
-    const payload = {
+    const output = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
       lastUpdated: nowIso(),
       via: VIA,
       sourceUrls: [SOURCE_URL],
       pagesFetched: fetchedPageUrls.length,
-      dealsFound: dropCounts.totalTiles,
+      dealsFound: drop.counts.totalTiles,
       dealsExtracted: deals.length,
-      scrapeDurationMs: Date.now() - startedAt,
+      scrapeDurationMs,
       ok: true,
       error: null,
-      dropCounts,
+      dropCounts: drop.counts,
+      dropReasons: drop.toSummaryArray(),
       genderCounts,
       pageSummaries,
       deals,
+      blobUrl: null,
     };
 
-const blob = await put(BLOB_PATH, JSON.stringify(payload, null, 2), {
-  access: "public",
-  contentType: "text/plain; charset=utf-8",
-  addRandomSuffix: false,
-});
-
-    return res.status(200).json({
-      success: true,
-      store: STORE,
-      blobUrl: blob.url,
-      pagesFetched: payload.pagesFetched,
-      dealsFound: payload.dealsFound,
-      dealsExtracted: payload.dealsExtracted,
-      scrapeDurationMs: payload.scrapeDurationMs,
-      dropCounts: payload.dropCounts,
-      genderCounts: payload.genderCounts,
-      pageSummaries: payload.pageSummaries,
-      ok: true,
-      error: null,
-    });
+    output.blobUrl = await writeBlobJson(BLOB_PATH, output);
+    return res.status(200).json(toLightweightResponse(output));
   } catch (err) {
-    return res.status(500).json({
-      success: false,
+    const scrapeDurationMs = Date.now() - t0;
+
+    const output = {
       store: STORE,
-      error: err?.message || String(err),
-      scrapeDurationMs: Date.now() - startedAt,
-      dropCounts,
+      schemaVersion: SCHEMA_VERSION,
+      lastUpdated: nowIso(),
+      via: VIA,
+      sourceUrls: [SOURCE_URL],
+      pagesFetched: 0,
+      dealsFound: 0,
+      dealsExtracted: 0,
+      scrapeDurationMs,
+      ok: false,
+      error: String(err?.message || err),
+      dropCounts: drop.counts,
+      dropReasons: drop.toSummaryArray(),
       genderCounts,
-      pageSummaries,
-    });
+      pageSummaries: [],
+      deals: [],
+      blobUrl: null,
+    };
+
+    try {
+      output.blobUrl = await writeBlobJson(BLOB_PATH, output);
+    } catch {}
+
+    return res.status(500).json(toLightweightResponse(output));
   }
 }
