@@ -1,4 +1,30 @@
 // /api/scrapers/shoe-carnival.js
+//
+// Shoe Carnival sale running shoes scraper
+// - Uses Shoe Carnival's Algolia search endpoint
+// - Scrapes men's + women's running shoes on sale
+// - Drops deals if:
+//   * title/card says "walking shoes"
+//   * hidden/MAP/restricted price
+//   * "see price in cart" / "see price in bag" / "add to bag to see price"
+//   * missing sale price
+//   * missing required fields
+//   * duplicate deal
+//   * non-running category slips through
+// - Tracks WHY deals were dropped
+// - Adds page summaries
+// - Reports mens / womens / unisex / unknown counts
+// - Writes top-level structure + deals array only
+//
+// ENV:
+//   - BLOB_READ_WRITE_TOKEN
+//
+// TEST:
+//   /api/scrapers/shoe-carnival
+//
+// NOTE:
+// - CRON auth is included below but commented out for testing.
+// - Blob path is set to: shoe-carnival.json
 
 import { put } from "@vercel/blob";
 
@@ -113,8 +139,24 @@ function extractImageUrl(hit) {
   return null;
 }
 
+function flattenCategoryObjects(hit) {
+  const out = [];
+
+  for (const entry of asArray(hit?.categories)) {
+    if (Array.isArray(entry)) {
+      for (const inner of entry) {
+        if (inner && typeof inner === "object") out.push(inner);
+      }
+    } else if (entry && typeof entry === "object") {
+      out.push(entry);
+    }
+  }
+
+  return out;
+}
+
 function hasRunningCategory(hit) {
-  const categories = asArray(hit?.categories);
+  const categories = flattenCategoryObjects(hit);
 
   for (const cat of categories) {
     const id = String(cat?.id || "");
@@ -134,8 +176,9 @@ function isAllowedRunningCategory(hit) {
   if (primaryId === WOMENS_RUNNING_ID || primaryId === MENS_RUNNING_ID) return true;
 
   const assigned = asArray(hit?.assignedCategories).map((c) => String(c?.id || ""));
-  if (assigned.includes(WOMENS_RUNNING_ID) || assigned.includes(MENS_RUNNING_ID)) return true;
   if (assigned.includes(RUNNING_CATEGORY_ID)) return true;
+  if (assigned.includes(WOMENS_RUNNING_ID)) return true;
+  if (assigned.includes(MENS_RUNNING_ID)) return true;
 
   return false;
 }
@@ -321,6 +364,23 @@ export default async function handler(req, res) {
   try {
     const firstPage = await fetchAlgoliaPage(0);
 
+    console.log(
+      JSON.stringify(
+        {
+          nbHits: firstPage?.nbHits,
+          nbPages: firstPage?.nbPages,
+          hitsLength: Array.isArray(firstPage?.hits) ? firstPage.hits.length : 0,
+          firstHitName: firstPage?.hits?.[0]?.name || null,
+          firstHitPrimaryCategoryId: firstPage?.hits?.[0]?.primary_category_id || null,
+          firstHitCategories: firstPage?.hits?.[0]?.categories || null,
+          firstHitAssignedCategories: firstPage?.hits?.[0]?.assignedCategories || null,
+          firstHitGender: firstPage?.hits?.[0]?.gender || null,
+        },
+        null,
+        2
+      )
+    );
+
     const totalHits = toNumber(firstPage?.nbHits) || 0;
     const totalPages = toNumber(firstPage?.nbPages) || 0;
 
@@ -374,10 +434,13 @@ export default async function handler(req, res) {
           continue;
         }
 
-        const dedupeKey = [
-          String(hit?.masterStyle || ""),
-          String(hit?.url || ""),
-        ].join("|||");
+        const dedupeKey = String(hit?.masterStyle || hit?.url || hit?.objectID || "").trim();
+
+        if (!dedupeKey) {
+          inc(dropCounts, "dropped_missingDedupeKey");
+          inc(pageDropCounts, "dropped_missingDedupeKey");
+          continue;
+        }
 
         if (seen.has(dedupeKey)) {
           inc(dropCounts, "dropped_duplicate");
