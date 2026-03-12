@@ -1,30 +1,4 @@
 // /api/scrapers/shoe-carnival.js
-//
-// Shoe Carnival sale running shoes scraper
-// - Uses Shoe Carnival's Algolia search endpoint
-// - Scrapes men's + women's running shoes on sale
-// - Drops deals if:
-//   * title/card says "walking shoes"
-//   * hidden/MAP/restricted price
-//   * "see price in cart" / "see price in bag" / "add to bag to see price"
-//   * missing sale price
-//   * missing required fields
-//   * duplicate deal
-//   * non-running category slips through
-// - Tracks WHY deals were dropped
-// - Adds page summaries
-// - Reports mens / womens / unisex / unknown counts
-// - Writes top-level structure + deals array only
-//
-// ENV:
-//   - BLOB_READ_WRITE_TOKEN
-//
-// TEST:
-//   /api/scrapers/shoe-carnival
-//
-// NOTE:
-// - CRON auth is included below but commented out for testing.
-// - Blob path is set to: shoe-carnival.json
 
 import { put } from "@vercel/blob";
 
@@ -44,6 +18,7 @@ const ALGOLIA_INDEX =
   "production_na02_shoecarnival_demandware_net__shoecarnival__products__default";
 
 const HITS_PER_PAGE = 24;
+const RUNNING_CATEGORY_ID = "16";
 const WOMENS_RUNNING_ID = "193";
 const MENS_RUNNING_ID = "194";
 
@@ -138,12 +113,29 @@ function extractImageUrl(hit) {
   return null;
 }
 
+function hasRunningCategory(hit) {
+  const categories = asArray(hit?.categories);
+
+  for (const cat of categories) {
+    const id = String(cat?.id || "");
+    const name = cleanText(cat?.name);
+
+    if (id === RUNNING_CATEGORY_ID) return true;
+    if (/^running shoes$/i.test(name)) return true;
+  }
+
+  return false;
+}
+
 function isAllowedRunningCategory(hit) {
+  if (hasRunningCategory(hit)) return true;
+
   const primaryId = String(hit?.primary_category_id || "");
   if (primaryId === WOMENS_RUNNING_ID || primaryId === MENS_RUNNING_ID) return true;
 
   const assigned = asArray(hit?.assignedCategories).map((c) => String(c?.id || ""));
   if (assigned.includes(WOMENS_RUNNING_ID) || assigned.includes(MENS_RUNNING_ID)) return true;
+  if (assigned.includes(RUNNING_CATEGORY_ID)) return true;
 
   return false;
 }
@@ -168,8 +160,8 @@ function buildModel(listingName, brand) {
 function isHiddenPriceHit(hit) {
   const price = hit?.price || {};
 
-  const sale = toNumber(price?.c_sale_price);
-  const standard = toNumber(price?.c_standard_price);
+  const sale = toNumber(hit?.price?.c_sale_price);
+  const standard = toNumber(hit?.price?.c_standard_price);
 
   const mapRestricted =
     Boolean(price?.c_map_price_restriction) || Boolean(hit?.c_map_price_restriction);
@@ -329,21 +321,6 @@ export default async function handler(req, res) {
   try {
     const firstPage = await fetchAlgoliaPage(0);
 
-    console.log(
-      JSON.stringify(
-        {
-          nbHits: firstPage?.nbHits,
-          nbPages: firstPage?.nbPages,
-          hitsLength: Array.isArray(firstPage?.hits) ? firstPage.hits.length : 0,
-          firstHitName: firstPage?.hits?.[0]?.name || null,
-          firstHitPrimaryCategoryId: firstPage?.hits?.[0]?.primary_category_id || null,
-          firstHitGender: firstPage?.hits?.[0]?.gender || null,
-        },
-        null,
-        2
-      )
-    );
-
     const totalHits = toNumber(firstPage?.nbHits) || 0;
     const totalPages = toNumber(firstPage?.nbPages) || 0;
 
@@ -398,11 +375,8 @@ export default async function handler(req, res) {
         }
 
         const dedupeKey = [
-          deal.store,
-          deal.listingURL,
-          deal.listingName,
-          deal.salePrice,
-          deal.originalPrice,
+          String(hit?.masterStyle || ""),
+          String(hit?.url || ""),
         ].join("|||");
 
         if (seen.has(dedupeKey)) {
