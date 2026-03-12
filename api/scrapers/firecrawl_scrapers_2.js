@@ -22,7 +22,7 @@ const RUN_CONCURRENTLY = true; // set false to run one-after-another (safer)
 // ===========================
 const ENABLED = {
   nike: true,
-  publiclands: true,
+  publiclands: false,  // temporary until rewrite code
   adidas: true,
   sierra: true,
   macys: true,
