@@ -17,6 +17,7 @@
 // ✅ imageURL constructed from listingURL (styleId + activeColor) — not scraped from DOM
 // ✅ No scroll actions needed; fast Firecrawl settings
 // ✅ Pagination stops when a page has fewer than 60 tiles
+// ✅ Content-Disposition: inline so response renders in browser instead of downloading
 //
 // ENV required:
 // - FIRECRAWL_API_KEY
@@ -349,6 +350,12 @@ async function writeBlobJson(key, obj) {
   return result?.url || null;
 }
 
+function sendJson(res, status, body) {
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Content-Disposition", "inline");
+  return res.status(status).json(body);
+}
+
 function toLightweightResponse(output) {
   return {
     store: output.store,
@@ -521,7 +528,7 @@ export default async function handler(req, res) {
     };
 
     output.blobUrl = await writeBlobJson(BLOB_PATH, output);
-    return res.status(200).json(toLightweightResponse(output));
+    return sendJson(res, 200, toLightweightResponse(output));
   } catch (err) {
     const scrapeDurationMs = Date.now() - t0;
 
@@ -549,6 +556,6 @@ export default async function handler(req, res) {
       output.blobUrl = await writeBlobJson(BLOB_PATH, output);
     } catch {}
 
-    return res.status(500).json(toLightweightResponse(output));
+    return sendJson(res, 500, toLightweightResponse(output));
   }
 }
