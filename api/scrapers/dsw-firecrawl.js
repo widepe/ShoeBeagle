@@ -150,10 +150,10 @@ function parseResultsCount($) {
   return match ? Number(match[1]) : null;
 }
 
-function makePageUrl(baseUrl, offset) {
-  if (!offset) return baseUrl;
+function makePageUrl(baseUrl, pageNum) {
+  if (pageNum <= 1) return baseUrl;
   const url = new URL(baseUrl);
-  url.searchParams.set("No", String(offset));
+  url.searchParams.set("No", String(pageNum));
   return url.toString();
 }
 
@@ -417,10 +417,8 @@ export default async function handler(req, res) {
     const totalPages = resultsCount
       ? Math.min(Math.ceil(resultsCount / PAGE_SIZE), MAX_PAGES)
       : 1;
-
-    for (let page = 1; page <= totalPages; page++) {
-      const offset = (page - 1) * PAGE_SIZE;
-      const pageUrl = makePageUrl(SOURCE_URL, offset);
+for (let page = 1; page <= totalPages; page++) {
+  const pageUrl = makePageUrl(SOURCE_URL, page);
 
       let html;
       try {
