@@ -17,11 +17,11 @@
 
   <title>Shoe Beagle--The Running Shoe Deal Finder</title>
 
-  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
-  <link rel="icon" type="image/png" href="/images/favicon.png">
+  <link rel="icon" type="image/svg+xml" href="images/favicon.svg">
+  <link rel="icon" type="image/png" href="images/favicon.png">
 
   <!-- CSS -->
-  <link rel="stylesheet" href="/index.css?v=128" />
+  <link rel="stylesheet" href="index.css?v=128" />
 
   <!-- IMPORTANT:
        Set this at deploy time to avoid hardcoding the blob store base.
@@ -37,7 +37,7 @@
       <!-- LOGO -->
       <div class="top-right">
         <img
-          src="/images/logo.svg"
+          src="images/logo.svg"
           class="brand-logo"
           alt="Shoe Beagle Logo"
           id="logoLink"
@@ -50,7 +50,7 @@
           <!-- unified row -->
           <div class="row" id="mobileSearchRow">
             <div class="input-wrapper">
-              <img class="input-icon" src="/images/shoe.svg" alt="" aria-hidden="true" />
+              <img class="input-icon" src="images/shoe.svg" alt="" aria-hidden="true" />
               <input
                 id="q"
                 type="text"
@@ -65,7 +65,7 @@
 
             <div class="button-wrapper">
               <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
-                <img src="/images/mag_glass.svg" class="btn-icon" alt="Fetch" />
+                <img src="images/mag_glass.svg" class="btn-icon" alt="Fetch" />
               </button>
             </div>
 
@@ -78,7 +78,7 @@
                 aria-expanded="false"
                 aria-controls="linksRibbon"
               >
-                <img src="/images/menu.svg" class="btn-icon" alt="Links" />
+                <img src="images/menu.svg" class="btn-icon" alt="Links" />
               </button>
             </div>
           </div>
@@ -158,10 +158,10 @@
     <!-- FOOTER -->
     <div class="footer">
       <div class="footer-links">
-        <a href="/pages/about.html">About</a> |
+        <a href="pages/about.html">About</a> |
         <a href="mailto:contact@shoebeagle.com?subject=ShoeBeagle%20Inquiry" title="contact@shoebeagle.com">Contact</a> |
-        <a href="/pages/privacy.html">Privacy</a> |
-        <a href="/pages/terms.html">Terms</a>
+        <a href="pages/privacy.html">Privacy</a> |
+        <a href="pages/terms.html">Terms</a>
         <a href="mailto:contact@shoebeagle.com">Contact</a>      </div>
       <div class="footer-copy">
         © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
@@ -175,7 +175,7 @@
 <script>
   // Expose canonical brand-model map to the modal script.
   // This fetch happens once on page load.
-  window.__SB_CANONICAL_BRAND_MODELS_URL__ = "/lib/canonical-brands-models.json";
+  window.__SB_CANONICAL_BRAND_MODELS_URL__ = "lib/canonical-brands-models.json";
 </script>
 
   <!-- ===== Main Page Script ===== -->
@@ -1292,7 +1292,7 @@ console.log("DEBUG parsed:", { typedRaw, brand, model });        if (!brand && m
 
         let data;
         try {
-          const res = await fetch("/api/search?" + new URLSearchParams({ query: displayQuery }));
+          const res = await fetch("api/search?" + new URLSearchParams({ query: displayQuery }));
           data = await res.json();
         } catch (err) {
           console.error("Search error:", err);
@@ -1331,7 +1331,7 @@ console.log("DEBUG mismatch:", { modelNorm, actualBrand, brand });
 
       let correctedData;
       try {
-        const correctedRes = await fetch("/api/search?" + new URLSearchParams({ query: correctedQuery }));
+        const correctedRes = await fetch("api/search?" + new URLSearchParams({ query: correctedQuery }));
         correctedData = await correctedRes.json();
       } catch (err) {
         console.error("Corrected search error:", err);
@@ -1556,7 +1556,7 @@ if (qInput) qInput.addEventListener("input", updateFetchReady);
       const btn = document.getElementById("sbSetAlertBtn");
       const status = document.getElementById("sbStatus");
 
-      const API_ALERTS = "/api/alerts";
+      const API_ALERTS = "api/alerts";
 
 // ------------------------------
 // Canonical brand/models (NEW)
@@ -1586,7 +1586,7 @@ function getAliasesForBrandKey(brandKey) {
 }
 
 async function loadCanonicalBrandModels() {
-  const url = window.__SB_CANONICAL_BRAND_MODELS_URL__ || "/lib/canonical-brands-models.json";
+  const url = window.__SB_CANONICAL_BRAND_MODELS_URL__ || "lib/canonical-brands-models.json";
 
   const res = await fetch(`${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load canonical brands/models: ${res.status}`);
