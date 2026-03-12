@@ -161,6 +161,29 @@
   "baseUrl": "https://www.champssports.com",
   "notes": "Champs Sports running shoes sale scraper using direct HTML fetch + Cheerio on the sale running shoes page. Parses product cards from returned HTML, preserving listingName exactly as scraped, deriving brand/model from listingName, parsing gender from the tile secondary line, and forcing shoeType to unknown unless strict trail/track keywords appear in the listing name. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Dedupe by listingURL. Metadata includes dropCounts, droppedDealsSample, and pageSummaries. Writes to champs-sale.json."
 },
+
+{
+  "id": "dsw",
+  "displayName": "DSW",
+  "addedAt": "2026-03-12",
+  "lastUpdated": "2026-03-12",
+  "scrapedUrls": [
+    "https://www.dsw.com/category/clearance/shoes/athletic-sneakers/running?gender=Men,Women",
+    "https://www.dsw.com/category/clearance/shoes/athletic-sneakers/running?gender=Men,Women&No=2",
+    "https://www.dsw.com/category/clearance/shoes/athletic-sneakers/running?gender=Men,Women&No=3",
+    "https://www.dsw.com/category/clearance/shoes/athletic-sneakers/running?gender=Men,Women&No=4"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/dsw-clearance.json"
+  ],
+  "aliases": ["dsw"],
+  "enabled": true,
+  "scraperType": "firecrawl-cheerio",
+  "envVar": "DSW_DEALS_BLOB_URL",
+  "baseUrl": "https://www.dsw.com",
+  "notes": "DSW clearance running shoes scraper via Firecrawl raw HTML + Cheerio parse. Scrapes the combined mens+womens clearance running page and paginates with DSW page params No=2, No=3, No=4 rather than item offsets. Preserves listingName exactly as scraped, derives brand/model from listingName, parses gender from listingName: mens, womens, unisex, else unknown, and forces shoeType to unknown for all deals. Pricing rule: if one visible price is present, sets salePrice only; if two visible prices are present, uses the first/lower as salePrice and the second/higher as originalPrice. Skips hidden-price tiles such as See Price in Cart / See Price in Bag / Add to Bag to See Price. Dedupe by listingURL. Metadata includes dropCounts, dropReasons, genderCounts, and pageSummaries. Writes to dsw-firecrawl.json."
+},
+
   
 {
   "id": "famous-footwear",
@@ -403,24 +426,6 @@
     "baseUrl": "https://lukeslocker.com",
     "notes": "Per-store Cheerio blob (env: LUKES_LOCKER_CHEERIO_BLOB_URL)."
   },
-  {
-    "id": "marathon-sports",
-    "displayName": "Marathon Sports",
-    "addedAt": "2026-02-09",
-    "lastUpdated": "2026-02-09",
-    "scrapedUrls": [
-  "https://www.marathonsports.com/shop/mens/shoes?sale=1",
-  "https://www.marathonsports.com/shop/womens/shoes?sale=1",
-  "https://www.marathonsports.com/shop?q=running%20shoes&sort=discount"
-],
-    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/marathon-sports.json"],
-    "aliases": ["marathon sports", "marathonsports"],
-    "enabled": true,
-    "scraperType": "cheerio",
-    "envVar": "MARATHON_SPORTS_CHEERIO_BLOB_URL",
-    "baseUrl": "https://www.marathonsports.com",
-    "notes": "Per-store Cheerio blob (env: MARATHON_SPORTS_CHEERIO_BLOB_URL)."
-  },
 
 {
   "id": "macys",
@@ -441,6 +446,28 @@
   "baseUrl": "https://www.macys.com",
   "notes": "Macy's sale running shoes scraper via Firecrawl raw HTML + Cheerio parse. Scrapes mens and womens featured running sale pages. Preserves listingName exactly as scraped, parses brand from tile brand text, derives model from listingName, parses gender from listingName: mens, womens, unisex, else unknown, and maps shoeType from listingName: trail -> trail, track/spike/spikes -> track, running -> road, else unknown. Handles both pricing patterns where the visible sale price includes 'Now' and where the sale price appears without 'Now'. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Dedupe by listingURL. Metadata includes dropCounts, droppedDealsSample, and pageSummaries. Writes to macys-sale.json."
 },
+
+  
+  {
+    "id": "marathon-sports",
+    "displayName": "Marathon Sports",
+    "addedAt": "2026-02-09",
+    "lastUpdated": "2026-02-09",
+    "scrapedUrls": [
+  "https://www.marathonsports.com/shop/mens/shoes?sale=1",
+  "https://www.marathonsports.com/shop/womens/shoes?sale=1",
+  "https://www.marathonsports.com/shop?q=running%20shoes&sort=discount"
+],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/marathon-sports.json"],
+    "aliases": ["marathon sports", "marathonsports"],
+    "enabled": true,
+    "scraperType": "cheerio",
+    "envVar": "MARATHON_SPORTS_CHEERIO_BLOB_URL",
+    "baseUrl": "https://www.marathonsports.com",
+    "notes": "Per-store Cheerio blob (env: MARATHON_SPORTS_CHEERIO_BLOB_URL)."
+  },
+
+
   
   {
     "id": "mizuno",
