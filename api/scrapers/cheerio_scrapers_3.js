@@ -68,14 +68,15 @@ module.exports = async function handler(req, res) {
   // ==========================================================
   // EASY TOGGLES
   // ==========================================================
-const ENABLED = {
-  on_algolia: true,
-  underarmour_outlet: true,
-  allbirds_sale: true,
-  topo_athletic_sale: true,
-  champs_sale: true,
-  karhu_sale: true,
-};
+  const ENABLED = {
+    on_algolia: true,
+    underarmour_outlet: true,
+    allbirds_sale: true,
+    topo_athletic_sale: true,
+    champs_sale: true,
+    karhu_sale: true,
+    runpacers_sale: true,
+  };
 
   const TARGETS = [];
 
@@ -96,7 +97,10 @@ const ENABLED = {
 
   // Karhu sale running shoes pages.
   if (ENABLED.karhu_sale) TARGETS.push("/api/scrapers/karhu-sale");
-  
+
+  // RunPacers sale running shoes pages.
+  if (ENABLED.runpacers_sale) TARGETS.push("/api/scrapers/runpacers-sale");
+
   try {
     const results = [];
 
