@@ -351,6 +351,27 @@
     "baseUrl": "https://www.journeys.com",
     "notes": "Journeys running shoes sale pages (womens + mens). One deal per product card. shoeType forced to unknown. Writes to journeys.json."
   },
+
+{
+  "id": "karhu",
+  "displayName": "Karhu",
+  "addedAt": "2026-03-11",
+  "lastUpdated": "2026-03-11",
+  "scrapedUrls": [
+    "https://us.karhu.com/search?q=mens+shoe+sale&type=product%2Cpage%2Carticle",
+    "https://us.karhu.com/search?q=womens+shoe+sale&type=product%2Cpage%2Carticle"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/karhu-sale.json"
+  ],
+  "aliases": ["karhu"],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "KARHU_DEALS_BLOB_URL",
+  "baseUrl": "https://us.karhu.com",
+  "notes": "Karhu sale running shoes scraper using direct HTML fetch + Cheerio parse. Scrapes filtered mens and womens shoe sale searches. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Sets shoeType to unknown for all deals. Metadata includes dropCounts, droppedDealsSample, and pageSummaries. Writes to karhu-sale.json."
+}
+  
   {
     "id": "kohls",
     "displayName": "Kohl's",
