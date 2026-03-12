@@ -176,7 +176,7 @@
   "expectedBlob": [
     "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/dsw-clearance.json"
   ],
-  "aliases": ["dsw"],
+  "aliases": ["dsw", "designer shoe warehouse"],
   "enabled": true,
   "scraperType": "firecrawl-cheerio",
   "envVar": "DSW_DEALS_BLOB_URL",
