@@ -7,12 +7,12 @@
 //    https://www.dsw.com/category/clearance/shoes/athletic-sneakers/running?gender=Men,Women
 // ✅ Uses DSW page params like &No=2, &No=3, &No=4
 // ✅ Price rule:
-//    - one visible price  -> salePrice only
+//    - one visible price  -> salePrice only, originalPrice = null
 //    - two visible prices -> salePrice = first/lower, originalPrice = second/higher
 // ✅ Sets shoeType = "unknown" for all deals
 // ✅ Skips hidden-price phrases like:
 //    "see price in cart", "see price in bag", "add to bag to see price", etc.
-// ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: dsw-firecrawl.json
+// ✅ Writes FULL top-level JSON + deals[] to Vercel Blob key: dsw-clearance.json
 // ✅ Returns LIGHTWEIGHT response (no deals array) + blobUrl
 // ✅ Faster Firecrawl settings
 // ✅ Pagination stops when a page has fewer than 60 tiles
@@ -173,7 +173,7 @@ function makeDropTracker() {
     const rows = [
       { reason: "dropped_missingListingName", count: counts.dropped_missingListingName, note: "Missing product name on tile" },
       { reason: "dropped_missingListingURL", count: counts.dropped_missingListingURL, note: "Missing product URL on tile" },
-      { reason: "dropped_missingImageURL", count: counts.dropped_missingImageURL, note: "Missing product image URL on tile" },
+      { reason: "dropped_missingImageURL", count: counts.dropped_missingImageURL, note: "Missing real product image URL on tile" },
       { reason: "dropped_missingSalePrice", count: counts.dropped_missingSalePrice, note: "No visible parseable sale price found" },
       { reason: "dropped_hidden_price_text", count: counts.dropped_hidden_price_text, note: "Tile contained hidden-price messaging like see price in cart/bag" },
       { reason: "dropped_duplicateAfterMerge", count: counts.dropped_duplicateAfterMerge, note: "Duplicate listingURL already seen" },
@@ -229,6 +229,56 @@ async function fetchFirecrawlHtml(url) {
   return html;
 }
 
+function firstUrlFromSrcset(value) {
+  const s = cleanText(value);
+  if (!s) return "";
+  const first = s.split(",")[0]?.trim() || "";
+  return first.split(/\s+/)[0] || "";
+}
+
+function isBadImageUrl(url) {
+  const s = cleanText(url).toLowerCase();
+  if (!s) return true;
+  if (s.includes("/404/")) return true;
+  if (s.endsWith("/404")) return true;
+  if (s.includes("placeholder")) return true;
+  return false;
+}
+
+function extractImageURL($tile) {
+  const candidates = [];
+
+  const pushCandidate = (raw) => {
+    const value = cleanText(raw);
+    if (!value) return;
+    const normalized = decodeHtmlEntities(toAbsoluteUrl(value));
+    if (normalized) candidates.push(normalized);
+  };
+
+  $tile.find("img").each((_, el) => {
+    const $img = $tile.find(el);
+    pushCandidate($img.attr("src"));
+    pushCandidate(firstUrlFromSrcset($img.attr("srcset")));
+    pushCandidate($img.attr("data-src"));
+    pushCandidate(firstUrlFromSrcset($img.attr("data-srcset")));
+    pushCandidate($img.attr("data-lazy-src"));
+    pushCandidate(firstUrlFromSrcset($img.attr("data-lazy-srcset")));
+    pushCandidate($img.attr("ng-src"));
+  });
+
+  $tile.find("source").each((_, el) => {
+    const $source = $tile.find(el);
+    pushCandidate(firstUrlFromSrcset($source.attr("srcset")));
+    pushCandidate(firstUrlFromSrcset($source.attr("data-srcset")));
+  });
+
+  for (const candidate of candidates) {
+    if (!isBadImageUrl(candidate)) return candidate;
+  }
+
+  return "";
+}
+
 function parseTile($tile) {
   const tileText = cleanText($tile.text());
 
@@ -254,17 +304,7 @@ function parseTile($tile) {
     return { ok: false, reason: "dropped_missingListingURL" };
   }
 
-  let imageURL =
-    $tile.find("img").first().attr("src") ||
-    $tile.find("img").first().attr("srcset") ||
-    $tile.find("source").first().attr("srcset") ||
-    "";
-
-  if (imageURL && imageURL.includes(",")) {
-    imageURL = imageURL.split(",")[0].trim().split(" ")[0].trim();
-  }
-
-  imageURL = decodeHtmlEntities(toAbsoluteUrl(imageURL));
+  const imageURL = extractImageURL($tile);
   if (!imageURL) {
     return { ok: false, reason: "dropped_missingImageURL" };
   }
@@ -287,6 +327,7 @@ function parseTile($tile) {
 
   if (moneyValues.length === 1) {
     salePrice = moneyValues[0];
+    originalPrice = null;
   } else {
     salePrice = moneyValues[0];
     originalPrice = moneyValues[1];
