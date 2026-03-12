@@ -9,6 +9,8 @@
 // - Skips "See Price In Bag" / "See Price In Cart"
 // - shoeType = "unknown" for all deals
 // - Writes hibbett-sale.json to Vercel Blob
+// - Blob contains only top-level structure + deals array
+// - Dropped-deal samples are returned in the live endpoint response only, not stored in blob
 //
 // ENV:
 //   - BLOB_READ_WRITE_TOKEN
@@ -100,31 +102,55 @@ function extractBrand(gtmData, listingName) {
   const name = cleanText(listingName);
   if (!name) return "";
 
-  const firstWord = name.split(/\s+/)[0] || "";
-  return firstWord;
+  return name.split(/\s+/)[0] || "";
 }
 
 function normalizeGenderFromArray(gtmGender) {
   if (!Array.isArray(gtmGender) || gtmGender.length === 0) return null;
 
-  const vals = gtmGender.map((v) => cleanText(v).toLowerCase());
-  const hasMens = vals.some((v) => v.includes("men"));
-  const hasWomens = vals.some((v) => v.includes("women"));
+  const vals = gtmGender
+    .map((v) => cleanText(v).toLowerCase())
+    .filter(Boolean);
 
+  const hasUnisex = vals.some((v) => v.includes("unisex"));
+  const hasMens = vals.some(
+    (v) =>
+      v.includes("men") ||
+      v.includes("mens") ||
+      v.includes("male") ||
+      v.includes("man")
+  );
+  const hasWomens = vals.some(
+    (v) =>
+      v.includes("women") ||
+      v.includes("womens") ||
+      v.includes("female") ||
+      v.includes("woman")
+  );
+
+  if (hasUnisex) return "unisex";
   if (hasMens && hasWomens) return "unisex";
   if (hasMens) return "mens";
   if (hasWomens) return "womens";
   return null;
 }
 
-function inferGender(listingName, gtmData) {
-  const fromArray = normalizeGenderFromArray(gtmData?.gender);
-  if (fromArray) return fromArray;
-
+function inferGender(listingName, gtmData, pageUrl = "") {
   const name = cleanText(listingName).toLowerCase();
+  const page = cleanText(pageUrl).toLowerCase();
+
+  // Most trustworthy: title text
   if (/\bunisex\b/.test(name)) return "unisex";
   if (/\bmen'?s\b|\bmens\b/.test(name)) return "mens";
   if (/\bwomen'?s\b|\bwomens\b/.test(name)) return "womens";
+
+  // Next best: page context
+  if (page.includes("/men/") || page.includes("mens-shoes")) return "mens";
+  if (page.includes("/women/") || page.includes("womens-shoes")) return "womens";
+
+  // Least trustworthy: GTM metadata
+  const fromArray = normalizeGenderFromArray(gtmData?.gender);
+  if (fromArray) return fromArray;
 
   return "unknown";
 }
@@ -139,13 +165,12 @@ function deriveModel(listingName, brand) {
   }
 
   model = model.replace(/"[^"]*"/g, " ");
-  model = model.replace(/\bMen'?s Running Shoe\b/gi, " ");
-  model = model.replace(/\bWomen'?s Running Shoe\b/gi, " ");
-  model = model.replace(/\bUnisex Running Shoe\b/gi, " ");
-  model = model.replace(/\bMen'?s Shoe\b/gi, " ");
-  model = model.replace(/\bWomen'?s Shoe\b/gi, " ");
-  model = model.replace(/\bUnisex Shoe\b/gi, " ");
-  model = model.replace(/\bRunning Shoe\b/gi, " ");
+  model = model.replace(/\bMen'?s\b/gi, " ");
+  model = model.replace(/\bWomen'?s\b/gi, " ");
+  model = model.replace(/\bUnisex\b/gi, " ");
+  model = model.replace(/\bRoad\b/gi, " ");
+  model = model.replace(/\bTrail\b/gi, " ");
+  model = model.replace(/\bRunning\b/gi, " ");
   model = model.replace(/\bShoe\b/gi, " ");
 
   return cleanText(model);
@@ -195,7 +220,7 @@ function extractPrices($tile) {
   const originalPrice = parseMoney(standardText);
   const salePrice = parseMoney(saleText);
 
-  return { originalPrice, salePrice, standardText, saleText };
+  return { originalPrice, salePrice };
 }
 
 function parseResultsCount($) {
@@ -215,7 +240,9 @@ function parseResultsCount($) {
 }
 
 function parsePageSizeFromDocument($, rootUrl) {
-  const optionValues = $("select.grid-paging-header option, select.grid-sort-header option")
+  const optionValues = $(
+    "select.grid-paging-header option, select.grid-sort-header option"
+  )
     .map((_, el) => $(el).attr("value"))
     .get()
     .filter(Boolean);
@@ -256,6 +283,16 @@ function buildPagedUrls(rootUrl, totalResults, pageSize) {
   return urls.length ? urls : [rootUrl];
 }
 
+function canonicalizeListingUrl(url) {
+  try {
+    const u = new URL(url);
+    u.searchParams.delete("cgid");
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 async function fetchFirecrawlHtml(url) {
   const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
@@ -292,7 +329,7 @@ async function fetchFirecrawlHtml(url) {
 async function fetchFirecrawlHtmlWithRetry(url) {
   let lastErr = null;
 
-  for (let i = 0; i <= FIRECRAWL_RETRY_LIMIT; i++) {
+  for (let i = 0; i <= FIRECRAWL_RETRY_LIMIT; i += 1) {
     try {
       return await fetchFirecrawlHtml(url);
     } catch (err) {
@@ -338,12 +375,11 @@ function parseTilesFromPage({
   dropCounts,
   droppedDeals,
   seenDealKeys,
+  currentUrl,
 }) {
   const $tiles = $("li.grid-tile > .product-tile");
 
-  if (!$tiles.length) {
-    return 0;
-  }
+  if (!$tiles.length) return 0;
 
   let tilesSeenThisPage = 0;
 
@@ -358,7 +394,7 @@ function parseTilesFromPage({
     const gtmData = parseJsonAttr($tile.attr("data-gtmdata"));
     const brand = extractBrand(gtmData, listingName);
     const model = deriveModel(listingName, brand);
-    const gender = inferGender(listingName, gtmData);
+    const gender = inferGender(listingName, gtmData, currentUrl);
     const shoeType = "unknown";
 
     if (shouldDropForBagPrice($tile)) {
@@ -366,6 +402,7 @@ function parseTilesFromPage({
       pushDropped(droppedDeals, "see_price_in_bag_or_cart", {
         listingName,
         listingURL,
+        pageUrl: currentUrl,
       });
       return;
     }
@@ -374,6 +411,7 @@ function parseTilesFromPage({
       dropCounts.dropped_missingListingName += 1;
       pushDropped(droppedDeals, "missing_listingName", {
         listingURL,
+        pageUrl: currentUrl,
       });
       return;
     }
@@ -383,6 +421,7 @@ function parseTilesFromPage({
       pushDropped(droppedDeals, "missing_brand", {
         listingName,
         listingURL,
+        pageUrl: currentUrl,
       });
       return;
     }
@@ -392,6 +431,7 @@ function parseTilesFromPage({
       pushDropped(droppedDeals, "missing_model", {
         listingName,
         listingURL,
+        pageUrl: currentUrl,
       });
       return;
     }
@@ -400,6 +440,7 @@ function parseTilesFromPage({
       dropCounts.dropped_missingListingURL += 1;
       pushDropped(droppedDeals, "missing_listingURL", {
         listingName,
+        pageUrl: currentUrl,
       });
       return;
     }
@@ -409,6 +450,7 @@ function parseTilesFromPage({
       pushDropped(droppedDeals, "missing_imageURL", {
         listingName,
         listingURL,
+        pageUrl: currentUrl,
       });
       return;
     }
@@ -420,6 +462,7 @@ function parseTilesFromPage({
       pushDropped(droppedDeals, "missing_originalPrice", {
         listingName,
         listingURL,
+        pageUrl: currentUrl,
       });
       return;
     }
@@ -429,6 +472,7 @@ function parseTilesFromPage({
       pushDropped(droppedDeals, "missing_salePrice", {
         listingName,
         listingURL,
+        pageUrl: currentUrl,
       });
       return;
     }
@@ -440,6 +484,7 @@ function parseTilesFromPage({
         listingURL,
         salePrice,
         originalPrice,
+        pageUrl: currentUrl,
       });
       return;
     }
@@ -453,16 +498,19 @@ function parseTilesFromPage({
         salePrice,
         originalPrice,
         discountPercent,
+        pageUrl: currentUrl,
       });
       return;
     }
 
-    const dedupeKey = listingURL;
+    const dedupeKey = canonicalizeListingUrl(listingURL);
     if (seenDealKeys.has(dedupeKey)) {
       dropCounts.dropped_duplicateAfterMerge += 1;
       pushDropped(droppedDeals, "duplicate_listingURL", {
         listingName,
         listingURL,
+        canonicalListingURL: dedupeKey,
+        pageUrl: currentUrl,
       });
       return;
     }
@@ -503,12 +551,17 @@ export default async function handler(req, res) {
   const startedAt = Date.now();
 
   // CRON auth (temporarily commented out for testing)
-  
+  /*
   const auth = req.headers.authorization;
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
   }
-  
+  */
+
+  const auth = req.headers.authorization;
+  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
 
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return res.status(500).json({
@@ -536,19 +589,22 @@ export default async function handler(req, res) {
 
   try {
     for (const rootUrl of START_URLS) {
-const firstHtml = await fetchFirecrawlHtmlWithRetry(rootUrl);
-const $first = cheerio.load(firstHtml);
+      const firstHtml = await fetchFirecrawlHtmlWithRetry(rootUrl);
+      const $first = cheerio.load(firstHtml);
 
-const totalResults = parseResultsCount($first);
-const pageSize = parsePageSizeFromDocument($first, rootUrl);
-const firstPageTileCount = $first("li.grid-tile > .product-tile").length;
+      const totalResults = parseResultsCount($first);
+      const pageSize = parsePageSizeFromDocument($first, rootUrl);
+      const firstPageTileCount = $first("li.grid-tile > .product-tile").length;
 
-const pagedUrls =
-  Number.isFinite(totalResults) &&
-  totalResults > 0 &&
-  firstPageTileCount >= totalResults
-    ? [rootUrl]
-    : buildPagedUrls(rootUrl, totalResults, pageSize).slice(0, MAX_PAGES_PER_ROOT);
+      const pagedUrls =
+        Number.isFinite(totalResults) &&
+        totalResults > 0 &&
+        firstPageTileCount >= totalResults
+          ? [rootUrl]
+          : buildPagedUrls(rootUrl, totalResults, pageSize).slice(
+              0,
+              MAX_PAGES_PER_ROOT
+            );
 
       for (let i = 0; i < pagedUrls.length; i += 1) {
         const currentUrl = pagedUrls[i];
@@ -567,6 +623,7 @@ const pagedUrls =
           dropCounts,
           droppedDeals,
           seenDealKeys,
+          currentUrl,
         });
 
         pageSummaries.push({
@@ -576,7 +633,7 @@ const pagedUrls =
       }
     }
 
-    const output = {
+    const outputForBlob = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
 
@@ -596,30 +653,33 @@ const pagedUrls =
       error: null,
 
       dropCounts,
-      droppedDealsLogged: droppedDeals.length,
-      droppedDealsSample: droppedDeals,
 
       deals,
     };
 
-    const blob = await put("hibbett-sale.json", JSON.stringify(output, null, 2), {
-      access: "public",
-      contentType: "application/json",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-      addRandomSuffix: false,
-    });
+    const blob = await put(
+      "hibbett-sale.json",
+      JSON.stringify(outputForBlob, null, 2),
+      {
+        access: "public",
+        contentType: "application/json",
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+        addRandomSuffix: false,
+      }
+    );
 
     return res.status(200).json({
       success: true,
       store: STORE,
       blobUrl: blob.url,
-      pagesFetched: output.pagesFetched,
-      pageSummaries: output.pageSummaries,
-      dealsFound: output.dealsFound,
-      dealsExtracted: output.dealsExtracted,
-      scrapeDurationMs: output.scrapeDurationMs,
-      dropCounts: output.dropCounts,
-      droppedDealsLogged: output.droppedDealsLogged,
+      pagesFetched: outputForBlob.pagesFetched,
+      pageSummaries: outputForBlob.pageSummaries,
+      dealsFound: outputForBlob.dealsFound,
+      dealsExtracted: outputForBlob.dealsExtracted,
+      scrapeDurationMs: outputForBlob.scrapeDurationMs,
+      dropCounts: outputForBlob.dropCounts,
+      droppedDealsLogged: droppedDeals.length,
+      droppedDealsSample: droppedDeals,
       ok: true,
     });
   } catch (err) {
