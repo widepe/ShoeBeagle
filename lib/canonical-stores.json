@@ -440,7 +440,7 @@
   "envVar": "MACYS_DEALS_BLOB_URL",
   "baseUrl": "https://www.macys.com",
   "notes": "Macy's sale running shoes scraper via Firecrawl raw HTML + Cheerio parse. Scrapes mens and womens featured running sale pages. Preserves listingName exactly as scraped, parses brand from tile brand text, derives model from listingName, parses gender from listingName: mens, womens, unisex, else unknown, and maps shoeType from listingName: trail -> trail, track/spike/spikes -> track, running -> road, else unknown. Handles both pricing patterns where the visible sale price includes 'Now' and where the sale price appears without 'Now'. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Dedupe by listingURL. Metadata includes dropCounts, droppedDealsSample, and pageSummaries. Writes to macys-sale.json."
-}
+},
   
   {
     "id": "mizuno",
