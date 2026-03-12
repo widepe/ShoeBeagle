@@ -31,7 +31,6 @@ const ENABLED = {
   nike: true,
   publiclands: true,
   adidas: true,
-  newbalance: true,
   sierra: true,
   maycs: true,
 };
@@ -98,12 +97,6 @@ const TARGETS = [
     key: "adidas",
     name: "Adidas Firecrawl",
     path: "/api/scrapers/adidas-firecrawl",
-  },
-
-  {
-    key: "newbalance",
-    name: "New Balance Firecrawl",
-    path: "/api/scrapers/newbalance-sale",
   },
 
   {
