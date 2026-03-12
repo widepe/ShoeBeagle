@@ -7,8 +7,10 @@
 //    https://www.dsw.com/category/clearance/shoes/athletic-sneakers/running?gender=Men,Women
 // ✅ Uses DSW page params like &No=2, &No=3, &No=4
 // ✅ Price rule:
-//    - one visible price  -> salePrice only, originalPrice = null
-//    - two visible prices -> salePrice = first/lower, originalPrice = second/higher
+//    - Targets .product-tile__price only (ignores .product-tile__messaging)
+//    - Strips .aria-hidden-content spans before parsing to avoid duplicate prices
+//    - salePrice = first money value found; originalPrice always null
+//    - DSW clearance tiles only show the clearance price, not original — originalPrice is intentionally null
 // ✅ Sets shoeType = "unknown" for all deals
 // ✅ Skips hidden-price phrases like:
 //    "see price in cart", "see price in bag", "add to bag to see price", etc.
@@ -241,6 +243,7 @@ function parseTile($, el) {
   const $tile = $(el);
   const tileText = cleanText($tile.text());
 
+  // Check the full tile text for hidden-price messaging first
   if (hasHiddenPriceText(tileText)) {
     return { ok: false, reason: "dropped_hidden_price_text" };
   }
@@ -268,9 +271,14 @@ function parseTile($, el) {
     return { ok: false, reason: "dropped_missingImageURL" };
   }
 
-  const priceText = cleanText(
-    $tile.find(".product-tile__price, [data-testid='product-tile__details-container']").first().text()
-  );
+  // Target .product-tile__price specifically to avoid picking up
+  // promotional messaging like "Free Tote with $59 purchase" from
+  // .product-tile__messaging which is a sibling element.
+  // Also strip .aria-hidden-content spans which repeat the price as
+  // "Minimum Clearance Price $XX.XX" causing duplicate money values.
+  const $priceEl = $tile.find(".product-tile__price").first().clone();
+  $priceEl.find(".aria-hidden-content").remove();
+  const priceText = cleanText($priceEl.text());
 
   if (hasHiddenPriceText(priceText)) {
     return { ok: false, reason: "dropped_hidden_price_text" };
@@ -281,16 +289,10 @@ function parseTile($, el) {
     return { ok: false, reason: "dropped_missingSalePrice" };
   }
 
-  let salePrice = null;
-  let originalPrice = null;
-
-  if (moneyValues.length === 1) {
-    salePrice = moneyValues[0];
-    originalPrice = null;
-  } else {
-    salePrice = moneyValues[0];
-    originalPrice = moneyValues[1];
-  }
+  // DSW clearance tiles only show the clearance price — original price
+  // is not displayed on the tile (only revealed in cart). Always null.
+  const salePrice = moneyValues[0];
+  const originalPrice = null;
 
   const gender = inferGender(listingName);
   const derived = deriveBrandModel(listingName);
