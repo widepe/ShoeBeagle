@@ -6,6 +6,8 @@ export const config = { maxDuration: 60 };
 const BLOB_BASE =
   "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
 
+let availableScraperRoutesPromise = null;
+
 function getClientIp(req) {
   const xfwd = req.headers["x-forwarded-for"];
   if (typeof xfwd === "string" && xfwd.trim()) {
@@ -98,8 +100,60 @@ function getBlobCandidates(store) {
   return [];
 }
 
-function getScraperCandidates(store) {
+function normalizeRouteName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\.js$/i, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+async function getAvailableScraperRoutes() {
+  if (!availableScraperRoutesPromise) {
+    availableScraperRoutesPromise = fs
+      .readdir(path.join(process.cwd(), "api", "scrapers"))
+      .then((files) =>
+        files
+          .filter((file) => file.endsWith(".js"))
+          .map((file) => file.replace(/\.js$/i, ""))
+      )
+      .catch(() => []);
+  }
+
+  return availableScraperRoutesPromise;
+}
+
+function getRelatedRoutes(candidate, availableRoutes) {
+  const candidateNorm = normalizeRouteName(candidate);
+  if (!candidateNorm) return [];
+
+  const scored = availableRoutes
+    .map((route) => {
+      const routeNorm = normalizeRouteName(route);
+      const routeIncludesCandidate = routeNorm.includes(candidateNorm);
+      const candidateIncludesRoute = candidateNorm.includes(routeNorm);
+
+      if (!routeIncludesCandidate && !candidateIncludesRoute) {
+        return null;
+      }
+
+      let score = 1;
+      if (routeNorm === candidateNorm) score += 20;
+      if (route.startsWith(candidate) || candidate.startsWith(route)) score += 5;
+      if (routeNorm.startsWith(candidateNorm)) score += 3;
+      if (candidateNorm.startsWith(routeNorm)) score += 2;
+
+      return { route, score };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score || a.route.localeCompare(b.route));
+
+  return scored.map(({ route }) => route);
+}
+
+async function getScraperCandidates(store) {
   const candidates = [];
+  const availableRoutes = await getAvailableScraperRoutes();
+  const availableRouteSet = new Set(availableRoutes);
 
   candidates.push(`/api/scrapers/${store.id}`);
 
@@ -108,7 +162,20 @@ function getScraperCandidates(store) {
     candidates.push(`/api/scrapers/${file}`);
   }
 
-  return [...new Set(candidates)];
+  const expanded = [];
+
+  for (const route of candidates) {
+    const file = route.replace("/api/scrapers/", "");
+    expanded.push(route);
+
+    if (availableRouteSet.has(file)) continue;
+
+    for (const related of getRelatedRoutes(file, availableRoutes)) {
+      expanded.push(`/api/scrapers/${related}`);
+    }
+  }
+
+  return [...new Set(expanded)];
 }
 
 async function triggerStore(req, store) {
@@ -131,7 +198,7 @@ async function triggerStore(req, store) {
     };
   }
 
-  const routes = getScraperCandidates(store);
+  const routes = await getScraperCandidates(store);
 
   for (const route of routes) {
     const result = await fetchJson(base + route, {
