@@ -470,6 +470,7 @@ function isValidRunningShoe(deal) {
     "brief",
     "cap",
     "compression sleeve",
+    "crosskix",
     "crew neck",
     "earwarmer",
     "ear warmer",
