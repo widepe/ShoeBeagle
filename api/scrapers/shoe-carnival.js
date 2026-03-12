@@ -1,24 +1,15 @@
 // /api/scrapers/shoe-carnival.js
 //
-// Fast + cleaner Shoe Carnival scraper
+// Fast Shoe Carnival scraper
 // - Uses Algolia directly
-// - Scrapes ONLY these two pages/searches:
-//   1) men's performance running shoes on sale
-//   2) women's performance running shoes on sale
-// - Keeps items when:
-//   * query match comes from the running-shoe search
-//   * title includes "Running Shoes"
-//   * styleType includes "Performance"
-//   * gender matches the search
-//   * not hidden/MAP price
-//   * sale price exists
-// - Drops:
-//   * walking shoes
-//   * hidden price / MAP
+// - Scrapes these two searches:
+//   1) womens running shoes + on_sale
+//   2) men's running shoes + on_sale
+// - Assumes the search pages already contain the correct products
+// - Only drops:
+//   * hidden/MAP price ("see price in cart/bag" style)
 //   * duplicates
-//   * wrong gender
-//   * non-performance
-//   * title not running shoes
+//   * missing required fields
 // - Dedupes by masterStyle
 // - Uses large hitsPerPage to keep requests very low
 // - Writes top-level structure + deals array only
@@ -111,18 +102,6 @@ function makeAbsoluteUrl(path) {
   return `https://www.shoecarnival.com${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-function titleContainsRunningShoes(title) {
-  return /\brunning shoes?\b/i.test(title || "");
-}
-
-function titleContainsWalkingShoes(title) {
-  return /\bwalking shoes?\b/i.test(title || "");
-}
-
-function isPerformanceStyle(hit) {
-  return asArray(hit?.styleType).some((s) => /^performance$/i.test(cleanText(s)));
-}
-
 function getGenderFromHit(hit) {
   const genders = asArray(hit?.gender).map((g) => lc(g));
   const name = lc(hit?.name);
@@ -137,11 +116,6 @@ function getGenderFromHit(hit) {
     return "unisex";
   }
   return "unknown";
-}
-
-function genderMatchesExpected(hit, expectedGender) {
-  const genders = asArray(hit?.gender).map((g) => lc(g));
-  return genders.includes(lc(expectedGender));
 }
 
 function extractImageUrl(hit) {
@@ -199,9 +173,9 @@ function isHiddenPriceHit(hit) {
       searchableText
     );
 
-  const noVisiblePrice = !Number.isFinite(sale) && !Number.isFinite(standard);
+  const noVisibleSalePrice = !Number.isFinite(sale);
 
-  return mapRestricted || hiddenLanguage || noVisiblePrice;
+  return mapRestricted || hiddenLanguage || noVisibleSalePrice || !Number.isFinite(standard) && !Number.isFinite(sale);
 }
 
 function validateDeal(deal) {
@@ -355,7 +329,6 @@ function summarizeSearchHits({
   kind,
   pageUrl,
   hits,
-  expectedGender,
   deals,
   seen,
   dropCounts,
@@ -366,32 +339,6 @@ function summarizeSearchHits({
   let pageExtracted = 0;
 
   for (const hit of hits) {
-    const title = cleanText(hit?.name);
-
-    if (!genderMatchesExpected(hit, expectedGender)) {
-      inc(dropCounts, "dropped_wrongGender");
-      inc(pageDropCounts, "dropped_wrongGender");
-      continue;
-    }
-
-    if (!titleContainsRunningShoes(title)) {
-      inc(dropCounts, "dropped_titleNotRunningShoes");
-      inc(pageDropCounts, "dropped_titleNotRunningShoes");
-      continue;
-    }
-
-    if (!isPerformanceStyle(hit)) {
-      inc(dropCounts, "dropped_nonPerformanceStyle");
-      inc(pageDropCounts, "dropped_nonPerformanceStyle");
-      continue;
-    }
-
-    if (titleContainsWalkingShoes(title)) {
-      inc(dropCounts, "dropped_walkingShoesOnCard");
-      inc(pageDropCounts, "dropped_walkingShoesOnCard");
-      continue;
-    }
-
     if (isHiddenPriceHit(hit)) {
       inc(dropCounts, "dropped_hiddenPrice");
       inc(pageDropCounts, "dropped_hiddenPrice");
@@ -463,7 +410,6 @@ export default async function handler(req, res) {
         kind: "womens",
         pageUrl: WOMENS_PAGE_URL,
         hits: womens.hits,
-        expectedGender: "Women",
         deals,
         seen,
         dropCounts,
@@ -476,7 +422,6 @@ export default async function handler(req, res) {
         kind: "mens",
         pageUrl: MENS_PAGE_URL,
         hits: mens.hits,
-        expectedGender: "Men",
         deals,
         seen,
         dropCounts,
