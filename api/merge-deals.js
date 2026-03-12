@@ -2,33 +2,36 @@
 //
 // Merges sources into canonical deals.json.
 //
-// IMPORTANT RULE (per your requirement):
+// IMPORTANT RULES:
 // - merge-deals NEVER scrapes.
 // - It ONLY fetches pre-scraped JSON from blob URLs provided via env vars.
 //
-// Canonical legacy 11 fields (kept):
-//   listingName, brand, model, salePrice, originalPrice, discountPercent,
-//   store, listingURL, imageURL, gender, shoeType
-//
-// Added OPTIONAL fields (new):
-//   salePriceLow, salePriceHigh, originalPriceLow, originalPriceHigh, discountPercentUpTo
+// Canonical schema variables supported here:
+//   schemaVersion
+//   listingName
+//   brand
+//   model
+//   salePrice
+//   originalPrice
+//   discountPercent
+//   salePriceLow
+//   salePriceHigh
+//   originalPriceLow
+//   originalPriceHigh
+//   discountPercentUpTo
+//   store
+//   listingURL
+//   imageURL
+//   gender
+//   shoeType
 //
 // HONESTY RULES:
-// - A deal is included ONLY if it has BOTH sale pricing AND original pricing,
-//   either as single prices or as ranges.
-// - discountPercent is EXACT-ONLY:
-//   * if salePrice AND originalPrice are both single numbers -> discountPercent = exact %
-//   * if any range is involved -> discountPercent = null
-// - discountPercentUpTo is RANGE-ONLY:
-//   * if any range is involved -> discountPercentUpTo = "up to" %
-//     computed as (originalHigh - saleLow) / originalHigh
-//
-// Also: legacy salePrice/originalPrice remain populated where possible.
-// For range cases we set:
-//   salePrice    = salePriceLow
-//   originalPrice= originalPriceLow
-// so your existing pipeline still has a single-number anchor,
-// but UI should prefer the range fields when present.
+// - A deal is included if it has sale pricing.
+// - Original / MSRP pricing is OPTIONAL.
+// - discountPercent is ONLY computed when exact salePrice and exact originalPrice both exist
+//   and originalPrice > salePrice.
+// - discountPercentUpTo is ONLY computed when range/original data exists and supports it.
+// - If original pricing is missing, discountPercent and discountPercentUpTo stay null.
 //
 // TO ADD A NEW STORE: add it to /lib/canonical-stores.json only. No changes needed here.
 
@@ -140,7 +143,7 @@ function isFreshWithinHours(ts, hours, nowMs = Date.now()) {
   return age <= hours * 60 * 60 * 1000;
 }
 
-/** ------------ Price range helpers ------------ **/
+/** ------------ Price shape helpers ------------ **/
 
 function normalizePriceShapes(raw) {
   const salePrice = toNumber(raw?.salePrice ?? raw?.currentPrice ?? raw?.sale_price ?? raw?.price ?? null);
@@ -325,6 +328,22 @@ function storeBaseUrl(store) {
   return STORE_BASE_URL_MAP.get(s) || "https://example.com";
 }
 
+function normalizeGender(raw) {
+  const s = String(raw || "").trim().toLowerCase();
+  if (s === "mens" || s === "men" || s === "men's") return "mens";
+  if (s === "womens" || s === "women" || s === "women's") return "womens";
+  if (s === "unisex") return "unisex";
+  return "unknown";
+}
+
+function normalizeShoeType(raw) {
+  const s = String(raw || "").trim().toLowerCase();
+  if (s === "road") return "road";
+  if (s === "trail") return "trail";
+  if (s === "track") return "track";
+  return "unknown";
+}
+
 function sanitizeDeal(raw) {
   if (!raw) return null;
 
@@ -349,8 +368,8 @@ function sanitizeDeal(raw) {
     imageURL = absolutizeUrl(imgCandidate.trim(), base);
   }
 
-  const gender = typeof raw.gender === "string" ? raw.gender.trim() : "unknown";
-  const shoeType = typeof raw.shoeType === "string" ? raw.shoeType.trim() : "unknown";
+  const gender = normalizeGender(raw.gender);
+  const shoeType = normalizeShoeType(raw.shoeType);
 
   const priceShape = normalizePriceShapes(raw);
 
@@ -408,23 +427,31 @@ function isValidRunningShoe(deal) {
   const listingName = String(deal.listingName || "").trim();
   if (!listingURL || !listingName) return false;
 
+  // Sale pricing is required
   if (!hasSalePriceShape(deal)) return false;
-  if (!hasOriginalPriceShape(deal)) return false;
 
   const saleLow = toNumber(deal.salePriceLow) ?? toNumber(deal.salePrice);
-  const origHigh = toNumber(deal.originalPriceHigh) ?? toNumber(deal.originalPrice);
+  const saleHigh = toNumber(deal.salePriceHigh);
 
-  if (!Number.isFinite(saleLow) || !Number.isFinite(origHigh)) return false;
-  if (saleLow >= origHigh) return false;
-
+  if (!Number.isFinite(saleLow)) return false;
   if (saleLow < 10 || saleLow > 1000) return false;
+  if (saleHigh != null && Number.isFinite(saleHigh) && saleHigh < saleLow) return false;
 
-  const exact = toNumber(deal.discountPercent);
-  const upTo = toNumber(deal.discountPercentUpTo);
-  const effective = Number.isFinite(exact) ? exact : Number.isFinite(upTo) ? upTo : null;
+  // Original pricing is optional.
+  // If present, it must make sense.
+  const origSingle = toNumber(deal.originalPrice);
+  const origLow = toNumber(deal.originalPriceLow);
+  const origHigh = toNumber(deal.originalPriceHigh);
 
-  if (!Number.isFinite(effective)) return false;
-  if (effective < 5 || effective > 95) return false;
+  if (Number.isFinite(origSingle) && origSingle <= 0) return false;
+  if (Number.isFinite(origLow) && origLow <= 0) return false;
+  if (Number.isFinite(origHigh) && origHigh <= 0) return false;
+  if (Number.isFinite(origLow) && Number.isFinite(origHigh) && origHigh < origLow) return false;
+
+  const bestKnownOrig = origHigh ?? origSingle ?? origLow ?? null;
+  if (Number.isFinite(bestKnownOrig) && saleLow >= bestKnownOrig) {
+    return false;
+  }
 
   const title = listingName.toLowerCase();
 
@@ -543,8 +570,8 @@ function normalizeDeal(d) {
     store: typeof c.store === "string" ? c.store.trim() : "Unknown",
     listingURL: typeof c.listingURL === "string" ? c.listingURL.trim() : "",
     imageURL: typeof c.imageURL === "string" ? c.imageURL.trim() : c.imageURL ?? null,
-    gender: typeof c.gender === "string" ? c.gender.trim() : "unknown",
-    shoeType: typeof c.shoeType === "string" ? c.shoeType.trim() : "unknown",
+    gender: normalizeGender(c.gender),
+    shoeType: normalizeShoeType(c.shoeType),
   };
 }
 
@@ -1006,10 +1033,17 @@ function hasGoodImage(deal) {
   );
 }
 function isDiscountedDeal(deal) {
-  if (!hasSalePriceShape(deal) || !hasOriginalPriceShape(deal)) return false;
+  if (!hasSalePriceShape(deal)) return false;
+
   const saleLow = toNumber(deal.salePriceLow) ?? toNumber(deal.salePrice);
+  if (!Number.isFinite(saleLow) || saleLow <= 0) return false;
+
   const origHigh = toNumber(deal.originalPriceHigh) ?? toNumber(deal.originalPrice);
-  return Number.isFinite(saleLow) && Number.isFinite(origHigh) && origHigh > saleLow;
+  if (!Number.isFinite(origHigh)) {
+    return true;
+  }
+
+  return origHigh > saleLow;
 }
 function shuffleWithDateSeed(items, seedStr) {
   const dateStr = seedStr || getDateSeedStringUTC();
@@ -1055,8 +1089,8 @@ function toDailyDealShape(deal) {
     store: deal.store || "Store",
     listingURL: deal.listingURL || "#",
     imageURL: deal.imageURL || "",
-    gender: deal.gender || "unknown",
-    shoeType: deal.shoeType || "unknown",
+    gender: normalizeGender(deal.gender),
+    shoeType: normalizeShoeType(deal.shoeType),
   };
 }
 function computeTwelveDailyDeals(allDeals, seedStr) {
@@ -1389,19 +1423,19 @@ module.exports = async (req, res) => {
     unique.sort((a, b) => discountForSort(b) - discountForSort(a));
 
     // Count deals per store
-const dealsByStoreCounts = {};
-for (const d of unique) {
-  const s = d.store || "Unknown";
-  dealsByStoreCounts[s] = (dealsByStoreCounts[s] || 0) + 1;
-}
+    const dealsByStoreCounts = {};
+    for (const d of unique) {
+      const s = d.store || "Unknown";
+      dealsByStoreCounts[s] = (dealsByStoreCounts[s] || 0) + 1;
+    }
 
-// Sort stores alphabetically
-const dealsByStore = Object.keys(dealsByStoreCounts)
-  .sort((a, b) => a.localeCompare(b))
-  .reduce((acc, store) => {
-    acc[store] = dealsByStoreCounts[store];
-    return acc;
-  }, {});
+    // Sort stores alphabetically
+    const dealsByStore = Object.keys(dealsByStoreCounts)
+      .sort((a, b) => a.localeCompare(b))
+      .reduce((acc, store) => {
+        acc[store] = dealsByStoreCounts[store];
+        return acc;
+      }, {});
 
     const sourceFreshness = Object.keys(storeMetadata)
       .sort((a, b) => String(a).localeCompare(String(b)))
