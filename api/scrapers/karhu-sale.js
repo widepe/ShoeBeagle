@@ -1,7 +1,7 @@
 // /api/scrapers/karhu-sale.js
 //
-// Karhu sale running shoes scraper
-// - Uses Karhu search result pages instead of collection pages
+// Karhu sale shoes scraper
+// - Uses Karhu search result pages
 // - Scrapes exactly 2 roots:
 //    1) mens shoe sale search
 //    2) womens shoe sale search
@@ -9,8 +9,8 @@
 // - Keeps only discounted product cards
 // - Drops full-price items, gift cards, non-shoe/apparel items, etc.
 // - Sets shoeType = "unknown" for all extracted shoes
-// - Writes full JSON (including deals array) to karhu-sale.json in Vercel Blob
-// - Returns metadata only in API response
+// - Writes ONLY top-level structure + deals array to karhu-sale.json in Vercel Blob
+// - Returns ONLY metadata/debug info in API response (no deals array)
 //
 // ENV:
 //   - BLOB_READ_WRITE_TOKEN
@@ -114,7 +114,7 @@ function buildListingName(title, color) {
 }
 
 function isGiftCard(text) {
-  return /\bgift card\b/i.test(cleanText(text));
+  return /\bgift card\b|\bgift-card\b|karhu-gift-card/i.test(cleanText(text));
 }
 
 function isClearlyApparelOrAccessory(text) {
@@ -151,23 +151,91 @@ function makePageUrl(rootUrl, page) {
   return `${rootUrl}${joiner}page=${page}`;
 }
 
-function metadataOnly(full, blobUrl) {
+function buildGenderCounts(deals) {
+  const counts = {
+    mens: 0,
+    womens: 0,
+    unisex: 0,
+    unknown: 0,
+  };
+
+  for (const deal of deals) {
+    const g = deal?.gender;
+    if (g === "mens" || g === "womens" || g === "unisex" || g === "unknown") {
+      counts[g] += 1;
+    } else {
+      counts.unknown += 1;
+    }
+  }
+
+  return counts;
+}
+
+function buildBlobPayload({
+  store,
+  schemaVersion,
+  lastUpdated,
+  via,
+  sourceUrls,
+  pagesFetched,
+  dealsFound,
+  dealsExtracted,
+  scrapeDurationMs,
+  ok,
+  error,
+  deals,
+}) {
   return {
-    store: full.store,
-    schemaVersion: full.schemaVersion,
-    lastUpdated: full.lastUpdated,
-    via: full.via,
-    sourceUrls: full.sourceUrls,
-    pagesFetched: full.pagesFetched,
-    dealsFound: full.dealsFound,
-    dealsExtracted: full.dealsExtracted,
-    scrapeDurationMs: full.scrapeDurationMs,
-    ok: full.ok,
-    error: full.error,
-    dropCounts: full.dropCounts,
-    droppedDealsLogged: full.droppedDealsLogged,
-    droppedDealsSample: full.droppedDealsSample,
-    pageSummaries: full.pageSummaries,
+    store,
+    schemaVersion,
+    lastUpdated,
+    via,
+    sourceUrls,
+    pagesFetched,
+    dealsFound,
+    dealsExtracted,
+    scrapeDurationMs,
+    ok,
+    error,
+    deals,
+  };
+}
+
+function buildResponsePayload({
+  store,
+  schemaVersion,
+  lastUpdated,
+  via,
+  sourceUrls,
+  pagesFetched,
+  dealsFound,
+  dealsExtracted,
+  scrapeDurationMs,
+  ok,
+  error,
+  dropCounts,
+  droppedDeals,
+  pageSummaries,
+  deals,
+  blobUrl,
+}) {
+  return {
+    store,
+    schemaVersion,
+    lastUpdated,
+    via,
+    sourceUrls,
+    pagesFetched,
+    dealsFound,
+    dealsExtracted,
+    scrapeDurationMs,
+    ok,
+    error,
+    genderCounts: buildGenderCounts(deals),
+    dropCounts,
+    droppedDealsLogged: droppedDeals.length,
+    droppedDealsSample: safeSlice(droppedDeals, MAX_DROPPED_SAMPLE),
+    pageSummaries,
     blobUrl,
   };
 }
@@ -189,6 +257,7 @@ export default async function handler(req, res) {
   const deals = [];
 
   const seenListingUrls = new Set();
+
   const dropCounts = {
     totalCards: 0,
     dropped_duplicateListingURL: 0,
@@ -210,6 +279,7 @@ export default async function handler(req, res) {
     if (Object.prototype.hasOwnProperty.call(dropCounts, reason)) {
       dropCounts[reason] += 1;
     }
+
     if (droppedDeals.length < MAX_DROPPED_SAMPLE) {
       droppedDeals.push({ reason, ...context });
     }
@@ -238,7 +308,6 @@ export default async function handler(req, res) {
         const html = await resp.text();
         const $ = cheerio.load(html);
 
-        // Search result cards on this site are anchored by product links and nearby H3s / price text.
         const candidateAnchors = $("a[href*='/products/']");
         const pageSeenUrls = new Set();
 
@@ -255,15 +324,10 @@ export default async function handler(req, res) {
           if (!listingURL || pageSeenUrls.has(listingURL)) return;
           pageSeenUrls.add(listingURL);
 
-          // Find a stable wrapper around the product anchor.
           let $card =
             $a.closest("div.tw-relative.tw-max-w-full.tw-h-full.tw-flex.tw-flex-col");
-          if (!$card.length) {
-            $card = $a.closest("div.tw-relative");
-          }
-          if (!$card.length) {
-            $card = $a.parent();
-          }
+          if (!$card.length) $card = $a.closest("div.tw-relative");
+          if (!$card.length) $card = $a.parent();
 
           cardsFound += 1;
           dropCounts.totalCards += 1;
@@ -282,6 +346,7 @@ export default async function handler(req, res) {
           );
 
           const listingName = buildListingName(rawTitle, rawColor);
+
           const imageURL =
             absUrl($card.find("img").first().attr("src")) ||
             absUrl($a.find("img").first().attr("src"));
@@ -320,7 +385,7 @@ export default async function handler(req, res) {
             return;
           }
 
-          if (isGiftCard(combinedText) || isGiftCard(listingURL)) {
+          if (isGiftCard(listingURL) || isGiftCard(combinedText)) {
             droppedOnPage += 1;
             logDropped("dropped_giftCard", {
               pageUrl,
@@ -359,8 +424,6 @@ export default async function handler(req, res) {
             return;
           }
 
-          // Search results can include full-price products.
-          // Keep only discounted items with both sale and original prices.
           if (!Number.isFinite(salePrice)) {
             droppedOnPage += 1;
             logDropped("dropped_missingSalePrice", {
@@ -375,7 +438,6 @@ export default async function handler(req, res) {
           if (!Number.isFinite(originalPrice)) {
             droppedOnPage += 1;
 
-            // If there is exactly one price, treat it as not-on-sale instead of missing original.
             if (moneyMatches.length === 1) {
               logDropped("dropped_fullPriceNotOnSale", {
                 pageUrl,
@@ -422,7 +484,10 @@ export default async function handler(req, res) {
 
           const brand = "Karhu";
           const model = inferModel(rawTitle);
-          const gender = inferGender(rawTitle || firstImgAlt || listingName, root.defaultGender);
+          const gender = inferGender(
+            rawTitle || firstImgAlt || listingName,
+            root.defaultGender
+          );
 
           if (!brand) {
             droppedOnPage += 1;
@@ -487,10 +552,6 @@ export default async function handler(req, res) {
           cumulativeDeals: deals.length,
         });
 
-        // Stop conditions:
-        // 1) no product cards found
-        // 2) page yielded no new unique URLs
-        // 3) page yielded no extracted deals and very few cards
         if (cardsFound === 0) break;
         if (seenListingUrls.size === priorUniqueCount) break;
         if (newDealsExtracted === 0 && cardsFound <= 2) break;
@@ -499,64 +560,71 @@ export default async function handler(req, res) {
       }
     }
 
-    const fullOutput = {
+    const finishedAt = nowIso();
+    const scrapeDurationMs = Date.now() - startedAt;
+
+    const blobPayload = buildBlobPayload({
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
-
-      lastUpdated: nowIso(),
+      lastUpdated: finishedAt,
       via: VIA,
-
       sourceUrls,
       pagesFetched: pageSummaries.length,
-
       dealsFound: dropCounts.totalCards,
       dealsExtracted: deals.length,
-
-      scrapeDurationMs: Date.now() - startedAt,
-
+      scrapeDurationMs,
       ok: true,
       error: null,
-
-      dropCounts,
-      droppedDealsLogged: droppedDeals.length,
-      droppedDealsSample: safeSlice(droppedDeals, MAX_DROPPED_SAMPLE),
-      pageSummaries,
-
       deals,
-    };
+    });
 
-    const blob = await put("karhu-sale.json", JSON.stringify(fullOutput, null, 2), {
+    const blob = await put("karhu-sale.json", JSON.stringify(blobPayload, null, 2), {
       access: "public",
       contentType: "application/json",
       addRandomSuffix: false,
     });
 
-    return res.status(200).json(metadataOnly(fullOutput, blob.url));
-  } catch (error) {
-    const failedOutput = {
+    const responsePayload = buildResponsePayload({
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
-
-      lastUpdated: nowIso(),
+      lastUpdated: finishedAt,
       via: VIA,
-
       sourceUrls,
       pagesFetched: pageSummaries.length,
-
       dealsFound: dropCounts.totalCards,
       dealsExtracted: deals.length,
+      scrapeDurationMs,
+      ok: true,
+      error: null,
+      dropCounts,
+      droppedDeals,
+      pageSummaries,
+      deals,
+      blobUrl: blob.url,
+    });
 
-      scrapeDurationMs: Date.now() - startedAt,
+    return res.status(200).json(responsePayload);
+  } catch (error) {
+    const failedAt = nowIso();
+    const scrapeDurationMs = Date.now() - startedAt;
 
+    return res.status(500).json({
+      store: STORE,
+      schemaVersion: SCHEMA_VERSION,
+      lastUpdated: failedAt,
+      via: VIA,
+      sourceUrls,
+      pagesFetched: pageSummaries.length,
+      dealsFound: dropCounts.totalCards,
+      dealsExtracted: deals.length,
+      scrapeDurationMs,
       ok: false,
       error: error?.message || "Unknown error",
-
+      genderCounts: buildGenderCounts(deals),
       dropCounts,
       droppedDealsLogged: droppedDeals.length,
       droppedDealsSample: safeSlice(droppedDeals, MAX_DROPPED_SAMPLE),
       pageSummaries,
-    };
-
-    return res.status(500).json(failedOutput);
+    });
   }
 }
