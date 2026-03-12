@@ -642,6 +642,19 @@ async function handler(req, res) {
     for (const sourceUrl of SOURCE_URLS) {
       const page1Url = buildPageUrl(sourceUrl, 1);
       const firstHtml = await getFirecrawlHtml(page1Url);
+console.log("FIRST HTML SAMPLE:", firstHtml.slice(0, 5000));
+console.log(
+  "HAS product-title-link?",
+  /product-title-link/i.test(firstHtml)
+);
+console.log(
+  "HAS product-card?",
+  /product-card/i.test(firstHtml)
+);
+console.log(
+  "HAS /p/ product links?",
+  /href="\/p\/[^"]+"/i.test(firstHtml)
+);      
       fetchedUrls.push(page1Url);
 
       const totalPages = countPaginationPages(firstHtml);
