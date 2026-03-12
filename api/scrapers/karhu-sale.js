@@ -1,13 +1,16 @@
 // /api/scrapers/karhu-sale.js
 //
-// KARHU sale running shoes scraper
-// - Scrapes 2 collection roots:
-//    1) women's running sale
-//    2) men's running sale
-// - Uses simple HTML fetch + Cheerio
-// - Paginates via ?page=N
-// - Stops when a page has no product cards or yields no new product URLs
-// - Writes karhu-sale.json to Vercel Blob
+// Karhu sale running shoes scraper
+// - Uses Karhu search result pages instead of collection pages
+// - Scrapes exactly 2 roots:
+//    1) mens shoe sale search
+//    2) womens shoe sale search
+// - Paginates with ?page=N appended to the search URL
+// - Keeps only discounted product cards
+// - Drops full-price items, gift cards, non-shoe/apparel items, etc.
+// - Sets shoeType = "unknown" for all extracted shoes
+// - Writes full JSON (including deals array) to karhu-sale.json in Vercel Blob
+// - Returns metadata only in API response
 //
 // ENV:
 //   - BLOB_READ_WRITE_TOKEN
@@ -15,15 +18,6 @@
 //
 // TEST:
 //   /api/scrapers/karhu-sale
-//
-// Notes:
-// - This appears to be Shopify / Shopify-style:
-//   * product links under /products/...
-//   * images under /cdn/shop/...
-//   * server-rendered collection pages with ?page=N pagination
-// - Prices appear to be single sale + single original, not ranges.
-// - Running-sale collections may still contain non-shoe items someday, so this scraper
-//   includes filtering + drop reasons instead of blindly trusting the page.
 
 import * as cheerio from "cheerio";
 import { put } from "@vercel/blob";
@@ -33,28 +27,35 @@ export const config = { maxDuration: 60 };
 const STORE = "Karhu";
 const SCHEMA_VERSION = 1;
 const VIA = "fetch-html";
-
 const BASE = "https://us.karhu.com";
 
-const COLLECTIONS = [
-  {
-    key: "womens",
-    label: "womens-running-sale",
-    url: `${BASE}/collections/womens-running-sale`,
-    defaultGender: "womens",
-  },
+const SEARCH_ROOTS = [
   {
     key: "mens",
-    label: "mens-running-sale",
-    url: `${BASE}/collections/mens-running-sale`,
+    label: "mens-shoe-sale-search",
+    url: `${BASE}/search?q=mens+shoe+sale&type=product%2Cpage%2Carticle`,
     defaultGender: "mens",
+  },
+  {
+    key: "womens",
+    label: "womens-shoe-sale-search",
+    url: `${BASE}/search?q=womens+shoe+sale&type=product%2Cpage%2Carticle`,
+    defaultGender: "womens",
   },
 ];
 
-const MAX_PAGES_PER_COLLECTION = 12;
+const MAX_PAGES_PER_ROOT = 12;
+const MAX_DROPPED_SAMPLE = 75;
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function cleanText(value) {
+  return String(value || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function absUrl(url) {
@@ -67,16 +68,9 @@ function absUrl(url) {
   return `${BASE}/${s.replace(/^\/+/, "")}`;
 }
 
-function cleanText(value) {
-  return String(value || "")
-    .replace(/\u00a0/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function parseMoney(text) {
   if (!text) return null;
-  const m = cleanText(text).match(/\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/);
+  const m = String(text).match(/([0-9]+(?:\.[0-9]{1,2})?)/);
   if (!m) return null;
   const n = Number(m[1]);
   return Number.isFinite(n) ? n : null;
@@ -104,50 +98,78 @@ function inferGender(text, fallback = "unknown") {
   return fallback;
 }
 
-function inferShoeType(text) {
-  const s = cleanText(text).toLowerCase();
-
-  if (/\btrail\b/.test(s)) return "trail";
-  if (/\btrack\b|\bspike\b|\bspikes\b/.test(s)) return "track";
-
-  // Since these are running-sale pages and product alts/titles say running shoe,
-  // road is the best default unless trail/track keywords appear.
-  if (/\brunning\b|\bshoe\b|\bshoes\b/.test(s)) return "road";
-
-  return "unknown";
-}
-
-function looksLikeShoe(text) {
-  const s = cleanText(text).toLowerCase();
-
-  if (/\bshoe\b|\bshoes\b|\brunning\b|\btrainer\b|\btrainers\b|\btrail\b|\bspike\b|\bspikes\b/.test(s)) {
-    return true;
-  }
-
-  if (/\btee\b|\bt-shirt\b|\bshirt\b|\bhoodie\b|\bsinglet\b|\btight\b|\btights\b|\bshort\b|\bshorts\b|\bjacket\b|\bsock\b|\bsocks\b|\bcap\b|\bhat\b/.test(s)) {
-    return false;
-  }
-
-  return true;
-}
-
-function buildListingName(title, color) {
-  return cleanText([title, color].filter(Boolean).join(" "));
-}
-
-function inferModel(title) {
-  let s = cleanText(title);
+function inferModel(rawTitle) {
+  let s = cleanText(rawTitle);
 
   s = s.replace(/^men'?s\s+/i, "");
   s = s.replace(/^women'?s\s+/i, "");
   s = s.replace(/^unisex\s+/i, "");
   s = s.replace(/\s+/g, " ").trim();
 
-  return s || "unknown";
+  return s || null;
+}
+
+function buildListingName(title, color) {
+  return cleanText([title, color].filter(Boolean).join(" "));
+}
+
+function isGiftCard(text) {
+  return /\bgift card\b/i.test(cleanText(text));
+}
+
+function isClearlyApparelOrAccessory(text) {
+  const s = cleanText(text).toLowerCase();
+  return /\blong sleeve\b|\bshort sleeve\b|\bsinglet\b|\bhalf tight\b|\btight\b|\btights\b|\bshirt\b|\bt-shirt\b|\btee\b|\bhoodie\b|\bjacket\b|\bshorts\b|\bshort\b|\bpants\b|\bsocks\b|\bcap\b|\bhat\b/.test(s);
+}
+
+function isLikelyShoe(text) {
+  const s = cleanText(text).toLowerCase();
+
+  if (isClearlyApparelOrAccessory(s)) return false;
+  if (isGiftCard(s)) return false;
+
+  if (
+    /\brunning shoe\b|\brunning shoes\b|\btrail shoe\b|\btrail shoes\b|\btrack shoe\b|\btrack shoes\b|\bspike\b|\bspikes\b/.test(s)
+  ) {
+    return true;
+  }
+
+  if (/\bikoni\b|\bfusion\b|\bmestari\b|\bsynchron\b/.test(s)) {
+    return true;
+  }
+
+  return false;
 }
 
 function safeSlice(arr, n) {
   return Array.isArray(arr) ? arr.slice(0, n) : [];
+}
+
+function makePageUrl(rootUrl, page) {
+  if (page <= 1) return rootUrl;
+  const joiner = rootUrl.includes("?") ? "&" : "?";
+  return `${rootUrl}${joiner}page=${page}`;
+}
+
+function metadataOnly(full, blobUrl) {
+  return {
+    store: full.store,
+    schemaVersion: full.schemaVersion,
+    lastUpdated: full.lastUpdated,
+    via: full.via,
+    sourceUrls: full.sourceUrls,
+    pagesFetched: full.pagesFetched,
+    dealsFound: full.dealsFound,
+    dealsExtracted: full.dealsExtracted,
+    scrapeDurationMs: full.scrapeDurationMs,
+    ok: full.ok,
+    error: full.error,
+    dropCounts: full.dropCounts,
+    droppedDealsLogged: full.droppedDealsLogged,
+    droppedDealsSample: full.droppedDealsSample,
+    pageSummaries: full.pageSummaries,
+    blobUrl,
+  };
 }
 
 export default async function handler(req, res) {
@@ -165,18 +187,19 @@ export default async function handler(req, res) {
   const pageSummaries = [];
   const droppedDeals = [];
   const deals = [];
-  const seenListingUrls = new Set();
 
+  const seenListingUrls = new Set();
   const dropCounts = {
     totalCards: 0,
-    dropped_notProductCard: 0,
-    dropped_missingListingURL: 0,
     dropped_duplicateListingURL: 0,
+    dropped_giftCard: 0,
+    dropped_missingListingURL: 0,
     dropped_missingListingName: 0,
     dropped_missingImageURL: 0,
-    dropped_notRunningShoe: 0,
+    dropped_notShoe: 0,
     dropped_missingSalePrice: 0,
     dropped_missingOriginalPrice: 0,
+    dropped_fullPriceNotOnSale: 0,
     dropped_saleNotLessThanOriginal: 0,
     dropped_invalidDiscountPercent: 0,
     dropped_missingBrand: 0,
@@ -184,23 +207,20 @@ export default async function handler(req, res) {
   };
 
   function logDropped(reason, context = {}) {
-    if (reason in dropCounts) dropCounts[reason] += 1;
-    if (droppedDeals.length < 200) {
-      droppedDeals.push({
-        reason,
-        ...context,
-      });
+    if (Object.prototype.hasOwnProperty.call(dropCounts, reason)) {
+      dropCounts[reason] += 1;
+    }
+    if (droppedDeals.length < MAX_DROPPED_SAMPLE) {
+      droppedDeals.push({ reason, ...context });
     }
   }
 
   try {
-    for (const collection of COLLECTIONS) {
-      let prevUniqueCount = seenListingUrls.size;
+    for (const root of SEARCH_ROOTS) {
+      let priorUniqueCount = seenListingUrls.size;
 
-      for (let page = 1; page <= MAX_PAGES_PER_COLLECTION; page += 1) {
-        const pageUrl =
-          page === 1 ? collection.url : `${collection.url}?page=${page}`;
-
+      for (let page = 1; page <= MAX_PAGES_PER_ROOT; page += 1) {
+        const pageUrl = makePageUrl(root.url, page);
         sourceUrls.push(pageUrl);
 
         const resp = await fetch(pageUrl, {
@@ -218,59 +238,71 @@ export default async function handler(req, res) {
         const html = await resp.text();
         const $ = cheerio.load(html);
 
-        const productAnchors = $("a[href*='/products/']");
+        // Search result cards on this site are anchored by product links and nearby H3s / price text.
+        const candidateAnchors = $("a[href*='/products/']");
         const pageSeenUrls = new Set();
-        let cardsOnPage = 0;
-        let extractedOnPage = 0;
+
+        let cardsFound = 0;
+        let newDealsExtracted = 0;
         let droppedOnPage = 0;
 
-        // Find the nearest product card wrapper around each product link.
-        productAnchors.each((_, a) => {
-          const href = cleanText($(a).attr("href"));
+        candidateAnchors.each((_, a) => {
+          const $a = $(a);
+          const href = cleanText($a.attr("href"));
           if (!href || !href.includes("/products/")) return;
 
           const listingURL = absUrl(href);
-          if (!listingURL) return;
-
-          if (pageSeenUrls.has(listingURL)) return;
+          if (!listingURL || pageSeenUrls.has(listingURL)) return;
           pageSeenUrls.add(listingURL);
 
-          cardsOnPage += 1;
+          // Find a stable wrapper around the product anchor.
+          let $card =
+            $a.closest("div.tw-relative.tw-max-w-full.tw-h-full.tw-flex.tw-flex-col");
+          if (!$card.length) {
+            $card = $a.closest("div.tw-relative");
+          }
+          if (!$card.length) {
+            $card = $a.parent();
+          }
+
+          cardsFound += 1;
           dropCounts.totalCards += 1;
 
-          // Best effort: use the nearest card-like wrapper, else parent.
-          let $card = $(a).closest("div.tw-relative.tw-max-w-full.tw-h-full.tw-flex.tw-flex-col");
-          if (!$card.length) $card = $(a).parent();
+          const h3s = $card.find("h3");
+          const rawTitle = cleanText(h3s.first().text());
+          const rawColor = cleanText(h3s.eq(1).text());
 
-          const rawTitle = cleanText(
-            $card.find("h3").first().text() ||
-            $(a).find("img").first().attr("alt") ||
-            ""
-          );
-
-          const rawColor = cleanText(
-            $card.find("h3").eq(1).text()
+          const firstImgAlt = cleanText($card.find("img").first().attr("alt"));
+          const allImgAlt = cleanText(
+            $card
+              .find("img")
+              .map((__, img) => $(img).attr("alt"))
+              .get()
+              .join(" ")
           );
 
           const listingName = buildListingName(rawTitle, rawColor);
-
           const imageURL =
-            absUrl($(a).find("img").first().attr("src")) ||
-            absUrl($card.find("img").first().attr("src"));
+            absUrl($card.find("img").first().attr("src")) ||
+            absUrl($a.find("img").first().attr("src"));
 
-          const priceBlockText = cleanText($card.find("p").first().text());
-
-          // Expecting "$96.00 $160.00"
-          const moneyMatches = priceBlockText.match(/\$[0-9]+(?:\.[0-9]{2})?/g) || [];
+          const priceText = cleanText($card.find("p").first().text());
+          const moneyMatches = priceText.match(/\$[0-9]+(?:\.[0-9]{2})?/g) || [];
           const salePrice = moneyMatches[0] ? parseMoney(moneyMatches[0]) : null;
           const originalPrice = moneyMatches[1] ? parseMoney(moneyMatches[1]) : null;
 
-          const combinedText = cleanText([
-            listingName,
-            $(a).find("img").map((__, img) => $(img).attr("alt")).get().join(" "),
-            priceBlockText,
-            href,
-          ].join(" "));
+          const combinedText = cleanText(
+            [
+              listingURL,
+              rawTitle,
+              rawColor,
+              listingName,
+              firstImgAlt,
+              allImgAlt,
+              priceText,
+              cleanText($card.text()),
+            ].join(" ")
+          );
 
           if (!listingURL) {
             droppedOnPage += 1;
@@ -281,6 +313,16 @@ export default async function handler(req, res) {
           if (seenListingUrls.has(listingURL)) {
             droppedOnPage += 1;
             logDropped("dropped_duplicateListingURL", {
+              pageUrl,
+              listingURL,
+              listingName,
+            });
+            return;
+          }
+
+          if (isGiftCard(combinedText) || isGiftCard(listingURL)) {
+            droppedOnPage += 1;
+            logDropped("dropped_giftCard", {
               pageUrl,
               listingURL,
               listingName,
@@ -307,9 +349,9 @@ export default async function handler(req, res) {
             return;
           }
 
-          if (!looksLikeShoe(combinedText)) {
+          if (!isLikelyShoe(combinedText)) {
             droppedOnPage += 1;
-            logDropped("dropped_notRunningShoe", {
+            logDropped("dropped_notShoe", {
               pageUrl,
               listingURL,
               listingName,
@@ -317,25 +359,38 @@ export default async function handler(req, res) {
             return;
           }
 
+          // Search results can include full-price products.
+          // Keep only discounted items with both sale and original prices.
           if (!Number.isFinite(salePrice)) {
             droppedOnPage += 1;
             logDropped("dropped_missingSalePrice", {
               pageUrl,
               listingURL,
               listingName,
-              priceBlockText,
+              priceText,
             });
             return;
           }
 
           if (!Number.isFinite(originalPrice)) {
             droppedOnPage += 1;
-            logDropped("dropped_missingOriginalPrice", {
-              pageUrl,
-              listingURL,
-              listingName,
-              priceBlockText,
-            });
+
+            // If there is exactly one price, treat it as not-on-sale instead of missing original.
+            if (moneyMatches.length === 1) {
+              logDropped("dropped_fullPriceNotOnSale", {
+                pageUrl,
+                listingURL,
+                listingName,
+                priceText,
+              });
+            } else {
+              logDropped("dropped_missingOriginalPrice", {
+                pageUrl,
+                listingURL,
+                listingName,
+                priceText,
+              });
+            }
             return;
           }
 
@@ -367,8 +422,7 @@ export default async function handler(req, res) {
 
           const brand = "Karhu";
           const model = inferModel(rawTitle);
-          const gender = inferGender(rawTitle, collection.defaultGender);
-          const shoeType = inferShoeType(combinedText);
+          const gender = inferGender(rawTitle || firstImgAlt || listingName, root.defaultGender);
 
           if (!brand) {
             droppedOnPage += 1;
@@ -380,7 +434,7 @@ export default async function handler(req, res) {
             return;
           }
 
-          if (!model || model === "unknown") {
+          if (!model) {
             droppedOnPage += 1;
             logDropped("dropped_missingModel", {
               pageUrl,
@@ -417,37 +471,35 @@ export default async function handler(req, res) {
             imageURL,
 
             gender,
-            shoeType,
+            shoeType: "unknown",
           });
 
-          extractedOnPage += 1;
+          newDealsExtracted += 1;
         });
 
         pageSummaries.push({
-          collection: collection.label,
+          root: root.label,
           page,
           pageUrl,
-          cardsFound: cardsOnPage,
-          newDealsExtracted: extractedOnPage,
+          cardsFound,
+          newDealsExtracted,
           droppedOnPage,
           cumulativeDeals: deals.length,
         });
 
-        // Stop if page is empty.
-        if (cardsOnPage === 0) {
-          break;
-        }
+        // Stop conditions:
+        // 1) no product cards found
+        // 2) page yielded no new unique URLs
+        // 3) page yielded no extracted deals and very few cards
+        if (cardsFound === 0) break;
+        if (seenListingUrls.size === priorUniqueCount) break;
+        if (newDealsExtracted === 0 && cardsFound <= 2) break;
 
-        // Stop if page produced no new unique product URLs.
-        if (seenListingUrls.size === prevUniqueCount) {
-          break;
-        }
-
-        prevUniqueCount = seenListingUrls.size;
+        priorUniqueCount = seenListingUrls.size;
       }
     }
 
-    const output = {
+    const fullOutput = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
 
@@ -467,39 +519,44 @@ export default async function handler(req, res) {
 
       dropCounts,
       droppedDealsLogged: droppedDeals.length,
-      droppedDealsSample: safeSlice(droppedDeals, 50),
+      droppedDealsSample: safeSlice(droppedDeals, MAX_DROPPED_SAMPLE),
       pageSummaries,
 
       deals,
     };
 
-    const blob = await put("karhu-sale.json", JSON.stringify(output, null, 2), {
+    const blob = await put("karhu-sale.json", JSON.stringify(fullOutput, null, 2), {
       access: "public",
       contentType: "application/json",
       addRandomSuffix: false,
     });
 
-    output.blobUrl = blob.url;
-
-    return res.status(200).json(output);
+    return res.status(200).json(metadataOnly(fullOutput, blob.url));
   } catch (error) {
-    return res.status(500).json({
-      success: false,
+    const failedOutput = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
+
       lastUpdated: nowIso(),
       via: VIA,
+
       sourceUrls,
       pagesFetched: pageSummaries.length,
+
       dealsFound: dropCounts.totalCards,
       dealsExtracted: deals.length,
+
       scrapeDurationMs: Date.now() - startedAt,
+
       ok: false,
       error: error?.message || "Unknown error",
+
       dropCounts,
       droppedDealsLogged: droppedDeals.length,
-      droppedDealsSample: safeSlice(droppedDeals, 50),
+      droppedDealsSample: safeSlice(droppedDeals, MAX_DROPPED_SAMPLE),
       pageSummaries,
-    });
+    };
+
+    return res.status(500).json(failedOutput);
   }
 }
