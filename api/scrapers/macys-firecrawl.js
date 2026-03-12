@@ -1,4 +1,4 @@
-// /api/scrapers/maycs-firecrawl.js
+// /api/scrapers/macys-firecrawl.js
 //
 // Macy's sale running shoes scraper
 // - Uses Firecrawl raw HTML to bypass direct-fetch 403
