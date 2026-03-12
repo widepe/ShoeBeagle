@@ -41,6 +41,7 @@ const SOURCE_URLS = [
 const MAX_PAGES_PER_SOURCE = 5;
 const FIRECRAWL_TIMEOUT_MS = 20000;
 const FIRECRAWL_WAIT_MS = 1000;
+const DEBUG_LOG_HTML_SAMPLE = true;
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
@@ -69,6 +70,7 @@ function absoluteUrl(url) {
   const s = String(url || "").trim();
   if (!s) return null;
   if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("//")) return `https:${s}`;
   if (s.startsWith("/")) return `${BASE_URL}${s}`;
   return `${BASE_URL}/${s}`;
 }
@@ -81,6 +83,51 @@ function buildPageUrl(baseUrl, pageNumber) {
   const url = new URL(baseUrl);
   url.searchParams.set("pageNumber", String(pageNumber));
   return url.toString();
+}
+
+function extractAttr(tagHtml, attrName) {
+  const re = new RegExp(`${escapeRegex(attrName)}="([^"]*)"`, "i");
+  const m = String(tagHtml || "").match(re);
+  return m ? decodeHtmlEntities(m[1]) : null;
+}
+
+function extractFirstMatch(str, regex, group = 1) {
+  const m = String(str || "").match(regex);
+  return m ? m[group] : null;
+}
+
+function safePushDropSample(arr, item, max = 100) {
+  if (arr.length < max) arr.push(item);
+}
+
+function logHtmlDiagnostics(label, html) {
+  if (!DEBUG_LOG_HTML_SAMPLE) return;
+  const src = String(html || "");
+  console.log(`${label} HTML SAMPLE:`, src.slice(0, 5000));
+  console.log(`${label} HAS product-title-link?`, /product-title-link/i.test(src));
+  console.log(`${label} HAS product-card?`, /product-card/i.test(src));
+  console.log(`${label} HAS /p/ product links?`, /href="\/p\/[^"]+"/i.test(src));
+  console.log(
+    `${label} HAS error page text?`,
+    /oops,\s*something went wrong|please try accessing the site again after 12 hours|we are working on the problem/i.test(
+      src
+    )
+  );
+}
+
+function isBlockedOrErrorHtml(html) {
+  const s = String(html || "").toLowerCase();
+  return (
+    s.includes("oops, something went wrong") ||
+    s.includes("please try accessing the site again after 12 hours") ||
+    s.includes("we are working on the problem") ||
+    (s.includes("error:") && s.includes("ip:"))
+  );
+}
+
+function summarizeHtmlFailure(html) {
+  const s = cleanText(String(html || "").replace(/<[^>]+>/g, " "));
+  return s.slice(0, 300) || "Unknown HTML failure";
 }
 
 // ─── Parsing Helpers ─────────────────────────────────────────────────────────
@@ -128,17 +175,6 @@ function roundDiscountPercent(original, sale) {
     return null;
   }
   return Math.round(((original - sale) / original) * 100);
-}
-
-function extractAttr(tagHtml, attrName) {
-  const re = new RegExp(`${escapeRegex(attrName)}="([^"]*)"`, "i");
-  const m = String(tagHtml || "").match(re);
-  return m ? decodeHtmlEntities(m[1]) : null;
-}
-
-function extractFirstMatch(str, regex, group = 1) {
-  const m = String(str || "").match(regex);
-  return m ? m[group] : null;
 }
 
 // ─── HTML Splitting ──────────────────────────────────────────────────────────
@@ -277,9 +313,9 @@ function extractPricing(tileHtml, ariaLabel) {
     )
   );
 
-  const saleNums = [
-    ...saleBlockText.matchAll(/\$?\s*(\d+(?:\.\d{1,2})?)/g),
-  ].map((m) => Number(m[1]));
+  const saleNums = [...saleBlockText.matchAll(/\$?\s*(\d+(?:\.\d{1,2})?)/g)].map(
+    (m) => Number(m[1])
+  );
   const originalNums = [
     ...originalBlockText.matchAll(/\$?\s*(\d+(?:\.\d{1,2})?)/g),
   ].map((m) => Number(m[1]));
@@ -397,9 +433,7 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
 
   if (!listingName) {
     dropCounts.dropped_missingListingName++;
-    if (droppedDealsSample.length < 100) {
-      droppedDealsSample.push({ reason: "missingListingName" });
-    }
+    safePushDropSample(droppedDealsSample, { reason: "missingListingName" });
     return null;
   }
 
@@ -413,9 +447,10 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
 
   if (!listingURL) {
     dropCounts.dropped_missingListingURL++;
-    if (droppedDealsSample.length < 100) {
-      droppedDealsSample.push({ reason: "missingListingURL", listingName });
-    }
+    safePushDropSample(droppedDealsSample, {
+      reason: "missingListingURL",
+      listingName,
+    });
     return null;
   }
 
@@ -423,25 +458,21 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
 
   if (!imageURL) {
     dropCounts.dropped_missingImageURL++;
-    if (droppedDealsSample.length < 100) {
-      droppedDealsSample.push({
-        reason: "missingImageURL",
-        listingName,
-        listingURL,
-      });
-    }
+    safePushDropSample(droppedDealsSample, {
+      reason: "missingImageURL",
+      listingName,
+      listingURL,
+    });
     return null;
   }
 
   if (tileHasSeePriceInCart(tileHtml)) {
     dropCounts.dropped_seePriceInCart++;
-    if (droppedDealsSample.length < 100) {
-      droppedDealsSample.push({
-        reason: "seePriceInCart",
-        listingName,
-        listingURL,
-      });
-    }
+    safePushDropSample(droppedDealsSample, {
+      reason: "seePriceInCart",
+      listingName,
+      listingURL,
+    });
     return null;
   }
 
@@ -457,25 +488,21 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
 
   if (!hasAnySale) {
     dropCounts.dropped_missingSalePrice++;
-    if (droppedDealsSample.length < 100) {
-      droppedDealsSample.push({
-        reason: "missingSalePrice",
-        listingName,
-        listingURL,
-      });
-    }
+    safePushDropSample(droppedDealsSample, {
+      reason: "missingSalePrice",
+      listingName,
+      listingURL,
+    });
     return null;
   }
 
   if (!hasAnyOriginal) {
     dropCounts.dropped_missingOriginalPrice++;
-    if (droppedDealsSample.length < 100) {
-      droppedDealsSample.push({
-        reason: "missingOriginalPrice",
-        listingName,
-        listingURL,
-      });
-    }
+    safePushDropSample(droppedDealsSample, {
+      reason: "missingOriginalPrice",
+      listingName,
+      listingURL,
+    });
     return null;
   }
 
@@ -489,27 +516,23 @@ function parseTile(tileHtml, dropCounts, droppedDealsSample, seenUrls) {
     !(honestSaleLow < honestOriginalHigh)
   ) {
     dropCounts.dropped_saleNotLessThanOriginal++;
-    if (droppedDealsSample.length < 100) {
-      droppedDealsSample.push({
-        reason: "saleNotLessThanOriginal",
-        listingName,
-        listingURL,
-        pricing,
-      });
-    }
+    safePushDropSample(droppedDealsSample, {
+      reason: "saleNotLessThanOriginal",
+      listingName,
+      listingURL,
+      pricing,
+    });
     return null;
   }
 
   if (pricing.discountPercent == null && pricing.discountPercentUpTo == null) {
     dropCounts.dropped_invalidDiscountPercent++;
-    if (droppedDealsSample.length < 100) {
-      droppedDealsSample.push({
-        reason: "invalidDiscountPercent",
-        listingName,
-        listingURL,
-        pricing,
-      });
-    }
+    safePushDropSample(droppedDealsSample, {
+      reason: "invalidDiscountPercent",
+      listingName,
+      listingURL,
+      pricing,
+    });
     return null;
   }
 
@@ -605,14 +628,14 @@ async function getFirecrawlHtml(url) {
 async function handler(req, res) {
   const startedAt = Date.now();
 
-
   // CRON SECRET
   /*
   const auth = req.headers.authorization;
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
   }
-*/
+  */
+
   const dropCounts = {
     totalTiles: 0,
     dropped_missingListingName: 0,
@@ -642,20 +665,17 @@ async function handler(req, res) {
     for (const sourceUrl of SOURCE_URLS) {
       const page1Url = buildPageUrl(sourceUrl, 1);
       const firstHtml = await getFirecrawlHtml(page1Url);
-console.log("FIRST HTML SAMPLE:", firstHtml.slice(0, 5000));
-console.log(
-  "HAS product-title-link?",
-  /product-title-link/i.test(firstHtml)
-);
-console.log(
-  "HAS product-card?",
-  /product-card/i.test(firstHtml)
-);
-console.log(
-  "HAS /p/ product links?",
-  /href="\/p\/[^"]+"/i.test(firstHtml)
-);      
       fetchedUrls.push(page1Url);
+
+      logHtmlDiagnostics("FIRST", firstHtml);
+
+      if (isBlockedOrErrorHtml(firstHtml)) {
+        throw new Error(
+          `Blocked/error HTML returned for ${page1Url}: ${summarizeHtmlFailure(
+            firstHtml
+          )}`
+        );
+      }
 
       const totalPages = countPaginationPages(firstHtml);
       const firstTiles = splitTiles(firstHtml);
@@ -681,6 +701,16 @@ console.log(
         const pageUrl = buildPageUrl(sourceUrl, page);
         const html = await getFirecrawlHtml(pageUrl);
         fetchedUrls.push(pageUrl);
+
+        logHtmlDiagnostics(`PAGE ${page}`, html);
+
+        if (isBlockedOrErrorHtml(html)) {
+          throw new Error(
+            `Blocked/error HTML returned for ${pageUrl}: ${summarizeHtmlFailure(
+              html
+            )}`
+          );
+        }
 
         const tiles = splitTiles(html);
         dropCounts.totalTiles += tiles.length;
@@ -717,7 +747,14 @@ console.log(
       error: null,
       dealsByGender,
       droppedByReason: {
+        missingListingName: dropCounts.dropped_missingListingName,
+        missingListingURL: dropCounts.dropped_missingListingURL,
+        missingImageURL: dropCounts.dropped_missingImageURL,
         seePriceInCart: dropCounts.dropped_seePriceInCart,
+        missingSalePrice: dropCounts.dropped_missingSalePrice,
+        missingOriginalPrice: dropCounts.dropped_missingOriginalPrice,
+        saleNotLessThanOriginal: dropCounts.dropped_saleNotLessThanOriginal,
+        invalidDiscountPercent: dropCounts.dropped_invalidDiscountPercent,
         duplicateAfterMerge: dropCounts.dropped_duplicateAfterMerge,
       },
       dropCounts,
@@ -757,6 +794,8 @@ console.log(
       store: STORE,
       error: err?.message || "Unknown error",
       scrapeDurationMs: Date.now() - startedAt,
+      pagesFetched: fetchedUrls.length,
+      sourceUrls: SOURCE_URLS,
       dropCounts,
       droppedDealsLogged: droppedDealsSample.length,
       droppedDealsSample,
