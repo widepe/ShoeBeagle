@@ -686,7 +686,7 @@
     // ShoeBeagle Dashboard (NO HARDCODED STORE DETAILS)
     //
     // All store identity / urls / blobs / aliases come from:
-    //   /lib/canonical-stores.json
+    //   /api/canonical-stores
     //
     // REQUIRED BEHAVIOR:
     // 1) If a store is in canonical-stores.json, it MUST appear everywhere:
@@ -708,7 +708,7 @@
     // ============================================================
 
     const BLOB_BASE = "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com";
-    const CANONICAL_STORES_URL = "/lib/canonical-stores.json";
+    const CANONICAL_STORES_URL = "/api/canonical-stores";
 
     // ------------------------------------------------------------
     // FRESH FETCH HELPER
