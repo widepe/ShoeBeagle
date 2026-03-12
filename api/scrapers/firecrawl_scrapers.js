@@ -34,7 +34,6 @@ const ENABLED = {
   sierra: true,
   macys: true,
   dsw: true,
-  runpacers: true,
 };
 
 // ===========================
@@ -119,11 +118,6 @@ const TARGETS = [
     path: "/api/scrapers/dsw-firecrawl",
   },
 
-  {
-    key: "runpacers",
-    name: "Pacers Running Firecrawl",
-    path: "/api/scrapers/runpacers-sale",
-  },
 ];
 
 // -----------------------------
