@@ -1,16 +1,24 @@
 // /api/scrapers/shoe-carnival.js
 //
-// Fast Shoe Carnival scraper
+// Fast + cleaner Shoe Carnival scraper
 // - Uses Algolia directly
-// - Scrapes ONLY these two searches:
-//   1) womens running shoes + sale
-//   2) men's running shoes + sale
-// - Then filters locally for:
-//   * correct gender
-//   * running category (using primary category OR assigned categories)
-//   * styleType includes Performance
-//   * not walking shoes
+// - Scrapes ONLY these two pages/searches:
+//   1) men's performance running shoes on sale
+//   2) women's performance running shoes on sale
+// - Keeps items when:
+//   * query match comes from the running-shoe search
+//   * title includes "Running Shoes"
+//   * styleType includes "Performance"
+//   * gender matches the search
 //   * not hidden/MAP price
+//   * sale price exists
+// - Drops:
+//   * walking shoes
+//   * hidden price / MAP
+//   * duplicates
+//   * wrong gender
+//   * non-performance
+//   * title not running shoes
 // - Dedupes by masterStyle
 // - Uses large hitsPerPage to keep requests very low
 // - Writes top-level structure + deals array only
@@ -44,9 +52,6 @@ const ALGOLIA_INDEX =
   "production_na02_shoecarnival_demandware_net__shoecarnival__products__default";
 
 const HITS_PER_PAGE = 1000;
-
-const WOMENS_RUNNING_ID = "193";
-const MENS_RUNNING_ID = "194";
 
 function nowIso() {
   return new Date().toISOString();
@@ -106,6 +111,10 @@ function makeAbsoluteUrl(path) {
   return `https://www.shoecarnival.com${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+function titleContainsRunningShoes(title) {
+  return /\brunning shoes?\b/i.test(title || "");
+}
+
 function titleContainsWalkingShoes(title) {
   return /\bwalking shoes?\b/i.test(title || "");
 }
@@ -128,6 +137,11 @@ function getGenderFromHit(hit) {
     return "unisex";
   }
   return "unknown";
+}
+
+function genderMatchesExpected(hit, expectedGender) {
+  const genders = asArray(hit?.gender).map((g) => lc(g));
+  return genders.includes(lc(expectedGender));
 }
 
 function extractImageUrl(hit) {
@@ -245,39 +259,6 @@ function mapHitToDeal(hit) {
   };
 }
 
-function hasAssignedCategoryId(hit, id) {
-  const wanted = String(id);
-  return asArray(hit?.assignedCategories).some((c) => String(c?.id || "") === wanted);
-}
-
-function hasAssignedCategoryName(hit, name) {
-  const wanted = lc(name);
-  return asArray(hit?.assignedCategories).some((c) => lc(c?.name) === wanted);
-}
-
-function hasRunningAssignedCategory(hit) {
-  return (
-    hasAssignedCategoryName(hit, "Running Shoes") ||
-    hasAssignedCategoryId(hit, "running") ||
-    hasAssignedCategoryId(hit, WOMENS_RUNNING_ID) ||
-    hasAssignedCategoryId(hit, MENS_RUNNING_ID)
-  );
-}
-
-function isAllowedRunningHit(hit, requiredPrimaryCategoryId, requiredGender) {
-  const primaryId = String(hit?.primary_category_id || "");
-  const genders = asArray(hit?.gender).map((g) => lc(g));
-  const requiredGenderLc = lc(requiredGender);
-
-  if (!genders.includes(requiredGenderLc)) return false;
-
-  if (primaryId === String(requiredPrimaryCategoryId)) return true;
-  if (hasAssignedCategoryId(hit, requiredPrimaryCategoryId)) return true;
-  if (hasRunningAssignedCategory(hit)) return true;
-
-  return false;
-}
-
 async function fetchAlgoliaPage({ query, page }) {
   const body = {
     requests: [
@@ -374,8 +355,7 @@ function summarizeSearchHits({
   kind,
   pageUrl,
   hits,
-  requiredPrimaryCategoryId,
-  requiredGender,
+  expectedGender,
   deals,
   seen,
   dropCounts,
@@ -388,9 +368,15 @@ function summarizeSearchHits({
   for (const hit of hits) {
     const title = cleanText(hit?.name);
 
-    if (!isAllowedRunningHit(hit, requiredPrimaryCategoryId, requiredGender)) {
-      inc(dropCounts, "dropped_nonRunningCategory");
-      inc(pageDropCounts, "dropped_nonRunningCategory");
+    if (!genderMatchesExpected(hit, expectedGender)) {
+      inc(dropCounts, "dropped_wrongGender");
+      inc(pageDropCounts, "dropped_wrongGender");
+      continue;
+    }
+
+    if (!titleContainsRunningShoes(title)) {
+      inc(dropCounts, "dropped_titleNotRunningShoes");
+      inc(pageDropCounts, "dropped_titleNotRunningShoes");
       continue;
     }
 
@@ -477,8 +463,7 @@ export default async function handler(req, res) {
         kind: "womens",
         pageUrl: WOMENS_PAGE_URL,
         hits: womens.hits,
-        requiredPrimaryCategoryId: WOMENS_RUNNING_ID,
-        requiredGender: "Women",
+        expectedGender: "Women",
         deals,
         seen,
         dropCounts,
@@ -491,8 +476,7 @@ export default async function handler(req, res) {
         kind: "mens",
         pageUrl: MENS_PAGE_URL,
         hits: mens.hits,
-        requiredPrimaryCategoryId: MENS_RUNNING_ID,
-        requiredGender: "Men",
+        expectedGender: "Men",
         deals,
         seen,
         dropCounts,
