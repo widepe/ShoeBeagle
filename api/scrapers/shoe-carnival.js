@@ -10,9 +10,9 @@ const VIA = "algolia";
 const BLOB_PATH = "shoe-carnival.json";
 
 const WOMENS_PAGE_URL =
-  "https://www.shoecarnival.com/search?styleType=Performance&q=womens%20running%20shoes&sale=true";
+  "https://www.shoecarnival.com/womens/athletics_and_sneakers/running_shoes?styleType=Performance&sale=true";
 const MENS_PAGE_URL =
-  "https://www.shoecarnival.com/search?styleType=Performance&q=men%27s%20running%20shoes&sale=true";
+  "https://www.shoecarnival.com/mens/athletics_and_sneakers/running_shoes?styleType=Performance&sale=true";
 
 const ALGOLIA_APP_ID = "FA677J9QJI";
 const ALGOLIA_API_KEY = "23d75c51c43c0ea2995b94bd56048224";
