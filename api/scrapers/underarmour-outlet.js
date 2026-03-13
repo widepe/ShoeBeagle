@@ -1,6 +1,7 @@
 // /api/scrapers/underarmour-outlet.js
 
 import { put } from "@vercel/blob";
+import * as cheerio from "cheerio";
 
 export const config = { maxDuration: 60 };
 
@@ -20,7 +21,6 @@ const CATEGORY_URLS = [
   },
 ];
 
-// Based on the behavior you found, only scrape pages 1 and 2.
 const PAGE_NUMBERS = [1, 2];
 
 function nowIso() {
@@ -37,29 +37,7 @@ function absoluteUrl(url) {
 }
 
 function cleanText(value) {
-  return String(value || "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function decodeHtml(str) {
-  return String(str || "")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&#8217;/g, "'")
-    .replace(/&lsquo;/g, "'")
-    .replace(/&rsquo;/g, "'")
-    .replace(/&ldquo;/g, "\u201C")
-    .replace(/&rdquo;/g, "\u201D")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
-}
-
-function stripTags(html) {
-  return cleanText(String(html || "").replace(/<[^>]*>/g, " "));
+  return String(value || "").replace(/\s+/g, " ").trim();
 }
 
 function normalizeApostrophes(s) {
@@ -133,7 +111,9 @@ function initDropCounts() {
     dropped_missingOriginalPrice: 0,
     dropped_missingSalePrice: 0,
     dropped_saleNotLessThanOriginal: 0,
+    dropped_duplicateWithinCategory: 0,
     dropped_duplicateAfterMerge: 0,
+    dropped_wrongReturnedPage: 0,
   };
 }
 
@@ -158,6 +138,7 @@ async function fetchHtml(url) {
       "cache-control": "no-cache",
       pragma: "no-cache",
     },
+    redirect: "follow",
   });
 
   if (!resp.ok) {
@@ -169,108 +150,62 @@ async function fetchHtml(url) {
   return await resp.text();
 }
 
-function extractTiles(html) {
+function detectCurrentPageFromHtml($) {
+  const selected = $('li[role="option"][aria-selected="true"][data-value]').first();
+  const selectedValue = cleanText(selected.attr("data-value"));
+  if (/^\d+$/.test(selectedValue)) return Number(selectedValue);
+
+  const current = $('li[role="option"][aria-current="page"][data-value]').first();
+  const currentValue = cleanText(current.attr("data-value"));
+  if (/^\d+$/.test(currentValue)) return Number(currentValue);
+
+  const buttonValue = cleanText($('#page-selector').attr("value"));
+  if (/^\d+$/.test(buttonValue)) return Number(buttonValue);
+
+  const buttonText = cleanText($('#page-selector span').first().text());
+  if (/^\d+$/.test(buttonText)) return Number(buttonText);
+
+  return null;
+}
+
+function extractTiles($) {
   const tiles = [];
-
-  const patterns = [
-    /<div[^>]+id="product-[^"]+"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/gi,
-    /<article[^>]+id="product-[^"]+"[\s\S]*?<\/article>/gi,
-    /<div[^>]+data-testid="product-tile"[\s\S]*?<\/div>\s*<\/div>/gi,
-  ];
-
-  for (const regex of patterns) {
-    let match;
-    while ((match = regex.exec(html)) !== null) {
-      tiles.push(match[0]);
-    }
-    if (tiles.length > 0) break;
-  }
-
-  const deduped = [];
-  const seen = new Set();
-  for (const tile of tiles) {
-    const key = tile.slice(0, 300);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    deduped.push(tile);
-  }
-
-  return deduped;
+  $('div[id^="product-"][data-testid="product-tile-container"]').each((_, el) => {
+    tiles.push(el);
+  });
+  return tiles;
 }
 
-function extractAttr(html, regex) {
-  const m = html.match(regex);
-  return m ? decodeHtml(m[1]) : null;
-}
-
-function extractSubHeader(tileHtml) {
-  const raw =
-    extractAttr(
-      tileHtml,
-      /<span[^>]+class="[^"]*ProductTile-module-scss-module__[^"]*product-sub-header[^"]*"[^>]*>([\s\S]*?)<\/span>/i
-    ) ||
-    extractAttr(
-      tileHtml,
-      /<span[^>]*>\s*((?:Men|Women|Unisex)[\s\S]*?Shoes?)\s*<\/span>/i
-    ) ||
-    "";
-
-  return stripTags(raw);
-}
-
-function extractDealFromTile(tileHtml, dropCounts, fallbackGender) {
+function extractDealFromTile($, el, dropCounts, fallbackGender) {
   incrementCounter(dropCounts, "totalTiles");
 
+  const $tile = $(el);
+
   const listingURL = absoluteUrl(
-    extractAttr(
-      tileHtml,
-      /<a[^>]+class="[^"]*ProductTile-module-scss-module__[^"]*product-item-link[^"]*"[^>]+href="([^"]+)"/i
-    ) ||
-      extractAttr(
-        tileHtml,
-        /<a[^>]+class="[^"]*ProductTile-module-scss-module__[^"]*product-image-link[^"]*"[^>]+href="([^"]+)"/i
-      ) ||
-      extractAttr(
-        tileHtml,
-        /<a[^>]+href="([^"]+\/p\/[^"]+)"/i
-      )
+    $tile.find('a.ProductTile-module-scss-module__YG6sUW__product-item-link').first().attr("href") ||
+      $tile.find('a.ProductTile-module-scss-module__YG6sUW__product-image-link').first().attr("href") ||
+      $tile.find('a[href*="/p/"]').first().attr("href")
   );
 
   const imageURL = absoluteUrl(
-    extractAttr(tileHtml, /<img[^>]+data-testid="tile-image"[^>]+src="([^"]+)"/i) ||
-      extractAttr(tileHtml, /<img[^>]+src="([^"]*underarmour\.scene7\.com[^"]*)"/i) ||
-      extractAttr(tileHtml, /<img[^>]+src="([^"]+)"/i)
+    $tile.find('img[data-testid="tile-image"]').first().attr("src") ||
+      $tile.find("img").first().attr("src")
   );
 
-  const listingName =
-    stripTags(
-      extractAttr(
-        tileHtml,
-        /<a[^>]+class="[^"]*ProductTile-module-scss-module__[^"]*product-item-link[^"]*"[^>]*>([\s\S]*?)<\/a>/i
-      ) ||
-        extractAttr(
-          tileHtml,
-          /<img[^>]+alt="([^"]+)"/i
-        ) ||
-        extractAttr(
-          tileHtml,
-          /<h2[^>]*>([\s\S]*?)<\/h2>/i
-        ) ||
-        extractAttr(
-          tileHtml,
-          /<h3[^>]*>([\s\S]*?)<\/h3>/i
-        )
-    ) || null;
+  const listingName = cleanText(
+    $tile.find('a.ProductTile-module-scss-module__YG6sUW__product-item-link').first().text() ||
+      $tile.find('img[data-testid="tile-image"]').first().attr("alt") ||
+      $tile.find("h3").first().text() ||
+      ""
+  ) || null;
 
-  const subHeader = extractSubHeader(tileHtml);
+  const subHeader = cleanText(
+    $tile.find('span[class*="product-sub-header"]').first().text() || ""
+  );
 
-  const srPriceText =
-    stripTags(
-      extractAttr(
-        tileHtml,
-        /<div[^>]+class="[^"]*PriceDisplay-module-scss-module__[^"]*sr-price[^"]*"[^>]*>([\s\S]*?)<\/div>/i
-      )
-    ) || "";
+  const srPriceText = cleanText(
+    $tile.find('div[class*="sr-price"]').first().text() || ""
+  );
 
   let originalPrice = null;
   let salePrice = null;
@@ -287,27 +222,15 @@ function extractDealFromTile(tileHtml, dropCounts, fallbackGender) {
 
   if (originalPrice == null) {
     originalPrice = parsePrice(
-      extractAttr(
-        tileHtml,
-        /<span[^>]+data-testid="price-display-list-price"[^>]*>([\s\S]*?)<\/span>/i
-      ) ||
-        extractAttr(
-          tileHtml,
-          /<span[^>]*class="[^"]*list-price[^"]*"[^>]*>([\s\S]*?)<\/span>/i
-        )
+      $tile.find('[data-testid="price-display-list-price"]').first().text() ||
+        $tile.find('.bfx-list-price').first().text()
     );
   }
 
   if (salePrice == null) {
     salePrice = parsePrice(
-      extractAttr(
-        tileHtml,
-        /<span[^>]+data-testid="price-display-sales-price"[^>]*>([\s\S]*?)<\/span>/i
-      ) ||
-        extractAttr(
-          tileHtml,
-          /<span[^>]*class="[^"]*sales-price[^"]*"[^>]*>([\s\S]*?)<\/span>/i
-        )
+      $tile.find('[data-testid="price-display-sales-price"]').first().text() ||
+        $tile.find('.bfx-sale-price').first().text()
     );
   }
 
@@ -369,10 +292,21 @@ function extractDealFromTile(tileHtml, dropCounts, fallbackGender) {
   };
 }
 
-function makePageSummary({ genderHint, pageNumber, url, ok, error, tiles, extracted, dropCounts }) {
+function makePageSummary({
+  genderHint,
+  pageNumber,
+  url,
+  ok,
+  error,
+  tiles,
+  extracted,
+  returnedPage,
+  dropCounts,
+}) {
   return {
     genderHint,
     page: pageNumber,
+    returnedPage: returnedPage ?? null,
     url,
     ok,
     error: error || null,
@@ -384,7 +318,9 @@ function makePageSummary({ genderHint, pageNumber, url, ok, error, tiles, extrac
       (dropCounts?.dropped_missingImageURL || 0) +
       (dropCounts?.dropped_missingOriginalPrice || 0) +
       (dropCounts?.dropped_missingSalePrice || 0) +
-      (dropCounts?.dropped_saleNotLessThanOriginal || 0),
+      (dropCounts?.dropped_saleNotLessThanOriginal || 0) +
+      (dropCounts?.dropped_duplicateWithinCategory || 0) +
+      (dropCounts?.dropped_wrongReturnedPage || 0),
   };
 }
 
@@ -395,6 +331,7 @@ async function scrapeCategory({ baseUrl, genderHint }) {
   const dropCounts = initDropCounts();
 
   let pagesFetched = 0;
+  const seenListingUrls = new Set();
 
   for (const pageNumber of PAGE_NUMBERS) {
     const url = buildPageUrl(baseUrl, pageNumber);
@@ -414,23 +351,50 @@ async function scrapeCategory({ baseUrl, genderHint }) {
           error: err?.message || "Unknown fetch error",
           tiles: 0,
           extracted: 0,
+          returnedPage: null,
           dropCounts: initDropCounts(),
         })
       );
+      break;
+    }
 
-      // Stop this category if page 2 or later fails.
-      // If page 1 fails, this category simply yields no deals.
+    const $ = cheerio.load(html);
+    const returnedPage = detectCurrentPageFromHtml($);
+
+    if (pageNumber > 1 && returnedPage != null && returnedPage !== pageNumber) {
+      incrementCounter(dropCounts, "dropped_wrongReturnedPage");
+      pageSummaries.push(
+        makePageSummary({
+          genderHint,
+          pageNumber,
+          url,
+          ok: true,
+          error: `Requested page ${pageNumber} but HTML indicates page ${returnedPage}`,
+          tiles: 0,
+          extracted: 0,
+          returnedPage,
+          dropCounts: { dropped_wrongReturnedPage: 1 },
+        })
+      );
       break;
     }
 
     const beforeCount = deals.length;
     const beforeDrops = { ...dropCounts };
 
-    const tiles = extractTiles(html);
+    const tiles = extractTiles($);
 
-    for (const tileHtml of tiles) {
-      const deal = extractDealFromTile(tileHtml, dropCounts, genderHint);
-      if (deal) deals.push(deal);
+    for (const el of tiles) {
+      const deal = extractDealFromTile($, el, dropCounts, genderHint);
+      if (!deal) continue;
+
+      if (seenListingUrls.has(deal.listingURL)) {
+        incrementCounter(dropCounts, "dropped_duplicateWithinCategory");
+        continue;
+      }
+
+      seenListingUrls.add(deal.listingURL);
+      deals.push(deal);
     }
 
     const extractedThisPage = deals.length - beforeCount;
@@ -449,14 +413,12 @@ async function scrapeCategory({ baseUrl, genderHint }) {
         error: null,
         tiles: tiles.length,
         extracted: extractedThisPage,
+        returnedPage,
         dropCounts: deltaDropCounts,
       })
     );
 
-    // If a page comes back empty, stop.
     if (tiles.length === 0) break;
-
-    // If page 2 has no extracted deals, that's fine; no more pages are attempted anyway.
   }
 
   return {
@@ -472,7 +434,6 @@ export default async function handler(req, res) {
   const startedAt = Date.now();
 
   try {
-    // CRON auth (temporarily commented out for testing)
     /*
     const auth = req.headers.authorization;
     if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -515,24 +476,17 @@ export default async function handler(req, res) {
     const payload = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
-
       lastUpdated: nowIso(),
       via: VIA,
-
       sourceUrls,
       pagesFetched,
-
       dealsFound,
       dealsExtracted,
-
       scrapeDurationMs: Date.now() - startedAt,
-
       ok: true,
       error: null,
-
       dropCounts: combinedDropCounts,
       pageSummaries,
-
       deals,
     };
 
@@ -561,45 +515,21 @@ export default async function handler(req, res) {
       blobUrl: blob.url,
     });
   } catch (err) {
-    const payload = {
-      store: STORE,
-      schemaVersion: SCHEMA_VERSION,
-
-      lastUpdated: nowIso(),
-      via: VIA,
-
-      sourceUrls: [],
-      pagesFetched: 0,
-
-      dealsFound: 0,
-      dealsExtracted: 0,
-
-      scrapeDurationMs: Date.now() - startedAt,
-
-      ok: false,
-      error: err?.message || "Unknown error",
-
-      dropCounts: initDropCounts(),
-      pageSummaries: [],
-
-      deals: [],
-    };
-
     return res.status(500).json({
       success: false,
-      store: payload.store,
-      schemaVersion: payload.schemaVersion,
-      lastUpdated: payload.lastUpdated,
-      via: payload.via,
-      sourceUrls: payload.sourceUrls,
-      pagesFetched: payload.pagesFetched,
-      dealsFound: payload.dealsFound,
-      dealsExtracted: payload.dealsExtracted,
-      scrapeDurationMs: payload.scrapeDurationMs,
-      ok: payload.ok,
-      error: payload.error,
-      dropCounts: payload.dropCounts,
-      pageSummaries: payload.pageSummaries,
+      store: STORE,
+      schemaVersion: SCHEMA_VERSION,
+      lastUpdated: nowIso(),
+      via: VIA,
+      sourceUrls: [],
+      pagesFetched: 0,
+      dealsFound: 0,
+      dealsExtracted: 0,
+      scrapeDurationMs: Date.now() - startedAt,
+      ok: false,
+      error: err?.message || "Unknown error",
+      dropCounts: initDropCounts(),
+      pageSummaries: [],
     });
   }
 }
