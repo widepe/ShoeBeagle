@@ -169,7 +169,6 @@ return res.status(200).json({
       scrapeDurationMs: payload.scrapeDurationMs,
       dropCounts: payload.dropCounts,
       pageSummaries: payload.pageSummaries,
-      droppedDealsSample: payload.droppedDealsSample,
     });
   } catch (err) {
     return res.status(500).json({
