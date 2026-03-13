@@ -7,7 +7,7 @@
 // Writes:
 //   newton-specials.json
 //
-// Rules implemented:
+// Rules:
 // - Top-level JSON contains metadata + deals array only
 // - Tracks why tiles/deals were dropped in dropCounts
 // - Includes pageSummaries
@@ -18,6 +18,8 @@
 //     "see price in bag"
 //     etc.
 // - Defensive in case collection later includes non-shoe products
+// - shoeType is ALWAYS "unknown"
+// - Built so pageSummaries are true per-page summaries now
 //
 // ENV:
 //   - BLOB_READ_WRITE_TOKEN
@@ -78,7 +80,6 @@ function computeDiscountPercent(salePrice, originalPrice) {
 
 function isHiddenPriceText(text) {
   const s = cleanText(text).toLowerCase();
-
   if (!s) return false;
 
   return (
@@ -101,40 +102,17 @@ function inferGender(title, bullets) {
   if (/\bmen'?s\b/.test(hay)) return "mens";
   if (/\bunisex\b/.test(hay)) return "unisex";
 
-  // Support simple tile shorthand like "W" / "M"
   if (bullets.some((b) => cleanText(b).toUpperCase() === "W")) return "womens";
   if (bullets.some((b) => cleanText(b).toUpperCase() === "M")) return "mens";
 
   return "unknown";
 }
 
-function inferShoeType(title, bullets) {
-  const hay = `${cleanText(title)} ${bullets.map(cleanText).join(" ")}`.toLowerCase();
-
-  if (hay.includes("trail")) return "trail";
-  if (hay.includes("track") || hay.includes("spike")) return "track";
-
-  if (
-    hay.includes("trainer") ||
-    hay.includes("running") ||
-    hay.includes("neutral") ||
-    hay.includes("stability") ||
-    hay.includes("performance trainer") ||
-    hay.includes("daily trainer")
-  ) {
-    return "road";
-  }
-
-  return "unknown";
-}
-
 function normalizeModel(title) {
   let s = cleanText(title);
-
   s = s.replace(/^women'?s\s+/i, "");
   s = s.replace(/^men'?s\s+/i, "");
   s = s.replace(/^unisex\s+/i, "");
-
   return s || null;
 }
 
@@ -206,6 +184,23 @@ function incrementGenderCount(counts, gender) {
   else counts.unknown++;
 }
 
+function addDropCounts(target, source) {
+  target.totalTiles += source.totalTiles || 0;
+  target.dropped_missingHref += source.dropped_missingHref || 0;
+  target.dropped_missingTitle += source.dropped_missingTitle || 0;
+  target.dropped_hiddenPrice += source.dropped_hiddenPrice || 0;
+  target.dropped_notShoe += source.dropped_notShoe || 0;
+  target.dropped_missingSalePrice += source.dropped_missingSalePrice || 0;
+  target.dropped_duplicate += source.dropped_duplicate || 0;
+}
+
+function addGenderCounts(target, source) {
+  target.mens += source.mens || 0;
+  target.womens += source.womens || 0;
+  target.unisex += source.unisex || 0;
+  target.unknown += source.unknown || 0;
+}
+
 export default async function handler(req, res) {
   const startedAt = Date.now();
 
@@ -218,135 +213,162 @@ export default async function handler(req, res) {
   }
   */
 
-  const dropCounts = makeDropCounts();
+  const allDeals = [];
+  const seen = new Set();
+  const sourceUrls = [];
+  const pageSummaries = [];
+  const totalDropCounts = makeDropCounts();
+  const totalGenderCounts = makeGenderCounts();
 
   try {
-    const response = await fetch(SOURCE_URL, {
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-        accept: "text/html,application/xhtml+xml",
-      },
-    });
+    // For now, one page.
+    // Later, replace this with discovered pagination URLs.
+    const pageUrls = [SOURCE_URL];
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status} for ${SOURCE_URL}`);
-    }
+    for (let i = 0; i < pageUrls.length; i++) {
+      const pageUrl = pageUrls[i];
+      sourceUrls.push(pageUrl);
 
-    const html = await response.text();
-    const $ = cheerio.load(html);
-
-    const deals = [];
-    const seen = new Set();
-    const sourceUrls = [SOURCE_URL];
-
-    const pageGenderCounts = makeGenderCounts();
-
-    const $tiles = $("a.newton-collection-shogun-item");
-    dropCounts.totalTiles = $tiles.length;
-
-    $tiles.each((_, el) => {
-      const $tile = $(el);
-
-      const href = cleanText($tile.attr("href"));
-      if (!href) {
-        dropCounts.dropped_missingHref++;
-        return;
-      }
-
-      const listingURL = absoluteUrl(href);
-
-      const title = cleanText($tile.find("h3.title").first().text());
-      if (!title) {
-        dropCounts.dropped_missingTitle++;
-        return;
-      }
-
-      const bullets = [];
-      $tile.find("ul li").each((__, li) => {
-        const txt = cleanText($(li).text());
-        if (txt) bullets.push(txt);
+      const response = await fetch(pageUrl, {
+        headers: {
+          "user-agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+          accept: "text/html,application/xhtml+xml",
+        },
       });
 
-      const fullTileText = cleanText($tile.text());
-      if (isHiddenPriceText(fullTileText)) {
-        dropCounts.dropped_hiddenPrice++;
-        return;
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} for ${pageUrl}`);
       }
 
-      if (!looksLikeShoe(title, bullets, href)) {
-        dropCounts.dropped_notShoe++;
-        return;
-      }
+      const html = await response.text();
+      const $ = cheerio.load(html);
 
-      const $priceWrap = $tile.find(".newton-collection-items-item-price").first();
-      const priceWrapText = cleanText($priceWrap.text());
+      const pageDropCounts = makeDropCounts();
+      const pageGenderCounts = makeGenderCounts();
+      const pageDeals = [];
 
-      if (isHiddenPriceText(priceWrapText)) {
-        dropCounts.dropped_hiddenPrice++;
-        return;
-      }
+      const $tiles = $("a.newton-collection-shogun-item");
+      pageDropCounts.totalTiles = $tiles.length;
 
-      const salePriceText = cleanText(
-        $priceWrap.clone().find(".text-line-through").remove().end().text()
-      );
-      const originalPriceText = cleanText(
-        $priceWrap.find(".text-line-through").first().text()
-      );
+      $tiles.each((_, el) => {
+        const $tile = $(el);
 
-      const salePrice = parsePrice(salePriceText);
-      const originalPrice = parsePrice(originalPriceText);
+        const href = cleanText($tile.attr("href"));
+        if (!href) {
+          pageDropCounts.dropped_missingHref++;
+          return;
+        }
 
-      if (!Number.isFinite(salePrice)) {
-        dropCounts.dropped_missingSalePrice++;
-        return;
-      }
+        const listingURL = absoluteUrl(href);
 
-      const imageURL = absoluteUrl(
-        $tile.find("img.collection-shoe-image").first().attr("src") ||
-        $tile.find("img").first().attr("src")
-      );
+        const title = cleanText($tile.find("h3.title").first().text());
+        if (!title) {
+          pageDropCounts.dropped_missingTitle++;
+          return;
+        }
 
-      const gender = inferGender(title, bullets);
-      const shoeType = inferShoeType(title, bullets);
+        const bullets = [];
+        $tile.find("ul li").each((__, li) => {
+          const txt = cleanText($(li).text());
+          if (txt) bullets.push(txt);
+        });
 
-      const deal = {
-        schemaVersion: SCHEMA_VERSION,
+        const fullTileText = cleanText($tile.text());
+        if (isHiddenPriceText(fullTileText)) {
+          pageDropCounts.dropped_hiddenPrice++;
+          return;
+        }
 
-        listingName: title,
+        if (!looksLikeShoe(title, bullets, href)) {
+          pageDropCounts.dropped_notShoe++;
+          return;
+        }
 
-        brand: "Newton",
-        model: normalizeModel(title),
+        const $priceWrap = $tile.find(".newton-collection-items-item-price").first();
+        const priceWrapText = cleanText($priceWrap.text());
 
-        salePrice,
-        originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
-        discountPercent: computeDiscountPercent(salePrice, originalPrice),
+        if (isHiddenPriceText(priceWrapText)) {
+          pageDropCounts.dropped_hiddenPrice++;
+          return;
+        }
 
-        salePriceLow: null,
-        salePriceHigh: null,
-        originalPriceLow: null,
-        originalPriceHigh: null,
-        discountPercentUpTo: null,
+        const salePriceText = cleanText(
+          $priceWrap.clone().find(".text-line-through").remove().end().text()
+        );
+        const originalPriceText = cleanText(
+          $priceWrap.find(".text-line-through").first().text()
+        );
 
-        store: STORE,
+        const salePrice = parsePrice(salePriceText);
+        const originalPrice = parsePrice(originalPriceText);
 
-        listingURL,
-        imageURL,
+        if (!Number.isFinite(salePrice)) {
+          pageDropCounts.dropped_missingSalePrice++;
+          return;
+        }
 
-        gender,
-        shoeType,
-      };
+        const imageURL = absoluteUrl(
+          $tile.find("img.collection-shoe-image").first().attr("src") ||
+            $tile.find("img").first().attr("src")
+        );
 
-      const dedupeKey = `${deal.listingURL}__${deal.salePrice}__${deal.originalPrice ?? "null"}`;
-      if (seen.has(dedupeKey)) {
-        dropCounts.dropped_duplicate++;
-        return;
-      }
-      seen.add(dedupeKey);
+        const gender = inferGender(title, bullets);
 
-      deals.push(deal);
-      incrementGenderCount(pageGenderCounts, gender);
-    });
+        const deal = {
+          schemaVersion: SCHEMA_VERSION,
+
+          listingName: title,
+
+          brand: "Newton",
+          model: normalizeModel(title),
+
+          salePrice,
+          originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
+          discountPercent: computeDiscountPercent(salePrice, originalPrice),
+
+          salePriceLow: null,
+          salePriceHigh: null,
+          originalPriceLow: null,
+          originalPriceHigh: null,
+          discountPercentUpTo: null,
+
+          store: STORE,
+
+          listingURL,
+          imageURL,
+
+          gender,
+          shoeType: "unknown",
+        };
+
+        const dedupeKey = `${deal.listingURL}__${deal.salePrice}__${deal.originalPrice ?? "null"}`;
+        if (seen.has(dedupeKey)) {
+          pageDropCounts.dropped_duplicate++;
+          return;
+        }
+        seen.add(dedupeKey);
+
+        pageDeals.push(deal);
+        incrementGenderCount(pageGenderCounts, gender);
+      });
+
+      allDeals.push(...pageDeals);
+      addDropCounts(totalDropCounts, pageDropCounts);
+      addGenderCounts(totalGenderCounts, pageGenderCounts);
+
+      pageSummaries.push({
+        page: i + 1,
+        url: pageUrl,
+        tilesFound: pageDropCounts.totalTiles,
+        dealsExtracted: pageDeals.length,
+        dealsForMens: pageGenderCounts.mens,
+        dealsForWomens: pageGenderCounts.womens,
+        dealsForUnisex: pageGenderCounts.unisex,
+        dealsForUnknown: pageGenderCounts.unknown,
+        dropCounts: { ...pageDropCounts },
+      });
+    }
 
     const payload = {
       store: STORE,
@@ -357,37 +379,24 @@ export default async function handler(req, res) {
 
       sourceUrls,
 
-      pagesFetched: 1,
+      pagesFetched: sourceUrls.length,
 
-      dealsFound: $tiles.length,
-      dealsExtracted: deals.length,
-      dealsForMens: pageGenderCounts.mens,
-      dealsForWomens: pageGenderCounts.womens,
-      dealsForUnisex: pageGenderCounts.unisex,
-      dealsForUnknown: pageGenderCounts.unknown,
+      dealsFound: totalDropCounts.totalTiles,
+      dealsExtracted: allDeals.length,
+      dealsForMens: totalGenderCounts.mens,
+      dealsForWomens: totalGenderCounts.womens,
+      dealsForUnisex: totalGenderCounts.unisex,
+      dealsForUnknown: totalGenderCounts.unknown,
 
       scrapeDurationMs: Date.now() - startedAt,
 
       ok: true,
       error: null,
 
-      dropCounts,
+      dropCounts: totalDropCounts,
+      pageSummaries,
 
-      pageSummaries: [
-        {
-          page: 1,
-          url: SOURCE_URL,
-          tilesFound: $tiles.length,
-          dealsExtracted: deals.length,
-          dealsForMens: pageGenderCounts.mens,
-          dealsForWomens: pageGenderCounts.womens,
-          dealsForUnisex: pageGenderCounts.unisex,
-          dealsForUnknown: pageGenderCounts.unknown,
-          dropCounts: { ...dropCounts },
-        },
-      ],
-
-      deals,
+      deals: allDeals,
     };
 
     const blob = await put(BLOB_PATH, JSON.stringify(payload, null, 2), {
@@ -421,19 +430,19 @@ export default async function handler(req, res) {
       schemaVersion: SCHEMA_VERSION,
       lastUpdated: nowIso(),
       via: VIA,
-      sourceUrls: [SOURCE_URL],
-      pagesFetched: 1,
-      dealsFound: 0,
-      dealsExtracted: 0,
-      dealsForMens: 0,
-      dealsForWomens: 0,
-      dealsForUnisex: 0,
-      dealsForUnknown: 0,
+      sourceUrls,
+      pagesFetched: sourceUrls.length,
+      dealsFound: totalDropCounts.totalTiles,
+      dealsExtracted: allDeals.length,
+      dealsForMens: totalGenderCounts.mens,
+      dealsForWomens: totalGenderCounts.womens,
+      dealsForUnisex: totalGenderCounts.unisex,
+      dealsForUnknown: totalGenderCounts.unknown,
       scrapeDurationMs: Date.now() - startedAt,
       ok: false,
       error: error?.message || String(error),
-      dropCounts,
-      pageSummaries: [],
+      dropCounts: totalDropCounts,
+      pageSummaries,
     });
   }
 }
