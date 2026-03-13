@@ -76,6 +76,7 @@ module.exports = async function handler(req, res) {
     champs_sale: true,
     karhu_sale: true,
     runpacers_sale: true,
+    shoe_carnival: true,
   };
 
   const TARGETS = [];
@@ -101,6 +102,9 @@ module.exports = async function handler(req, res) {
   // RunPacers sale running shoes pages.
   if (ENABLED.runpacers_sale) TARGETS.push("/api/scrapers/runpacers-sale");
 
+  // Shoe Carnival sale running shoes pages.
+  if (ENABLED.shoe_carnival) TARGETS.push("/api/scrapers/shoe-carnival");
+  
   try {
     const results = [];
 
