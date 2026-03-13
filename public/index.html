@@ -628,10 +628,40 @@
         suggestionState.items = items.slice();
         suggestionState.activeIndex = -1;
 
+        const typedQuery = String(qInput?.value || "").trim();
+
+        function getSuggestionParts(value, typed) {
+          const suggestion = String(value || "");
+          const prefix = String(typed || "").trim();
+          if (!prefix) return { match: suggestion, rest: "" };
+
+          if (suggestion.toLowerCase().startsWith(prefix.toLowerCase())) {
+            return {
+              match: suggestion.slice(0, prefix.length),
+              rest: suggestion.slice(prefix.length),
+            };
+          }
+
+          return { match: suggestion, rest: "" };
+        }
+
         items.forEach((value, idx) => {
           const div = document.createElement("div");
           div.className = "suggestion-item";
-          div.textContent = value;
+
+          const { match, rest } = getSuggestionParts(value, typedQuery);
+          const strong = document.createElement("span");
+          strong.className = "suggestion-match";
+          strong.textContent = match;
+          div.appendChild(strong);
+
+          if (rest) {
+            const light = document.createElement("span");
+            light.className = "suggestion-rest";
+            light.textContent = rest;
+            div.appendChild(light);
+          }
+
           div.dataset.index = String(idx);
 
           div.addEventListener("pointerdown", (e) => {
@@ -1769,10 +1799,41 @@ function resolveBrandKey(input) {
         S.items = items;
         S.idx = -1;
 
+        const typedSource = which === "brand" ? brandEl?.value : modelEl?.value;
+        const typedQuery = String(typedSource || "").trim();
+
+        function getSuggestionParts(value, typed) {
+          const suggestion = String(value || "");
+          const prefix = String(typed || "").trim();
+          if (!prefix) return { match: suggestion, rest: "" };
+
+          if (suggestion.toLowerCase().startsWith(prefix.toLowerCase())) {
+            return {
+              match: suggestion.slice(0, prefix.length),
+              rest: suggestion.slice(prefix.length),
+            };
+          }
+
+          return { match: suggestion, rest: "" };
+        }
+
         items.forEach((v) => {
           const d = document.createElement("div");
           d.className = "item";
-          d.textContent = v;
+
+          const { match, rest } = getSuggestionParts(v, typedQuery);
+          const strong = document.createElement("span");
+          strong.className = "sb-sug-match";
+          strong.textContent = match;
+          d.appendChild(strong);
+
+          if (rest) {
+            const light = document.createElement("span");
+            light.className = "sb-sug-rest";
+            light.textContent = rest;
+            d.appendChild(light);
+          }
+
           d.addEventListener("mousedown", (e) => {
             e.preventDefault();
             onPick(v);

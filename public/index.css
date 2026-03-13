@@ -322,8 +322,21 @@ input::placeholder{ color:#999; opacity:1; }
   padding:calc(0.25rem * var(--top-scale)) calc(0.75rem * var(--top-scale));
   text-align:left;
   font-size:calc(1.25rem * var(--top-scale));
+  font-family:inherit;
+  font-weight:500;
+  line-height:1.2;
+  letter-spacing:normal;
+  font-style:normal;
   cursor:pointer;
 }
+.suggestion-match,
+.suggestion-rest{
+  font:inherit;
+  letter-spacing:inherit;
+  line-height:inherit;
+}
+.suggestion-match{ color:inherit; }
+.suggestion-rest{ color:rgba(68, 68, 68, 0.62); }
 .suggestion-item:hover{ background:#e8f0ff; }
 .suggestion-item.active{ background:#e8f0ff; }
 
@@ -1398,7 +1411,26 @@ button{
 .sb-sug .item{
   padding:10px 12px;
   cursor:pointer;
-  font-size:0.92rem;
+  font-family:inherit;
+  font-size:16px;
+  font-weight:500;
+  line-height:1.2;
+  letter-spacing:normal;
+  font-style:normal;
+}
+.sb-sug-match,
+.sb-sug-rest{
+  font:inherit;
+  letter-spacing:inherit;
+  line-height:inherit;
+}
+.sb-sug-match{ color:inherit; }
+.sb-sug-rest{ color:rgba(68, 68, 68, 0.62); }
+.sb-sug .item:hover .sb-sug-rest,
+.sb-sug .item.active .sb-sug-rest,
+.suggestion-item:hover .suggestion-rest,
+.suggestion-item.active .suggestion-rest{
+  color:rgba(68, 68, 68, 0.72);
 }
 .sb-sug .item:hover,
 .sb-sug .item.active{ background:#e8f0ff; }
