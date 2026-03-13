@@ -1,28 +1,4 @@
 // /api/scrapers/shoe-carnival.js
-//
-// Fast Shoe Carnival scraper
-// - Uses Algolia directly
-// - Scrapes these two searches:
-//   1) womens running shoes + on_sale
-//   2) men's running shoes + on_sale
-// - Keeps products if they are true running/performance products based on category/style metadata
-// - Drops only:
-//   * hidden/MAP/price-in-cart style products
-//   * non-performance products
-//   * products not in running categories
-//   * duplicates
-//   * missing required fields
-// - Dedupes by masterStyle
-// - Writes top-level structure + deals array only
-//
-// ENV:
-//   - BLOB_READ_WRITE_TOKEN
-//
-// TEST:
-//   /api/scrapers/shoe-carnival
-//
-// NOTE:
-// - CRON auth is included below but commented out for testing.
 
 import { put } from "@vercel/blob";
 
@@ -244,10 +220,6 @@ function mapHitToDeal(hit) {
   };
 }
 
-function isPerformanceStyle(hit) {
-  return asArray(hit?.styleType).some((s) => /^performance$/i.test(cleanText(s)));
-}
-
 function hitHasRunningCategory(hit, expectedGender) {
   const primaryId = String(hit?.primary_category_id || "");
   const assignedIds = new Set(asArray(hit?.assignedCategories).map((c) => String(c?.id || "")));
@@ -377,12 +349,6 @@ function summarizeSearchHits({
     if (!genderMatchesExpected(hit, expectedGender)) {
       inc(dropCounts, "dropped_wrongGender");
       inc(pageDropCounts, "dropped_wrongGender");
-      continue;
-    }
-
-    if (!isPerformanceStyle(hit)) {
-      inc(dropCounts, "dropped_nonPerformanceStyle");
-      inc(pageDropCounts, "dropped_nonPerformanceStyle");
       continue;
     }
 
