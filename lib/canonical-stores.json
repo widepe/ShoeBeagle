@@ -508,6 +508,28 @@
   "notes": "New Balance sale running shoes scraper via Apify Playwright + Camoufox. Scrapes mens and womens sale running pages. Uses residential proxies to bypass Akamai bot protection. Extracts pricing from visible sale/strike-through price elements with swatch JSON fallback. Keeps only true sale items where salePrice < originalPrice. Gender parsed from category-name tile text. shoeType forced to unknown. Writes to newbalance-sale.json."
 },
 
+{
+  "id": "newton-running",
+  "displayName": "Newton Running",
+  "addedAt": "2026-03-12",
+  "lastUpdated": "2026-03-12",
+  "scrapedUrls": [
+    "https://www.newtonrunning.com/collections/web-specials-v2"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/newton-specials.json"
+  ],
+  "aliases": [
+    "newton",
+    "newton running"
+  ],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "NEWTON_DEALS_BLOB_URL",
+  "baseUrl": "https://www.newtonrunning.com",
+  "notes": "Newton Running Web Specials scraper using direct HTML fetch + Cheerio on https://www.newtonrunning.com/collections/web-specials-v2. Preserves listingName exactly as scraped, forces brand to Newton, derives model by removing a leading Men's/Women's/Unisex prefix from listingName, parses gender from listingName and tile bullets, and forces shoeType to unknown for all deals. Skips hidden-price tiles such as See Price in Cart / Add to Bag to See Price / See Price in Bag. Tracks dropCounts, pageSummaries, and gender counts in top-level metadata. Dedupe by listingURL + visible pricing. Writes to newton-specials.json."
+},
+
   
   {
     "id": "nike",
