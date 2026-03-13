@@ -104,6 +104,13 @@
               <option value="womens">Womens</option>
             </select>
 
+            <!-- STORE FILTER (easy-to-remove block): filters the deals grid by store -->
+            <label class="ribbon-label" for="ribbonStore">Store</label>
+            <select id="ribbonStore" class="ribbon-select" aria-label="Filter by store">
+              <option value="" selected>All stores</option>
+            </select>
+            <!-- /STORE FILTER -->
+
             <!-- SORT REMOVED (commented out) -->
             <!--
             <label class="ribbon-label" for="ribbonSort">Sort</label>
@@ -202,6 +209,8 @@
 
       // Ribbon dropdowns
       const ribbonGender = document.getElementById("ribbonGender");
+      // STORE FILTER (easy-to-remove block): links ribbon store dropdown
+      const ribbonStore = document.getElementById("ribbonStore");
       // const ribbonSort = document.getElementById("ribbonSort"); // 🔒 disabled
 
       const PAGE_SIZE = 12;
@@ -241,6 +250,8 @@
 
       // Unified state (ribbon dropdowns update these)
       let selectedGender = "";    // "" | "mens" | "womens"
+      // STORE FILTER (easy-to-remove block): selected store name
+      let selectedStore = "";
       // let currentSort = "";     // 🔒 disabled
 
       if (footerYear) footerYear.textContent = new Date().getFullYear();
@@ -916,7 +927,38 @@
 
       function syncRibbonFromState() {
         if (ribbonGender) ribbonGender.value = selectedGender || "";
+        // STORE FILTER (easy-to-remove block): keep dropdown synced with current filter state
+        if (ribbonStore) ribbonStore.value = selectedStore || "";
         // if (ribbonSort) ribbonSort.value = currentSort || ""; // 🔒 disabled
+      }
+
+      // STORE FILTER (easy-to-remove block): build store options from the loaded daily deals array.
+      function updateStoreFilterOptions(deals) {
+        if (!ribbonStore) return;
+
+        const stores = Array.from(
+          new Set(
+            (deals || [])
+              .map((item) => String(item?.store || "").trim())
+              .filter(Boolean)
+          )
+        ).sort((a, b) => a.localeCompare(b));
+
+        ribbonStore.innerHTML = '<option value="">All stores</option>';
+
+        for (const store of stores) {
+          const opt = document.createElement("option");
+          opt.value = store;
+          opt.textContent = store;
+          ribbonStore.appendChild(opt);
+        }
+
+        // If a previously-selected store no longer exists, reset to all stores.
+        if (selectedStore && !stores.some((s) => norm(s) === norm(selectedStore))) {
+          selectedStore = "";
+        }
+
+        ribbonStore.value = selectedStore || "";
       }
 
       function totalPagesCount(total) {
@@ -948,11 +990,13 @@
       // ===== Filters ONLY (sorting removed) =====
       function applyFilters(items) {
         const gSel = norm(selectedGender);
+        const sSel = norm(selectedStore);
 
         return (items || []).filter((item) => {
           const g = norm(item.gender);
           const genderOk = !gSel || g === gSel || g === "unisex" || g === "unknown" || g === "";
-          return genderOk;
+          const storeOk = !sSel || norm(item.store) === sSel;
+          return genderOk && storeOk;
         });
       }
 
@@ -1034,6 +1078,15 @@
       if (ribbonGender) {
         ribbonGender.addEventListener("change", () => {
           selectedGender = norm(ribbonGender.value);
+          renderDailyDealsNow();
+          renderFilteredResults({ resetPage: true, append: false });
+        });
+      }
+
+      // STORE FILTER (easy-to-remove block): when store changes, filter both grids.
+      if (ribbonStore) {
+        ribbonStore.addEventListener("change", () => {
+          selectedStore = String(ribbonStore.value || "").trim();
           renderDailyDealsNow();
           renderFilteredResults({ resetPage: true, append: false });
         });
@@ -1217,6 +1270,8 @@
           const deals = Array.isArray(data.deals) ? data.deals : [];
 
           lastDailyDeals = deals.slice();
+          // STORE FILTER (easy-to-remove block): populate store dropdown from current deals array.
+          updateStoreFilterOptions(lastDailyDeals);
 
           if (!deals.length) {
             if (dailyDeals) dailyDeals.style.display = "none";
