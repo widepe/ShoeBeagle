@@ -1,4 +1,4 @@
-// /api/scrapers/underarmour-outlet.js 
+// /api/scrapers/underarmour-outlet.js
 
 import { put } from "@vercel/blob";
 
@@ -9,12 +9,19 @@ const SCHEMA_VERSION = 1;
 const VIA = "fetch-html";
 const BASE_URL = "https://www.underarmour.com";
 
-const START_URLS = [
-  "https://www.underarmour.com/en-us/c/outlet/mens/shoes/running/",
-  "https://www.underarmour.com/en-us/c/outlet/womens/shoes/running/",
+const CATEGORY_URLS = [
+  {
+    genderHint: "mens",
+    baseUrl: "https://www.underarmour.com/en-us/c/outlet/mens/shoes/running/",
+  },
+  {
+    genderHint: "womens",
+    baseUrl: "https://www.underarmour.com/en-us/c/outlet/womens/shoes/running/",
+  },
 ];
 
-const MAX_PAGES = 10;
+// Based on the behavior you found, only scrape pages 1 and 2.
+const PAGE_NUMBERS = [1, 2];
 
 function nowIso() {
   return new Date().toISOString();
@@ -43,7 +50,6 @@ function decodeHtml(str) {
     .replace(/&apos;/g, "'")
     .replace(/&nbsp;/g, " ")
     .replace(/&#8217;/g, "'")
-    .replace(/&#39;/g, "'")
     .replace(/&lsquo;/g, "'")
     .replace(/&rsquo;/g, "'")
     .replace(/&ldquo;/g, "\u201C")
@@ -65,7 +71,9 @@ function normalizeApostrophes(s) {
 
 function parsePrice(text) {
   if (!text) return null;
-  const m = String(text).replace(/,/g, "").match(/\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/);
+  const m = String(text)
+    .replace(/,/g, "")
+    .match(/\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/);
   return m ? Number(m[1]) : null;
 }
 
@@ -83,22 +91,19 @@ function computeDiscountPercent(originalPrice, salePrice) {
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
-function inferGender(subHeader, listingURL = "") {
-  // Primary: parse the sub-header span text directly from the tile
+function inferGender(subHeader, listingURL = "", fallbackGender = "unknown") {
   const s = normalizeApostrophes(subHeader).toLowerCase();
 
   if (s.includes("women's") || s.includes("womens")) return "womens";
   if (s.includes("men's") || s.includes("mens")) return "mens";
   if (s.includes("unisex")) return "unisex";
 
-  // Fallback: parse the listing URL (e.g. /ua_charged_assert_10_mens_running_shoes/)
-  const url = listingURL.toLowerCase();
-
+  const url = String(listingURL || "").toLowerCase();
   if (url.includes("_womens_") || url.includes("/womens/")) return "womens";
   if (url.includes("_mens_") || url.includes("/mens/")) return "mens";
   if (url.includes("_unisex_") || url.includes("/unisex/")) return "unisex";
 
-  return "unknown";
+  return fallbackGender;
 }
 
 function inferShoeType(subHeader) {
@@ -132,6 +137,17 @@ function initDropCounts() {
   };
 }
 
+function mergeDropCounts(target, source) {
+  for (const [key, value] of Object.entries(source || {})) {
+    target[key] = (target[key] || 0) + (value || 0);
+  }
+  return target;
+}
+
+function buildPageUrl(baseUrl, pageNumber) {
+  return pageNumber === 1 ? baseUrl : `${baseUrl}?page=${pageNumber}`;
+}
+
 async function fetchHtml(url) {
   const resp = await fetch(url, {
     headers: {
@@ -140,11 +156,14 @@ async function fetchHtml(url) {
       accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "accept-language": "en-US,en;q=0.9",
       "cache-control": "no-cache",
+      pragma: "no-cache",
     },
   });
 
   if (!resp.ok) {
-    throw new Error(`HTTP ${resp.status} for ${url}`);
+    const err = new Error(`HTTP ${resp.status} for ${url}`);
+    err.status = resp.status;
+    throw err;
   }
 
   return await resp.text();
@@ -152,15 +171,31 @@ async function fetchHtml(url) {
 
 function extractTiles(html) {
   const tiles = [];
-  const regex =
-    /<div[^>]+id="product-[^"]+"[\s\S]*?<section[^>]+ProductTile-module-scss-module__[^"]*product-details-container[\s\S]*?<\/section>\s*<\/div>/gi;
 
-  let match;
-  while ((match = regex.exec(html)) !== null) {
-    tiles.push(match[0]);
+  const patterns = [
+    /<div[^>]+id="product-[^"]+"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/gi,
+    /<article[^>]+id="product-[^"]+"[\s\S]*?<\/article>/gi,
+    /<div[^>]+data-testid="product-tile"[\s\S]*?<\/div>\s*<\/div>/gi,
+  ];
+
+  for (const regex of patterns) {
+    let match;
+    while ((match = regex.exec(html)) !== null) {
+      tiles.push(match[0]);
+    }
+    if (tiles.length > 0) break;
   }
 
-  return tiles;
+  const deduped = [];
+  const seen = new Set();
+  for (const tile of tiles) {
+    const key = tile.slice(0, 300);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(tile);
+  }
+
+  return deduped;
 }
 
 function extractAttr(html, regex) {
@@ -183,7 +218,7 @@ function extractSubHeader(tileHtml) {
   return stripTags(raw);
 }
 
-function extractDealFromTile(tileHtml, dropCounts) {
+function extractDealFromTile(tileHtml, dropCounts, fallbackGender) {
   incrementCounter(dropCounts, "totalTiles");
 
   const listingURL = absoluteUrl(
@@ -194,12 +229,17 @@ function extractDealFromTile(tileHtml, dropCounts) {
       extractAttr(
         tileHtml,
         /<a[^>]+class="[^"]*ProductTile-module-scss-module__[^"]*product-image-link[^"]*"[^>]+href="([^"]+)"/i
+      ) ||
+      extractAttr(
+        tileHtml,
+        /<a[^>]+href="([^"]+\/p\/[^"]+)"/i
       )
   );
 
   const imageURL = absoluteUrl(
     extractAttr(tileHtml, /<img[^>]+data-testid="tile-image"[^>]+src="([^"]+)"/i) ||
-      extractAttr(tileHtml, /<img[^>]+src="([^"]*underarmour\.scene7\.com[^"]*)"/i)
+      extractAttr(tileHtml, /<img[^>]+src="([^"]*underarmour\.scene7\.com[^"]*)"/i) ||
+      extractAttr(tileHtml, /<img[^>]+src="([^"]+)"/i)
   );
 
   const listingName =
@@ -207,7 +247,19 @@ function extractDealFromTile(tileHtml, dropCounts) {
       extractAttr(
         tileHtml,
         /<a[^>]+class="[^"]*ProductTile-module-scss-module__[^"]*product-item-link[^"]*"[^>]*>([\s\S]*?)<\/a>/i
-      )
+      ) ||
+        extractAttr(
+          tileHtml,
+          /<img[^>]+alt="([^"]+)"/i
+        ) ||
+        extractAttr(
+          tileHtml,
+          /<h2[^>]*>([\s\S]*?)<\/h2>/i
+        ) ||
+        extractAttr(
+          tileHtml,
+          /<h3[^>]*>([\s\S]*?)<\/h3>/i
+        )
     ) || null;
 
   const subHeader = extractSubHeader(tileHtml);
@@ -223,8 +275,12 @@ function extractDealFromTile(tileHtml, dropCounts) {
   let originalPrice = null;
   let salePrice = null;
 
-  const originalMatch = srPriceText.match(/Original price:\s*\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/i);
-  const saleMatch = srPriceText.match(/Sale price:\s*\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/i);
+  const originalMatch = srPriceText.match(
+    /Original price:\s*\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/i
+  );
+  const saleMatch = srPriceText.match(
+    /Sale price:\s*\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/i
+  );
 
   if (originalMatch) originalPrice = Number(originalMatch[1]);
   if (saleMatch) salePrice = Number(saleMatch[1]);
@@ -234,7 +290,11 @@ function extractDealFromTile(tileHtml, dropCounts) {
       extractAttr(
         tileHtml,
         /<span[^>]+data-testid="price-display-list-price"[^>]*>([\s\S]*?)<\/span>/i
-      )
+      ) ||
+        extractAttr(
+          tileHtml,
+          /<span[^>]*class="[^"]*list-price[^"]*"[^>]*>([\s\S]*?)<\/span>/i
+        )
     );
   }
 
@@ -243,7 +303,11 @@ function extractDealFromTile(tileHtml, dropCounts) {
       extractAttr(
         tileHtml,
         /<span[^>]+data-testid="price-display-sales-price"[^>]*>([\s\S]*?)<\/span>/i
-      )
+      ) ||
+        extractAttr(
+          tileHtml,
+          /<span[^>]*class="[^"]*sales-price[^"]*"[^>]*>([\s\S]*?)<\/span>/i
+        )
     );
   }
 
@@ -277,7 +341,7 @@ function extractDealFromTile(tileHtml, dropCounts) {
     return null;
   }
 
-  const deal = {
+  return {
     schemaVersion: SCHEMA_VERSION,
 
     listingName,
@@ -300,51 +364,99 @@ function extractDealFromTile(tileHtml, dropCounts) {
     listingURL,
     imageURL,
 
-    gender: inferGender(subHeader, listingURL),
+    gender: inferGender(subHeader, listingURL, fallbackGender),
     shoeType: inferShoeType(subHeader),
   };
-
-  return deal;
 }
 
-function extractNextUrl(html, currentUrl) {
-  const nextHref =
-    extractAttr(html, /<a[^>]+data-testid="pager-next"[^>]+href="([^"]+)"/i) ||
-    extractAttr(html, /<a[^>]+aria-label="Go to the next page"[^>]+href="([^"]+)"/i);
-
-  if (!nextHref) return null;
-
-  const abs = absoluteUrl(nextHref);
-  if (!abs || abs === currentUrl) return null;
-  return abs;
+function makePageSummary({ genderHint, pageNumber, url, ok, error, tiles, extracted, dropCounts }) {
+  return {
+    genderHint,
+    page: pageNumber,
+    url,
+    ok,
+    error: error || null,
+    tilesFound: tiles,
+    dealsExtracted: extracted,
+    droppedDeals:
+      (dropCounts?.dropped_missingListingName || 0) +
+      (dropCounts?.dropped_missingListingURL || 0) +
+      (dropCounts?.dropped_missingImageURL || 0) +
+      (dropCounts?.dropped_missingOriginalPrice || 0) +
+      (dropCounts?.dropped_missingSalePrice || 0) +
+      (dropCounts?.dropped_saleNotLessThanOriginal || 0),
+  };
 }
 
-async function scrapeCategory(startUrl) {
-  const visited = new Set();
+async function scrapeCategory({ baseUrl, genderHint }) {
   const sourceUrls = [];
   const deals = [];
+  const pageSummaries = [];
   const dropCounts = initDropCounts();
 
-  let url = startUrl;
   let pagesFetched = 0;
 
-  while (url && !visited.has(url) && pagesFetched < MAX_PAGES) {
-    visited.add(url);
-    sourceUrls.push(url);
+  for (const pageNumber of PAGE_NUMBERS) {
+    const url = buildPageUrl(baseUrl, pageNumber);
 
-    const html = await fetchHtml(url);
-    const tiles = extractTiles(html);
-
-    if (tiles.length > 0) {
+    let html;
+    try {
+      html = await fetchHtml(url);
       pagesFetched += 1;
+      sourceUrls.push(url);
+    } catch (err) {
+      pageSummaries.push(
+        makePageSummary({
+          genderHint,
+          pageNumber,
+          url,
+          ok: false,
+          error: err?.message || "Unknown fetch error",
+          tiles: 0,
+          extracted: 0,
+          dropCounts: initDropCounts(),
+        })
+      );
+
+      // Stop this category if page 2 or later fails.
+      // If page 1 fails, this category simply yields no deals.
+      break;
     }
 
+    const beforeCount = deals.length;
+    const beforeDrops = { ...dropCounts };
+
+    const tiles = extractTiles(html);
+
     for (const tileHtml of tiles) {
-      const deal = extractDealFromTile(tileHtml, dropCounts);
+      const deal = extractDealFromTile(tileHtml, dropCounts, genderHint);
       if (deal) deals.push(deal);
     }
 
-    url = extractNextUrl(html, url);
+    const extractedThisPage = deals.length - beforeCount;
+
+    const deltaDropCounts = {};
+    for (const key of Object.keys(dropCounts)) {
+      deltaDropCounts[key] = (dropCounts[key] || 0) - (beforeDrops[key] || 0);
+    }
+
+    pageSummaries.push(
+      makePageSummary({
+        genderHint,
+        pageNumber,
+        url,
+        ok: true,
+        error: null,
+        tiles: tiles.length,
+        extracted: extractedThisPage,
+        dropCounts: deltaDropCounts,
+      })
+    );
+
+    // If a page comes back empty, stop.
+    if (tiles.length === 0) break;
+
+    // If page 2 has no extracted deals, that's fine; no more pages are attempted anyway.
   }
 
   return {
@@ -352,6 +464,7 @@ async function scrapeCategory(startUrl) {
     pagesFetched,
     deals,
     dropCounts,
+    pageSummaries,
   };
 }
 
@@ -368,25 +481,25 @@ export default async function handler(req, res) {
     */
 
     const perCategory = [];
-    for (const startUrl of START_URLS) {
-      const result = await scrapeCategory(startUrl);
+    for (const category of CATEGORY_URLS) {
+      const result = await scrapeCategory(category);
       perCategory.push(result);
     }
 
     const sourceUrls = perCategory.flatMap((x) => x.sourceUrls);
     const pagesFetched = perCategory.reduce((sum, x) => sum + x.pagesFetched, 0);
     const rawDeals = perCategory.flatMap((x) => x.deals);
+    const pageSummaries = perCategory.flatMap((x) => x.pageSummaries);
     const dealsFound = rawDeals.length;
 
     const combinedDropCounts = initDropCounts();
     for (const result of perCategory) {
-      for (const [key, value] of Object.entries(result.dropCounts || {})) {
-        combinedDropCounts[key] = (combinedDropCounts[key] || 0) + (value || 0);
-      }
+      mergeDropCounts(combinedDropCounts, result.dropCounts);
     }
 
     const seen = new Set();
     const deals = [];
+
     for (const deal of rawDeals) {
       const key = `${deal.listingURL}__${deal.salePrice}__${deal.originalPrice}`;
       if (seen.has(key)) {
@@ -407,7 +520,6 @@ export default async function handler(req, res) {
       via: VIA,
 
       sourceUrls,
-
       pagesFetched,
 
       dealsFound,
@@ -419,6 +531,7 @@ export default async function handler(req, res) {
       error: null,
 
       dropCounts: combinedDropCounts,
+      pageSummaries,
 
       deals,
     };
@@ -444,6 +557,7 @@ export default async function handler(req, res) {
       ok: payload.ok,
       error: payload.error,
       dropCounts: payload.dropCounts,
+      pageSummaries: payload.pageSummaries,
       blobUrl: blob.url,
     });
   } catch (err) {
@@ -466,6 +580,7 @@ export default async function handler(req, res) {
       error: err?.message || "Unknown error",
 
       dropCounts: initDropCounts(),
+      pageSummaries: [],
 
       deals: [],
     };
@@ -484,6 +599,7 @@ export default async function handler(req, res) {
       ok: payload.ok,
       error: payload.error,
       dropCounts: payload.dropCounts,
+      pageSummaries: payload.pageSummaries,
     });
   }
 }
