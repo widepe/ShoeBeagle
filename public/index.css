@@ -291,9 +291,9 @@ input::placeholder{ color:#999; opacity:1; }
   padding:0;
   cursor:pointer;
   display:none;
-  font-size:calc(2rem * var(--top-scale));
+  font-size:calc(2.5rem * var(--top-scale));
   line-height:1;
-  font-weight:800;
+  font-weight:400;
   color:#888;
   z-index:20;
 }
