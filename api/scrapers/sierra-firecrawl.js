@@ -286,10 +286,10 @@ function extractDeal($tile) {
     $tile.find("a.js-productThumbnail[href]").first().attr("href") ||
     "";
 
-  const imgSrc =
-    $tile.find("img.productThumbnail").first().attr("src") ||
-    $tile.find("img.productThumbnail").first().attr("data-src") ||
-    "";
+const imgSrc =
+  $tile.find("img.productThumbnail").first().attr("data-src") ||
+  $tile.find("img.productThumbnail").first().attr("src") ||
+  "";
 
   const saleText = cleanText($tile.find(".ourPrice.text-sale").first().text());
   const compareText = cleanText($tile.find(".savingsBlock .retailPrice").first().text());
