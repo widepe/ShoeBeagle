@@ -35,8 +35,9 @@ const START_URL =
 const MAX_PAGES = 10;
 const BLOB_PATH = "sierra.json";
 const MAX_DROPPED_SAMPLE = 200;
-
-export default async function handler(req, res) {
+const PLACEHOLDER_IMAGES = new Set([
+  "https://s.stpost.com/img/blank.gif",
+]);export default async function handler(req, res) {
   const startedAt = Date.now();
 
   // CRON auth (temporarily commented out for testing)
@@ -316,9 +317,9 @@ function extractDeal($tile) {
     return { ok: false, reason: "dropped_missingListingURL", partial };
   }
 
-  if (!partial.imageURL) {
-    return { ok: false, reason: "dropped_missingImageURL", partial };
-  }
+if (!partial.imageURL || PLACEHOLDER_IMAGES.has(partial.imageURL)) {
+  return { ok: false, reason: "dropped_missingImageURL", partial };
+}
 
   const salePrice = parseMoney(saleText);
   if (salePrice == null) {
