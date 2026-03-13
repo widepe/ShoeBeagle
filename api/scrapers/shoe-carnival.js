@@ -352,11 +352,6 @@ function summarizeSearchHits({
       continue;
     }
 
-    if (!hitHasRunningCategory(hit, expectedGender)) {
-      inc(dropCounts, "dropped_nonRunningCategory");
-      inc(pageDropCounts, "dropped_nonRunningCategory");
-      continue;
-    }
 
     if (isHiddenPriceHit(hit)) {
       inc(dropCounts, "dropped_hiddenPrice");
