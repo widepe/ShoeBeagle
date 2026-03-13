@@ -200,7 +200,7 @@ async function fetchHtml(url) {
       url,
       formats: ["html"],
       onlyMainContent: false,
-      waitFor: 1500,
+      waitFor: 3000,
     }),
   });
 
