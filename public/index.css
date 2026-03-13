@@ -275,7 +275,7 @@ input[type="text"], input[type="search"]{
   box-shadow: 0px 0px 7px rgb(33 68 121 / 28%);
   font-size:var(--input-font);
   font-weight:500;
-  color:#444;
+  color:#;
   transition:border-color 0.2s ease, background-color 0.2s ease;
   min-width:0;
 }
@@ -723,7 +723,7 @@ button{
   background:rgba(244,237,227,0.97);
   border-top:1px solid rgba(0,0,0,0.08);
   font-size:1.2rem;
-  color:#444;
+  color:#;
   text-align:center;
   width:100%;
 }
@@ -1349,7 +1349,7 @@ button{
   padding:0 17px;
   font-size:16px;                             /* stable in modal */
   font-weight:500;
-  color:#444;
+  color:#222222;  /* Search input text color */
   transition:border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
   box-sizing:border-box;
 }
