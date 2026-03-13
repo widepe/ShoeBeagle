@@ -785,6 +785,30 @@
   },
 
 {
+  "id": "shoe-carnival",
+  "displayName": "Shoe Carnival",
+  "addedAt": "2026-03-12",
+  "lastUpdated": "2026-03-12",
+  "scrapedUrls": [
+    "https://www.shoecarnival.com/womens/athletics_and_sneakers/running_shoes?styleType=Performance&sale=true",
+    "https://www.shoecarnival.com/mens/athletics_and_sneakers/running_shoes?styleType=Performance&sale=true"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/shoe-carnival.json"
+  ],
+  "aliases": [
+    "shoe carnival",
+    "shoecarnival"
+  ],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "SHOECARNIVAL_DEALS_BLOB_URL",
+  "baseUrl": "https://www.shoecarnival.com",
+  "notes": "Shoe Carnival running shoes sale scraper via Algolia product search API. Scrapes womens and mens running shoes sale category pages filtered to assignedCategories.id 193 (womens running shoes) and 194 (mens running shoes), with facet filters on_sale:true and styleType:Performance. Preserves listingName exactly as scraped, derives brand/model from the hit data, parses gender from the Algolia gender field with listingName fallback, and forces shoeType to unknown. Skips hidden-price items such as See Price in Cart / See Price in Bag / MAP-restricted products. Dedupe is done by masterStyle with a special rule: keep the lowest-sale-price colorway plus one additional higher-price colorway when available. Writes to shoe-carnival.json."
+},
+
+  
+{
   "id": "sierra",
   "displayName": "Sierra",
   "addedAt": "2026-03-11",
