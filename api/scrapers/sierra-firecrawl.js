@@ -158,7 +158,7 @@ const PLACEHOLDER_IMAGES = new Set([
       contentType: "application/json",
     });
 
-    return res.status(200).json({
+return res.status(200).json({
       success: true,
       store: STORE,
       blobUrl: blob.url,
@@ -169,6 +169,7 @@ const PLACEHOLDER_IMAGES = new Set([
       scrapeDurationMs: payload.scrapeDurationMs,
       dropCounts: payload.dropCounts,
       pageSummaries: payload.pageSummaries,
+      droppedDealsSample: payload.droppedDealsSample,
     });
   } catch (err) {
     return res.status(500).json({
@@ -200,7 +201,7 @@ async function fetchHtml(url) {
       url,
       formats: ["html"],
       onlyMainContent: false,
-      waitFor: 3000,
+      waitFor: 1500,
     }),
   });
 
