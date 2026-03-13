@@ -337,7 +337,7 @@ input::placeholder{ color:#999; opacity:1; }
   line-height:inherit;
 }
 .suggestion-match{ color:inherit; }
-.suggestion-rest{ color:var(--sb-blue); }
+.suggestion-rest{ color:#2345b0ff; }
 .suggestion-item:hover{ background:#e8f0ff; }
 .suggestion-item.active{ background:#e8f0ff; }
 
@@ -1430,8 +1430,8 @@ button{
 .sb-sug .item:hover .sb-sug-rest,
 .sb-sug .item.active .sb-sug-rest,
 .suggestion-item:hover .suggestion-rest,
-.suggestion-item.active .suggestion-rest{
-  color:var(--sb-blue);
+.suggestion-item.active .suggestion-rest{   
+   color:#2345b0ff;
 }
 .sb-sug .item:hover,
 .sb-sug .item.active{ background:#e8f0ff; }
