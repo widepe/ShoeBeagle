@@ -339,14 +339,104 @@ async function collectAllHitsForCategory(categoryId) {
   };
 }
 
+function shouldReplaceBest(currentBest, candidate) {
+  const bestPrice = currentBest?.salePrice;
+  const candidatePrice = candidate?.salePrice;
+
+  if (Number.isFinite(candidatePrice) && !Number.isFinite(bestPrice)) return true;
+  if (!Number.isFinite(candidatePrice) && Number.isFinite(bestPrice)) return false;
+  if (Number.isFinite(candidatePrice) && Number.isFinite(bestPrice)) {
+    if (candidatePrice < bestPrice) return true;
+    if (candidatePrice > bestPrice) return false;
+  }
+
+  const bestOriginal = currentBest?.originalPrice;
+  const candidateOriginal = candidate?.originalPrice;
+  if (Number.isFinite(candidateOriginal) && Number.isFinite(bestOriginal)) {
+    if (candidateOriginal > bestOriginal) return true;
+    if (candidateOriginal < bestOriginal) return false;
+  }
+
+  return false;
+}
+
+function canUseAsSecondary(best, secondary, candidate) {
+  const bestPrice = best?.salePrice;
+  const secondaryPrice = secondary?.salePrice;
+  const candidatePrice = candidate?.salePrice;
+
+  if (!Number.isFinite(candidatePrice) || !Number.isFinite(bestPrice)) return false;
+  if (candidatePrice <= bestPrice) return false;
+
+  if (!secondary) return true;
+  if (!Number.isFinite(secondaryPrice)) return true;
+
+  // Prefer the lowest price above best.
+  return candidatePrice < secondaryPrice;
+}
+
+function bucketDealIntoStyles({
+  hit,
+  deal,
+  styleBuckets,
+  dropCounts,
+  pageDropCounts,
+}) {
+  const styleKey = String(hit?.masterStyle || hit?.url || hit?.objectID || "").trim();
+
+  if (!styleKey) {
+    inc(dropCounts, "dropped_missingStyleKey");
+    inc(pageDropCounts, "dropped_missingStyleKey");
+    return;
+  }
+
+  let bucket = styleBuckets.get(styleKey);
+
+  if (!bucket) {
+    styleBuckets.set(styleKey, {
+      best: deal,
+      secondary: null,
+    });
+    return;
+  }
+
+  if (shouldReplaceBest(bucket.best, deal)) {
+    const oldBest = bucket.best;
+    bucket.best = deal;
+
+    if (oldBest && canUseAsSecondary(bucket.best, bucket.secondary, oldBest)) {
+      bucket.secondary = oldBest;
+    }
+
+    return;
+  }
+
+  if (canUseAsSecondary(bucket.best, bucket.secondary, deal)) {
+    bucket.secondary = deal;
+    return;
+  }
+
+  inc(dropCounts, "dropped_duplicate");
+  inc(pageDropCounts, "dropped_duplicate");
+}
+
+function finalizeDealsFromBuckets(styleBuckets) {
+  const deals = [];
+
+  for (const bucket of styleBuckets.values()) {
+    if (bucket.best) deals.push(bucket.best);
+    if (bucket.secondary) deals.push(bucket.secondary);
+  }
+
+  return deals;
+}
+
 function summarizeCategoryHits({
   kind,
   pageUrl,
   hits,
-  deals,
-  seen,
+  styleBuckets,
   dropCounts,
-  genderCounts,
 }) {
   const pageDropCounts = {};
   const pageGenderCounts = emptyGenderCounts();
@@ -367,24 +457,34 @@ function summarizeCategoryHits({
       continue;
     }
 
-    const dedupeKey = String(hit?.masterStyle || hit?.url || hit?.objectID || "").trim();
-    if (!dedupeKey) {
-      inc(dropCounts, "dropped_missingDedupeKey");
-      inc(pageDropCounts, "dropped_missingDedupeKey");
-      continue;
-    }
+    const beforeCount = styleBuckets.size;
+    const beforeBucket = styleBuckets.get(
+      String(hit?.masterStyle || hit?.url || hit?.objectID || "").trim()
+    );
+    const beforeBest = beforeBucket?.best;
+    const beforeSecondary = beforeBucket?.secondary;
 
-    if (seen.has(dedupeKey)) {
-      inc(dropCounts, "dropped_duplicate");
-      inc(pageDropCounts, "dropped_duplicate");
-      continue;
-    }
+    bucketDealIntoStyles({
+      hit,
+      deal,
+      styleBuckets,
+      dropCounts,
+      pageDropCounts,
+    });
 
-    seen.add(dedupeKey);
-    deals.push(deal);
-    pageExtracted += 1;
-    inc(genderCounts, deal.gender);
-    inc(pageGenderCounts, deal.gender);
+    const afterBucket = styleBuckets.get(
+      String(hit?.masterStyle || hit?.url || hit?.objectID || "").trim()
+    );
+
+    const wasAdded =
+      styleBuckets.size > beforeCount ||
+      (afterBucket &&
+        (afterBucket.best !== beforeBest || afterBucket.secondary !== beforeSecondary));
+
+    if (wasAdded) {
+      pageExtracted += 1;
+      inc(pageGenderCounts, deal.gender);
+    }
   }
 
   return {
@@ -399,6 +499,16 @@ function summarizeCategoryHits({
   };
 }
 
+function countDealGenders(deals) {
+  const counts = emptyGenderCounts();
+
+  for (const deal of deals) {
+    inc(counts, deal.gender || "unknown");
+  }
+
+  return counts;
+}
+
 export default async function handler(req, res) {
   const started = Date.now();
 
@@ -410,11 +520,9 @@ export default async function handler(req, res) {
 
   try {
     const sourceUrls = [WOMENS_PAGE_URL, MENS_PAGE_URL];
-    const deals = [];
-    const seen = new Set();
     const pageSummaries = [];
     const dropCounts = {};
-    const genderCounts = emptyGenderCounts();
+    const styleBuckets = new Map();
 
     const womens = await collectAllHitsForCategory(WOMENS_CATEGORY_ID);
     const mens = await collectAllHitsForCategory(MENS_CATEGORY_ID);
@@ -424,10 +532,8 @@ export default async function handler(req, res) {
         kind: "womens",
         pageUrl: WOMENS_PAGE_URL,
         hits: womens.hits,
-        deals,
-        seen,
+        styleBuckets,
         dropCounts,
-        genderCounts,
       })
     );
 
@@ -436,12 +542,13 @@ export default async function handler(req, res) {
         kind: "mens",
         pageUrl: MENS_PAGE_URL,
         hits: mens.hits,
-        deals,
-        seen,
+        styleBuckets,
         dropCounts,
-        genderCounts,
       })
     );
+
+    const deals = finalizeDealsFromBuckets(styleBuckets);
+    const genderCounts = countDealGenders(deals);
 
     const output = {
       store: STORE,
