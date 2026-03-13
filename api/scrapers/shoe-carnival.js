@@ -5,13 +5,14 @@
 // - Scrapes these two searches:
 //   1) womens running shoes + on_sale
 //   2) men's running shoes + on_sale
-// - Assumes the search pages already contain the correct products
-// - Only drops:
-//   * hidden/MAP price ("see price in cart/bag" style)
+// - Keeps products if they are true running/performance products based on category/style metadata
+// - Drops only:
+//   * hidden/MAP/price-in-cart style products
+//   * non-performance products
+//   * products not in running categories
 //   * duplicates
 //   * missing required fields
 // - Dedupes by masterStyle
-// - Uses large hitsPerPage to keep requests very low
 // - Writes top-level structure + deals array only
 //
 // ENV:
@@ -43,6 +44,9 @@ const ALGOLIA_INDEX =
   "production_na02_shoecarnival_demandware_net__shoecarnival__products__default";
 
 const HITS_PER_PAGE = 1000;
+
+const WOMENS_RUNNING_CATEGORY_IDS = new Set(["193", "running"]);
+const MENS_RUNNING_CATEGORY_IDS = new Set(["194", "running"]);
 
 function nowIso() {
   return new Date().toISOString();
@@ -118,6 +122,10 @@ function getGenderFromHit(hit) {
   return "unknown";
 }
 
+function genderMatchesExpected(hit, expectedGender) {
+  return getGenderFromHit(hit) === expectedGender;
+}
+
 function extractImageUrl(hit) {
   const groupImage = asArray(hit?.image_groups)
     .flatMap((group) => asArray(group?.images))
@@ -142,15 +150,17 @@ function buildModel(listingName, brand) {
     model = model.replace(new RegExp(`^${brandEscaped}\\s+`, "i"), "");
   }
 
-  model = model.replace(/\s+running shoes?$/i, "");
-  model = model.replace(/\s+/g, " ").trim();
+  model = model
+    .replace(/\s+running shoes?$/i, "")
+    .replace(/\s+sneakers?$/i, "")
+    .trim();
 
+  model = model.replace(/\s+/g, " ").trim();
   return model || null;
 }
 
 function isHiddenPriceHit(hit) {
   const price = hit?.price || {};
-
   const sale = toNumber(price?.c_sale_price);
   const standard = toNumber(price?.c_standard_price);
 
@@ -174,8 +184,9 @@ function isHiddenPriceHit(hit) {
     );
 
   const noVisibleSalePrice = !Number.isFinite(sale);
+  const noVisiblePrices = !Number.isFinite(sale) && !Number.isFinite(standard);
 
-  return mapRestricted || hiddenLanguage || noVisibleSalePrice || !Number.isFinite(standard) && !Number.isFinite(sale);
+  return mapRestricted || hiddenLanguage || noVisibleSalePrice || noVisiblePrices;
 }
 
 function validateDeal(deal) {
@@ -231,6 +242,29 @@ function mapHitToDeal(hit) {
     gender: getGenderFromHit(hit),
     shoeType: "unknown",
   };
+}
+
+function isPerformanceStyle(hit) {
+  return asArray(hit?.styleType).some((s) => /^performance$/i.test(cleanText(s)));
+}
+
+function hitHasRunningCategory(hit, expectedGender) {
+  const primaryId = String(hit?.primary_category_id || "");
+  const assignedIds = new Set(asArray(hit?.assignedCategories).map((c) => String(c?.id || "")));
+  const assignedNames = new Set(asArray(hit?.assignedCategories).map((c) => lc(c?.name)));
+
+  const validIds =
+    expectedGender === "mens" ? MENS_RUNNING_CATEGORY_IDS : WOMENS_RUNNING_CATEGORY_IDS;
+
+  if (validIds.has(primaryId)) return true;
+
+  for (const id of validIds) {
+    if (assignedIds.has(id)) return true;
+  }
+
+  if (assignedNames.has("running shoes")) return true;
+
+  return false;
 }
 
 async function fetchAlgoliaPage({ query, page }) {
@@ -329,6 +363,7 @@ function summarizeSearchHits({
   kind,
   pageUrl,
   hits,
+  expectedGender,
   deals,
   seen,
   dropCounts,
@@ -339,6 +374,24 @@ function summarizeSearchHits({
   let pageExtracted = 0;
 
   for (const hit of hits) {
+    if (!genderMatchesExpected(hit, expectedGender)) {
+      inc(dropCounts, "dropped_wrongGender");
+      inc(pageDropCounts, "dropped_wrongGender");
+      continue;
+    }
+
+    if (!isPerformanceStyle(hit)) {
+      inc(dropCounts, "dropped_nonPerformanceStyle");
+      inc(pageDropCounts, "dropped_nonPerformanceStyle");
+      continue;
+    }
+
+    if (!hitHasRunningCategory(hit, expectedGender)) {
+      inc(dropCounts, "dropped_nonRunningCategory");
+      inc(pageDropCounts, "dropped_nonRunningCategory");
+      continue;
+    }
+
     if (isHiddenPriceHit(hit)) {
       inc(dropCounts, "dropped_hiddenPrice");
       inc(pageDropCounts, "dropped_hiddenPrice");
@@ -410,6 +463,7 @@ export default async function handler(req, res) {
         kind: "womens",
         pageUrl: WOMENS_PAGE_URL,
         hits: womens.hits,
+        expectedGender: "womens",
         deals,
         seen,
         dropCounts,
@@ -422,6 +476,7 @@ export default async function handler(req, res) {
         kind: "mens",
         pageUrl: MENS_PAGE_URL,
         hits: mens.hits,
+        expectedGender: "mens",
         deals,
         seen,
         dropCounts,
