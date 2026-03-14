@@ -58,7 +58,7 @@ const ACTIVITY = "Running";
 
 // Set this to however many pages you want to try.
 // Scraper stops early if a page has no hits.
-const MAX_PAGES = 12;
+const MAX_PAGES = 3;
 
 // -----------------------------
 // Helpers
@@ -259,44 +259,28 @@ function buildPageUrl(page) {
 
 // Tries several extraction patterns to find the JSON payload that contains `results[0].hits`
 function extractSearchJson(html) {
-  const candidates = [];
+  const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].map(m => m[1]);
 
-  // 1) direct JSON-ish block containing `"results":[{"hits":[...]}]`
-  const re1 = /(\{"results":\[\{"hits":.*?\}\]\})/gs;
-  for (const m of html.matchAll(re1)) {
-    candidates.push(m[1]);
-  }
+  for (const scriptText of scripts) {
+    if (!scriptText.includes('"results"') || !scriptText.includes('"hits"')) continue;
 
-  // 2) more relaxed: script content that includes `"results":[{"hits":`
-  const re2 = /<script[^>]*>([\s\S]*?"results"\s*:\s*\[\s*\{\s*"hits"\s*:\s*\[[\s\S]*?<\/script>/gi;
-  for (const m of html.matchAll(re2)) {
-    const scriptText = m[1].replace(/<\/script>$/i, "");
-    candidates.push(scriptText);
-  }
+    const start = scriptText.indexOf("{");
+    const end = scriptText.lastIndexOf("}");
+    if (start === -1 || end === -1 || end <= start) continue;
 
-  for (const raw of candidates) {
-    // Try exact parse
+    const candidate = scriptText.slice(start, end + 1);
+
     try {
-      const parsed = JSON.parse(raw);
-      if (parsed?.results?.[0]?.hits) return parsed;
-    } catch {}
-
-    // Try to isolate an outer object around "results"
-    const idx = raw.indexOf('"results"');
-    if (idx >= 0) {
-      const start = raw.lastIndexOf("{", idx);
-      const end = raw.lastIndexOf("}");
-      if (start >= 0 && end > start) {
-        const sliced = raw.slice(start, end + 1);
-        try {
-          const parsed = JSON.parse(sliced);
-          if (parsed?.results?.[0]?.hits) return parsed;
-        } catch {}
+      const parsed = JSON.parse(candidate);
+      if (parsed?.results?.[0]?.hits && Array.isArray(parsed.results[0].hits)) {
+        return parsed;
       }
+    } catch {
+      // keep trying
     }
   }
 
-  throw new Error("Could not extract embedded search JSON with results[0].hits from page HTML.");
+  throw new Error("Could not find embedded results[0].hits JSON in script tags.");
 }
 
 function increment(map, key, amount = 1) {
