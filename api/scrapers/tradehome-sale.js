@@ -725,34 +725,33 @@ export default async function handler(req, res) {
       pageSummaries.push(pageSummary);
     }
 
-    const payload = {
-      store: STORE,
-      schemaVersion: SCHEMA_VERSION,
+const payload = {
+  store: STORE,
+  schemaVersion: SCHEMA_VERSION,
 
-      lastUpdated: nowIso(),
-      via: VIA,
+  lastUpdated: nowIso(),
+  via: VIA,
 
-      sourceUrls,
+  sourceUrls,
 
-      pagesFetched,
+  pagesFetched,
 
-      dealsFound,
-      dealsExtracted: deals.length,
-      dealsForMens: storeGenderCounts.mens,
-      dealsForWomens: storeGenderCounts.womens,
-      dealsForUnisex: storeGenderCounts.unisex,
-      dealsForUnknown: storeGenderCounts.unknown,
+  dealsFound,
+  dealsExtracted: deals.length,
+  dealsForMens: storeGenderCounts.mens,
+  dealsForWomens: storeGenderCounts.womens,
+  dealsForUnisex: storeGenderCounts.unisex,
+  dealsForUnknown: storeGenderCounts.unknown,
 
-      scrapeDurationMs: Date.now() - startedAt,
+  scrapeDurationMs: Date.now() - startedAt,
 
-      ok: true,
-      error: null,
+  ok: true,
+  error: null,
 
-      dropCounts,
-      pageSummaries,
+  dropCounts,
 
-      deals,
-    };
+  deals,
+};
 
     const blob = await put(BLOB_PATH, JSON.stringify(payload, null, 2), {
       access: "public",
