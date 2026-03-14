@@ -78,6 +78,7 @@ module.exports = async function handler(req, res) {
     runpacers_sale: true,
     shoe_carnival: true,
     newton_specials: true,
+    sports_basement: true,
   };
 
   const TARGETS = [];
@@ -105,10 +106,13 @@ module.exports = async function handler(req, res) {
 
   // Shoe Carnival sale running shoes pages.
   if (ENABLED.shoe_carnival) TARGETS.push("/api/scrapers/shoe-carnival");
-  
+
   // Newton Running web specials page.
   if (ENABLED.newton_specials) TARGETS.push("/api/scrapers/newton-specials");
-  
+
+  // Sports Basement running shoe deals pages.
+  if (ENABLED.sports_basement) TARGETS.push("/api/scrapers/sportsbasement");
+
   try {
     const results = [];
 
