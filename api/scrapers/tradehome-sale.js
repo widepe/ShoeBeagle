@@ -6,7 +6,7 @@
 // - Keeps only performance running shoes for mens / womens / unisex
 // - Skips hidden-price tiles ("see price in cart", "add to bag to see price", etc.)
 // - Dedupes by product id / handle so one product does not appear once per size
-// - Sets shoeType to "unknown" unless the JSON data explicitly indicates road / trail / track
+// - Forces shoeType to "unknown" for all deals
 // - Writes ONE JSON blob with top-level metadata + deals array only
 //
 // ENV:
@@ -261,49 +261,74 @@ function inferGender(hit) {
   return "unknown";
 }
 
-function inferShoeType(hit) {
-  // Only set shoeType when explicitly stated in the JSON data.
-  // Otherwise leave it as unknown.
+function hasNegativeCollections(hit) {
+  const collections = getCollectionsLc(hit);
+  return collections.some((c) => containsAny(c, NEGATIVE_COLLECTION_TERMS));
+}
+
+function hasNegativeTags(hit) {
+  const tags = getTagsLc(hit);
+  return tags.some((t) => NEGATIVE_TAGS.has(t) || containsAny(t, [...NEGATIVE_TAGS]));
+}
+
+function hasNegativeProductType(hit) {
+  const pt = productTypeText(hit);
+  return containsAny(pt, NEGATIVE_PRODUCT_TYPE_TERMS);
+}
+
+function isAdultCategory(hit) {
+  const category = lc(productCategory(hit));
+  if (category === "kids") return false;
+
+  const ageGroup = lc(hit?.meta?.custom?.age_group);
+  if (["preschool", "toddler", "grade school", "grade-school", "youth"].includes(ageGroup)) {
+    return false;
+  }
+
+  const collections = getCollectionsLc(hit);
+  if (collections.some((c) => ["kids", "boys", "girls"].includes(c))) return false;
+
+  const tags = getTagsLc(hit);
+  if (tags.some((t) => ["kids", "boys", "girls", "preschool", "youth"].includes(t))) return false;
+
+  return true;
+}
+
+function hasPositiveRunningSignal(hit) {
   const collections = getCollectionsLc(hit);
   const tags = getTagsLc(hit);
   const productType = productTypeText(hit);
-  const body = bodyText(hit);
   const title = titleText(hit);
+  const body = bodyText(hit);
 
-  const explicitTrail =
-    collections.some((c) => c.includes("trail")) ||
-    tags.some((t) => t === "trail" || t.includes("trail")) ||
-    productType.includes("trail") ||
-    title.includes(" trail ") ||
-    body.includes(" trail ");
+  if (collections.some((c) => POSITIVE_RUNNING_COLLECTIONS.has(c))) return true;
+  if (tags.some((t) => POSITIVE_RUNNING_TAGS.has(t))) return true;
 
-  if (explicitTrail) return "trail";
+  if (productType.includes("performance")) return true;
+  if (productType.includes("running")) return true;
 
-  const explicitTrack =
-    collections.some((c) => c.includes("track")) ||
-    tags.some((t) => t === "track" || t.includes("track") || t.includes("spike")) ||
-    productType.includes("track") ||
-    productType.includes("spike") ||
-    title.includes(" track ") ||
-    body.includes(" track ") ||
-    title.includes("spike") ||
-    body.includes("spike");
+  if (title.includes("running shoe") || title.includes("running shoes")) return true;
+  if (body.includes("running shoe") || body.includes("running shoes")) return true;
+  if (body.includes("for every run")) return true;
+  if (body.includes("on every run")) return true;
 
-  if (explicitTrack) return "track";
-
-  const explicitRoad =
-    collections.some((c) => c.includes("road")) ||
-    tags.some((t) => t === "road" || t.includes("road")) ||
-    productType.includes("road") ||
-    title.includes(" road ") ||
-    body.includes(" road ");
-
-  if (explicitRoad) return "road";
-
-  return "unknown";
+  return false;
 }
 
-function classifyNonRunningReason(hit) {
+function isRunningShoe(hit) {
+  if (!isAdultCategory(hit)) return false;
+  if (!hasPositiveRunningSignal(hit)) return false;
+  if (hasNegativeProductType(hit)) return false;
+  if (hasNegativeTags(hit)) return false;
+
+  const collections = getCollectionsLc(hit);
+  const hasStrongRunningCollection = collections.some((c) => POSITIVE_RUNNING_COLLECTIONS.has(c));
+  if (!hasStrongRunningCollection && hasNegativeCollections(hit)) return false;
+
+  return true;
+}
+
+function getNotRunningReason(hit) {
   const category = lc(productCategory(hit));
   const ageGroup = lc(hit?.meta?.custom?.age_group);
   const collections = getCollectionsLc(hit);
@@ -334,24 +359,22 @@ function classifyNonRunningReason(hit) {
     productType.includes("accessories") ||
     productType.includes("clothing") ||
     productType.includes("apparel") ||
-    containsAny(blob, [
-      "crossbody bag",
-      "bag",
-      "backpack",
-      "wallet",
-      "sock",
-      "socks",
-      "hat",
-      "beanie",
-      "glove",
-      "gloves",
-      "shirt",
-      "shorts",
-      "jacket",
-      "bra",
-      "legging",
-      "leggings",
-    ]);
+    blob.includes("crossbody bag") ||
+    blob.includes("backpack") ||
+    blob.includes("wallet") ||
+    /\bbag\b/.test(blob) ||
+    /\bsock\b/.test(blob) ||
+    /\bsocks\b/.test(blob) ||
+    /\bhat\b/.test(blob) ||
+    /\bbeanie\b/.test(blob) ||
+    /\bglove\b/.test(blob) ||
+    /\bgloves\b/.test(blob) ||
+    /\bshirt\b/.test(blob) ||
+    /\bshorts\b/.test(blob) ||
+    /\bjacket\b/.test(blob) ||
+    /\bbra\b/.test(blob) ||
+    /\blegging\b/.test(blob) ||
+    /\bleggings\b/.test(blob);
 
   if (isAccessory) return "dropped_accessories";
 
@@ -360,7 +383,10 @@ function classifyNonRunningReason(hit) {
     tags.some((t) => t === "boots" || t === "booties") ||
     productType.includes("boots") ||
     productType.includes("booties") ||
-    containsAny(blob, ["boot", "bootie"]);
+    /\bboot\b/.test(blob) ||
+    /\bbootie\b/.test(blob) ||
+    /\bboots\b/.test(blob) ||
+    /\bbooties\b/.test(blob);
 
   if (isBoot) return "dropped_boots";
 
@@ -368,69 +394,21 @@ function classifyNonRunningReason(hit) {
     collections.some((c) => containsAny(c, ["casual", "lifestyle", "oxfords", "loafers", "dress", "walking"])) ||
     tags.some((t) => NEGATIVE_TAGS.has(t) || containsAny(t, ["casual", "lifestyle", "oxford", "loafer", "dress", "walking"])) ||
     containsAny(productType, NEGATIVE_PRODUCT_TYPE_TERMS) ||
-    containsAny(blob, [
-      "casual",
-      "lifestyle",
-      "oxford",
-      "oxfords",
-      "loafer",
-      "loafers",
-      "dress",
-      "walking",
-      "everyday wear",
-      "travel",
-      "fashion",
-      "canvas",
-    ]);
+    /\bcasual\b/.test(blob) ||
+    /\blifestyle\b/.test(blob) ||
+    /\boxford\b/.test(blob) ||
+    /\boxfords\b/.test(blob) ||
+    /\bloafer\b/.test(blob) ||
+    /\bloafers\b/.test(blob) ||
+    /\bdress\b/.test(blob) ||
+    /\bwalking\b/.test(blob) ||
+    /\bfashion\b/.test(blob) ||
+    /\bcanvas\b/.test(blob) ||
+    blob.includes("everyday wear");
 
   if (isCasualLifestyle) return "dropped_casualLifestyle";
 
   return "dropped_notRunning";
-}
-
-function hasPositiveRunningSignal(hit) {
-  const collections = getCollectionsLc(hit);
-  const tags = getTagsLc(hit);
-  const productType = productTypeText(hit);
-  const title = titleText(hit);
-  const body = bodyText(hit);
-
-  if (collections.some((c) => POSITIVE_RUNNING_COLLECTIONS.has(c))) return true;
-  if (tags.some((t) => POSITIVE_RUNNING_TAGS.has(t))) return true;
-
-  if (productType.includes("performance")) return true;
-  if (productType.includes("running")) return true;
-
-  if (title.includes("running shoe") || title.includes("running shoes")) return true;
-  if (body.includes("running shoe") || body.includes("running shoes")) return true;
-  if (body.includes("for every run")) return true;
-  if (body.includes("on every run")) return true;
-
-  return false;
-}
-
-function isRunningShoe(hit) {
-  if (classifyNonRunningReason(hit) !== "dropped_notRunning") {
-    return false;
-  }
-
-  if (!hasPositiveRunningSignal(hit)) {
-    return false;
-  }
-
-  const collections = getCollectionsLc(hit);
-  const hasStrongRunningCollection = collections.some((c) => POSITIVE_RUNNING_COLLECTIONS.has(c));
-
-  if (!hasStrongRunningCollection && collections.some((c) => containsAny(c, NEGATIVE_COLLECTION_TERMS))) {
-    return false;
-  }
-
-  return true;
-}
-
-function isAllowedGender(hit) {
-  const gender = inferGender(hit);
-  return gender === "mens" || gender === "womens" || gender === "unisex";
 }
 
 function buildListingUrl(hit) {
@@ -637,23 +615,12 @@ export default async function handler(req, res) {
           pageSummary.droppedDeals += 1;
         };
 
-        const nonRunningReason = classifyNonRunningReason(hit);
-        if (nonRunningReason !== "dropped_notRunning") {
-          fail(nonRunningReason);
-          continue;
-        }
-
-        if (!hasPositiveRunningSignal(hit)) {
-          fail("dropped_notRunning");
-          continue;
-        }
-
         if (!isRunningShoe(hit)) {
-          fail("dropped_notRunning");
+          fail(getNotRunningReason(hit));
           continue;
         }
 
-        if (!isAllowedGender(hit)) {
+        if (!(gender === "mens" || gender === "womens" || gender === "unisex")) {
           fail("dropped_wrongGenderCategory");
           continue;
         }
@@ -722,8 +689,6 @@ export default async function handler(req, res) {
           ((originalPrice - salePrice) / originalPrice) * 100
         );
 
-        const shoeType = inferShoeType(hit);
-
         deals.push({
           schemaVersion: SCHEMA_VERSION,
 
@@ -748,7 +713,7 @@ export default async function handler(req, res) {
           imageURL,
 
           gender,
-          shoeType,
+          shoeType: "unknown",
         });
 
         seenProductKeys.add(productKey);
