@@ -247,6 +247,7 @@
       let currentSearch = { brand: "", model: "" };
       let lastSearchResults = [];
       let lastDailyDeals = [];
+      let lastAllDeals = [];
 
       // Unified state (ribbon dropdowns update these)
       let selectedGender = "";    // "" | "mens" | "womens"
@@ -381,6 +382,10 @@
 
           const data = await res.json();
           const deals = Array.isArray(data?.deals) ? data.deals : [];
+          lastAllDeals = deals.slice();
+
+          // STORE FILTER: include every store from deals.json in the ribbon dropdown.
+          updateStoreFilterOptions(lastAllDeals);
 
           dealsSuggest.brandNormToDisplay.clear();
           dealsSuggest.brandToModels.clear();
@@ -428,6 +433,9 @@
             a.localeCompare(b)
           );
           dealsSuggest.ready = true;
+
+          // If a store is currently selected, render from full deals.json inventory.
+          if (selectedStore) renderDailyDealsNow();
         } catch (e) {
           console.error("[suggestions] Failed to build deals.json suggestion index:", e?.message || String(e));
           dealsSuggest.ready = false;
@@ -1064,9 +1072,11 @@
 
       function renderDailyDealsNow() {
         if (!dailyDealsGrid) return;
-        if (!lastDailyDeals || !lastDailyDeals.length) return;
 
-        const filtered = getFilteredAndSorted(lastDailyDeals);
+        const sourceDeals = selectedStore && lastAllDeals.length ? lastAllDeals : lastDailyDeals;
+        if (!sourceDeals || !sourceDeals.length) return;
+
+        const filtered = getFilteredAndSorted(sourceDeals);
 
         dailyDealsGrid.innerHTML = "";
         filtered.forEach((item) => dailyDealsGrid.appendChild(createDealCard(item)));
@@ -1270,8 +1280,8 @@
           const deals = Array.isArray(data.deals) ? data.deals : [];
 
           lastDailyDeals = deals.slice();
-          // STORE FILTER (easy-to-remove block): populate store dropdown from current deals array.
-          updateStoreFilterOptions(lastDailyDeals);
+          // If deals.json hasn't loaded yet, fall back to stores from daily deals.
+          if (!lastAllDeals.length) updateStoreFilterOptions(lastDailyDeals);
 
           if (!deals.length) {
             if (dailyDeals) dailyDeals.style.display = "none";
