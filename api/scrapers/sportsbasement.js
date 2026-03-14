@@ -29,6 +29,7 @@
 //   ok,
 //   error,
 //   dropCounts,
+//   droppedReasons,
 //   pageSummaries,
 //   deals: []
 // }
@@ -41,12 +42,10 @@
 //
 // NOTES:
 // - CRON auth block is included but commented out for testing
-// - This scraper assumes the page HTML contains a JSON payload with `results[0].hits`
-// - If Sports Basement changes how search data is embedded, only the extractor may need updating
+// - This scraper tries several extraction methods for embedded results JSON
+// - Blob path: sportsbasement.json
 
-import { put } from "@vercel/blob";
-
-export const config = { maxDuration: 60 };
+const { put } = require("@vercel/blob");
 
 const STORE = "Sports Basement";
 const SCHEMA_VERSION = 1;
@@ -56,9 +55,10 @@ const BASE_URL = "https://www.sportsbasement.com/search";
 const SEARCH_TERM = "shoes deals";
 const ACTIVITY = "Running";
 
-// Set this to however many pages you want to try.
-// Scraper stops early if a page has no hits.
+// Keep this low until the scraper is proven stable.
 const MAX_PAGES = 3;
+
+module.exports.config = { maxDuration: 60 };
 
 // -----------------------------
 // Helpers
@@ -67,18 +67,8 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function toAbsUrl(url) {
-  if (!url) return null;
-  if (/^https?:\/\//i.test(url)) return url;
-  if (url.startsWith("//")) return `https:${url}`;
-  if (url.startsWith("/")) return `https://www.sportsbasement.com${url}`;
-  return `https://www.sportsbasement.com/${url.replace(/^\/+/, "")}`;
-}
-
 function cleanText(value) {
-  return String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
+  return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
 function lower(value) {
@@ -99,8 +89,8 @@ function parseNumber(value) {
 function discountPct(original, sale) {
   if (
     typeof original !== "number" ||
-    typeof sale !== "number" ||
     !Number.isFinite(original) ||
+    typeof sale !== "number" ||
     !Number.isFinite(sale) ||
     original <= 0 ||
     sale >= original
@@ -108,6 +98,41 @@ function discountPct(original, sale) {
     return null;
   }
   return Math.round(((original - sale) / original) * 100);
+}
+
+function toAbsUrl(url) {
+  if (!url) return null;
+  const s = String(url).trim();
+  if (!s) return null;
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("//")) return `https:${s}`;
+  if (s.startsWith("/")) return `https://www.sportsbasement.com${s}`;
+  return `https://www.sportsbasement.com/${s.replace(/^\/+/, "")}`;
+}
+
+function buildPageUrl(page) {
+  const url = new URL(BASE_URL);
+  url.searchParams.set("q", SEARCH_TERM);
+  url.searchParams.set("page", String(page));
+  url.searchParams.set("refinementList[named_tags.Activity][0]", ACTIVITY);
+  return url.toString();
+}
+
+function getProductText(hit) {
+  return cleanText(
+    [
+      hit?.title,
+      hit?.body_html_safe,
+      hit?.vendor,
+      hit?.product_type,
+      Array.isArray(hit?.tags) ? hit.tags.join(" ") : "",
+      hit?.option1,
+      hit?.option2,
+      hit?.option3,
+      hit?.handle,
+      hit?.named_tags ? JSON.stringify(hit.named_tags) : "",
+    ].join(" ")
+  );
 }
 
 function isHiddenPriceText(text) {
@@ -127,22 +152,11 @@ function isHiddenPriceText(text) {
     "hidden price",
     "special price in cart",
     "special price in bag",
+    "see final price in cart",
+    "see final price in bag",
   ];
 
   return patterns.some((p) => t.includes(p));
-}
-
-function getProductText(hit) {
-  return cleanText([
-    hit?.title,
-    hit?.body_html_safe,
-    hit?.vendor,
-    hit?.product_type,
-    Array.isArray(hit?.tags) ? hit.tags.join(" ") : "",
-    hit?.option1,
-    hit?.option2,
-    hit?.option3,
-  ].join(" "));
 }
 
 function inferGender(hit) {
@@ -151,12 +165,13 @@ function inferGender(hit) {
     ...(Array.isArray(hit?.named_tags_names) ? hit.named_tags_names : []),
   ].map((x) => lower(x));
 
-  const genderAge = lower(hit?.named_tags?.["Gender/Age"]);
-  const title = lower(hit?.title);
-  const handle = lower(hit?.handle);
-  const text = lower(getProductText(hit));
-
-  const joined = [genderAge, title, handle, text, ...tags].join(" | ");
+  const joined = [
+    lower(hit?.named_tags?.["Gender/Age"]),
+    lower(hit?.title),
+    lower(hit?.handle),
+    lower(getProductText(hit)),
+    ...tags,
+  ].join(" | ");
 
   if (
     joined.includes("women's") ||
@@ -183,11 +198,12 @@ function inferGender(hit) {
 }
 
 function inferShoeType(hit) {
-  const bestUse = lower(hit?.named_tags?.["Best Use"]);
-  const title = lower(hit?.title);
-  const handle = lower(hit?.handle);
-  const text = lower(getProductText(hit));
-  const joined = [bestUse, title, handle, text].join(" | ");
+  const joined = [
+    lower(hit?.named_tags?.["Best Use"]),
+    lower(hit?.title),
+    lower(hit?.handle),
+    lower(getProductText(hit)),
+  ].join(" | ");
 
   if (joined.includes("trail")) return "trail";
   if (joined.includes("track spike") || joined.includes("spike")) return "track";
@@ -197,16 +213,19 @@ function inferShoeType(hit) {
 }
 
 function looksLikeShoe(hit) {
-  const productType = lower(hit?.product_type);
-  const title = lower(hit?.title);
-  const text = lower(getProductText(hit));
-  const joined = [productType, title, text].join(" | ");
+  const joined = [
+    lower(hit?.product_type),
+    lower(hit?.title),
+    lower(getProductText(hit)),
+  ].join(" | ");
 
+  // hard exclusions
   if (joined.includes("sock")) return false;
   if (joined.includes("insole")) return false;
   if (joined.includes("sandal")) return false;
   if (joined.includes("slipper")) return false;
   if (joined.includes("boot")) return false;
+  if (joined.includes("flip flop")) return false;
 
   const shoeSignals = [
     "shoe",
@@ -225,15 +244,6 @@ function looksLikeShoe(hit) {
   return shoeSignals.some((s) => joined.includes(s));
 }
 
-function buildListingUrl(hit) {
-  if (!hit?.handle) return null;
-  return `https://www.sportsbasement.com/products/${hit.handle}`;
-}
-
-function pickImage(hit) {
-  return toAbsUrl(hit?.image || hit?.product_image || null);
-}
-
 function normalizeBrand(vendor) {
   const brand = cleanText(vendor);
   return brand || null;
@@ -249,38 +259,13 @@ function normalizeModel(title, brand) {
   return cleanText(t.replace(re, ""));
 }
 
-function buildPageUrl(page) {
-  const url = new URL(BASE_URL);
-  url.searchParams.set("q", SEARCH_TERM);
-  url.searchParams.set("page", String(page));
-  url.searchParams.set("refinementList[named_tags.Activity][0]", ACTIVITY);
-  return url.toString();
+function buildListingUrl(hit) {
+  if (!hit?.handle) return null;
+  return `https://www.sportsbasement.com/products/${hit.handle}`;
 }
 
-// Tries several extraction patterns to find the JSON payload that contains `results[0].hits`
-function extractSearchJson(html) {
-  const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].map(m => m[1]);
-
-  for (const scriptText of scripts) {
-    if (!scriptText.includes('"results"') || !scriptText.includes('"hits"')) continue;
-
-    const start = scriptText.indexOf("{");
-    const end = scriptText.lastIndexOf("}");
-    if (start === -1 || end === -1 || end <= start) continue;
-
-    const candidate = scriptText.slice(start, end + 1);
-
-    try {
-      const parsed = JSON.parse(candidate);
-      if (parsed?.results?.[0]?.hits && Array.isArray(parsed.results[0].hits)) {
-        return parsed;
-      }
-    } catch {
-      // keep trying
-    }
-  }
-
-  throw new Error("Could not find embedded results[0].hits JSON in script tags.");
+function pickImage(hit) {
+  return toAbsUrl(hit?.image || hit?.product_image || null);
 }
 
 function increment(map, key, amount = 1) {
@@ -304,9 +289,152 @@ function buildDropSummaryWithStores(reasonCounts, reasonStores) {
 }
 
 // -----------------------------
+// Embedded JSON extraction
+// -----------------------------
+function tryJsonParse(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function findHitsAnywhere(obj, depth = 0) {
+  if (!obj || depth > 12) return null;
+
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      const found = findHitsAnywhere(item, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  if (typeof obj !== "object") return null;
+
+  if (
+    Array.isArray(obj?.results) &&
+    Array.isArray(obj.results?.[0]?.hits)
+  ) {
+    return obj.results[0].hits;
+  }
+
+  if (Array.isArray(obj?.hits)) {
+    return obj.hits;
+  }
+
+  for (const key of Object.keys(obj)) {
+    const found = findHitsAnywhere(obj[key], depth + 1);
+    if (found) return found;
+  }
+
+  return null;
+}
+
+function extractNextDataJson(html) {
+  const m = html.match(
+    /<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i
+  );
+  if (!m) return null;
+  return tryJsonParse(m[1]);
+}
+
+function extractAllScriptContents(html) {
+  const matches = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+  return matches.map((m) => m[1]).filter(Boolean);
+}
+
+function extractBalancedJsonBlock(text, anchorIndex) {
+  const start = text.lastIndexOf("{", anchorIndex);
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === "{") depth++;
+    if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        return text.slice(start, i + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractSearchHits(html) {
+  // 1) Try __NEXT_DATA__
+  const nextData = extractNextDataJson(html);
+  if (nextData) {
+    const hits = findHitsAnywhere(nextData);
+    if (Array.isArray(hits)) return hits;
+  }
+
+  // 2) Try all script tags
+  const scripts = extractAllScriptContents(html);
+  for (const scriptText of scripts) {
+    if (!scriptText.includes('"hits"')) continue;
+
+    const direct = tryJsonParse(scriptText);
+    if (direct) {
+      const hits = findHitsAnywhere(direct);
+      if (Array.isArray(hits)) return hits;
+    }
+
+    const anchor = scriptText.indexOf('"hits"');
+    if (anchor !== -1) {
+      const candidate = extractBalancedJsonBlock(scriptText, anchor);
+      if (candidate) {
+        const parsed = tryJsonParse(candidate);
+        if (parsed) {
+          const hits = findHitsAnywhere(parsed);
+          if (Array.isArray(hits)) return hits;
+        }
+      }
+    }
+  }
+
+  // 3) Last resort: search the entire HTML for a JSON block near "hits"
+  const rawAnchor = html.indexOf('"hits"');
+  if (rawAnchor !== -1) {
+    const candidate = extractBalancedJsonBlock(html, rawAnchor);
+    if (candidate) {
+      const parsed = tryJsonParse(candidate);
+      if (parsed) {
+        const hits = findHitsAnywhere(parsed);
+        if (Array.isArray(hits)) return hits;
+      }
+    }
+  }
+
+  throw new Error("Could not extract hits array from Sports Basement HTML.");
+}
+
+// -----------------------------
 // Main handler
 // -----------------------------
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const started = Date.now();
 
   // TEMPORARILY COMMENTED OUT FOR TESTING
@@ -335,7 +463,6 @@ export default async function handler(req, res) {
     dropped_duplicate: 0,
   };
 
-  // Optional richer drop breakdown with store counts
   const droppedReasonCounts = {};
   const droppedReasonStores = {};
 
@@ -354,28 +481,30 @@ export default async function handler(req, res) {
       const pageUrl = buildPageUrl(page);
       sourceUrls.push(pageUrl);
 
-      const r = await fetch(pageUrl, {
+      const response = await fetch(pageUrl, {
+        method: "GET",
         headers: {
           "user-agent":
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-          accept: "text/html,application/xhtml+xml",
+          accept: "text/html,application/xhtml+xml,application/json",
+          "accept-language": "en-US,en;q=0.9",
+          referer: "https://www.sportsbasement.com/",
         },
         cache: "no-store",
       });
 
-      if (!r.ok) {
-        throw new Error(`Fetch failed for page ${page}: ${r.status} ${r.statusText}`);
+      if (!response.ok) {
+        throw new Error(`Fetch failed for page ${page}: ${response.status} ${response.statusText}`);
       }
 
-      const html = await r.text();
+      const html = await response.text();
       pagesFetched += 1;
 
-      const payload = extractSearchJson(html);
-      const hits = Array.isArray(payload?.results?.[0]?.hits)
-        ? payload.results[0].hits
-        : [];
+      console.log(`[${STORE}] page ${page} fetched, html length=${html.length}`);
 
-      if (!hits.length) {
+      const hits = extractSearchHits(html);
+
+      if (!Array.isArray(hits) || !hits.length) {
         pageSummaries.push({
           page,
           url: pageUrl,
@@ -416,14 +545,12 @@ export default async function handler(req, res) {
         const originalPrice = round2(
           parseNumber(
             hit?.compare_at_price ??
-              hit?.variants_compare_at_price_min ??
-              hit?.variants_compare_at_price_max
+            hit?.variants_compare_at_price_min ??
+            hit?.variants_compare_at_price_max
           )
         );
 
-        const hiddenPriceSignal = isHiddenPriceText(rawText);
-
-        if (hiddenPriceSignal) {
+        if (isHiddenPriceText(rawText)) {
           increment(dropCounts, "dropped_hiddenPrice");
           increment(pageDropCounts, "dropped_hiddenPrice");
           increment(droppedReasonCounts, "hidden_price");
@@ -497,11 +624,7 @@ export default async function handler(req, res) {
           increment(dropCounts, "dropped_saleNotLessThanOriginal");
           increment(pageDropCounts, "dropped_saleNotLessThanOriginal");
           increment(droppedReasonCounts, "sale_not_less_than_original");
-          addStoreToDropReasonStoreMap(
-            droppedReasonStores,
-            "sale_not_less_than_original",
-            STORE
-          );
+          addStoreToDropReasonStoreMap(droppedReasonStores, "sale_not_less_than_original", STORE);
           continue;
         }
 
@@ -570,7 +693,7 @@ export default async function handler(req, res) {
         }
       }
 
-      const droppedDeals = Object.values(pageDropCounts).reduce((a, b) => a + b, 0);
+      const droppedDeals = Object.values(pageDropCounts).reduce((sum, value) => sum + value, 0);
 
       pageSummaries.push({
         page,
@@ -608,10 +731,7 @@ export default async function handler(req, res) {
       error: null,
 
       dropCounts,
-      droppedReasons: buildDropSummaryWithStores(
-        droppedReasonCounts,
-        droppedReasonStores
-      ),
+      droppedReasons: buildDropSummaryWithStores(droppedReasonCounts, droppedReasonStores),
       pageSummaries,
 
       deals,
@@ -642,10 +762,13 @@ export default async function handler(req, res) {
       ok: true,
     });
   } catch (err) {
+    console.error(`[${STORE}] SCRAPER ERROR`, err);
+
     return res.status(500).json({
       success: false,
       store: STORE,
       error: err?.message || String(err),
+      stack: err?.stack || null,
       scrapeDurationMs: Date.now() - started,
       pagesFetched,
       sourceUrls,
@@ -653,4 +776,4 @@ export default async function handler(req, res) {
       dropCounts,
     });
   }
-}
+};
