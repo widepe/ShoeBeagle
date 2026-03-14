@@ -2,61 +2,39 @@
 //
 // Sports Basement running shoe deals scraper
 //
-// What this does:
-// - Fetches Sports Basement search result pages for running shoe deals
-// - Extracts embedded search JSON from the HTML
-// - Keeps only running shoe deals
-// - Skips hidden-price tiles / "see price in cart/bag" style listings
-// - Writes a clean blob JSON with:
-//     top-level metadata
-//     deals array
+// IMPORTANT:
+// This version uses the underlying Algolia search API directly.
+// It does NOT try to extract product hits from raw HTML.
 //
-// Output shape:
-// {
-//   store,
-//   schemaVersion,
-//   lastUpdated,
-//   via,
-//   sourceUrls,
-//   pagesFetched,
-//   dealsFound,
-//   dealsExtracted,
-//   dealsForMens,
-//   dealsForWomens,
-//   dealsForUnisex,
-//   dealsForUnknown,
-//   scrapeDurationMs,
-//   ok,
-//   error,
-//   dropCounts,
-//   droppedReasons,
-//   pageSummaries,
-//   deals: []
-// }
-//
-// ENV:
+// Required ENV:
 // - BLOB_READ_WRITE_TOKEN
+// - SPORTSBASEMENT_ALGOLIA_APP_ID
+// - SPORTSBASEMENT_ALGOLIA_API_KEY
+// - SPORTSBASEMENT_ALGOLIA_INDEX_NAME
 //
-// TEST:
+// Test:
 // /api/scrapers/sportsbasement
 //
-// NOTES:
+// Output:
+// - top-level metadata
+// - deals array
+//
+// Notes:
 // - CRON auth block is included but commented out for testing
-// - This scraper tries several extraction methods for embedded results JSON
-// - Blob path: sportsbasement.json
+// - Saves to blob path: sportsbasement.json
 
 const { put } = require("@vercel/blob");
 
 const STORE = "Sports Basement";
 const SCHEMA_VERSION = 1;
-const VIA = "fetch-html";
+const VIA = "algolia";
 
-const BASE_URL = "https://www.sportsbasement.com/search";
 const SEARCH_TERM = "shoes deals";
 const ACTIVITY = "Running";
 
-// Keep this low until the scraper is proven stable.
+// Keep low while testing
 const MAX_PAGES = 3;
+const HITS_PER_PAGE = 48;
 
 module.exports.config = { maxDuration: 60 };
 
@@ -110,14 +88,6 @@ function toAbsUrl(url) {
   return `https://www.sportsbasement.com/${s.replace(/^\/+/, "")}`;
 }
 
-function buildPageUrl(page) {
-  const url = new URL(BASE_URL);
-  url.searchParams.set("q", SEARCH_TERM);
-  url.searchParams.set("page", String(page));
-  url.searchParams.set("refinementList[named_tags.Activity][0]", ACTIVITY);
-  return url.toString();
-}
-
 function getProductText(hit) {
   return cleanText(
     [
@@ -154,6 +124,8 @@ function isHiddenPriceText(text) {
     "special price in bag",
     "see final price in cart",
     "see final price in bag",
+    "see price",
+    "add to bag"
   ];
 
   return patterns.some((p) => t.includes(p));
@@ -219,13 +191,14 @@ function looksLikeShoe(hit) {
     lower(getProductText(hit)),
   ].join(" | ");
 
-  // hard exclusions
   if (joined.includes("sock")) return false;
   if (joined.includes("insole")) return false;
   if (joined.includes("sandal")) return false;
   if (joined.includes("slipper")) return false;
   if (joined.includes("boot")) return false;
   if (joined.includes("flip flop")) return false;
+  if (joined.includes("heel")) return false;
+  if (joined.includes("wedge")) return false;
 
   const shoeSignals = [
     "shoe",
@@ -288,147 +261,79 @@ function buildDropSummaryWithStores(reasonCounts, reasonStores) {
   return out;
 }
 
+function buildSourceUrl(page1Based) {
+  const url = new URL("https://www.sportsbasement.com/search");
+  url.searchParams.set("q", SEARCH_TERM);
+  url.searchParams.set("page", String(page1Based));
+  url.searchParams.set("refinementList[named_tags.Activity][0]", ACTIVITY);
+  return url.toString();
+}
+
 // -----------------------------
-// Embedded JSON extraction
+// Algolia fetch
 // -----------------------------
-function tryJsonParse(value) {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
+async function fetchAlgoliaHits({ page0Based }) {
+  const appId = process.env.SPORTSBASEMENT_ALGOLIA_APP_ID;
+  const apiKey = process.env.SPORTSBASEMENT_ALGOLIA_API_KEY;
+  const indexName = process.env.SPORTSBASEMENT_ALGOLIA_INDEX_NAME;
 
-function findHitsAnywhere(obj, depth = 0) {
-  if (!obj || depth > 12) return null;
-
-  if (Array.isArray(obj)) {
-    for (const item of obj) {
-      const found = findHitsAnywhere(item, depth + 1);
-      if (found) return found;
-    }
-    return null;
+  if (!appId || !apiKey || !indexName) {
+    throw new Error(
+      "Missing one or more required env vars: SPORTSBASEMENT_ALGOLIA_APP_ID, SPORTSBASEMENT_ALGOLIA_API_KEY, SPORTSBASEMENT_ALGOLIA_INDEX_NAME"
+    );
   }
 
-  if (typeof obj !== "object") return null;
+  const endpoint = `https://${appId}-dsn.algolia.net/1/indexes/*/queries`;
 
-  if (
-    Array.isArray(obj?.results) &&
-    Array.isArray(obj.results?.[0]?.hits)
-  ) {
-    return obj.results[0].hits;
-  }
+  const params = new URLSearchParams({
+    query: SEARCH_TERM,
+    page: String(page0Based),
+    hitsPerPage: String(HITS_PER_PAGE),
+    clickAnalytics: "false",
+    facets: JSON.stringify([
+      "named_tags.Activity",
+      "named_tags.Gender/Age",
+      "named_tags.Best Use",
+      "vendor",
+      "tags"
+    ]),
+    facetFilters: JSON.stringify([
+      ["named_tags.Activity:Running"]
+    ])
+  }).toString();
 
-  if (Array.isArray(obj?.hits)) {
-    return obj.hits;
-  }
-
-  for (const key of Object.keys(obj)) {
-    const found = findHitsAnywhere(obj[key], depth + 1);
-    if (found) return found;
-  }
-
-  return null;
-}
-
-function extractNextDataJson(html) {
-  const m = html.match(
-    /<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i
-  );
-  if (!m) return null;
-  return tryJsonParse(m[1]);
-}
-
-function extractAllScriptContents(html) {
-  const matches = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
-  return matches.map((m) => m[1]).filter(Boolean);
-}
-
-function extractBalancedJsonBlock(text, anchorIndex) {
-  const start = text.lastIndexOf("{", anchorIndex);
-  if (start === -1) return null;
-
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-      } else if (ch === "\\") {
-        escaped = true;
-      } else if (ch === '"') {
-        inString = false;
+  const body = {
+    requests: [
+      {
+        indexName,
+        params
       }
-      continue;
-    }
+    ]
+  };
 
-    if (ch === '"') {
-      inString = true;
-      continue;
-    }
+  const r = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-algolia-application-id": appId,
+      "x-algolia-api-key": apiKey
+    },
+    body: JSON.stringify(body)
+  });
 
-    if (ch === "{") depth++;
-    if (ch === "}") {
-      depth--;
-      if (depth === 0) {
-        return text.slice(start, i + 1);
-      }
-    }
+  if (!r.ok) {
+    const text = await r.text().catch(() => "");
+    throw new Error(`Algolia request failed: ${r.status} ${r.statusText} ${text}`);
   }
 
-  return null;
-}
+  const payload = await r.json();
 
-function extractSearchHits(html) {
-  // 1) Try __NEXT_DATA__
-  const nextData = extractNextDataJson(html);
-  if (nextData) {
-    const hits = findHitsAnywhere(nextData);
-    if (Array.isArray(hits)) return hits;
-  }
+  const result = payload?.results?.[0];
+  const hits = Array.isArray(result?.hits) ? result.hits : [];
+  const nbPages = Number.isFinite(result?.nbPages) ? result.nbPages : null;
+  const nbHits = Number.isFinite(result?.nbHits) ? result.nbHits : null;
 
-  // 2) Try all script tags
-  const scripts = extractAllScriptContents(html);
-  for (const scriptText of scripts) {
-    if (!scriptText.includes('"hits"')) continue;
-
-    const direct = tryJsonParse(scriptText);
-    if (direct) {
-      const hits = findHitsAnywhere(direct);
-      if (Array.isArray(hits)) return hits;
-    }
-
-    const anchor = scriptText.indexOf('"hits"');
-    if (anchor !== -1) {
-      const candidate = extractBalancedJsonBlock(scriptText, anchor);
-      if (candidate) {
-        const parsed = tryJsonParse(candidate);
-        if (parsed) {
-          const hits = findHitsAnywhere(parsed);
-          if (Array.isArray(hits)) return hits;
-        }
-      }
-    }
-  }
-
-  // 3) Last resort: search the entire HTML for a JSON block near "hits"
-  const rawAnchor = html.indexOf('"hits"');
-  if (rawAnchor !== -1) {
-    const candidate = extractBalancedJsonBlock(html, rawAnchor);
-    if (candidate) {
-      const parsed = tryJsonParse(candidate);
-      if (parsed) {
-        const hits = findHitsAnywhere(parsed);
-        if (Array.isArray(hits)) return hits;
-      }
-    }
-  }
-
-  throw new Error("Could not extract hits array from Sports Basement HTML.");
+  return { hits, nbPages, nbHits };
 }
 
 // -----------------------------
@@ -465,7 +370,6 @@ module.exports = async function handler(req, res) {
 
   const droppedReasonCounts = {};
   const droppedReasonStores = {};
-
   const seen = new Set();
 
   let pagesFetched = 0;
@@ -477,37 +381,24 @@ module.exports = async function handler(req, res) {
   let dealsForUnknown = 0;
 
   try {
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      const pageUrl = buildPageUrl(page);
-      sourceUrls.push(pageUrl);
+    for (let page1 = 1; page1 <= MAX_PAGES; page1++) {
+      const page0 = page1 - 1;
+      const sourceUrl = buildSourceUrl(page1);
+      sourceUrls.push(sourceUrl);
 
-      const response = await fetch(pageUrl, {
-        method: "GET",
-        headers: {
-          "user-agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-          accept: "text/html,application/xhtml+xml,application/json",
-          "accept-language": "en-US,en;q=0.9",
-          referer: "https://www.sportsbasement.com/",
-        },
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error(`Fetch failed for page ${page}: ${response.status} ${response.statusText}`);
-      }
-
-      const html = await response.text();
+      const { hits, nbPages, nbHits } = await fetchAlgoliaHits({ page0Based: page0 });
       pagesFetched += 1;
 
-      console.log(`[${STORE}] page ${page} fetched, html length=${html.length}`);
+      if (page1 === 1 && Number.isFinite(nbHits)) {
+        dealsFound = nbHits;
+      } else {
+        dealsFound += hits.length;
+      }
 
-      const hits = extractSearchHits(html);
-
-      if (!Array.isArray(hits) || !hits.length) {
+      if (!hits.length) {
         pageSummaries.push({
-          page,
-          url: pageUrl,
+          page: page1,
+          url: sourceUrl,
           hitsReturned: 0,
           dealsExtracted: 0,
           droppedDeals: 0,
@@ -521,8 +412,6 @@ module.exports = async function handler(req, res) {
         });
         break;
       }
-
-      dealsFound += hits.length;
 
       const pageDropCounts = {};
       let pageExtracted = 0;
@@ -696,14 +585,18 @@ module.exports = async function handler(req, res) {
       const droppedDeals = Object.values(pageDropCounts).reduce((sum, value) => sum + value, 0);
 
       pageSummaries.push({
-        page,
-        url: pageUrl,
+        page: page1,
+        url: sourceUrl,
         hitsReturned: hits.length,
         dealsExtracted: pageExtracted,
         droppedDeals,
         genderCounts: pageGenderCounts,
         dropCounts: pageDropCounts,
       });
+
+      if (Number.isFinite(nbPages) && page1 >= nbPages) {
+        break;
+      }
     }
 
     const out = {
