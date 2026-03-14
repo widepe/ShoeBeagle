@@ -945,6 +945,27 @@
   "notes": "Tradehome sale running shoes scraper via Algolia product search API. Scrapes the sale collection and paginates through all result pages. Keeps only adult mens, womens, or unisex performance running shoes using strong running signals such as performance-running-shoes, mens-running-shoes, womens-running-shoes, all-running-shoes, and Running tags. Drops kids, accessories, boots, casual/lifestyle, and other non-running sale items with detailed dropCounts and pageSummaries. Skips hidden-price tiles. Preserves listingName exactly as scraped, parses brand from vendor, derives model from listingName, parses gender from meta.custom.product_category / collections / tags / title, and forces shoeType to unknown Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Dedupe by product id / handle. Writes to tradehome-sale.json."
 },  
 
+
+{
+  "id": "tyr",
+  "displayName": "TYR",
+  "addedAt": "2026-03-14",
+  "lastUpdated": "2026-03-14",
+  "scrapedUrls": [
+    "https://tyr.com/collections/footwear-runners"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/tyr-runners-sale.json"
+  ],
+  "aliases": ["tyr"],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "TYR_DEALS_BLOB_URL",
+  "baseUrl": "https://tyr.com",
+  "notes": "TYR running footwear sale scraper via Shopify collection products.json API. Scrapes the footwear-runners collection and paginates products.json pages until empty. Keeps only true sale items where salePrice < originalPrice. Preserves listingName exactly as scraped, normalizes brand from vendor to TYR, derives model from listingName, parses gender from title/tags, and keeps shoeType unknown unless product_type or tags explicitly define road, trail, or track. Range fields stay null unless there is a real range. Skips hidden-price items. Response includes dropCounts and pageSummaries, while the saved blob contains top-level metadata plus deals only. Writes to tyr-runners-sale.json."
+},
+
+
 {
   "id": "underarmour-outlet",
   "displayName": "Under Armour Outlet",
