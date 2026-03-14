@@ -330,37 +330,56 @@ function hasAnySalePrice(deal) {
 }
 
 async function fetchScheelsPage(page) {
+  const body = {
+    queries: [
+      {
+        indexName: "commercetools_products",
+        page,
+        pageSize: PAGE_SIZE,
+        trackEvents: true,
+        query: SEARCH_QUERY,
+        filters: "(inStock:true OR variants.attributes.comingSoon:true) AND searchable:1",
+        facetFilters: FACET_FILTERS,
+        attributesToRetrieve: ATTRIBUTES_TO_RETRIEVE,
+        dynamicRerank: true,
+        branchName: "single_term",
+        facets: ["*"],
+      },
+    ],
+  };
+console.log("SCHEELS API PAGE:", page);
+console.log("SCHEELS API BODY:", JSON.stringify(body));
+  
   const resp = await fetch(API_URL, {
     method: "POST",
     headers: {
-      accept: "*/*",
+      "accept": "*/*",
+      "accept-language": "en-US,en;q=0.9",
+      "cache-control": "no-cache",
       "content-type": "application/json",
-      "x-client-source": "www.scheels.com",
+      "pragma": "no-cache",
+      "origin": "https://www.scheels.com",
+      "referer": "https://www.scheels.com/",
+      "user-agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+      "x-client-source": "www.scheels.com"
     },
-    body: JSON.stringify({
-      queries: [
-        {
-          indexName: "commercetools_products",
-          page,
-          pageSize: PAGE_SIZE,
-          trackEvents: true,
-          query: SEARCH_QUERY,
-          filters: "(inStock:true OR variants.attributes.comingSoon:true) AND searchable:1",
-          facetFilters: FACET_FILTERS,
-          attributesToRetrieve: ATTRIBUTES_TO_RETRIEVE,
-          dynamicRerank: true,
-          branchName: "single_term",
-          facets: ["*"],
-        },
-      ],
-    }),
+    body: JSON.stringify(body),
   });
 
-  const json = await resp.json().catch(() => null);
+  const text = await resp.text();
+  console.log("SCHEELS API STATUS:", resp.status, resp.statusText);
+  let json = null;
+
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = null;
+  }
 
   if (!resp.ok) {
     throw new Error(
-      `Scheels search API failed: ${resp.status} ${json?.error || resp.statusText}`
+      `Scheels search API failed: ${resp.status} ${resp.statusText} :: ${text.slice(0, 500)}`
     );
   }
 
