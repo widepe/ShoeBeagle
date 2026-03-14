@@ -933,7 +933,7 @@
   "lastUpdated": "2026-03-14",
 "scrapedUrls": [
   "https://tradehome.com/collections/sale"
-]
+],
   "expectedBlob": [
     "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/tradehome-sale.json"
   ],
@@ -942,7 +942,7 @@
   "scraperType": "vercel",
   "envVar": "TRADEHOME_DEALS_BLOB_URL",
   "baseUrl": "https://tradehome.com",
-  "notes": "Tradehome sale running shoes scraper via Algolia product search API. Scrapes the sale collection and paginates through all result pages. Keeps only adult mens, womens, or unisex performance running shoes using strong running signals such as performance-running-shoes, mens-running-shoes, womens-running-shoes, all-running-shoes, and Running tags. Drops kids, accessories, boots, casual/lifestyle, and other non-running sale items with detailed dropCounts and pageSummaries. Skips hidden-price tiles such as See Price in Cart / See Price in Bag / Add to Bag to See Price. Preserves listingName exactly as scraped, parses brand from vendor, derives model from listingName, parses gender from meta.custom.product_category / collections / tags / title, and forces shoeType to unknown unless the JSON explicitly states road, trail, or track. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Dedupe by product id / handle. Writes to tradehome-sale.json."
+  "notes": "Tradehome sale running shoes scraper via Algolia product search API. Scrapes the sale collection and paginates through all result pages. Keeps only adult mens, womens, or unisex performance running shoes using strong running signals such as performance-running-shoes, mens-running-shoes, womens-running-shoes, all-running-shoes, and Running tags. Drops kids, accessories, boots, casual/lifestyle, and other non-running sale items with detailed dropCounts and pageSummaries. Skips hidden-price tiles. Preserves listingName exactly as scraped, parses brand from vendor, derives model from listingName, parses gender from meta.custom.product_category / collections / tags / title, and forces shoeType to unknown Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Dedupe by product id / handle. Writes to tradehome-sale.json."
 },  
 
 {
