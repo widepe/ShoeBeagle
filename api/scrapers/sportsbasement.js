@@ -1,27 +1,4 @@
 // /api/scrapers/sportsbasement.js
-//
-// Sports Basement running shoe deals scraper
-//
-// IMPORTANT:
-// This version uses the underlying Algolia search API directly.
-// It does NOT try to extract product hits from raw HTML.
-//
-// Required ENV:
-// - BLOB_READ_WRITE_TOKEN
-// - SPORTSBASEMENT_ALGOLIA_APP_ID
-// - SPORTSBASEMENT_ALGOLIA_API_KEY
-// - SPORTSBASEMENT_ALGOLIA_INDEX_NAME
-//
-// Test:
-// /api/scrapers/sportsbasement
-//
-// Output:
-// - top-level metadata
-// - deals array
-//
-// Notes:
-// - CRON auth block is included but commented out for testing
-// - Saves to blob path: sportsbasement.json
 
 const { put } = require("@vercel/blob");
 
@@ -29,18 +6,15 @@ const STORE = "Sports Basement";
 const SCHEMA_VERSION = 1;
 const VIA = "algolia";
 
+// If the page only really shows one page of 40 visible deal tiles,
+// keep this at 1 for now.
 const SEARCH_TERM = "shoes deals";
 const ACTIVITY = "Running";
-
-// Keep low while testing
-const MAX_PAGES = 3;
+const MAX_PAGES = 1;
 const HITS_PER_PAGE = 48;
 
 module.exports.config = { maxDuration: 60 };
 
-// -----------------------------
-// Helpers
-// -----------------------------
 function nowIso() {
   return new Date().toISOString();
 }
@@ -124,8 +98,6 @@ function isHiddenPriceText(text) {
     "special price in bag",
     "see final price in cart",
     "see final price in bag",
-    "see price",
-    "add to bag"
   ];
 
   return patterns.some((p) => t.includes(p));
@@ -162,10 +134,7 @@ function inferGender(hit) {
     return "mens";
   }
 
-  if (joined.includes("unisex")) {
-    return "unisex";
-  }
-
+  if (joined.includes("unisex")) return "unisex";
   return "unknown";
 }
 
@@ -180,41 +149,7 @@ function inferShoeType(hit) {
   if (joined.includes("trail")) return "trail";
   if (joined.includes("track spike") || joined.includes("spike")) return "track";
   if (joined.includes("road")) return "road";
-
   return "unknown";
-}
-
-function looksLikeShoe(hit) {
-  const joined = [
-    lower(hit?.product_type),
-    lower(hit?.title),
-    lower(getProductText(hit)),
-  ].join(" | ");
-
-  if (joined.includes("sock")) return false;
-  if (joined.includes("insole")) return false;
-  if (joined.includes("sandal")) return false;
-  if (joined.includes("slipper")) return false;
-  if (joined.includes("boot")) return false;
-  if (joined.includes("flip flop")) return false;
-  if (joined.includes("heel")) return false;
-  if (joined.includes("wedge")) return false;
-
-  const shoeSignals = [
-    "shoe",
-    "shoes",
-    "running",
-    "footwear",
-    "stability",
-    "neutral",
-    "trail",
-    "road",
-    "plated",
-    "track spike",
-    "spike",
-  ];
-
-  return shoeSignals.some((s) => joined.includes(s));
 }
 
 function normalizeBrand(vendor) {
@@ -269,19 +204,11 @@ function buildSourceUrl(page1Based) {
   return url.toString();
 }
 
-// -----------------------------
-// Algolia fetch
-// -----------------------------
 async function fetchAlgoliaHits({ page0Based }) {
-  const appId = process.env.SPORTSBASEMENT_ALGOLIA_APP_ID;
-  const apiKey = process.env.SPORTSBASEMENT_ALGOLIA_API_KEY;
-  const indexName = process.env.SPORTSBASEMENT_ALGOLIA_INDEX_NAME;
-
-  if (!appId || !apiKey || !indexName) {
-    throw new Error(
-      "Missing one or more required env vars: SPORTSBASEMENT_ALGOLIA_APP_ID, SPORTSBASEMENT_ALGOLIA_API_KEY, SPORTSBASEMENT_ALGOLIA_INDEX_NAME"
-    );
-  }
+  const appId = process.env.SPORTSBASEMENT_ALGOLIA_APP_ID || "04IE0383AT";
+  const apiKey =
+    process.env.SPORTSBASEMENT_ALGOLIA_API_KEY || "9ed10129c47364d3d9a37b6d381261b4";
+  const indexName = process.env.SPORTSBASEMENT_ALGOLIA_INDEX_NAME || "products";
 
   const endpoint = `https://${appId}-dsn.algolia.net/1/indexes/*/queries`;
 
@@ -295,20 +222,18 @@ async function fetchAlgoliaHits({ page0Based }) {
       "named_tags.Gender/Age",
       "named_tags.Best Use",
       "vendor",
-      "tags"
+      "tags",
     ]),
-    facetFilters: JSON.stringify([
-      ["named_tags.Activity:Running"]
-    ])
+    facetFilters: JSON.stringify([["named_tags.Activity:Running"]]),
   }).toString();
 
   const body = {
     requests: [
       {
         indexName,
-        params
-      }
-    ]
+        params,
+      },
+    ],
   };
 
   const r = await fetch(endpoint, {
@@ -316,9 +241,9 @@ async function fetchAlgoliaHits({ page0Based }) {
     headers: {
       "content-type": "application/json",
       "x-algolia-application-id": appId,
-      "x-algolia-api-key": apiKey
+      "x-algolia-api-key": apiKey,
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
 
   if (!r.ok) {
@@ -327,7 +252,6 @@ async function fetchAlgoliaHits({ page0Based }) {
   }
 
   const payload = await r.json();
-
   const result = payload?.results?.[0];
   const hits = Array.isArray(result?.hits) ? result.hits : [];
   const nbPages = Number.isFinite(result?.nbPages) ? result.nbPages : null;
@@ -336,9 +260,6 @@ async function fetchAlgoliaHits({ page0Based }) {
   return { hits, nbPages, nbHits };
 }
 
-// -----------------------------
-// Main handler
-// -----------------------------
 module.exports = async function handler(req, res) {
   const started = Date.now();
 
@@ -357,7 +278,6 @@ module.exports = async function handler(req, res) {
   const dropCounts = {
     totalTiles: 0,
     dropped_hiddenPrice: 0,
-    dropped_notShoe: 0,
     dropped_missingListingName: 0,
     dropped_missingBrand: 0,
     dropped_missingModel: 0,
@@ -386,13 +306,13 @@ module.exports = async function handler(req, res) {
       const sourceUrl = buildSourceUrl(page1);
       sourceUrls.push(sourceUrl);
 
-      const { hits, nbPages, nbHits } = await fetchAlgoliaHits({ page0Based: page0 });
+      const { hits, nbHits } = await fetchAlgoliaHits({ page0Based: page0 });
       pagesFetched += 1;
 
-      if (page1 === 1 && Number.isFinite(nbHits)) {
-        dealsFound = nbHits;
-      } else {
-        dealsFound += hits.length;
+      dealsFound += hits.length;
+
+      if (page1 === 1) {
+        console.log(`[${STORE}] algolia nbHits=${nbHits}, returned hits=${hits.length}`);
       }
 
       if (!hits.length) {
@@ -402,12 +322,7 @@ module.exports = async function handler(req, res) {
           hitsReturned: 0,
           dealsExtracted: 0,
           droppedDeals: 0,
-          genderCounts: {
-            mens: 0,
-            womens: 0,
-            unisex: 0,
-            unknown: 0,
-          },
+          genderCounts: { mens: 0, womens: 0, unisex: 0, unknown: 0 },
           dropCounts: {},
         });
         break;
@@ -415,12 +330,7 @@ module.exports = async function handler(req, res) {
 
       const pageDropCounts = {};
       let pageExtracted = 0;
-      const pageGenderCounts = {
-        mens: 0,
-        womens: 0,
-        unisex: 0,
-        unknown: 0,
-      };
+      const pageGenderCounts = { mens: 0, womens: 0, unisex: 0, unknown: 0 };
 
       for (const hit of hits) {
         dropCounts.totalTiles += 1;
@@ -434,8 +344,8 @@ module.exports = async function handler(req, res) {
         const originalPrice = round2(
           parseNumber(
             hit?.compare_at_price ??
-            hit?.variants_compare_at_price_min ??
-            hit?.variants_compare_at_price_max
+              hit?.variants_compare_at_price_min ??
+              hit?.variants_compare_at_price_max
           )
         );
 
@@ -444,14 +354,6 @@ module.exports = async function handler(req, res) {
           increment(pageDropCounts, "dropped_hiddenPrice");
           increment(droppedReasonCounts, "hidden_price");
           addStoreToDropReasonStoreMap(droppedReasonStores, "hidden_price", STORE);
-          continue;
-        }
-
-        if (!looksLikeShoe(hit)) {
-          increment(dropCounts, "dropped_notShoe");
-          increment(pageDropCounts, "dropped_notShoe");
-          increment(droppedReasonCounts, "not_running_shoe");
-          addStoreToDropReasonStoreMap(droppedReasonStores, "not_running_shoe", STORE);
           continue;
         }
 
@@ -593,10 +495,6 @@ module.exports = async function handler(req, res) {
         genderCounts: pageGenderCounts,
         dropCounts: pageDropCounts,
       });
-
-      if (Number.isFinite(nbPages) && page1 >= nbPages) {
-        break;
-      }
     }
 
     const out = {
