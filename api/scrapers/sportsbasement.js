@@ -140,16 +140,12 @@ function inferGender(hit) {
 }
 
 function inferShoeType(hit) {
-  const joined = [
-    lower(hit?.named_tags?.["Best Use"]),
-    lower(hit?.title),
-    lower(hit?.handle),
-    lower(getProductText(hit)),
-  ].join(" | ");
+  const bestUse = lower(hit?.named_tags?.["Best Use"]);
 
-  if (joined.includes("trail")) return "trail";
-  if (joined.includes("track spike") || joined.includes("spike")) return "track";
-  if (joined.includes("road")) return "road";
+  if (bestUse.includes("trail")) return "trail";
+  if (bestUse.includes("track")) return "track";
+  if (bestUse.includes("road")) return "road";
+
   return "unknown";
 }
 
