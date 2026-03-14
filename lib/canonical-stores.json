@@ -870,6 +870,28 @@
   "notes": "Skechers running sale scraper using direct HTML fetch + Cheerio on the running-filtered sale page. Treats the infinite-load page as offset pagination using start=0,12,24... with sz=12. Reads product-V2 tiles, preserves listingName exactly as scraped, forces brand to Skechers, and keeps shoeType as unknown for all deals. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Gender is parsed from the tile gender label: mens, womens, unisex, else unknown. Special model rule: if listingName begins with 'Skechers Slip-ins:' that prefix is removed before model parsing so merge-deals can normalize GO RUN models better. Writes to skechers-sale.json."
 },
 
+
+{
+  "id": "sports-basement",
+  "displayName": "Sports Basement",
+  "addedAt": "2026-03-13",
+  "lastUpdated": "2026-03-13",
+  "scrapedUrls": [
+    "https://www.sportsbasement.com/search?q=shoes+deals&page=1&refinementList%5Bnamed_tags.Activity%5D%5B0%5D=Running",
+    "https://www.sportsbasement.com/search?q=shoes+deals&page=2&refinementList%5Bnamed_tags.Activity%5D%5B0%5D=Running",
+    "https://www.sportsbasement.com/search?q=shoes+deals&page=3&refinementList%5Bnamed_tags.Activity%5D%5B0%5D=Running"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/sportsbasement.json"
+  ],
+  "aliases": ["sports basement", "sportsbasement"],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "SPORTSBASEMENT_DEALS_BLOB_URL",
+  "baseUrl": "https://www.sportsbasement.com",
+  "notes": "Sports Basement running shoe deals scraper using Algolia search API plus Vercel blob write. Queries the running deals search results for q=shoes deals with named_tags.Activity=Running. Paginates through Algolia hitsPerPage batches and writes sportsbasement.json. listingName comes from hit.title. brand comes from vendor. model is listingName with leading brand removed. listingURL is built from product handle. imageURL comes from image or product_image. Gender is inferred from named_tags, tags, handle, and title. shoeType is trail for trail, track for spike/track, road for road, else unknown. Hidden-price tiles like see price in cart or bag are skipped. Includes top-level pageSummaries, dropCounts, droppedReasons, and mens/womens/unisex/unknown totals."
+},
+
   {
   "id": "topo-athletic",
   "displayName": "Topo Athletic",
