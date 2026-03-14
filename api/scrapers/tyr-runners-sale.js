@@ -5,10 +5,12 @@
 // - Scrapes the TYR runners collection
 // - Paginates products.json pages until empty
 // - Keeps only true sale deals (salePrice < originalPrice)
-// - Skips hidden-price items if any hidden-price language appears
+// - Skips hidden-price items if hidden-price language appears
 // - Response includes readable metadata, dropCounts, and pageSummaries
 // - Saved blob contains only top-level metadata + deals array
-// - shoeType is unknown unless explicitly defined in JSON/tags/category text
+// - Response does NOT include deals array
+// - Range fields stay null unless there is a real range
+// - shoeType stays unknown unless product_type or tags explicitly define road/trail/track
 //
 // ENV:
 //   - BLOB_READ_WRITE_TOKEN
@@ -93,25 +95,26 @@ function inferBrand(product) {
 
 function inferGender(product) {
   const title = lc(product?.title);
-  const tags = asArray(product?.tags).map(lc).join(" ");
-
-  const blob = `${title} ${tags}`;
+  const tags = asArray(product?.tags).map(lc);
+  const blob = `${title} ${tags.join(" ")}`;
 
   const hasWomen =
     /\bwomen'?s\b/.test(blob) ||
     /\bwomens\b/.test(blob) ||
     /\bfemale\b/.test(blob) ||
-    asArray(product?.tags).some((t) => /^women$/i.test(String(t)));
+    tags.includes("women") ||
+    tags.includes("womens");
 
   const hasMen =
     /\bmen'?s\b/.test(blob) ||
     /\bmens\b/.test(blob) ||
     /\bmale\b/.test(blob) ||
-    asArray(product?.tags).some((t) => /^men$/i.test(String(t)));
+    tags.includes("men") ||
+    tags.includes("mens");
 
   const hasUnisex =
     /\bunisex\b/.test(blob) ||
-    asArray(product?.tags).some((t) => /^unisex$/i.test(String(t)));
+    tags.includes("unisex");
 
   if (hasUnisex) return "unisex";
   if (hasWomen && !hasMen) return "womens";
@@ -121,32 +124,25 @@ function inferGender(product) {
 }
 
 function inferShoeType(product) {
+  // Only trust structured/category-like data for TYR, not body marketing copy.
   const productType = lc(product?.product_type);
-  const tags = asArray(product?.tags).map(lc).join(" ");
-  const body = lc(product?.body_html);
+  const tags = asArray(product?.tags).map(lc);
+  const structured = [productType, ...tags].filter(Boolean).join(" ");
 
-  const blob = `${productType} ${tags} ${body}`;
-
-  if (
-    /\btrail\b/.test(blob) ||
-    /\btrail running\b/.test(blob)
-  ) {
+  if (/\btrail\b/.test(structured) || /\btrail running\b/.test(structured)) {
     return "trail";
   }
 
   if (
-    /\btrack\b/.test(blob) ||
-    /\btrack and field\b/.test(blob) ||
-    /\bspike\b/.test(blob) ||
-    /\bspikes\b/.test(blob)
+    /\btrack\b/.test(structured) ||
+    /\btrack and field\b/.test(structured) ||
+    /\bspike\b/.test(structured) ||
+    /\bspikes\b/.test(structured)
   ) {
     return "track";
   }
 
-  if (
-    /\broad\b/.test(blob) ||
-    /\broad running\b/.test(blob)
-  ) {
+  if (/\broad\b/.test(structured) || /\broad running\b/.test(structured)) {
     return "road";
   }
 
@@ -169,20 +165,18 @@ function inferModel(product, brand) {
 
 function buildListingUrl(product) {
   const handle = cleanWhitespace(product?.handle);
-  if (!handle) return null;
-  return `${BASE_URL}/products/${handle}`;
+  return handle ? `${BASE_URL}/products/${handle}` : null;
 }
 
 function buildImageUrl(product) {
-  const primaryImage =
+  const src =
     product?.image?.src ||
     product?.images?.[0]?.src ||
-    product?.variants?.[0]?.featured_image?.src ||
+    product?.variants?.find((v) => v?.featured_image?.src)?.featured_image?.src ||
     null;
 
-  const imageUrl = cleanWhitespace(primaryImage);
+  const imageUrl = cleanWhitespace(src);
   if (!imageUrl) return null;
-
   if (imageUrl.startsWith("//")) return `https:${imageUrl}`;
   return imageUrl;
 }
@@ -203,51 +197,61 @@ function hasHiddenPriceLanguage(product) {
   return HIDDEN_PRICE_PATTERNS.some((p) => blob.includes(p));
 }
 
-function getSalePricing(product) {
+function getPricing(product) {
   const variants = asArray(product?.variants);
 
-  const pricedVariants = variants
-    .map((v) => {
-      const sale = toNumber(v?.price);
-      const original = toNumber(v?.compare_at_price);
+  const discountedVariants = variants
+    .map((variant) => {
+      const sale = toNumber(variant?.price);
+      const original = toNumber(variant?.compare_at_price);
+
       return {
         sale,
         original,
-        available: !!v?.available,
       };
     })
-    .filter((v) => Number.isFinite(v.sale) && Number.isFinite(v.original) && v.sale < v.original);
+    .filter(
+      (v) =>
+        Number.isFinite(v.sale) &&
+        Number.isFinite(v.original) &&
+        v.sale < v.original
+    );
 
-  if (!pricedVariants.length) return null;
+  if (!discountedVariants.length) return null;
 
-  const salePrices = pricedVariants.map((v) => v.sale);
-  const originalPrices = pricedVariants.map((v) => v.original);
+  const salePrices = discountedVariants.map((v) => v.sale);
+  const originalPrices = discountedVariants.map((v) => v.original);
 
   const salePriceLow = roundMoney(Math.min(...salePrices));
   const salePriceHigh = roundMoney(Math.max(...salePrices));
   const originalPriceLow = roundMoney(Math.min(...originalPrices));
   const originalPriceHigh = roundMoney(Math.max(...originalPrices));
 
-  const exactSale = salePriceLow === salePriceHigh ? salePriceLow : null;
-  const exactOriginal = originalPriceLow === originalPriceHigh ? originalPriceLow : null;
+  const hasSaleRange = salePriceLow !== salePriceHigh;
+  const hasOriginalRange = originalPriceLow !== originalPriceHigh;
+  const hasAnyRange = hasSaleRange || hasOriginalRange;
 
-  const discountPercent =
+  const exactSale = !hasSaleRange ? salePriceLow : null;
+  const exactOriginal = !hasOriginalRange ? originalPriceLow : null;
+
+  const exactDiscount =
     exactSale != null && exactOriginal != null
       ? roundPercent(((exactOriginal - exactSale) / exactOriginal) * 100)
       : null;
 
-  const discountPercentUpTo = roundPercent(
-    ((originalPriceHigh - salePriceLow) / originalPriceHigh) * 100
-  );
+  const discountPercentUpTo = hasAnyRange
+    ? roundPercent(((originalPriceHigh - salePriceLow) / originalPriceHigh) * 100)
+    : null;
 
   return {
     salePrice: exactSale,
     originalPrice: exactOriginal,
-    discountPercent,
-    salePriceLow,
-    salePriceHigh,
-    originalPriceLow,
-    originalPriceHigh,
+    discountPercent: exactDiscount,
+
+    salePriceLow: hasAnyRange ? salePriceLow : null,
+    salePriceHigh: hasAnyRange ? salePriceHigh : null,
+    originalPriceLow: hasAnyRange ? originalPriceLow : null,
+    originalPriceHigh: hasAnyRange ? originalPriceHigh : null,
     discountPercentUpTo,
   };
 }
@@ -300,7 +304,9 @@ async function fetchProductsPage(page) {
   const json = safeJson(text);
 
   if (!resp.ok || !json) {
-    throw new Error(`TYR products.json failed for page ${page}: ${resp.status} ${text.slice(0, 400)}`);
+    throw new Error(
+      `TYR products.json failed for page ${page}: ${resp.status} ${text.slice(0, 400)}`
+    );
   }
 
   return {
@@ -334,7 +340,12 @@ export default async function handler(req, res) {
     while (true) {
       const { url, products } = await fetchProductsPage(page);
 
+      if (!products.length) break;
+
       sourceUrls.push(url);
+      pagesFetched += 1;
+      dealsFound += products.length;
+      dropCounts.totalProducts += products.length;
 
       const pageSummary = {
         page,
@@ -345,16 +356,6 @@ export default async function handler(req, res) {
         genderCounts: initGenderCounts(),
         dropCounts: initDropCounts(),
       };
-
-      pageSummaries.push(pageSummary);
-
-      if (!products.length) {
-        break;
-      }
-
-      pagesFetched += 1;
-      dealsFound += products.length;
-      dropCounts.totalProducts += products.length;
       pageSummary.dropCounts.totalProducts = products.length;
 
       for (const product of products) {
@@ -364,9 +365,10 @@ export default async function handler(req, res) {
           pageSummary.droppedDeals += 1;
         };
 
-        const key = product?.id != null
-          ? `product:${product.id}`
-          : `handle:${cleanWhitespace(product?.handle)}`;
+        const key =
+          product?.id != null
+            ? `product:${product.id}`
+            : `handle:${cleanWhitespace(product?.handle)}`;
 
         if (seen.has(key)) {
           fail("dropped_duplicateProduct");
@@ -384,7 +386,7 @@ export default async function handler(req, res) {
         const listingURL = buildListingUrl(product);
         const imageURL = buildImageUrl(product);
         const gender = inferGender(product);
-        const pricing = getSalePricing(product);
+        const pricing = getPricing(product);
 
         if (!listingURL) {
           fail("dropped_missingListingURL");
@@ -406,7 +408,14 @@ export default async function handler(req, res) {
           continue;
         }
 
-        if (!(gender === "mens" || gender === "womens" || gender === "unisex" || gender === "unknown")) {
+        if (
+          !(
+            gender === "mens" ||
+            gender === "womens" ||
+            gender === "unisex" ||
+            gender === "unknown"
+          )
+        ) {
           fail("dropped_wrongGenderCategory");
           continue;
         }
@@ -449,10 +458,9 @@ export default async function handler(req, res) {
         addGenderCount(genderCounts, gender);
       }
 
-      if (products.length < PRODUCTS_LIMIT) {
-        break;
-      }
+      pageSummaries.push(pageSummary);
 
+      if (products.length < PRODUCTS_LIMIT) break;
       page += 1;
     }
 
@@ -480,8 +488,6 @@ export default async function handler(req, res) {
 
       ok: true,
       error: null,
-
-      dropCounts,
 
       deals,
     };
