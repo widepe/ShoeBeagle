@@ -6,11 +6,12 @@ const STORE = "Sports Basement";
 const SCHEMA_VERSION = 1;
 const VIA = "algolia";
 
-// If the page only really shows one page of 40 visible deal tiles,
-// keep this at 1 for now.
 const SEARCH_TERM = "shoes deals";
 const ACTIVITY = "Running";
-const MAX_PAGES = 1;
+
+// Fetch enough pages to cover the full result set.
+// 136 results / 48 per page = 3 pages.
+const MAX_PAGES = 5;
 const HITS_PER_PAGE = 48;
 
 module.exports.config = { maxDuration: 60 };
@@ -263,7 +264,6 @@ async function fetchAlgoliaHits({ page0Based }) {
 module.exports = async function handler(req, res) {
   const started = Date.now();
 
-  // TEMPORARILY COMMENTED OUT FOR TESTING
   /*
   const auth = req.headers.authorization;
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -294,6 +294,7 @@ module.exports = async function handler(req, res) {
 
   let pagesFetched = 0;
   let dealsFound = 0;
+  let reportedNbHits = null;
 
   let dealsForMens = 0;
   let dealsForWomens = 0;
@@ -306,13 +307,12 @@ module.exports = async function handler(req, res) {
       const sourceUrl = buildSourceUrl(page1);
       sourceUrls.push(sourceUrl);
 
-      const { hits, nbHits } = await fetchAlgoliaHits({ page0Based: page0 });
+      const { hits, nbHits, nbPages } = await fetchAlgoliaHits({ page0Based: page0 });
       pagesFetched += 1;
 
-      dealsFound += hits.length;
-
-      if (page1 === 1) {
-        console.log(`[${STORE}] algolia nbHits=${nbHits}, returned hits=${hits.length}`);
+      if (page1 === 1 && Number.isFinite(nbHits)) {
+        reportedNbHits = nbHits;
+        dealsFound = nbHits;
       }
 
       if (!hits.length) {
@@ -424,27 +424,20 @@ module.exports = async function handler(req, res) {
 
         const deal = {
           schemaVersion: SCHEMA_VERSION,
-
           listingName: title,
-
           brand,
           model,
-
           salePrice,
           originalPrice: originalPrice ?? null,
           discountPercent: discountPct(originalPrice, salePrice),
-
           salePriceLow: null,
           salePriceHigh: null,
           originalPriceLow: null,
           originalPriceHigh: null,
           discountPercentUpTo: null,
-
           store: STORE,
-
           listingURL,
           imageURL,
-
           gender,
           shoeType,
         };
@@ -495,36 +488,32 @@ module.exports = async function handler(req, res) {
         genderCounts: pageGenderCounts,
         dropCounts: pageDropCounts,
       });
+
+      if (Number.isFinite(nbPages) && page1 >= nbPages) {
+        break;
+      }
     }
 
     const out = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
-
       lastUpdated: nowIso(),
       via: VIA,
-
       sourceUrls,
-
       pagesFetched,
-
       dealsFound,
+      reportedNbHits,
       dealsExtracted: deals.length,
-
       dealsForMens,
       dealsForWomens,
       dealsForUnisex,
       dealsForUnknown,
-
       scrapeDurationMs: Date.now() - started,
-
       ok: true,
       error: null,
-
       dropCounts,
       droppedReasons: buildDropSummaryWithStores(droppedReasonCounts, droppedReasonStores),
       pageSummaries,
-
       deals,
     };
 
@@ -541,6 +530,7 @@ module.exports = async function handler(req, res) {
       blobUrl: blob.url,
       pagesFetched: out.pagesFetched,
       dealsFound: out.dealsFound,
+      reportedNbHits: out.reportedNbHits,
       dealsExtracted: out.dealsExtracted,
       dealsForMens: out.dealsForMens,
       dealsForWomens: out.dealsForWomens,
