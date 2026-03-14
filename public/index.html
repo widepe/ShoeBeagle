@@ -34,8 +34,18 @@
   <div class="app">
     <!-- TOP AREA -->
     <div class="topbar">
-      <!-- LOGO -->
       <div class="top-right">
+        <button
+          id="menuBtn"
+          type="button"
+          class="btn-eq"
+          aria-label="Menu"
+          aria-expanded="false"
+          aria-controls="slidePanel"
+        >
+          <img src="/images/menu.svg" class="btn-icon" alt="Menu" />
+        </button>
+
         <img
           src="/images/logo.svg"
           class="brand-logo"
@@ -68,74 +78,56 @@
                 <img src="/images/mag_glass.svg" class="btn-icon" alt="Fetch" />
               </button>
             </div>
-
-            <div class="button-wrapper">
-              <button
-                id="menuBtn"
-                type="button"
-                class="btn-eq"
-                aria-label="Links"
-                aria-expanded="false"
-                aria-controls="linksRibbon"
-              >
-                <img src="/images/menu.svg" class="btn-icon" alt="Links" />
-              </button>
-            </div>
           </div>
         </form>
       </div>
     </div>
 
-    <!-- Links ribbon -->
-    <div id="linksRibbon" class="links-ribbon" style="display:none;">
-      <div class="links-ribbon-inner">
-        <!-- LEFT: Set Alert -->
-        <div class="links-ribbon-left">
-          <a class="links-ribbon-link" href="#" data-open-alert>Price Alert</a>
+    <div id="slidePanelBackdrop" class="slide-panel-backdrop" aria-hidden="true">
+      <aside id="slidePanel" class="slide-panel" aria-label="Menu panel">
+        <div class="slide-panel-title">MENU</div>
+
+        <div class="slide-panel-section">
+          <a class="slide-panel-link" href="#" data-open-alert>Price Alert</a>
         </div>
 
-        <!-- CENTER: Filter (Sort removed) -->
-        <div class="links-ribbon-center">
-          <div class="ribbon-controls" role="group" aria-label="Filter">
-            <label class="ribbon-label" for="ribbonGender">Gender</label>
-            <select id="ribbonGender" class="ribbon-select" aria-label="Filter by gender">
-              <option value="" selected>Off</option>
-              <option value="mens">Mens</option>
-              <option value="womens">Womens</option>
-            </select>
+        <hr class="slide-divider" />
 
-            <!-- STORE FILTER (easy-to-remove block): filters the deals grid by store -->
-            <label class="ribbon-label" for="ribbonStore">Store</label>
-            <select id="ribbonStore" class="ribbon-select" aria-label="Filter by store">
-              <option value="" selected>All stores</option>
-            </select>
-            <!-- /STORE FILTER -->
-
-            <!-- SORT REMOVED (commented out) -->
-            <!--
-            <label class="ribbon-label" for="ribbonSort">Sort</label>
-            <select id="ribbonSort" class="ribbon-select" aria-label="Sort results">
-              <option value="" selected>Off</option>
-              <option value="price-asc">Price: Lo → Hi</option>
-              <option value="price-desc">Price: Hi → Lo</option>
-              <option value="pct-asc">% Off: Lo → Hi</option>
-              <option value="pct-desc">% Off: Hi → Lo</option>
-              <option value="save-asc">Savings: Lo → Hi</option>
-              <option value="save-desc">Savings: Hi → Lo</option>
-            </select>
-            -->
-          </div>
+        <div class="slide-panel-section">
+          <div class="slide-panel-heading">FILTER</div>
+          <div class="slide-subheading">Gender:</div>
+          <button type="button" class="slide-check-option" data-panel-gender="womens">
+            <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+            <span>Women's</span>
+          </button>
+          <button type="button" class="slide-check-option" data-panel-gender="mens">
+            <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+            <span>Men's</span>
+          </button>
         </div>
 
-        <!-- RIGHT: Close + close -->
-        <div class="links-ribbon-right">
-          <a class="links-ribbon-link is-disabled" href="#" aria-disabled="true" tabindex="0">
-            Close
-          </a>
-          <button type="button" class="chip-close" aria-label="Close links">×</button>
+        <hr class="slide-divider" />
+
+        <div class="slide-panel-section">
+          <div class="slide-panel-heading">SORT</div>
+          <div class="slide-subheading">Price:</div>
+          <button type="button" class="slide-check-option" data-panel-sort="price-asc">
+            <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+            <span>Low</span>
+            <img src="/images/fetch_arrow.svg" class="sort-arrow" alt="to" />
+            <span>High</span>
+          </button>
+          <button type="button" class="slide-check-option" data-panel-sort="price-desc">
+            <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+            <span>High</span>
+            <img src="/images/fetch_arrow.svg" class="sort-arrow sort-arrow-left" alt="to" />
+            <span>Low</span>
+          </button>
         </div>
+
+        <button type="button" class="slide-panel-close" id="panelCloseBtn">Close</button>
+      </aside>
       </div>
-    </div>
 
     <!-- MAIN -->
     <div id="mainContent">
@@ -200,18 +192,13 @@
       const qSuggestions = document.getElementById("qSuggestions");
       const logoLink = document.getElementById("logoLink");
       const footerYear = document.getElementById("footerYear");
-      const appEl = document.querySelector(".app");
 
-      // Links toggle button + ribbon
+      // Slide panel controls
       const menuBtn = document.getElementById("menuBtn");
-      const linksRibbon = document.getElementById("linksRibbon");
-      const linksRibbonClose = linksRibbon?.querySelector(".chip-close");
-
-      // Ribbon dropdowns
-      const ribbonGender = document.getElementById("ribbonGender");
-      // STORE FILTER (easy-to-remove block): links ribbon store dropdown
-      const ribbonStore = document.getElementById("ribbonStore");
-      // const ribbonSort = document.getElementById("ribbonSort"); // 🔒 disabled
+      const slidePanelBackdrop = document.getElementById("slidePanelBackdrop");
+      const panelCloseBtn = document.getElementById("panelCloseBtn");
+      const panelGenderOptions = Array.from(document.querySelectorAll("[data-panel-gender]"));
+      const panelSortOptions = Array.from(document.querySelectorAll("[data-panel-sort]"));
 
       const PAGE_SIZE = 12;
       let pageIndex = 0;
@@ -249,49 +236,58 @@
       let lastDailyDeals = [];
       let lastAllDeals = [];
 
-      // Unified state (ribbon dropdowns update these)
+      // Unified state
       let selectedGender = "";    // "" | "mens" | "womens"
-      // STORE FILTER (easy-to-remove block): selected store name
-      let selectedStore = "";
-      // let currentSort = "";     // 🔒 disabled
+      let currentSort = "price-asc";
 
       if (footerYear) footerYear.textContent = new Date().getFullYear();
       if (logoLink) logoLink.addEventListener("click", () => location.reload());
 
-      // --- Links ribbon toggle ---
-      function isRibbonOpen() {
-        return !!(linksRibbon && linksRibbon.style.display !== "none");
+      // --- Slide panel toggle ---
+      function isPanelOpen() {
+        return !!slidePanelBackdrop?.classList.contains("open");
       }
-      function openRibbon() {
-        if (!linksRibbon) return;
-        linksRibbon.style.display = "block";
+      function openPanel() {
+        if (!slidePanelBackdrop) return;
+        slidePanelBackdrop.classList.add("open");
+        slidePanelBackdrop.setAttribute("aria-hidden", "false");
         if (menuBtn) menuBtn.setAttribute("aria-expanded", "true");
       }
-      function closeRibbon() {
-        if (!linksRibbon) return;
-        linksRibbon.style.display = "none";
+      function closePanel() {
+        if (!slidePanelBackdrop) return;
+        slidePanelBackdrop.classList.remove("open");
+        slidePanelBackdrop.setAttribute("aria-hidden", "true");
         if (menuBtn) menuBtn.setAttribute("aria-expanded", "false");
       }
-      function toggleRibbon() {
-        if (!linksRibbon) return;
-        if (isRibbonOpen()) closeRibbon();
-        else openRibbon();
+      function togglePanel() {
+        if (isPanelOpen()) closePanel();
+        else openPanel();
       }
 
       if (menuBtn) {
         menuBtn.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
-          toggleRibbon();
+          togglePanel();
         });
       }
 
-      if (linksRibbonClose) {
-        linksRibbonClose.addEventListener("click", (e) => {
+      if (panelCloseBtn) {
+        panelCloseBtn.addEventListener("click", (e) => {
           e.preventDefault();
-          closeRibbon();
+          closePanel();
         });
       }
+
+      if (slidePanelBackdrop) {
+        slidePanelBackdrop.addEventListener("click", (e) => {
+          if (e.target === slidePanelBackdrop) closePanel();
+        });
+      }
+
+      document.querySelectorAll("[data-open-alert]").forEach((link) => {
+        link.addEventListener("click", () => closePanel());
+      });
 
       // --- Helpers ---
       function normalizeStr(s) {
@@ -384,8 +380,6 @@
           const deals = Array.isArray(data?.deals) ? data.deals : [];
           lastAllDeals = deals.slice();
 
-          // STORE FILTER: include every store from deals.json in the ribbon dropdown.
-          updateStoreFilterOptions(lastAllDeals);
 
           dealsSuggest.brandNormToDisplay.clear();
           dealsSuggest.brandToModels.clear();
@@ -435,7 +429,7 @@
           dealsSuggest.ready = true;
 
           // If a store is currently selected, render from full deals.json inventory.
-          if (selectedStore) renderDailyDealsNow();
+          renderDailyDealsNow();
         } catch (e) {
           console.error("[suggestions] Failed to build deals.json suggestion index:", e?.message || String(e));
           dealsSuggest.ready = false;
@@ -918,11 +912,8 @@
         qInput.addEventListener("blur", () => {
           setTimeout(() => {
             if (!pickingSuggestion) closeSuggestions();
-            shrinkInputs();
           }, 140);
         });
-
-        qInput.addEventListener("focus", expandInputs);
         qInput.addEventListener("click", () => qInput.select());
       }
 
@@ -933,40 +924,18 @@
         if (!inside) closeSuggestions();
       });
 
-      function syncRibbonFromState() {
-        if (ribbonGender) ribbonGender.value = selectedGender || "";
-        // STORE FILTER (easy-to-remove block): keep dropdown synced with current filter state
-        if (ribbonStore) ribbonStore.value = selectedStore || "";
-        // if (ribbonSort) ribbonSort.value = currentSort || ""; // 🔒 disabled
-      }
+      function syncPanelControls() {
+        panelGenderOptions.forEach((option) => {
+          const isOn = option.getAttribute("data-panel-gender") === selectedGender;
+          option.classList.toggle("active", isOn);
+          option.setAttribute("aria-pressed", isOn ? "true" : "false");
+        });
 
-      // STORE FILTER (easy-to-remove block): build store options from the loaded daily deals array.
-      function updateStoreFilterOptions(deals) {
-        if (!ribbonStore) return;
-
-        const stores = Array.from(
-          new Set(
-            (deals || [])
-              .map((item) => String(item?.store || "").trim())
-              .filter(Boolean)
-          )
-        ).sort((a, b) => a.localeCompare(b));
-
-        ribbonStore.innerHTML = '<option value="">All stores</option>';
-
-        for (const store of stores) {
-          const opt = document.createElement("option");
-          opt.value = store;
-          opt.textContent = store;
-          ribbonStore.appendChild(opt);
-        }
-
-        // If a previously-selected store no longer exists, reset to all stores.
-        if (selectedStore && !stores.some((s) => norm(s) === norm(selectedStore))) {
-          selectedStore = "";
-        }
-
-        ribbonStore.value = selectedStore || "";
+        panelSortOptions.forEach((option) => {
+          const isOn = option.getAttribute("data-panel-sort") === currentSort;
+          option.classList.toggle("active", isOn);
+          option.setAttribute("aria-pressed", isOn ? "true" : "false");
+        });
       }
 
       function totalPagesCount(total) {
@@ -998,19 +967,20 @@
       // ===== Filters ONLY (sorting removed) =====
       function applyFilters(items) {
         const gSel = norm(selectedGender);
-        const sSel = norm(selectedStore);
 
         return (items || []).filter((item) => {
           const g = norm(item.gender);
           const genderOk = !gSel || g === gSel || g === "unisex" || g === "unknown" || g === "";
-          const storeOk = !sSel || norm(item.store) === sSel;
-          return genderOk && storeOk;
+          return genderOk;
         });
       }
 
       function getFilteredAndSorted(items) {
-        // 🔒 sorting removed
-        return applyFilters(items);
+        const filtered = applyFilters(items);
+        if (currentSort === "price-desc") {
+          return filtered.slice().sort((a, b) => Number(b.salePrice || 0) - Number(a.salePrice || 0));
+        }
+        return filtered.slice().sort((a, b) => Number(a.salePrice || 0) - Number(b.salePrice || 0));
       }
 
       // ===== Discount badge helper =====
@@ -1073,7 +1043,7 @@
       function renderDailyDealsNow() {
         if (!dailyDealsGrid) return;
 
-        const sourceDeals = selectedStore && lastAllDeals.length ? lastAllDeals : lastDailyDeals;
+        const sourceDeals = lastDailyDeals;
         if (!sourceDeals || !sourceDeals.length) return;
 
         const filtered = getFilteredAndSorted(sourceDeals);
@@ -1084,34 +1054,26 @@
         if (dailyDeals) dailyDeals.style.display = filtered.length ? "block" : "none";
       }
 
-      // ===== Ribbon listeners =====
-      if (ribbonGender) {
-        ribbonGender.addEventListener("change", () => {
-          selectedGender = norm(ribbonGender.value);
+      panelGenderOptions.forEach((option) => {
+        option.addEventListener("click", () => {
+          const value = option.getAttribute("data-panel-gender") || "";
+          selectedGender = selectedGender === value ? "" : value;
+          syncPanelControls();
           renderDailyDealsNow();
           renderFilteredResults({ resetPage: true, append: false });
         });
-      }
+      });
 
-      // STORE FILTER (easy-to-remove block): when store changes, filter both grids.
-      if (ribbonStore) {
-        ribbonStore.addEventListener("change", () => {
-          selectedStore = String(ribbonStore.value || "").trim();
+      panelSortOptions.forEach((option) => {
+        option.addEventListener("click", () => {
+          const value = option.getAttribute("data-panel-sort") || "price-asc";
+          if (!value || value === currentSort) return;
+          currentSort = value;
+          syncPanelControls();
           renderDailyDealsNow();
           renderFilteredResults({ resetPage: true, append: false });
         });
-      }
-
-      // Sorting listener removed
-      /*
-      if (ribbonSort) {
-        ribbonSort.addEventListener("change", () => {
-          currentSort = String(ribbonSort.value || "").trim();
-          renderDailyDealsNow();
-          renderFilteredResults({ resetPage: true, append: false });
-        });
-      }
-      */
+      });
 
       // ===== Paging / load more =====
       if (loadMoreBtn) {
@@ -1280,9 +1242,6 @@
           const deals = Array.isArray(data.deals) ? data.deals : [];
 
           lastDailyDeals = deals.slice();
-          // If deals.json hasn't loaded yet, fall back to stores from daily deals.
-          if (!lastAllDeals.length) updateStoreFilterOptions(lastDailyDeals);
-
           if (!deals.length) {
             if (dailyDeals) dailyDeals.style.display = "none";
             return;
@@ -1320,38 +1279,9 @@
         });
       }
 
-      // ===== Mobile input expand/shrink =====
-      function expandInputs() {
-        if (!appEl) return;
-        if (!isMobilePortrait()) return;
-        appEl.classList.add("inputs-expanded");
-      }
-
-      function shrinkInputs() {
-        if (!appEl) return;
-        if (!isMobilePortrait()) return;
-
-        const input = qInput;
-        setTimeout(() => {
-          const stillFocused = document.activeElement === input;
-          const anyText = input && (input.value || "").trim().length > 0;
-          if (stillFocused) return;
-          if (anyText) return;
-          appEl.classList.remove("inputs-expanded");
-        }, 0);
-      }
-
-      document.addEventListener("focusin", () => {
-        if (!isMobilePortrait()) return;
-        const active = document.activeElement;
-        const inInputs = active === qInput;
-        if (!inInputs) shrinkInputs();
-      });
-
       // ---- Submit ----
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
-        shrinkInputs();
 
         const typedRaw = sanitizeInput(qInput.value);
         updateFetchReady();
@@ -1362,7 +1292,7 @@
         }
 
         let { brand, model } = splitBrandModelFromPicked(typedRaw);
-console.log("DEBUG parsed:", { typedRaw, brand, model });        if (!brand && model && dealsSuggest.ready) {
+        if (!brand && model && dealsSuggest.ready) {
           const exactBrand = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(model)) || "";
           const inferred = exactBrand || inferDefinitiveBrandFromPartialModel(model);
           if (inferred) brand = inferred;
@@ -1401,7 +1331,7 @@ console.log("DEBUG parsed:", { typedRaw, brand, model });        if (!brand && m
 
         // Reset filters only (sort removed)
         selectedGender = "";
-        syncRibbonFromState();
+        syncPanelControls();
 
 if (!results.length) {
   // --- Brand/model mismatch detection and auto search for model.  Ex. Brooks Alphafly would return no results found for Brooks Alphafly, but there are Nike Alphafly results 
@@ -1418,7 +1348,6 @@ if (!actualBrand) {
     }
   }
 }
-console.log("DEBUG mismatch:", { modelNorm, actualBrand, brand });
     if (actualBrand && normalizeStr(actualBrand) !== normalizeStr(brand)) {
       // High confidence mismatch: model exists but under a different brand
       // Auto-search the corrected combination
@@ -1443,7 +1372,7 @@ console.log("DEBUG mismatch:", { modelNorm, actualBrand, brand });
         lastSearchResults = correctedResults;
 
         selectedGender = "";
-        syncRibbonFromState();
+        syncPanelControls();
 
         // Show mismatch message above results
 
@@ -1466,32 +1395,8 @@ console.log("DEBUG mismatch:", { modelNorm, actualBrand, brand });
         renderFilteredResults({ resetPage: true, append: false });
       });
 
+      syncPanelControls();
       if (qInput) qInput.addEventListener("input", updateFetchReady);
-// ===== Mobile portrait: scroll SEARCH ROW to top on focus =====
-(() => {
-  const rowEl = document.getElementById("mobileSearchRow");
-  if (!qInput || !rowEl) return;
-
-  function isMobilePortrait() {
-    return window.matchMedia("(max-width: 560px) and (orientation: portrait)").matches;
-  }
-
-  function scrollRowToTop() {
-    if (!isMobilePortrait()) return;
-
-    setTimeout(() => {
-      rowEl.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
-      });
-    }, 250);
-  }
-
-  qInput.addEventListener("focus", scrollRowToTop);
-})();
-
-
-if (qInput) qInput.addEventListener("input", updateFetchReady);      
     })();
   </script>
 
