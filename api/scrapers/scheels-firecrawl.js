@@ -302,13 +302,15 @@ async function firecrawlScrapeRawHtml(url) {
       url,
       formats: ["rawHtml"],
       onlyMainContent: false,
-      waitFor: 2500,
-      timeout: 120000,
       blockAds: true,
       proxy: "auto",
+      timeout: 120000,
+      waitFor: 6000,
       actions: [
-        { type: "wait", milliseconds: 1500 },
-      ],
+        { type: "wait", milliseconds: 3000 },
+        { type: "scroll", direction: "down", amount: 1200 },
+        { type: "wait", milliseconds: 2000 }
+      ]
     }),
   });
 
@@ -458,15 +460,24 @@ export default async function handler(req, res) {
 
       const rawHtml = await firecrawlScrapeRawHtml(url);
       const { tiles, counts } = extractTilesFromHtml(rawHtml);
-
-      if (pageNum === 1 && Number.isFinite(counts.totalCount)) {
+console.log("SCHEELS DEBUG URL:", url);
+console.log("SCHEELS DEBUG HTML LENGTH:", rawHtml.length);
+console.log(
+  "SCHEELS DEBUG HTML PREVIEW:",
+  rawHtml.slice(0, 2000).replace(/\s+/g, " ")
+);
+console.log("SCHEELS DEBUG TILE COUNT:", tiles.length);
+console.log("SCHEELS DEBUG SHOWING COUNTS:", counts);      if (pageNum === 1 && Number.isFinite(counts.totalCount)) {
         totalExpected = counts.totalCount;
         maxPages = Math.max(1, Math.ceil(totalExpected / 24) + 2);
       }
 
-      if (!tiles.length) {
-        break;
-      }
+     if (!tiles.length) {
+  if (pageNum === 1) {
+    throw new Error(`No product tiles found on page 1 for ${url}`);
+  }
+  break;
+}
 
       const pageDropCounts = makeDropCounts();
       const pageGenderCounts = makeGenderCounts();
@@ -560,8 +571,9 @@ export default async function handler(req, res) {
         break;
       }
     }
-
-    const payload = {
+if (!deals.length) {
+  throw new Error("Scheels scrape returned zero deals.");
+}    const payload = {
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
 
