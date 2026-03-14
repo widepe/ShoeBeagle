@@ -9,6 +9,8 @@
 // - it uses the Findify API directly from its own Vercel scraper endpoint.
 // Skechers is also NOT a classic sitewide Cheerio scraper:
 // - it uses direct HTML fetch + Cheerio parsing from its own Vercel scraper endpoint.
+// Tradehome is also NOT a Cheerio scraper:
+// - it uses the Shopify Algolia product search API directly from its own Vercel scraper endpoint.
 // Each scraper runs in its own file and writes its own blob.
 
 export const config = { maxDuration: 60 };
@@ -27,6 +29,7 @@ const SCRAPER_TOGGLES = {
   FAMOUS_FOOTWEAR: true, // Coveo API scraper, not Cheerio
   GOING_GOING_GONE: true, // DSG Catalog Product API scraper, not Cheerio
   BIGSHOES: true, // Findify API scraper, not Cheerio
+  TRADEHOME: true, // Algolia API scraper, not Cheerio
 };
 
 function nowIso() {
@@ -228,6 +231,20 @@ export default async function handler(req, res) {
       };
     }
 
+    if (SCRAPER_TOGGLES.TRADEHOME) {
+      results["Tradehome"] = await triggerEndpoint(
+        baseUrl,
+        "/api/scrapers/tradehome-sale",
+        auth
+      );
+      await sleep(1000);
+    } else {
+      results["Tradehome"] = {
+        ok: true,
+        skipped: true,
+        path: "/api/scrapers/tradehome-sale",
+      };
+    }
 
     return res.status(200).json({
       success: true,
@@ -239,7 +256,7 @@ export default async function handler(req, res) {
       },
       stores: results,
       note:
-        "This runner triggers independent scraper endpoints. Each scraper writes its own blob. Saucony and Skechers use direct HTML fetch + Cheerio in their own Vercel scraper endpoints. Famous Footwear uses the Coveo Commerce API, Going, Going, Gone uses the DSG Catalog Product API, Big Shoes uses the Findify API, and Adidas uses Firecrawl raw HTML + Cheerio parsing, so those are not all direct Cheerio scrapers.",
+        "This runner triggers independent scraper endpoints. Each scraper writes its own blob. Saucony and Skechers use direct HTML fetch + Cheerio in their own Vercel scraper endpoints. Famous Footwear uses the Coveo Commerce API, Going, Going, Gone uses the DSG Catalog Product API, Big Shoes uses the Findify API, Tradehome uses the Shopify Algolia product search API, and Adidas uses Firecrawl raw HTML + Cheerio parsing, so those are not all direct Cheerio scrapers.",
     });
   } catch (error) {
     return res.status(500).json({
