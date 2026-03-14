@@ -95,6 +95,10 @@
 
         <div class="slide-panel-section">
           <div class="slide-panel-heading">FILTER</div>
+          <label class="slide-subheading" for="panelStoreSelect">Store:</label>
+          <select id="panelStoreSelect" class="slide-store-select" aria-label="Filter by store">
+            <option value="">All stores</option>
+          </select>
           <div class="slide-subheading">Gender:</div>
           <button type="button" class="slide-check-option" data-panel-gender="womens">
             <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
@@ -197,6 +201,7 @@
       const menuBtn = document.getElementById("menuBtn");
       const slidePanelBackdrop = document.getElementById("slidePanelBackdrop");
       const panelCloseBtn = document.getElementById("panelCloseBtn");
+      const panelStoreSelect = document.getElementById("panelStoreSelect");
       const panelGenderOptions = Array.from(document.querySelectorAll("[data-panel-gender]"));
       const panelSortOptions = Array.from(document.querySelectorAll("[data-panel-sort]"));
 
@@ -239,6 +244,7 @@
       // Unified state
       let selectedGender = "";    // "" | "mens" | "womens"
       let currentSort = "price-asc";
+      let selectedStore = "";
 
       if (footerYear) footerYear.textContent = new Date().getFullYear();
       if (logoLink) logoLink.addEventListener("click", () => location.reload());
@@ -285,9 +291,59 @@
         });
       }
 
-      document.querySelectorAll("[data-open-alert]").forEach((link) => {
-        link.addEventListener("click", () => closePanel());
-      });
+      function normalizeStoreName(value) {
+        return String(value || "").trim().toLowerCase();
+      }
+
+      function getSelectedStoreInventory() {
+        const selected = normalizeStoreName(selectedStore);
+        if (!selected) return [];
+        return (lastAllDeals || []).filter((item) => normalizeStoreName(item?.store) === selected);
+      }
+
+      function syncStoreOptions() {
+        if (!panelStoreSelect) return;
+
+        const stores = Array.from(
+          new Set(
+            (lastAllDeals || [])
+              .map((item) => String(item?.store || "").trim())
+              .filter(Boolean)
+          )
+        ).sort((a, b) => a.localeCompare(b));
+
+        const previousValue = panelStoreSelect.value;
+        panelStoreSelect.innerHTML = '<option value="">All stores</option>';
+
+        stores.forEach((store) => {
+          const option = document.createElement("option");
+          option.value = store;
+          option.textContent = store;
+          panelStoreSelect.appendChild(option);
+        });
+
+        const nextValue = stores.includes(previousValue) ? previousValue : "";
+        panelStoreSelect.value = nextValue;
+        selectedStore = nextValue;
+      }
+
+      function renderSelectedStoreInventory() {
+        if (!selectedStore) return false;
+
+        currentSearch = { brand: "", model: "" };
+        lastSearchResults = getSelectedStoreInventory();
+        if (qInput) qInput.value = "";
+
+        if (dailyDeals) dailyDeals.style.display = "none";
+        renderFilteredResults({ resetPage: true, append: false });
+
+        const count = getFilteredAndSorted(lastSearchResults).length;
+        statusMessageEl.textContent = count
+          ? `Showing ${count} deal${count === 1 ? "" : "s"} from ${selectedStore}.`
+          : `No deals currently available from ${selectedStore} with these filters.`;
+
+        return true;
+      }
 
       // --- Helpers ---
       function normalizeStr(s) {
@@ -427,6 +483,7 @@
             a.localeCompare(b)
           );
           dealsSuggest.ready = true;
+          syncStoreOptions();
 
           // If a store is currently selected, render from full deals.json inventory.
           renderDailyDealsNow();
@@ -967,11 +1024,13 @@
       // ===== Filters ONLY (sorting removed) =====
       function applyFilters(items) {
         const gSel = norm(selectedGender);
+        const storeSel = normalizeStoreName(selectedStore);
 
         return (items || []).filter((item) => {
           const g = norm(item.gender);
           const genderOk = !gSel || g === gSel || g === "unisex" || g === "unknown" || g === "";
-          return genderOk;
+          const storeOk = !storeSel || normalizeStoreName(item?.store) === storeSel;
+          return genderOk && storeOk;
         });
       }
 
@@ -1043,7 +1102,7 @@
       function renderDailyDealsNow() {
         if (!dailyDealsGrid) return;
 
-        const sourceDeals = lastDailyDeals;
+        const sourceDeals = selectedStore ? lastAllDeals : lastDailyDeals;
         if (!sourceDeals || !sourceDeals.length) return;
 
         const filtered = getFilteredAndSorted(sourceDeals);
@@ -1074,6 +1133,24 @@
           renderFilteredResults({ resetPage: true, append: false });
         });
       });
+
+      if (panelStoreSelect) {
+        panelStoreSelect.addEventListener("change", () => {
+          selectedStore = panelStoreSelect.value || "";
+          pageIndex = 0;
+
+          if (selectedStore) {
+            renderSelectedStoreInventory();
+          } else {
+            lastSearchResults = [];
+            resultsEl.innerHTML = "";
+            statusMessageEl.textContent = "Marty’s Daily Deals";
+            updateNavUI(0);
+            renderDailyDealsNow();
+            if (dailyDeals) dailyDeals.style.display = "block";
+          }
+        });
+      }
 
       // ===== Paging / load more =====
       if (loadMoreBtn) {
@@ -1971,6 +2048,10 @@ function resolveBrandKey(input) {
       closeBtn.addEventListener("click", closeModal);
       if (maxedClose) maxedClose.addEventListener("click", closeModal);
 
+      backdrop.addEventListener("click", (e) => {
+        if (e.target === backdrop) closeModal();
+      });
+
       document.addEventListener("click", (e) => {
         if (!backdrop.classList.contains("open")) return;
 
@@ -2222,7 +2303,7 @@ function resolveBrandKey(input) {
         setBusy(true);
         try {
           await postJson(API_ALERTS, { email, brand, model, targetPrice, gender });
-          showSuccess(brand, model, gender, targetPrice);
+          closeModal();
         } catch (err) {
           const msg = err && err.message ? String(err.message) : "Failed to set alert.";
           const code = err && err.code ? String(err.code) : "";
