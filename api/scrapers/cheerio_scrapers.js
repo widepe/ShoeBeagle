@@ -7,8 +7,6 @@
 // - it uses the DSG Catalog Product API directly from its own Vercel scraper endpoint.
 // Big Shoes is also NOT a Cheerio scraper:
 // - it uses the Findify API directly from its own Vercel scraper endpoint.
-// Adidas is also NOT a Cheerio scraper:
-// - it uses Firecrawl raw HTML + Cheerio parsing from its own Vercel scraper endpoint.
 // Skechers is also NOT a classic sitewide Cheerio scraper:
 // - it uses direct HTML fetch + Cheerio parsing from its own Vercel scraper endpoint.
 // Each scraper runs in its own file and writes its own blob.
@@ -29,7 +27,6 @@ const SCRAPER_TOGGLES = {
   FAMOUS_FOOTWEAR: true, // Coveo API scraper, not Cheerio
   GOING_GOING_GONE: true, // DSG Catalog Product API scraper, not Cheerio
   BIGSHOES: true, // Findify API scraper, not Cheerio
-  ADIDAS: true, // Firecrawl raw HTML + Cheerio parse, not direct Cheerio
 };
 
 function nowIso() {
@@ -231,19 +228,6 @@ export default async function handler(req, res) {
       };
     }
 
-    if (SCRAPER_TOGGLES.ADIDAS) {
-      results["Adidas"] = await triggerEndpoint(
-        baseUrl,
-        "/api/scrapers/adidas-firecrawl",
-        auth
-      );
-    } else {
-      results["Adidas"] = {
-        ok: true,
-        skipped: true,
-        path: "/api/scrapers/adidas-firecrawl",
-      };
-    }
 
     return res.status(200).json({
       success: true,
