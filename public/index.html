@@ -21,7 +21,7 @@
   <link rel="icon" type="image/png" href="/images/favicon.png">
 
   <!-- CSS -->
-  <link rel="stylesheet" href="/index.css?v=129" />
+  <link id="themeStylesheet" rel="stylesheet" href="/index.css?v=129" />
 
   <!-- IMPORTANT:
        Set this at deploy time to avoid hardcoding the blob store base.
@@ -90,16 +90,21 @@
                 data-open-alert
                 aria-label="Open price alert"
               >
-                <span>PRICE ALERT</span>
+                <span>PRICE</span>
+                <span>ALERT</span>
               </button>
               <a class="topbar-stack-link" href="#" aria-label="RSS feed link placeholder">
                 <span>RSS</span>
                 <span>FEED</span>
               </a>
-              <a class="topbar-stack-link" href="#" aria-label="Dark mode link placeholder">
-                <span>DARK</span>
-                <span>MODE</span>
-              </a>
+              <button
+                type="button"
+                id="modeToggleBtn"
+                class="mode-toggle-btn"
+                aria-label="Toggle dark mode"
+              >
+                <img id="modeToggleIcon" src="/images/light-mode.svg" alt="Light mode" />
+              </button>
             </div>
           </div>
         </form>
@@ -225,6 +230,9 @@
       const qSuggestions = document.getElementById("qSuggestions");
       const logoLink = document.getElementById("logoLink");
       const footerYear = document.getElementById("footerYear");
+      const themeStylesheet = document.getElementById("themeStylesheet");
+      const modeToggleBtn = document.getElementById("modeToggleBtn");
+      const modeToggleIcon = document.getElementById("modeToggleIcon");
 
       // Slide panel controls
       const menuBtn = document.getElementById("menuBtn");
@@ -277,6 +285,31 @@
 
       if (footerYear) footerYear.textContent = new Date().getFullYear();
       if (logoLink) logoLink.addEventListener("click", () => location.reload());
+
+      let usingDarkTheme = false;
+      function applyTheme() {
+        if (!themeStylesheet || !modeToggleIcon) return;
+        if (usingDarkTheme) {
+          themeStylesheet.href = "/index-dark.css?v=1";
+          modeToggleIcon.src = "/images/dark-mode.svg";
+          modeToggleIcon.alt = "Dark mode";
+          modeToggleBtn?.setAttribute("aria-pressed", "true");
+        } else {
+          themeStylesheet.href = "/index.css?v=129";
+          modeToggleIcon.src = "/images/light-mode.svg";
+          modeToggleIcon.alt = "Light mode";
+          modeToggleBtn?.setAttribute("aria-pressed", "false");
+        }
+      }
+
+      applyTheme();
+
+      if (modeToggleBtn) {
+        modeToggleBtn.addEventListener("click", () => {
+          usingDarkTheme = !usingDarkTheme;
+          applyTheme();
+        });
+      }
 
       // --- Slide panel toggle ---
       function isPanelOpen() {
