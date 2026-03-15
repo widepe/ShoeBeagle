@@ -373,7 +373,7 @@ button{
 }
 
 .icon-action[aria-disabled="true"]{
-  opacity:0.55;
+  opacity:1;
   pointer-events:none;
 }
 
