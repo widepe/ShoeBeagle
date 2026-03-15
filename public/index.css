@@ -39,7 +39,7 @@ html{ -webkit-text-size-adjust:100%; }
   --input-font:calc(1.5rem * var(--top-scale));
   --search-text-inset:calc((0.90rem * var(--top-scale)) + (20px * var(--top-scale)) + (1rem * var(--top-scale)));
   --btn-font:  calc(1.15rem * var(--top-scale));
-  --menu-icon-size:calc(1.75rem * var(--top-scale));
+  --menu-icon-size:calc(1.4875rem * var(--top-scale));
 
   --logo-scale:calc(2 * var(--top-scale));
 
@@ -377,7 +377,48 @@ button{
   pointer-events:none;
 }
 
-#menuBtn,
+.button-wrapper{
+  position:relative;
+  flex:0 0 auto;
+  height:var(--btn-h);
+  display:flex;
+  align-items:center;
+  gap:calc(var(--gap) * 2);
+}
+
+.price-alert-trigger{
+  display:none;
+  border:none;
+  background:transparent;
+  color:var(--sb-blue);
+  height:var(--btn-h);
+  min-height:var(--btn-h);
+  padding:0;
+  margin:0;
+  line-height:1;
+  font-weight:800;
+  font-size:calc(1rem * var(--top-scale));
+  letter-spacing:0.03em;
+  cursor:pointer;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  gap:calc(var(--gap) * 0.2);
+}
+
+.price-alert-trigger span{
+  display:block;
+}
+
+.price-alert-trigger:hover{
+  opacity:0.88;
+}
+
+#menuBtn{
+  transform:scale(0.7225);
+  transform-origin:center;
+}
+
 #fetchBtn{
   transform:scale(0.85);
   transform-origin:center;
@@ -817,6 +858,10 @@ button{
 @media (min-width:820px) and (max-width:1366px) and (orientation:landscape){
   :root{ --cols:5; }
 
+  .price-alert-trigger{
+    display:inline-flex;
+  }
+
   .topbar{
     width:100%;
     max-width:min(var(--grid-w), 100%);
@@ -844,6 +889,10 @@ button{
 @media (max-width:800px) and (orientation:landscape){
   :root{ --cols:3; }
 
+  .price-alert-trigger{
+    display:none;
+  }
+
   .topbar{ flex-direction:row; flex-wrap:nowrap; align-items:flex-end; }
   .top-right{ order:-1; flex:0 0 auto; margin-right:0; }
   .top-left{ order:0; flex:1 1 0; width:auto; min-width:0; }
@@ -858,6 +907,9 @@ button{
 
 /* MOBILE PORTRAIT */
 @media (max-width:560px){
+  .price-alert-trigger{
+    display:none;
+  }
   :root{
     --cols:1;
     --pad:6px;
@@ -1546,4 +1598,11 @@ button{
 
 @media (max-width:420px){
   .sb-price-col{ flex:1; min-width:0; }
+}
+
+
+@media (min-width:1367px){
+  .price-alert-trigger{
+    display:inline-flex;
+  }
 }
