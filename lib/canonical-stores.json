@@ -709,6 +709,32 @@
   "baseUrl": "https://shop.runningcenters.com",
   "notes": "Running Center uses the products-search API with categoryId 18334 (Men's Shoes) and 18342 (Women's Shoes). Keeps only true sale items where salePrice and originalPrice both exist and salePrice < originalPrice. Requires products to be shippable by excluding in-store-purchase-only items. Gender is parsed from the product name. shoeType is forced to unknown. Writes to running-center.json."
 },
+
+
+{
+  "id": "running-company",
+  "displayName": "Running Company",
+  "addedAt": "2026-03-14",
+  "lastUpdated": "2026-03-14",
+  "scrapedUrls": [
+    "https://shop.runningcompany.com/shop/",
+    "https://shop.runningcompany.com/api/products-search"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/running-company.json"
+  ],
+  "aliases": [
+    "running company",
+    "the running company",
+    "naperville running company"
+  ],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "RUNNINGCOMPANY_DEALS_BLOB_URL",
+  "baseUrl": "https://shop.runningcompany.com",
+  "notes": "Running Company sale running shoes scraper via direct POST JSON API to /api/products-search. Uses request body with grouped:true, size:10000, page:1, sort:isFeatured DESC. Supports grouped API response shape and keeps only rows where isOnSale is true. listingURL is constructed from productId + brand slug + listingName slug using the observed product URL pattern. Preserves listingName from API name, normalizes brand from brandName/label/title fallback, derives model from listingName, parses gender from listingName as mens/womens/unisex/unknown, and forces shoeType to unknown for all deals. Skips kids items and obvious non-shoe accessories. Skips hidden-price rows such as See Price in Cart / See Price in Bag / Add to Bag to See Price if present. Keeps sale rows even when originalPrice is missing or unusable; in those cases originalPrice and discountPercent may be null. Response includes dropCounts and pageSummaries, while the saved blob contains top-level metadata plus deals only. Writes to running-company.json."
+},
+
   
   {
     "id": "running-warehouse",
