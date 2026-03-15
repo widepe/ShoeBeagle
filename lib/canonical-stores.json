@@ -725,6 +725,33 @@
     "notes": "Per-store Cheerio blob (env: RUNNING_WAREHOUSE_CHEERIO_BLOB_URL)."
   },
 
+
+{
+  "id": "the-running-well-store",
+  "displayName": "The Running Well Store",
+  "addedAt": "2026-03-14",
+  "lastUpdated": "2026-03-14",
+  "scrapedUrls": [
+    "https://therunningwellstore.com/collections/all-footwear?sale=true&page=1",
+    "https://therunningwellstore.com/collections/all-footwear?sale=true&page=2"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/therunningwellstore.json"
+  ],
+  "aliases": [
+    "the running well store",
+    "running well",
+    "runningwell",
+    "therunningwellstore"
+  ],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "THERUNNINGWELLSTORE_DEALS_BLOB_URL",
+  "baseUrl": "https://therunningwellstore.com",
+  "notes": "The Running Well Store sale footwear scraper via Shopify collection products.json API. Scrapes /collections/all-footwear?sale=true and paginates products.json pages until empty. Preserves listingName exactly as scraped, parses brand from vendor with title fallback, derives model from listingName, parses gender from title/product_type/tags as mens, womens, unisex, else unknown, and keeps shoeType unknown unless tags/product_type explicitly indicate road, trail, or track. Skips hidden-price items such as See Price in Cart / See Price in Bag / Add to Bag to See Price. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice; equal price and compare-at price are dropped as notOnSale. Dedupe by listingURL + visible pricing. Response includes pageSummaries, dropCounts, and mens/womens/unisex/unknown totals, while the saved blob contains top-level metadata plus deals. Writes to therunningwellstore.json."
+},
+
+  
 {
   "id": "runpacers",
   "displayName": "Pacers Running",
