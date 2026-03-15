@@ -3,14 +3,13 @@
 // Running Company sale running shoes scraper
 //
 // What this does
-// - Fetches JSON from https://shop.runningcompany.com/api/products-search
-// - Supports both shapes:
-//   1) { data: [...] , total: N }
-//   2) { data: { "Product Name": [ ...variants ] , ... } }
+// - POSTs to https://shop.runningcompany.com/api/products-search
+// - Supports grouped response shape:
+//   { data: { "Product Name": [ ...variants ] } }
 // - Keeps ONLY sale running shoe deals
 // - Skips hidden-price / see-price-in-cart style rows
 // - Builds listingURL from productId + brand slug + product slug
-// - Returns an easy-to-read response with NO deals array
+// - Returns easy-to-read response with NO deals array
 // - Saves blob JSON with ONLY top-level structure + deals array
 //
 // ENV
@@ -28,6 +27,25 @@ const SCHEMA_VERSION = 1;
 const SHOP_URL = "https://shop.runningcompany.com/shop/";
 const API_URL = "https://shop.runningcompany.com/api/products-search";
 const SITE_ORIGIN = "https://shop.runningcompany.com";
+
+const REQUEST_BODY = {
+  brand: -1,
+  category: -1,
+  collection: -1,
+  grouped: true,
+  size: 10000,
+  cost: -1,
+  page: 1,
+  stock: -1,
+  complete: -1,
+  live: -1,
+  sort: "isFeatured",
+  sortType: "DESC",
+  admin: false,
+  sizes: [],
+  widths: [],
+  brands: [],
+};
 
 // Commented out for testing, per your request.
 // // CRON_SECRET
@@ -51,7 +69,8 @@ function toNumber(v) {
 }
 
 function round2(n) {
-  if (!Number.isFinite(n)) return null;
+  if (!Number.isFinite(n) && n !== null) return null;
+  if (n === null) return null;
   return Math.round(n * 100) / 100;
 }
 
@@ -201,12 +220,6 @@ function isLikelyNonShoe(row) {
     "sunglasses",
     "slide",
     "thong",
-    "crew",
-    "quarter",
-    "no show",
-    "nosho",
-    "insole",
-    "support low",
     "belt",
     "bra",
     "shirt",
@@ -214,61 +227,14 @@ function isLikelyNonShoe(row) {
     "tight",
     "hat",
     "glove",
-    "sandal",
-    "recovery",
+    "insole",
     "ooahh",
     "ooriginal",
     "oolala",
     "thermal",
   ];
 
-  if (banned.some((w) => text.includes(w))) return true;
-
-  const shoeSignals = [
-    "shoe",
-    "running",
-    "trainer",
-    "spike",
-    "xc",
-    "track",
-    "road",
-    "trail",
-    "ghost",
-    "glycerin",
-    "adrenaline",
-    "cumulus",
-    "nimbus",
-    "novablast",
-    "superblast",
-    "megablast",
-    "clifton",
-    "bondi",
-    "mach",
-    "arahi",
-    "pegasus",
-    "vomero",
-    "structure",
-    "ride",
-    "hurricane",
-    "deviate",
-    "velocity",
-    "magnify",
-    "alphafly",
-    "dragonfly",
-    "rebel",
-    "fuelcell",
-    "cloud",
-    "cloudmonster",
-    "cloudrunner",
-    "cloudsurfer",
-    "cloudboom",
-    "1080",
-    "880",
-    "860",
-    "2000",
-  ];
-
-  return !shoeSignals.some((w) => text.includes(w));
+  return banned.some((w) => text.includes(w));
 }
 
 function emptyGenderCounts() {
@@ -294,10 +260,10 @@ function makeDropCounts() {
     dropped_missingListingURL: 0,
     dropped_missingImageURL: 0,
     dropped_missingSalePrice: 0,
-    dropped_missingOriginalPrice: 0,
-    dropped_saleNotLessThanOriginal: 0,
     dropped_missingBrand: 0,
     dropped_duplicateProductId: 0,
+    kept_withoutOriginalPrice: 0,
+    kept_withoutDiscountPercent: 0,
   };
 }
 
@@ -375,19 +341,31 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(API_URL, {
-      method: "GET",
+      method: "POST",
       headers: {
-        accept: "application/json, text/plain, */*",
+        accept: "application/json, text/javascript, */*; q=0.01",
+        "content-type": "application/json",
+        "x-requested-with": "XMLHttpRequest",
+        referer: SHOP_URL,
+        origin: SITE_ORIGIN,
         "user-agent": "Mozilla/5.0",
       },
+      body: JSON.stringify(REQUEST_BODY),
     });
 
+    const text = await response.text();
+
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
       throw new Error(`API request failed: ${response.status} ${response.statusText} ${text.slice(0, 300)}`);
     }
 
-    const raw = await response.json();
+    let raw;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      throw new Error(`Expected JSON but got non-JSON response: ${text.slice(0, 300)}`);
+    }
+
     const rows = flattenApiPayload(raw);
     const reportedTotal =
       Number.isFinite(raw?.total) ? raw.total :
@@ -457,16 +435,6 @@ export default async function handler(req, res) {
         continue;
       }
 
-      if (!Number.isFinite(originalPrice) || originalPrice <= 0) {
-        inc(dropCounts, "dropped_missingOriginalPrice");
-        continue;
-      }
-
-      if (salePrice >= originalPrice) {
-        inc(dropCounts, "dropped_saleNotLessThanOriginal");
-        continue;
-      }
-
       if (!brand || /^unknown$/i.test(brand)) {
         inc(dropCounts, "dropped_missingBrand");
         continue;
@@ -478,9 +446,21 @@ export default async function handler(req, res) {
       }
       seenProductIds.add(productId);
 
+      let normalizedOriginalPrice = originalPrice;
+      let normalizedDiscountPercent = null;
+
+      if (!Number.isFinite(normalizedOriginalPrice) || normalizedOriginalPrice <= 0) {
+        normalizedOriginalPrice = null;
+        inc(dropCounts, "kept_withoutOriginalPrice");
+      } else if (salePrice < normalizedOriginalPrice) {
+        normalizedDiscountPercent = computeDiscountPercent(salePrice, normalizedOriginalPrice);
+      } else {
+        normalizedOriginalPrice = null;
+        inc(dropCounts, "kept_withoutDiscountPercent");
+      }
+
       const gender = inferGender(listingName);
       const model = deriveModel(listingName, brand);
-      const discountPercent = computeDiscountPercent(salePrice, originalPrice);
 
       const deal = {
         schemaVersion: SCHEMA_VERSION,
@@ -490,8 +470,8 @@ export default async function handler(req, res) {
         model,
 
         salePrice: round2(salePrice),
-        originalPrice: round2(originalPrice),
-        discountPercent,
+        originalPrice: round2(normalizedOriginalPrice),
+        discountPercent: normalizedDiscountPercent,
 
         salePriceLow: null,
         salePriceHigh: null,
@@ -518,6 +498,7 @@ export default async function handler(req, res) {
     const pageSummary = {
       page: 1,
       url: API_URL,
+      requestBody: REQUEST_BODY,
       rowsReturned: rows.length,
       reportedTotalRows: reportedTotal,
       dealsExtracted: deals.length,
@@ -533,7 +514,7 @@ export default async function handler(req, res) {
       schemaVersion: SCHEMA_VERSION,
 
       lastUpdated: nowIso(),
-      via: "direct-json",
+      via: "direct-json-post",
 
       sourceUrls: [SHOP_URL, API_URL],
 
@@ -593,6 +574,7 @@ export default async function handler(req, res) {
         "listingURL is constructed from productId + brand slug + listingName slug.",
         "shoeType is set to 'unknown' unless the source explicitly tags it.",
         "Hidden-price / see-price-in-cart style rows are skipped.",
+        "Products marked on sale are kept even when originalPrice is missing or unusable.",
       ],
     });
   } catch (err) {
