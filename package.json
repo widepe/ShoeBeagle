@@ -10,6 +10,9 @@
     "@vercel/blob": "^0.27.0",
     "@sendgrid/mail": "^8.1.0",
     "xml2js": "^0.6.2",
+
+"@sparticuz/chromium": "^123.0.1",
+"playwright-core": "^1.51.1",    
     "proxy-agent": "^6.5.0"
   }
 }
