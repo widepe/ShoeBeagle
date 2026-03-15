@@ -255,11 +255,11 @@ module.exports = async function handler(req, res) {
   const t0 = Date.now();
 
   // ✅ CRON protection 
-const secret = process.env.CRON_SECRET;
+/* const secret = process.env.CRON_SECRET;
 if (secret && req.headers["authorization"] !== `Bearer ${secret}`) {
   return res.status(401).json({ ok: false, error: "Unauthorized" });
 }
-
+*/
   try {
     const html = await fetchHtmlViaFirecrawl(SOURCE_URL);
     const parsed = parseNikeCardsFromHtml(html, "https://www.nike.com");
