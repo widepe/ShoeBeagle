@@ -245,6 +245,10 @@ form#search-form{
   min-width:0;
 }
 
+#mobileSearchRow{
+  gap:calc(var(--gap) * 0.5);
+}
+
 .input-wrapper{
   position:relative;
   flex:1 1 auto;
