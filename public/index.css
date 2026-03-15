@@ -362,6 +362,21 @@ button{
   pointer-events:none;
 }
 
+.icon-action{
+  height:var(--btn-h);
+  width:var(--btn-h);
+  min-width:var(--btn-h);
+  max-width:var(--btn-h);
+  object-fit:contain;
+  display:inline-block;
+  cursor:pointer;
+}
+
+.icon-action[aria-disabled="true"]{
+  opacity:0.55;
+  pointer-events:none;
+}
+
 .btn-eq{
   height:var(--btn-h);
   width:var(--btn-h);
@@ -392,14 +407,22 @@ button{
 .slide-panel-backdrop{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,0.55);
+  background:rgba(0,0,0,0.4);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  display:none;
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  transition:opacity 280ms ease, visibility 0s linear 280ms;
   z-index:3000;
 }
 
-.slide-panel-backdrop.open{ display:block; }
+.slide-panel-backdrop.open{
+  opacity:1;
+  visibility:visible;
+  pointer-events:auto;
+  transition:opacity 280ms ease;
+}
 
 .slide-panel{
   height:100%;
@@ -1169,17 +1192,25 @@ button{
 .sb-alert-backdrop{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,0.55);
+  background:rgba(0,0,0,0.4);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 
-  display:none;
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
   align-items:stretch;
   justify-content:flex-start;
   padding:0;
   z-index:9999;
+  transition:opacity 280ms ease, visibility 0s linear 280ms;
 }
-.sb-alert-backdrop.open{ display:flex; }
+.sb-alert-backdrop.open{
+  opacity:1;
+  visibility:visible;
+  pointer-events:auto;
+  transition:opacity 280ms ease;
+}
 
 /* price alert slide-out panel */
 .sb-alert-modal{

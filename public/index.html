@@ -35,16 +35,17 @@
     <!-- TOP AREA -->
     <div class="topbar">
       <div class="top-right">
-        <button
+        <img
           id="menuBtn"
-          type="button"
-          class="btn-eq"
+          src="/images/menu.svg"
+          class="icon-action"
+          alt="Menu"
+          role="button"
+          tabindex="0"
           aria-label="Menu"
           aria-expanded="false"
           aria-controls="slidePanel"
-        >
-          <img src="/images/menu.svg" class="btn-icon" alt="Menu" />
-        </button>
+        />
 
         <img
           src="/images/logo.svg"
@@ -74,9 +75,15 @@
             </div>
 
             <div class="button-wrapper">
-              <button id="fetchBtn" type="submit" class="btn-eq" aria-label="Fetch">
-                <img src="/images/mag_glass.svg" class="btn-icon" alt="Fetch" />
-              </button>
+              <img
+                id="fetchBtn"
+                src="/images/mag_glass.svg"
+                class="icon-action"
+                alt="Search"
+                role="button"
+                tabindex="0"
+                aria-label="Fetch"
+              />
             </div>
           </div>
         </form>
@@ -276,6 +283,24 @@
           e.stopPropagation();
           togglePanel();
         });
+        menuBtn.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            togglePanel();
+          }
+        });
+      }
+
+      if (fetchBtn) {
+        const triggerSearch = (e) => {
+          e.preventDefault();
+          if (qInput && !qInput.value.trim()) return;
+          form?.requestSubmit();
+        };
+        fetchBtn.addEventListener("click", triggerSearch);
+        fetchBtn.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") triggerSearch(e);
+        });
       }
 
       if (panelCloseBtn) {
@@ -290,6 +315,12 @@
           if (e.target === slidePanelBackdrop) closePanel();
         });
       }
+
+      document.querySelectorAll("[data-open-alert]").forEach((el) => {
+        el.addEventListener("click", () => {
+          closePanel();
+        });
+      });
 
       function normalizeStoreName(value) {
         return String(value || "").trim().toLowerCase();
@@ -367,7 +398,7 @@
 
       function updateFetchReady() {
         const hasAny = !!(qInput && qInput.value.trim());
-        if (fetchBtn) fetchBtn.disabled = !hasAny;
+        if (fetchBtn) fetchBtn.setAttribute("aria-disabled", hasAny ? "false" : "true");
       }
       updateFetchReady();
 
@@ -924,7 +955,7 @@
 
         closeSuggestions();
         updateFetchReady();
-        if (fetchBtn) fetchBtn.disabled = false;
+        if (fetchBtn) fetchBtn.setAttribute("aria-disabled", "false");
 
         setTimeout(() => {
           if (form && typeof form.requestSubmit === "function") {
