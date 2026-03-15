@@ -80,6 +80,7 @@ module.exports = async function handler(req, res) {
     newton_specials: true,
     sports_basement: true,
     tyr_runners_sale: true,
+    therunningwellstore_sale: true,
   };
 
   const TARGETS = [];
@@ -116,6 +117,9 @@ module.exports = async function handler(req, res) {
 
   // TYR runners collection — NOT Cheerio. Uses Shopify collection products.json API.
   if (ENABLED.tyr_runners_sale) TARGETS.push("/api/scrapers/tyr-runners-sale");
+
+  // The Running Well Store sale footwear collection via Shopify products.json.
+  if (ENABLED.therunningwellstore_sale) TARGETS.push("/api/scrapers/therunningwellstore");
 
   try {
     const results = [];
