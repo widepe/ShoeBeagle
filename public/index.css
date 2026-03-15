@@ -407,11 +407,36 @@ button{
   align-items:center;
   justify-content:center;
   flex-direction:column;
-  gap:calc(var(--gap) * 0.2);
 }
 
-.price-alert-trigger span{
+.price-alert-trigger span,
+.topbar-stack-link span{
   display:block;
+}
+
+.topbar-stack-link{
+  display:none;
+  border:none;
+  background:transparent;
+  color:var(--sb-blue);
+  height:var(--btn-h);
+  min-height:var(--btn-h);
+  padding:0;
+  margin:0;
+  line-height:1;
+  font-weight:800;
+  font-size:calc(1rem * var(--top-scale));
+  letter-spacing:0.03em;
+  cursor:pointer;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  gap:calc(var(--gap) * 0.2);
+  text-decoration:none;
+}
+
+.topbar-stack-link:hover{
+  opacity:0.88;
 }
 
 .price-alert-trigger:hover{
@@ -862,7 +887,8 @@ button{
 @media (min-width:820px) and (max-width:1366px) and (orientation:landscape){
   :root{ --cols:5; }
 
-  .price-alert-trigger{
+  .price-alert-trigger,
+  .topbar-stack-link{
     display:inline-flex;
   }
 
@@ -893,7 +919,8 @@ button{
 @media (max-width:800px) and (orientation:landscape){
   :root{ --cols:3; }
 
-  .price-alert-trigger{
+  .price-alert-trigger,
+  .topbar-stack-link{
     display:none;
   }
 
@@ -911,7 +938,8 @@ button{
 
 /* MOBILE PORTRAIT */
 @media (max-width:560px){
-  .price-alert-trigger{
+  .price-alert-trigger,
+  .topbar-stack-link{
     display:none;
   }
   :root{
@@ -1606,7 +1634,8 @@ button{
 
 
 @media (min-width:1367px){
-  .price-alert-trigger{
+  .price-alert-trigger,
+  .topbar-stack-link{
     display:inline-flex;
   }
 }
