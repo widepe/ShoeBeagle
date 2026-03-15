@@ -75,12 +75,10 @@ module.exports = async function handler(req, res) {
     topo_athletic_sale: true,
     champs_sale: true,
     karhu_sale: true,
-    runpacers_sale: true,
     shoe_carnival: true,
     newton_specials: true,
     sports_basement: true,
     tyr_runners_sale: true,
-    therunningwellstore_sale: true,
   };
 
   const TARGETS = [];
@@ -103,9 +101,6 @@ module.exports = async function handler(req, res) {
   // Karhu sale running shoes pages.
   if (ENABLED.karhu_sale) TARGETS.push("/api/scrapers/karhu-sale");
 
-  // RunPacers sale running shoes pages.
-  if (ENABLED.runpacers_sale) TARGETS.push("/api/scrapers/runpacers-sale");
-
   // Shoe Carnival sale running shoes pages.
   if (ENABLED.shoe_carnival) TARGETS.push("/api/scrapers/shoe-carnival");
 
@@ -117,9 +112,6 @@ module.exports = async function handler(req, res) {
 
   // TYR runners collection — NOT Cheerio. Uses Shopify collection products.json API.
   if (ENABLED.tyr_runners_sale) TARGETS.push("/api/scrapers/tyr-runners-sale");
-
-  // The Running Well Store sale footwear collection via Shopify products.json.
-  if (ENABLED.therunningwellstore_sale) TARGETS.push("/api/scrapers/therunningwellstore");
 
   try {
     const results = [];
