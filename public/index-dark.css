@@ -37,7 +37,7 @@ body{
 
 /* dim only the shoe image itself */
 .card-image-wrapper img{
-  filter:brightness(.7) contrast(1.1);
+  filter:brightness(.8) contrast(1.1);
 }
 
 /* text */
