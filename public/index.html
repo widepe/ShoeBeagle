@@ -20,8 +20,31 @@
   <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
   <link rel="icon" type="image/png" href="/images/favicon.png">
 
+  <!-- Preload dark-mode assets so swap is smoother -->
+  <link rel="preload" as="image" href="/images/logo-dark-mode.svg">
+  <link rel="preload" as="image" href="/images/menu-dark-mode.svg">
+  <link rel="preload" as="image" href="/images/mag_glass-dark-mode.svg">
+
+  <!-- Set theme before paint to reduce flashing -->
+  <script>
+    (function () {
+      try {
+        const savedTheme = localStorage.getItem("sb-theme");
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const useDark = savedTheme ? savedTheme === "dark" : prefersDark;
+        document.documentElement.dataset.theme = useDark ? "dark" : "light";
+      } catch {
+        document.documentElement.dataset.theme = "light";
+      }
+    })();
+  </script>
+
   <!-- CSS -->
-  <link id="themeStylesheet" rel="stylesheet" href="/index.css?v=130" />
+  <link
+    id="themeStylesheet"
+    rel="stylesheet"
+    href="/index.css?v=130"
+  />
 
   <!-- IMPORTANT:
        Set this at deploy time to avoid hardcoding the blob store base.
@@ -49,7 +72,6 @@
 
         <img
           src="/images/logo.svg"
-
           class="brand-logo"
           alt="Shoe Beagle Logo"
           id="logoLink"
@@ -182,7 +204,7 @@
 
         <button type="button" class="slide-panel-close" id="panelCloseBtn">Close</button>
       </aside>
-      </div>
+    </div>
 
     <!-- MAIN -->
     <div id="mainContent">
@@ -216,7 +238,7 @@
         <a href="mailto:contact@shoebeagle.com?subject=ShoeBeagle%20Inquiry" title="contact@shoebeagle.com">Contact</a> |
         <a href="/pages/privacy.html">Privacy</a> |
         <a href="/pages/terms.html">Terms</a>
-</div>
+      </div>
       <div class="footer-copy">
         © <span id="footerYear"></span> Shoe Beagle. All rights reserved.
       </div>
@@ -225,12 +247,12 @@
     <button class="to-top" id="toTopBtn" type="button" aria-label="Back to top">↑</button>
   </div>
 
-<!-- Load canonical brand/models for Price Alert modal (replaces /brandModels.js) -->
-<script>
-  // Expose canonical brand-model map to the modal script.
-  // This fetch happens once on page load.
-  window.__SB_CANONICAL_BRAND_MODELS_URL__ = "/lib/canonical-brands-models.json";
-</script>
+  <!-- Load canonical brand/models for Price Alert modal (replaces /brandModels.js) -->
+  <script>
+    // Expose canonical brand-model map to the modal script.
+    // This fetch happens once on page load.
+    window.__SB_CANONICAL_BRAND_MODELS_URL__ = "/lib/canonical-brands-models.json";
+  </script>
 
   <!-- ===== Main Page Script ===== -->
   <script>
@@ -305,34 +327,47 @@
       if (footerYear) footerYear.textContent = new Date().getFullYear();
       if (logoLink) logoLink.addEventListener("click", () => location.reload());
 
-      let usingDarkTheme = false;
-function applyTheme() {
-  if (!themeStylesheet || !modeToggleIcon) return;
+      let usingDarkTheme = document.documentElement.dataset.theme === "dark";
 
-  if (usingDarkTheme) {
-    themeStylesheet.href = "/index-dark.css?v=2";
-    modeToggleIcon.src = "/images/dark-mode.svg";
-    modeToggleIcon.alt = "Dark mode";
-    modeToggleBtn?.setAttribute("aria-pressed", "true");
-  } else {
-    themeStylesheet.href = "/index.css?v=130";
-    modeToggleIcon.src = "/images/light-mode.svg";
-    modeToggleIcon.alt = "Light mode";
-    modeToggleBtn?.setAttribute("aria-pressed", "false");
-  }
-}
+      function applyTheme() {
+        if (!themeStylesheet || !modeToggleIcon) return;
 
+        if (usingDarkTheme) {
+          themeStylesheet.href = "/index-dark.css?v=2";
 
+          modeToggleIcon.src = "/images/dark-mode.svg";
+          modeToggleIcon.alt = "Dark mode";
 
+          if (logoLink) logoLink.src = "/images/logo-dark-mode.svg";
+          if (menuBtn) menuBtn.src = "/images/menu-dark-mode.svg";
+          if (fetchBtn) fetchBtn.src = "/images/mag_glass-dark-mode.svg";
 
+          modeToggleBtn?.setAttribute("aria-pressed", "true");
+          document.documentElement.dataset.theme = "dark";
+        } else {
+          themeStylesheet.href = "/index.css?v=130";
 
+          modeToggleIcon.src = "/images/light-mode.svg";
+          modeToggleIcon.alt = "Light mode";
 
+          if (logoLink) logoLink.src = "/images/logo.svg";
+          if (menuBtn) menuBtn.src = "/images/menu.svg";
+          if (fetchBtn) fetchBtn.src = "/images/mag_glass.svg";
+
+          modeToggleBtn?.setAttribute("aria-pressed", "false");
+          document.documentElement.dataset.theme = "light";
+        }
+      }
 
       applyTheme();
 
       if (modeToggleBtn) {
         modeToggleBtn.addEventListener("click", () => {
           usingDarkTheme = !usingDarkTheme;
+          document.documentElement.dataset.theme = usingDarkTheme ? "dark" : "light";
+          try {
+            localStorage.setItem("sb-theme", usingDarkTheme ? "dark" : "light");
+          } catch {}
           applyTheme();
           syncPanelControls();
         });
@@ -535,10 +570,10 @@ function applyTheme() {
       // ===============================
       const dealsSuggest = {
         ready: false,
-        brandNormToDisplay: new Map(),      // normBrand -> "Nike"
-        brandToModels: new Map(),           // "Nike" -> Map(normModel -> "Pegasus 42")
-        allModelsNormToDisplay: new Map(),  // normModel -> "Pegasus 42"
-        modelNormToBrandDisplay: new Map(), // normModel -> "Nike" (first brand wins)
+        brandNormToDisplay: new Map(),
+        brandToModels: new Map(),
+        allModelsNormToDisplay: new Map(),
+        modelNormToBrandDisplay: new Map(),
         brands: [],
         allModels: [],
       };
@@ -555,7 +590,6 @@ function applyTheme() {
           const data = await res.json();
           const deals = Array.isArray(data?.deals) ? data.deals : [];
           lastAllDeals = deals.slice();
-
 
           dealsSuggest.brandNormToDisplay.clear();
           dealsSuggest.brandToModels.clear();
@@ -629,13 +663,12 @@ function applyTheme() {
           const b =
             dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(modelDisplay)) || "";
           if (b) brandsFound.add(b);
-          if (brandsFound.size > 1) return ""; // ambiguous
+          if (brandsFound.size > 1) return "";
         }
 
         return brandsFound.size === 1 ? Array.from(brandsFound)[0] : "";
       }
 
-      // "closest brand" based ONLY on deals.json brands (used for parsing brand prefix)
       function levenshtein(a, b) {
         a = String(a || "");
         b = String(b || "");
@@ -741,7 +774,6 @@ function applyTheme() {
         return Array.from(new Set(scored));
       }
 
-      // ---------- Unified suggestion behavior ----------
       function detectBrandPrefix(typed) {
         if (!dealsSuggest.ready) return { brand: "", rest: typed };
 
@@ -772,9 +804,8 @@ function applyTheme() {
         return { brand: "", rest: raw };
       }
 
-      // ---------- Suggestions UI ----------
       const suggestionState = { open: false, items: [], activeIndex: -1, mode: "model" };
-      let pickingSuggestion = false; // ✅ correct scope
+      let pickingSuggestion = false;
 
       function closeSuggestions() {
         if (!qSuggestions) return;
@@ -786,8 +817,6 @@ function applyTheme() {
         suggestionState.mode = "model";
       }
 
-      // ✅ DISPLAY-ONLY DE-DUPE (does not change suggestion logic)
-      // Removes visually-duplicate strings that differ by punctuation/spacing/unicode.
       function dedupeSuggestionItems(items) {
         const out = [];
         const seen = new Set();
@@ -937,83 +966,69 @@ function applyTheme() {
         });
       }
 
- function buildUnifiedSuggestions(typed) {
-  if (!dealsSuggest.ready) return { items: [], mode: "model", brand: "" };
+      function buildUnifiedSuggestions(typed) {
+        if (!dealsSuggest.ready) return { items: [], mode: "model", brand: "" };
 
-  const t = String(typed || "").trim();
-  if (!t) return { items: [], mode: "model", brand: "" };
+        const t = String(typed || "").trim();
+        if (!t) return { items: [], mode: "model", brand: "" };
 
-  // -----------------------------------------
-  // 1) BRAND-FIRST when user is typing ONE TOKEN
-  //    (no spaces yet). If brands match, show them first.
-  //    Then (optionally) fill remaining slots with models.
-  // -----------------------------------------
-  const hasSpace = /\s/.test(t);
-  if (!hasSpace) {
-    const brandHits = filterSuggestions(dealsSuggest.brands, t, 6);
+        const hasSpace = /\s/.test(t);
+        if (!hasSpace) {
+          const brandHits = filterSuggestions(dealsSuggest.brands, t, 6);
 
-    if (brandHits.length) {
-      // Fill leftover slots with model matches (fallback),
-      // but do not duplicate visually-same strings.
-      const modelHits = filterSuggestions(dealsSuggest.allModels, t, 6);
+          if (brandHits.length) {
+            const modelHits = filterSuggestions(dealsSuggest.allModels, t, 6);
 
-      const out = [];
-      const seen = new Set();
+            const out = [];
+            const seen = new Set();
 
-      const add = (v) => {
-        const key = squashStr(String(v || ""));
-        if (!key) return;
-        if (seen.has(key)) return;
-        seen.add(key);
-        out.push(v);
-      };
+            const add = (v) => {
+              const key = squashStr(String(v || ""));
+              if (!key) return;
+              if (seen.has(key)) return;
+              seen.add(key);
+              out.push(v);
+            };
 
-      brandHits.forEach(add);
+            brandHits.forEach(add);
 
-      // only fill if we still have room
-      for (const m of modelHits) {
-        if (out.length >= 6) break;
-        add(m);
+            for (const m of modelHits) {
+              if (out.length >= 6) break;
+              add(m);
+            }
+
+            return { items: out.slice(0, 6), mode: "brandFirst", brand: "" };
+          }
+        }
+
+        const { brand, rest } = detectBrandPrefix(t);
+
+        if (brand) {
+          const pool = dealsSuggest.brandToModels.has(brand)
+            ? Array.from(dealsSuggest.brandToModels.get(brand).values())
+            : [];
+
+          if (!rest) {
+            const modelsShort = sortShortFirst(pool).slice(0, 11);
+            return {
+              items: [brand, ...modelsShort.map((m) => `${brand} ${m}`)],
+              mode: "brandmodel",
+              brand,
+            };
+          }
+
+          const matches = filterSuggestions(pool, rest, 6);
+          const ordered = sortShortFirst(matches);
+          return {
+            items: ordered.map((m) => `${brand} ${m}`),
+            mode: "brandmodel",
+            brand,
+          };
+        }
+
+        const matches = filterSuggestions(dealsSuggest.allModels, t, 6);
+        return { items: matches, mode: "model", brand: "" };
       }
-
-      return { items: out.slice(0, 6), mode: "brandFirst", brand: "" };
-    }
-  }
-
-  // -----------------------------------------
-  // 2) Existing behavior for "brand + rest" typing
-  // -----------------------------------------
-  const { brand, rest } = detectBrandPrefix(t);
-
-  if (brand) {
-    const pool = dealsSuggest.brandToModels.has(brand)
-      ? Array.from(dealsSuggest.brandToModels.get(brand).values())
-      : [];
-
-    if (!rest) {
-      const modelsShort = sortShortFirst(pool).slice(0, 11);
-      return {
-        items: [brand, ...modelsShort.map((m) => `${brand} ${m}`)],
-        mode: "brandmodel",
-        brand,
-      };
-    }
-
-    const matches = filterSuggestions(pool, rest, 6);
-    const ordered = sortShortFirst(matches);
-    return {
-      items: ordered.map((m) => `${brand} ${m}`),
-      mode: "brandmodel",
-      brand,
-    };
-  }
-
-  // -----------------------------------------
-  // 3) Final fallback: models only
-  // -----------------------------------------
-  const matches = filterSuggestions(dealsSuggest.allModels, t, 6);
-  return { items: matches, mode: "model", brand: "" };
-}
 
       function splitBrandModelFromPicked(picked) {
         const s = String(picked || "").trim();
@@ -1055,7 +1070,6 @@ function applyTheme() {
         }, 0);
       }
 
-      // Input handlers
       if (qInput) {
         qInput.addEventListener("input", () => {
           const typed = qInput.value.trim();
@@ -1075,7 +1089,6 @@ function applyTheme() {
           const built = buildUnifiedSuggestions(typed);
           suggestionState.mode = built.mode;
 
-          // ✅ de-dupe display list ONLY (no algorithm changes)
           const deduped = dedupeSuggestionItems(built.items);
 
           renderSuggestions(deduped, (value) => applySuggestionAndSearch(value));
@@ -1148,7 +1161,6 @@ function applyTheme() {
         if (pager) pager.style.display = pages > 1 ? "flex" : "none";
       }
 
-      // ===== Filters ONLY (sorting removed) =====
       function applyFilters(items) {
         const gSel = norm(selectedGender);
         const storeSel = normalizeStoreName(selectedStore);
@@ -1169,7 +1181,6 @@ function applyTheme() {
         return filtered.slice().sort((a, b) => Number(a.salePrice || 0) - Number(b.salePrice || 0));
       }
 
-      // ===== Discount badge helper =====
       function getDiscountInfo(item) {
         const current = Number(item.salePrice);
         const original = Number(item.originalPrice);
@@ -1267,6 +1278,10 @@ function applyTheme() {
           const nextDarkTheme = value === "dark";
           if (usingDarkTheme === nextDarkTheme) return;
           usingDarkTheme = nextDarkTheme;
+          document.documentElement.dataset.theme = usingDarkTheme ? "dark" : "light";
+          try {
+            localStorage.setItem("sb-theme", usingDarkTheme ? "dark" : "light");
+          } catch {}
           applyTheme();
           syncPanelControls();
         });
@@ -1290,7 +1305,6 @@ function applyTheme() {
         });
       }
 
-      // ===== Paging / load more =====
       if (loadMoreBtn) {
         loadMoreBtn.addEventListener("click", () => {
           const filtered = getFilteredAndSorted(lastSearchResults);
@@ -1473,7 +1487,6 @@ function applyTheme() {
       loadDailyDeals();
       loadDealsSuggestionIndex();
 
-      // ===== To top (mobile portrait) =====
       function updateToTopVisibility() {
         if (!toTopBtn) return;
         if (!isMobilePortrait()) {
@@ -1494,7 +1507,6 @@ function applyTheme() {
         });
       }
 
-      // ---- Submit ----
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
 
@@ -1544,68 +1556,59 @@ function applyTheme() {
         const results = data && data.results ? data.results : [];
         lastSearchResults = results;
 
-        // Reset filters only (sort removed)
         selectedGender = "";
         syncPanelControls();
 
-if (!results.length) {
-  // --- Brand/model mismatch detection and auto search for model.  Ex. Brooks Alphafly would return no results found for Brooks Alphafly, but there are Nike Alphafly results 
-  if (brand && model && dealsSuggest.ready) {
-const modelNorm = normalizeStr(model);
-let actualBrand = dealsSuggest.modelNormToBrandDisplay.get(modelNorm) || "";
+        if (!results.length) {
+          if (brand && model && dealsSuggest.ready) {
+            const modelNorm = normalizeStr(model);
+            let actualBrand = dealsSuggest.modelNormToBrandDisplay.get(modelNorm) || "";
 
-// Fallback: partial match if exact not found
-if (!actualBrand) {
-  for (const [key, val] of dealsSuggest.modelNormToBrandDisplay.entries()) {
-    if (key.includes(modelNorm) && modelNorm.length >= 4) {
-      actualBrand = val;
-      break;
-    }
-  }
-}
-    if (actualBrand && normalizeStr(actualBrand) !== normalizeStr(brand)) {
-      // High confidence mismatch: model exists but under a different brand
-      // Auto-search the corrected combination
-      const correctedQuery = `${actualBrand} ${model}`;
+            if (!actualBrand) {
+              for (const [key, val] of dealsSuggest.modelNormToBrandDisplay.entries()) {
+                if (key.includes(modelNorm) && modelNorm.length >= 4) {
+                  actualBrand = val;
+                  break;
+                }
+              }
+            }
 
-      let correctedData;
-      try {
-        const correctedRes = await fetch("api/search?" + new URLSearchParams({ query: correctedQuery }));
-        correctedData = await correctedRes.json();
-      } catch (err) {
-        console.error("Corrected search error:", err);
-        statusMessageEl.textContent = `No results found for ${displayQuery}.`;
-        if (dailyDeals) dailyDeals.style.display = "block";
-        return;
-      }
+            if (actualBrand && normalizeStr(actualBrand) !== normalizeStr(brand)) {
+              const correctedQuery = `${actualBrand} ${model}`;
 
-      const correctedResults = correctedData && correctedData.results ? correctedData.results : [];
+              let correctedData;
+              try {
+                const correctedRes = await fetch("api/search?" + new URLSearchParams({ query: correctedQuery }));
+                correctedData = await correctedRes.json();
+              } catch (err) {
+                console.error("Corrected search error:", err);
+                statusMessageEl.textContent = `No results found for ${displayQuery}.`;
+                if (dailyDeals) dailyDeals.style.display = "block";
+                return;
+              }
 
-      if (correctedResults.length) {
-        // Update state to reflect corrected search
-        currentSearch = { brand: actualBrand, model };
-        lastSearchResults = correctedResults;
+              const correctedResults = correctedData && correctedData.results ? correctedData.results : [];
 
-        selectedGender = "";
-        syncPanelControls();
+              if (correctedResults.length) {
+                currentSearch = { brand: actualBrand, model };
+                lastSearchResults = correctedResults;
 
-        // Show mismatch message above results
+                selectedGender = "";
+                syncPanelControls();
 
-        renderFilteredResults({ resetPage: true, append: false });
-        statusMessageEl.innerHTML = `No results for <strong>${displayQuery}</strong> — showing ${correctedResults.length} ${actualBrand} ${model} result${correctedResults.length === 1 ? "" : "s"} instead.`;
-        
-        return;
-      }
-    }
-  }
+                renderFilteredResults({ resetPage: true, append: false });
+                statusMessageEl.innerHTML = `No results for <strong>${displayQuery}</strong> — showing ${correctedResults.length} ${actualBrand} ${model} result${correctedResults.length === 1 ? "" : "s"} instead.`;
+                return;
+              }
+            }
+          }
 
-  // Default zero results
-  statusMessageEl.textContent = `No results found for ${displayQuery}.`;
-  if (pager) pager.style.display = "none";
-  if (loadMoreWrap) loadMoreWrap.style.display = "none";
-  if (dailyDeals) dailyDeals.style.display = "block";
-  return;
-}
+          statusMessageEl.textContent = `No results found for ${displayQuery}.`;
+          if (pager) pager.style.display = "none";
+          if (loadMoreWrap) loadMoreWrap.style.display = "none";
+          if (dailyDeals) dailyDeals.style.display = "block";
+          return;
+        }
 
         renderFilteredResults({ resetPage: true, append: false });
       });
@@ -1616,7 +1619,6 @@ if (!actualBrand) {
   </script>
 
   <!-- ===== Price Alert Modal (drop-in) ===== -->
-  <!-- (UNCHANGED: your modal stays brand+model, using brandModels.js as designed) -->
   <div id="sbAlertBackdrop" class="sb-alert-backdrop" aria-hidden="true">
     <div class="sb-alert-modal" role="dialog" aria-modal="true" aria-labelledby="sbAlertTitle">
       <button type="button" class="sb-alert-close" id="sbAlertClose" aria-label="Close">×</button>
@@ -1624,7 +1626,6 @@ if (!actualBrand) {
       <div class="sb-alert-title" id="sbAlertTitle">Set Price Alert</div>
 
       <form id="sbSetAlertForm" class="sb-alert-form">
-        <!-- FORM VIEW -->
         <div id="sbAlertFormView">
           <div class="sb-input-wrap">
             <input
@@ -1716,7 +1717,6 @@ if (!actualBrand) {
           <div id="sbStatus" class="sb-status" hidden></div>
         </div>
 
-        <!-- SUCCESS VIEW -->
         <div id="sbConfirm" class="sb-confirm" hidden>
           <div class="sb-confirm-title">✓ Alert Set Successfully!</div>
           <div id="sbConfirmDetails" class="sb-confirm-details"></div>
@@ -1727,7 +1727,6 @@ if (!actualBrand) {
           <button type="button" class="sb-submit sb-secondary" id="sbSetAnother">Set Another Alert</button>
         </div>
 
-        <!-- MAXED OUT VIEW -->
         <div id="sbMaxed" class="sb-confirm" hidden>
           <div class="sb-confirm-title">Alert Limit Reached</div>
           <div class="sb-confirm-details" style="border-color: rgba(220,53,69,0.35);">
@@ -1747,7 +1746,7 @@ if (!actualBrand) {
     </div>
   </div>
 
-  <!-- ===== Modal controller (UNCHANGED) ===== -->
+  <!-- ===== Modal controller ===== -->
   <script>
     (() => {
       const openers = document.querySelectorAll("[data-open-alert]");
@@ -1776,72 +1775,69 @@ if (!actualBrand) {
 
       const API_ALERTS = "api/alerts";
 
-// ------------------------------
-// Canonical brand/models (NEW)
-// ------------------------------
-let brandModels = {};     // { "ASICS": ["GT-2000 12", ...], ... }
-let brands = [];          // ["ASICS", "Brooks", ...]
-let BRAND_CANON = new Map(); // norm (canonical/alias) -> canonical display key
+      let brandModels = {};
+      let brands = [];
+      let BRAND_CANON = new Map();
 
-function normKey(s) {
-  return String(s || "")
-    .toLowerCase()
-    .replace(/[\u00AE\u2122\u2120]/g, "") // ® ™ ℠
-    .replace(/[^a-z0-9]/g, "");          // remove spaces/punct
-}
+      function normKey(s) {
+        return String(s || "")
+          .toLowerCase()
+          .replace(/[\u00AE\u2122\u2120]/g, "")
+          .replace(/[^a-z0-9]/g, "");
+      }
 
-function getModelsForBrandKey(brandKey) {
-  const entry = brandModels[brandKey];
-  if (Array.isArray(entry)) return entry;
-  if (entry && typeof entry === "object" && Array.isArray(entry.models)) return entry.models;
-  return [];
-}
+      function getModelsForBrandKey(brandKey) {
+        const entry = brandModels[brandKey];
+        if (Array.isArray(entry)) return entry;
+        if (entry && typeof entry === "object" && Array.isArray(entry.models)) return entry.models;
+        return [];
+      }
 
-function getAliasesForBrandKey(brandKey) {
-  const entry = brandModels[brandKey];
-  if (entry && typeof entry === "object" && Array.isArray(entry.aliases)) return entry.aliases;
-  return [brandKey];
-}
+      function getAliasesForBrandKey(brandKey) {
+        const entry = brandModels[brandKey];
+        if (entry && typeof entry === "object" && Array.isArray(entry.aliases)) return entry.aliases;
+        return [brandKey];
+      }
 
-async function loadCanonicalBrandModels() {
-  const url = window.__SB_CANONICAL_BRAND_MODELS_URL__ || "lib/canonical-brands-models.json";
+      async function loadCanonicalBrandModels() {
+        const url = window.__SB_CANONICAL_BRAND_MODELS_URL__ || "lib/canonical-brands-models.json";
 
-  const res = await fetch(`${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Failed to load canonical brands/models: ${res.status}`);
+        const res = await fetch(`${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`Failed to load canonical brands/models: ${res.status}`);
 
-  const data = await res.json();
+        const data = await res.json();
 
-  brandModels = (data && typeof data === "object") ? data : {};
-  brands = Object.keys(brandModels).sort((a, b) => a.localeCompare(b));
+        brandModels = (data && typeof data === "object") ? data : {};
+        brands = Object.keys(brandModels).sort((a, b) => a.localeCompare(b));
 
-  BRAND_CANON = new Map();
-  for (const b of brands) {
-    BRAND_CANON.set(normKey(b), b);
-    for (const alias of getAliasesForBrandKey(b)) {
-      BRAND_CANON.set(normKey(alias), b);
-    }
-  }
-}
+        BRAND_CANON = new Map();
+        for (const b of brands) {
+          BRAND_CANON.set(normKey(b), b);
+          for (const alias of getAliasesForBrandKey(b)) {
+            BRAND_CANON.set(normKey(alias), b);
+          }
+        }
+      }
 
-// Canonicalize brand display casing regardless of user-typed case.
-function resolveBrandKey(input) {
-  const key = normKey(input);
-  return BRAND_CANON.get(key) || "";
-}
+      function resolveBrandKey(input) {
+        const key = normKey(input);
+        return BRAND_CANON.get(key) || "";
+      }
 
       if (!backdrop || !closeBtn || !form || !emailEl || !brandEl || !modelEl || !priceEl || !genderWrap || !btn) return;
-// Load canonical brand/models before enabling suggestions/validation.
-(async () => {
-  try {
-    await loadCanonicalBrandModels();
-  } catch (e) {
-    console.error("[Set Alert] Failed loading canonical brand/models:", e?.message || String(e));
-    // Keep modal functional but with no suggestions.
-    brandModels = {};
-    brands = [];
-    BRAND_CANON = new Map();
-  }
-})();      let lastFocus = null;
+
+      (async () => {
+        try {
+          await loadCanonicalBrandModels();
+        } catch (e) {
+          console.error("[Set Alert] Failed loading canonical brand/models:", e?.message || String(e));
+          brandModels = {};
+          brands = [];
+          BRAND_CANON = new Map();
+        }
+      })();
+
+      let lastFocus = null;
       let busy = false;
       let selectedGender = "";
 
@@ -1890,8 +1886,6 @@ function resolveBrandKey(input) {
         if (!s) s = "";
         return s.slice(0, 4);
       }
-
-// resolveBrandKey is now defined above (canonical + case-insensitive)
 
       function toggleClear(input) {
         const wrap = input.closest(".sb-input-wrap");
@@ -1945,7 +1939,6 @@ function resolveBrandKey(input) {
         }
       }
 
-      // ---------- suggestions ----------
       const S = { open: null, items: [], idx: -1 };
       const squash = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -2053,7 +2046,6 @@ function resolveBrandKey(input) {
         }
       }
 
-      // ---------- ORDER ENFORCEMENT ----------
       function isEmailOk() {
         const email = sanitize(emailEl.value).toLowerCase();
         return !!(email && email.includes("@"));
