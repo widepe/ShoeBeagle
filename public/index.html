@@ -21,9 +21,11 @@
   <link rel="icon" type="image/png" href="/images/favicon.png">
 
   <!-- Preload dark-mode assets so swap is smoother -->
-  <link rel="preload" as="image" href="/images/logo-dark-mode.svg">
-  <link rel="preload" as="image" href="/images/menu-dark-mode.svg">
-  <link rel="preload" as="image" href="/images/mag_glass-dark-mode.svg">
+<link rel="preload" as="image" href="/images/logo-dark-mode.svg">
+<link rel="preload" as="image" href="/images/menu-dark-mode.svg">
+<link rel="preload" as="image" href="/images/mag_glass-dark-mode.svg">
+<link rel="preload" as="image" href="/images/shoe-dark-mode.svg">
+
 
   <!-- Set theme before paint to reduce flashing -->
   <script>
@@ -84,7 +86,8 @@
           <!-- unified row -->
           <div class="row" id="mobileSearchRow">
             <div class="input-wrapper">
-              <img class="input-icon" src="/images/shoe.svg" alt="" aria-hidden="true" />
+              <img id="searchShoeIcon" class="input-icon" src="/images/shoe.svg" alt="" aria-hidden="true" />
+
               <input
                 id="q"
                 type="text"
@@ -265,13 +268,15 @@
       const fetchBtn = document.getElementById("fetchBtn");
 
       // Unified input + suggestions
-      const qInput = document.getElementById("q");
-      const qSuggestions = document.getElementById("qSuggestions");
-      const logoLink = document.getElementById("logoLink");
-      const footerYear = document.getElementById("footerYear");
-      const themeStylesheet = document.getElementById("themeStylesheet");
-      const modeToggleBtn = document.getElementById("modeToggleBtn");
-      const modeToggleIcon = document.getElementById("modeToggleIcon");
+const qInput = document.getElementById("q");
+const qSuggestions = document.getElementById("qSuggestions");
+const logoLink = document.getElementById("logoLink");
+const searchShoeIcon = document.getElementById("searchShoeIcon");
+const footerYear = document.getElementById("footerYear");
+const themeStylesheet = document.getElementById("themeStylesheet");
+const modeToggleBtn = document.getElementById("modeToggleBtn");
+const modeToggleIcon = document.getElementById("modeToggleIcon");
+
 
       // Slide panel controls
       const menuBtn = document.getElementById("menuBtn");
@@ -330,34 +335,37 @@
       let usingDarkTheme = document.documentElement.dataset.theme === "dark";
 
       function applyTheme() {
-        if (!themeStylesheet || !modeToggleIcon) return;
+  if (!themeStylesheet || !modeToggleIcon) return;
 
-        if (usingDarkTheme) {
-          themeStylesheet.href = "/index-dark.css?v=2";
+  if (usingDarkTheme) {
+    themeStylesheet.href = "/index-dark.css?v=2";
 
-          modeToggleIcon.src = "/images/dark-mode.svg";
-          modeToggleIcon.alt = "Dark mode";
+    modeToggleIcon.src = "/images/dark-mode.svg";
+    modeToggleIcon.alt = "Dark mode";
 
-          if (logoLink) logoLink.src = "/images/logo-dark-mode.svg";
-          if (menuBtn) menuBtn.src = "/images/menu-dark-mode.svg";
-          if (fetchBtn) fetchBtn.src = "/images/mag_glass-dark-mode.svg";
+    if (logoLink) logoLink.src = "/images/logo-dark-mode.svg";
+    if (menuBtn) menuBtn.src = "/images/menu-dark-mode.svg";
+    if (fetchBtn) fetchBtn.src = "/images/mag_glass-dark-mode.svg";
+    if (searchShoeIcon) searchShoeIcon.src = "/images/shoe-dark-mode.svg";
 
-          modeToggleBtn?.setAttribute("aria-pressed", "true");
-          document.documentElement.dataset.theme = "dark";
-        } else {
-          themeStylesheet.href = "/index.css?v=130";
+    modeToggleBtn?.setAttribute("aria-pressed", "true");
+    document.documentElement.dataset.theme = "dark";
+  } else {
+    themeStylesheet.href = "/index.css?v=130";
 
-          modeToggleIcon.src = "/images/light-mode.svg";
-          modeToggleIcon.alt = "Light mode";
+    modeToggleIcon.src = "/images/light-mode.svg";
+    modeToggleIcon.alt = "Light mode";
 
-          if (logoLink) logoLink.src = "/images/logo.svg";
-          if (menuBtn) menuBtn.src = "/images/menu.svg";
-          if (fetchBtn) fetchBtn.src = "/images/mag_glass.svg";
+    if (logoLink) logoLink.src = "/images/logo.svg";
+    if (menuBtn) menuBtn.src = "/images/menu.svg";
+    if (fetchBtn) fetchBtn.src = "/images/mag_glass.svg";
+    if (searchShoeIcon) searchShoeIcon.src = "/images/shoe.svg";
 
-          modeToggleBtn?.setAttribute("aria-pressed", "false");
-          document.documentElement.dataset.theme = "light";
-        }
-      }
+    modeToggleBtn?.setAttribute("aria-pressed", "false");
+    document.documentElement.dataset.theme = "light";
+  }
+}
+
 
       applyTheme();
 
