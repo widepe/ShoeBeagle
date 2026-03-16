@@ -113,6 +113,7 @@
 
     <div id="slidePanelBackdrop" class="slide-panel-backdrop" aria-hidden="true">
       <aside id="slidePanel" class="slide-panel" aria-label="Menu panel">
+        <button type="button" class="slide-panel-x-close" id="panelXCloseBtn" aria-label="Close">×</button>
         <div class="slide-panel-title">MENU</div>
 
         <div class="slide-panel-section">
@@ -154,6 +155,21 @@
             <span>High</span>
             <img src="/images/fetch_arrow.svg" class="sort-arrow sort-arrow-left" alt="to" />
             <span>Low</span>
+          </button>
+        </div>
+
+        <hr class="slide-divider" />
+
+        <div class="slide-panel-section">
+          <div class="slide-panel-heading">DISPLAY</div>
+          <div class="slide-subheading">Mode:</div>
+          <button type="button" class="slide-check-option" data-panel-theme="light">
+            <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+            <span>Light mode</span>
+          </button>
+          <button type="button" class="slide-check-option" data-panel-theme="dark">
+            <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+            <span>Dark mode</span>
           </button>
         </div>
 
@@ -238,9 +254,11 @@
       const menuBtn = document.getElementById("menuBtn");
       const slidePanelBackdrop = document.getElementById("slidePanelBackdrop");
       const panelCloseBtn = document.getElementById("panelCloseBtn");
+      const panelXCloseBtn = document.getElementById("panelXCloseBtn");
       const panelStoreSelect = document.getElementById("panelStoreSelect");
       const panelGenderOptions = Array.from(document.querySelectorAll("[data-panel-gender]"));
       const panelSortOptions = Array.from(document.querySelectorAll("[data-panel-sort]"));
+      const panelThemeOptions = Array.from(document.querySelectorAll("[data-panel-theme]"));
 
       const PAGE_SIZE = 12;
       let pageIndex = 0;
@@ -314,6 +332,7 @@
         modeToggleBtn.addEventListener("click", () => {
           usingDarkTheme = !usingDarkTheme;
           applyTheme();
+          syncPanelControls();
         });
       }
 
@@ -366,6 +385,13 @@
 
       if (panelCloseBtn) {
         panelCloseBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          closePanel();
+        });
+      }
+
+      if (panelXCloseBtn) {
+        panelXCloseBtn.addEventListener("click", (e) => {
           e.preventDefault();
           closePanel();
         });
@@ -1085,6 +1111,13 @@
           option.classList.toggle("active", isOn);
           option.setAttribute("aria-pressed", isOn ? "true" : "false");
         });
+
+        panelThemeOptions.forEach((option) => {
+          const isDarkOption = option.getAttribute("data-panel-theme") === "dark";
+          const isOn = isDarkOption ? usingDarkTheme : !usingDarkTheme;
+          option.classList.toggle("active", isOn);
+          option.setAttribute("aria-pressed", isOn ? "true" : "false");
+        });
       }
 
       function totalPagesCount(total) {
@@ -1223,6 +1256,17 @@
           syncPanelControls();
           renderDailyDealsNow();
           renderFilteredResults({ resetPage: true, append: false });
+        });
+      });
+
+      panelThemeOptions.forEach((option) => {
+        option.addEventListener("click", () => {
+          const value = option.getAttribute("data-panel-theme") || "light";
+          const nextDarkTheme = value === "dark";
+          if (usingDarkTheme === nextDarkTheme) return;
+          usingDarkTheme = nextDarkTheme;
+          applyTheme();
+          syncPanelControls();
         });
       });
 
@@ -1695,6 +1739,8 @@ if (!actualBrand) {
           </div>
           <button type="button" class="sb-submit sb-secondary" id="sbMaxedClose">Close</button>
         </div>
+
+        <button type="button" class="slide-panel-close sb-alert-bottom-close" id="sbAlertBottomClose">Close</button>
       </form>
     </div>
   </div>
@@ -1712,6 +1758,7 @@ if (!actualBrand) {
       const setAnother = document.getElementById("sbSetAnother");
       const maxedBox = document.getElementById("sbMaxed");
       const maxedClose = document.getElementById("sbMaxedClose");
+      const bottomCloseBtn = document.getElementById("sbAlertBottomClose");
 
       const emailEl = document.getElementById("sbAlertEmail");
       const brandEl = document.getElementById("sbAlertBrand");
@@ -2138,6 +2185,7 @@ function resolveBrandKey(input) {
       });
 
       closeBtn.addEventListener("click", closeModal);
+      if (bottomCloseBtn) bottomCloseBtn.addEventListener("click", closeModal);
       if (maxedClose) maxedClose.addEventListener("click", closeModal);
 
       backdrop.addEventListener("click", (e) => {
