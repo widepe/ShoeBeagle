@@ -2436,8 +2436,9 @@
 
         setBusy(true);
         try {
-          await postJson(API_ALERTS, { email, brand, model, targetPrice, gender });
-          closeModal();
+            await postJson(API_ALERTS, { email, brand, model, targetPrice, gender });
+            showSuccess(brand, model, gender, targetPrice);
+
         } catch (err) {
           const msg = err && err.message ? String(err.message) : "Failed to set alert.";
           const code = err && err.code ? String(err.code) : "";
