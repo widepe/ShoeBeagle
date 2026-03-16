@@ -1,23 +1,274 @@
 @import url('/index.css?v=129');
 
-html {
-  background: #121212;
+/* =========================================================
+   DARK MODE TOKENS
+========================================================= */
+:root{
+  --bg:#121212;
+  --card-bg:#1f2633;
+  --sb-blue:#9bbcff;
+  --sb-blue-rgb:155 188 255;
+  --card-brand-color:#e8eefc;
 }
 
-body {
-  filter: invert(1) hue-rotate(180deg);
+/* =========================================================
+   GLOBAL DARK OVERRIDES
+========================================================= */
+html,
+body{
+  background:var(--bg);
+  color:#e8e8e8;
 }
 
-/* restore images and media back to normal */
-img,
-video,
-iframe,
-canvas,
-svg {
-  filter: invert(1) hue-rotate(180deg);
+/* main page background areas */
+.footer{
+  background:var(--bg);
+  color:#d2d7e0;
+  border-top:1px solid rgba(255,255,255,0.08);
 }
 
-/* product images — restore first, then dim */
-.card-image-wrapper img {
-  filter: invert(1) hue-rotate(180deg) brightness(.8) contrast(1.05);
+.footer a{
+  color:var(--sb-blue);
+}
+
+.status-message{
+  color:var(--sb-blue);
+}
+
+.disclaimer{
+  color:#b8bec8;
+}
+
+.page-label{
+  color:var(--sb-blue);
+}
+
+/* =========================================================
+   TOPBAR / INPUTS
+========================================================= */
+input[type="text"],
+input[type="search"]{
+  background:#1c1f26;
+  color:#f2f4f8;
+  border:1px solid #5f7fb8;
+  box-shadow:0 0 7px rgba(0,0,0,0.35);
+}
+
+input::placeholder{
+  color:#9aa3b2;
+}
+
+.input-clear{
+  color:#b7bfcc;
+}
+
+.input-clear:hover{
+  color:#ffffff;
+}
+
+.suggestions{
+  background:#1b1f27;
+  border:1px solid #5f7fb8;
+  box-shadow:0 6px 12px rgba(0,0,0,0.28);
+}
+
+.suggestion-item{
+  color:#e9edf5;
+}
+
+.suggestion-rest{
+  color:#9bbcff;
+}
+
+.suggestion-item:hover,
+.suggestion-item.active{
+  background:#263247;
+}
+
+/* =========================================================
+   SLIDE PANEL
+========================================================= */
+.slide-panel{
+  background:#1a1f28;
+  border-right:2px solid rgba(255,255,255,0.08);
+  box-shadow:10px 0 24px rgba(0,0,0,0.35);
+}
+
+.slide-panel-title,
+.slide-panel-heading,
+.slide-subheading,
+.slide-panel-link{
+  color:var(--sb-blue);
+}
+
+.slide-check-option{
+  color:#e5e9f0;
+}
+
+.slide-check-box{
+  background:#11151c;
+  border-color:#7d9dd6;
+}
+
+.slide-divider{
+  border-top:1px solid rgba(255,255,255,0.12);
+}
+
+.slide-store-select{
+  background:#11151c;
+  color:#eef2f8;
+  border:1px solid #6f8fc8;
+}
+
+.slide-panel-x-close{
+  color:#b3bcc9;
+}
+
+.slide-panel-x-close:hover{
+  color:#ffffff;
+}
+
+/* =========================================================
+   BUTTONS
+========================================================= */
+button{
+  background:var(--sb-blue);
+  color:#0f1726;
+}
+
+.btn-eq,
+.pager-btn,
+.load-more-btn,
+.slide-panel-close,
+.sb-submit{
+  background:var(--sb-blue);
+  color:#0f1726;
+  border-color:var(--sb-blue);
+}
+
+.btn-eq:hover,
+.pager-btn:hover,
+.load-more-btn:hover,
+.slide-panel-close:hover,
+.sb-submit:hover{
+  background:#b4ccff;
+}
+
+.sb-secondary{
+  background:#161b22;
+  color:var(--sb-blue);
+  border:2px solid var(--sb-blue);
+}
+
+.sb-secondary:hover{
+  background:#222938;
+}
+
+/* =========================================================
+   CARDS
+========================================================= */
+.card{
+  background:var(--card-bg);
+  border-color:#4b5568;
+}
+
+.card-link{
+  color:var(--card-brand-color);
+}
+
+.card-store{
+  color:#b9c3d3;
+}
+
+.price{
+  color:#dbe7ff;
+}
+
+.card-original-price{
+  color:#98a3b5;
+}
+
+.card-tag{
+  color:#d9e5ff;
+  text-shadow:0 0 3px rgba(0,0,0,0.55), 0 0 5px rgba(0,0,0,0.4);
+}
+
+/* =========================================================
+   IMAGE DEBUGGING
+========================================================= */
+
+/* This is the area directly behind the image element */
+.card-image-wrapper{
+  background:red !important;
+}
+
+/* Keep image rendering normal */
+.card img{
+  background:#ffffff;
+  border-color:#4b5568;
+  filter:none !important;
+}
+
+/* Optional: if you want to dim the shoe image while debugging,
+   uncomment this and comment out filter:none above.
+
+.card img{
+  background:#ffffff;
+  border-color:#4b5568;
+  filter:brightness(.8) contrast(1.05) !important;
+}
+*/
+
+/* =========================================================
+   MODAL
+========================================================= */
+.sb-alert-modal{
+  background:#1a1f28;
+  border-right:2px solid rgba(255,255,255,0.08);
+}
+
+.sb-alert-title,
+.sb-note-title{
+  color:var(--sb-blue);
+}
+
+.sb-input{
+  background:#11151c;
+  color:#eef2f8;
+  border:1px solid #6f8fc8;
+  box-shadow:0 0 7px rgba(0,0,0,0.35);
+}
+
+.sb-input::placeholder{
+  color:#97a3b5;
+}
+
+.sb-input:focus{
+  border-color:#9bbcff;
+  box-shadow:0 0 0 3px rgba(155,188,255,0.16), 0 0 7px rgba(0,0,0,0.35);
+}
+
+.sb-input:not(:placeholder-shown):not(:focus){
+  background:#1d2a3d;
+}
+
+.sb-note{
+  background:#161b22;
+  border:1px solid #5f7fb8;
+  color:#d6dce6;
+}
+
+.sb-confirm-details{
+  background:#11151c;
+  color:#e7edf8;
+}
+
+.sb-status.err{
+  background:rgba(220,53,69,0.18);
+  color:#ffb8c0;
+}
+
+.sb-status.ok{
+  background:rgba(46,160,67,0.18);
+  color:#b7f0c3;
 }
