@@ -529,11 +529,29 @@ button{
   padding:16px 14px;
   display:flex;
   flex-direction:column;
+  position:relative;
   transform:translateX(-100%);
   transition:transform 280ms ease;
 }
 
 .slide-panel-backdrop.open .slide-panel{ transform:translateX(0); }
+
+.slide-panel-x-close{
+  position:absolute;
+  top:10px;
+  right:12px;
+  border:0;
+  background:transparent;
+  padding:0;
+  margin:0;
+  cursor:pointer;
+  font-size:32px;
+  line-height:1;
+  font-weight:900;
+  color:#888;
+  opacity:.9;
+}
+.slide-panel-x-close:hover{ color:#555; opacity:1; }
 
 .slide-panel-title,
 .slide-panel-heading{
@@ -973,7 +991,7 @@ button{
     --grid-scale:0.47;
 
     --gap:calc(12px * var(--top-scale));
-    --input-h:calc(64px * var(--top-scale));
+    --input-h:calc(76.8px * var(--top-scale));
     --btn-h:calc(64px * var(--top-scale));
     --btn-eq-w:calc(var(--btn-h) * 1.2);
 
@@ -991,7 +1009,7 @@ button{
 
   /* prevent iOS zoom */
   input[type="text"], input[type="search"]{ font-size:16px; }
-  .suggestion-item{ font-size:19px; }
+  .suggestion-item{ font-size:19px; padding-top:calc(0.275rem * var(--top-scale)); padding-bottom:calc(0.275rem * var(--top-scale)); }
 
   /* --- Top layout: logo row, then inputs row --- */
   .topbar{
@@ -1400,6 +1418,10 @@ button{
 .sb-submit{ margin-top:0; }
 .sb-note{ margin-top:0; }
 .sb-confirm{ margin-top:0; }
+
+.sb-alert-bottom-close{
+  margin-top:16px;
+}
 
 /* ✅ Inputs: EXACTLY like main search box (shape, bg, shadow, focus ring)
    Also: prevent "shape changing" by keeping border width constant everywhere */
