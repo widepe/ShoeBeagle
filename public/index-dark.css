@@ -8,6 +8,7 @@ body {
   filter: invert(1) hue-rotate(180deg);
 }
 
+/* restore images and media back to normal */
 img,
 video,
 iframe,
@@ -16,7 +17,7 @@ svg {
   filter: invert(1) hue-rotate(180deg);
 }
 
-/* product images */
+/* product images — restore first, then dim */
 .card-image-wrapper img {
-  filter: brightness(.7) contrast(1.1);
+  filter: invert(1) hue-rotate(180deg) brightness(.8) contrast(1.05);
 }
