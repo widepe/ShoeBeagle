@@ -294,12 +294,16 @@
           modeToggleIcon.src = "/images/dark-mode.svg";
           modeToggleIcon.alt = "Dark mode";
           if (logoLink) logoLink.src = "/images/logo-dark-mode.svg";
+          if (menuBtn) menuBtn.src = "/images/menu-dark-mode.svg";
+          if (fetchBtn) fetchBtn.src = "/images/mag_glass-dark-mode.svg";
           modeToggleBtn?.setAttribute("aria-pressed", "true");
         } else {
           themeStylesheet.href = "/index.css?v=129";
           modeToggleIcon.src = "/images/light-mode.svg";
           modeToggleIcon.alt = "Light mode";
           if (logoLink) logoLink.src = "/images/logo.svg";
+          if (menuBtn) menuBtn.src = "/images/menu.svg";
+          if (fetchBtn) fetchBtn.src = "/images/mag_glass.svg";
           modeToggleBtn?.setAttribute("aria-pressed", "false");
         }
       }
