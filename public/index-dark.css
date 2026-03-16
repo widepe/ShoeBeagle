@@ -1,263 +1,153 @@
-@import url('/index.css?v=129');
+/* =====================================================
+   DARK MODE OVERRIDES
+   ===================================================== */
 
-:root{
-  --bg:#121212;
-  --card-bg:#1f1f1f;
-  --card-brand-color:#f3f3f3;
-  --sb-blue:#9bbcff;
-  --sb-blue-rgb:155 188 255;
+/* Page background */
+html {
+  background: #121212;
 }
 
-/* page */
-html{
-  background:#121212;
+/* Text color */
+body {
+  background: #121212;
+  color: #e5e5e5;
 }
 
-body{
-  background:var(--bg);
-  color:#f3f3f3;
+/* Top bar */
+.topbar {
+  background: #1a1a1a;
+  border-bottom: 1px solid #2c2c2c;
 }
 
-/* show dark assets, hide light assets */
-.theme-light-only{
-  display:none !important;
+/* Search input */
+input {
+  background: #1f1f1f;
+  color: #e5e5e5;
+  border: 1px solid #333;
 }
 
-.theme-dark-only{
-  display:block !important;
+input::placeholder {
+  color: #999;
 }
 
-/* top area */
-.topbar{
-  background:transparent;
+/* Cards */
+.card {
+  background: #1a1a1a;
+  border: 1px solid #2c2c2c;
 }
 
-.status-message,
-.filter-label,
-.slide-panel-title,
-.slide-panel-heading,
-.slide-subheading,
-.page-label,
-.price,
-.footer a,
-.price-alert-trigger,
-.topbar-stack-link{
-  color:var(--sb-blue);
+.card-title {
+  color: #e5e5e5;
 }
 
-/* inputs */
-input[type="text"],
-input[type="search"]{
-  background:#1c1c1c;
-  color:#f3f3f3;
-  border:1px solid #3c4e73;
-  box-shadow:0 0 7px rgba(155,188,255,0.14);
+.card-store {
+  color: #aaa;
 }
 
-input::placeholder{
-  color:#9a9a9a;
+.price {
+  color: #fff;
 }
 
-.input-clear{
-  color:#b8b8b8;
+.card-original-price {
+  color: #888;
 }
 
-.input-clear:hover{
-  color:#ffffff;
+/* Shoe images */
+
+.card-image-wrapper {
+  background: #121212;
 }
 
-/* suggestions */
-.suggestions{
-  background:#1b1b1b;
-  border:1px solid #445a84;
-  box-shadow:0 6px 12px rgba(0,0,0,0.35);
+/* Dim images slightly for dark mode */
+
+.card-image-wrapper img {
+  filter: brightness(.7) contrast(1.1);
 }
 
-.suggestion-item{
-  color:#f0f0f0;
+/* Discount badge */
+.discount-badge {
+  background: #d63a3a;
+  color: #fff;
 }
 
-.suggestion-rest{
-  color:#9bbcff;
+/* Footer */
+.footer {
+  background: #121212;
+  border-top: 1px solid #2c2c2c;
 }
 
-.suggestion-item:hover,
-.suggestion-item.active{
-  background:#283246;
+.footer a {
+  color: #bbb;
 }
 
-/* cards */
-.card{
-  background:var(--card-bg);
-  border-color:#3e3e3e;
+.footer a:hover {
+  color: #fff;
 }
 
-.card img{
-  background:#2b0000; /* red so you can see exactly what area is behind the shoe image */
-  border-color:#555;
+/* Pager */
+.pager-btn {
+  background: #1f1f1f;
+  border: 1px solid #333;
+  color: #ddd;
 }
 
-.card-title,
-.card-store,
-.card-original-price,
-.card-tag{
-  color:#f0f0f0;
+.pager-btn:hover {
+  background: #2a2a2a;
 }
 
-.card-store{
-  color:#c8c8c8;
+/* Load more */
+.load-more-btn {
+  background: #1f1f1f;
+  border: 1px solid #333;
+  color: #ddd;
 }
 
-.card-original-price{
-  color:#9d9d9d;
+/* Slide panel */
+.slide-panel {
+  background: #1a1a1a;
 }
 
-/* shoe images: keep normal, just dim slightly */
-.card-image-wrapper img{
-  filter:brightness(.7) contrast(1.1);
+.slide-panel-link {
+  color: #ddd;
 }
 
-/* daily deals / results */
-.disclaimer,
-.footer,
-.footer-copy{
-  color:#c6c6c6;
+.slide-panel-heading {
+  color: #fff;
 }
 
-/* pager / buttons */
-.pager-btn,
-.load-more-btn,
-.slide-panel-close,
-.sb-submit{
-  background:#2b4f8f;
-  border-color:#2b4f8f;
-  color:#fff;
+.slide-divider {
+  border-color: #333;
 }
 
-.pager-btn:hover,
-.load-more-btn:hover,
-.slide-panel-close:hover,
-.sb-submit:hover{
-  background:#3a63ac;
+/* ========================================
+   DARK MODE ICON + LOGO SWAPS
+   ======================================== */
+
+.brand-logo {
+  content: url("/images/logo-dark-mode.svg");
 }
 
-/* slide panel */
-.slide-panel{
-  background:#181818;
-  border-right:2px solid rgba(155,188,255,0.25);
-  box-shadow:10px 0 24px rgba(0,0,0,0.35);
+#menuBtn {
+  content: url("/images/menu-dark-mode.svg");
 }
 
-.slide-divider{
-  border-top:1px solid rgba(155,188,255,0.18);
+#fetchBtn {
+  content: url("/images/mag_glass-dark-mode.svg");
 }
 
-.slide-panel-link{
-  color:var(--sb-blue);
+/* Icons that should stay light */
+.input-icon {
+  filter: brightness(0) invert(1);
 }
 
-.slide-store-select{
-  background:#202020;
-  color:#f2f2f2;
-  border:1px solid #4b628d;
+/* Sort arrows */
+.sort-arrow {
+  filter: brightness(0) invert(1);
 }
 
-.slide-check-option{
-  color:#efefef;
-}
-
-.slide-check-box{
-  background:#202020;
-  border:1px solid #6e89bb;
-}
-
-/* modal */
-.sb-alert-modal{
-  background:#181818;
-  border-right:2px solid rgba(155,188,255,0.25);
-  box-shadow:10px 0 24px rgba(0,0,0,0.35);
-}
-
-.sb-alert-title,
-.sb-note-title{
-  color:var(--sb-blue);
-}
-
-.sb-input{
-  background:#1c1c1c;
-  color:#f3f3f3;
-  border:1px solid #465f8d;
-  box-shadow:0 0 7px rgba(155,188,255,0.12);
-}
-
-.sb-input::placeholder{
-  color:#9a9a9a;
-}
-
-.sb-input:focus{
-  border-color:#9bbcff;
-  box-shadow:0 0 0 3px rgba(155,188,255,0.12), 0 0 7px rgba(155,188,255,0.12);
-}
-
-.sb-input:not(:placeholder-shown):not(:focus){
-  background:#243041;
-}
-
-.sb-sug{
-  background:#1c1c1c;
-  border:1px solid #465f8d;
-  box-shadow:0 6px 12px rgba(0,0,0,0.35);
-}
-
-.sb-sug .item{
-  color:#f0f0f0;
-}
-
-.sb-sug-rest{
-  color:#aabcf0;
-}
-
-.sb-sug .item:hover,
-.sb-sug .item.active{
-  background:#283246;
-}
-
-.sb-note{
-  background:#1a1a1a;
-  border:1px solid #465f8d;
-  color:#d9d9d9;
-}
-
-.sb-confirm{
-  background:rgba(46,160,67,0.10);
-}
-
-.sb-confirm-details{
-  background:#1e1e1e;
-  color:#f0f0f0;
-}
-
-.sb-status.err{
-  background:rgba(220,53,69,0.16);
-  border:1px solid rgba(220,53,69,0.42);
-  color:#ffb7c0;
-}
-
-.sb-status.ok{
-  background:rgba(46,160,67,0.16);
-  border:1px solid rgba(46,160,67,0.42);
-  color:#9ce6aa;
-}
-
-/* footer */
-.footer{
-  background:#121212;
-  border-top:1px solid rgba(255,255,255,0.08);
-}
-
-/* to top */
-.to-top{
-  border:1px solid rgba(155,188,255,0.55);
-  background:rgba(43,79,143,0.92);
-  color:#fff;
+/* Back to top */
+.to-top {
+  background: #1f1f1f;
+  color: #fff;
+  border: 1px solid #333;
 }
