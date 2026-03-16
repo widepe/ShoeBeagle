@@ -1394,8 +1394,10 @@ button{
 .sb-alert-modal{
   height:100%;
   width:min(420px, 92vw);
+  max-width:100vw;
   max-height:none;
-  overflow:auto;
+  overflow-y:auto;
+  overflow-x:hidden;
 
   background:#f8f8f8;
   border-right:2px solid rgba(var(--sb-blue-rgb) / 0.3);
@@ -1409,6 +1411,7 @@ button{
   transition:transform 280ms ease;
 }
 .sb-alert-backdrop.open .sb-alert-modal{ transform:translateX(0); }
+
 
 /* close X: RIGHT + gray + aligned */
 .sb-alert-close{
@@ -1718,6 +1721,14 @@ button{
   .sb-price-col{ flex:1; min-width:0; }
 }
 
+@media (max-width:560px){
+  .sb-alert-modal{
+    width:100vw;
+    max-width:100vw;
+    height:100vh;
+    padding-bottom:max(16px, env(safe-area-inset-bottom));
+  }
+}
 
 @media (min-width:1367px){
   .price-alert-trigger,
