@@ -18,5 +18,5 @@ svg {
 
 
 .card-image-wrapper img{
-  filter: invert(1) hue-rotate(180deg) brightness(.7) contrast(1.1);
+  filter: invert(1) hue-rotate(180deg) brightness(.7);
 }
