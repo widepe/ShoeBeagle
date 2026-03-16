@@ -16,7 +16,7 @@ svg {
   filter: invert(1) hue-rotate(180deg);
 }
 
-
-.card-image-wrapper img{
-  filter: invert(1) hue-rotate(180deg) brightness(.7);
+/* product images */
+.card-image-wrapper img {
+  filter: brightness(.7) contrast(1.1);
 }
