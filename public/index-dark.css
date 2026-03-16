@@ -1,153 +1,161 @@
-/* =====================================================
-   DARK MODE OVERRIDES
-   ===================================================== */
+@import url('/index.css?v=130');
 
-/* Page background */
-html {
-  background: #121212;
+:root{
+  --bg:#121212;
+  --card-bg:#1e1e1e;
+  --card-brand-color:#e9eef7;
+  --sb-blue:#8fb3ff;
+  --sb-blue-rgb:143 179 255;
 }
 
-/* Text color */
-body {
-  background: #121212;
-  color: #e5e5e5;
+/* page */
+html,
+body{
+  background:#121212;
+  color:#e8e8e8;
 }
 
-/* Top bar */
-.topbar {
-  background: #1a1a1a;
-  border-bottom: 1px solid #2c2c2c;
+/* main app areas */
+.app,
+#mainContent,
+.daily-deals,
+.footer{
+  background:transparent;
+  color:inherit;
 }
 
-/* Search input */
-input {
-  background: #1f1f1f;
-  color: #e5e5e5;
-  border: 1px solid #333;
+/* cards */
+.card{
+  background:var(--card-bg);
+  border-color:#3a3a3a;
 }
 
-input::placeholder {
-  color: #999;
+.card img{
+  background:#2b0000; /* debug red so you can see the image box */
+  border-color:#3a3a3a;
 }
 
-/* Cards */
-.card {
-  background: #1a1a1a;
-  border: 1px solid #2c2c2c;
+/* dim only the shoe image itself */
+.card-image-wrapper img{
+  filter:brightness(.7) contrast(1.1);
 }
 
-.card-title {
-  color: #e5e5e5;
+/* text */
+.status-message,
+.card-title,
+.card-store,
+.page-label,
+.disclaimer,
+.footer,
+.footer-copy,
+.footer-links,
+.footer a,
+.price,
+.card-tag{
+  color:#e8e8e8;
 }
 
-.card-store {
-  color: #aaa;
+.card-original-price{
+  color:#a8a8a8;
 }
 
-.price {
-  color: #fff;
+/* inputs */
+input[type="text"],
+input[type="search"],
+.sb-input{
+  background:#1c1c1c;
+  color:#f1f1f1;
+  border-color:#4a4a4a;
+  box-shadow:none;
 }
 
-.card-original-price {
-  color: #888;
+input::placeholder,
+.sb-input::placeholder{
+  color:#9a9a9a;
 }
 
-/* Shoe images */
-
-.card-image-wrapper {
-  background: #121212;
+/* suggestions */
+.suggestions,
+.sb-sug{
+  background:#1a1a1a;
+  border-color:#4a4a4a;
+  color:#f1f1f1;
 }
 
-/* Dim images slightly for dark mode */
-
-.card-image-wrapper img {
-  filter: brightness(.7) contrast(1.1);
+.suggestion-item:hover,
+.suggestion-item.active,
+.sb-sug .item:hover,
+.sb-sug .item.active{
+  background:#2a2a2a;
 }
 
-/* Discount badge */
-.discount-badge {
-  background: #d63a3a;
-  color: #fff;
+.suggestion-rest,
+.sb-sug-rest{
+  color:#9fc0ff;
 }
 
-/* Footer */
-.footer {
-  background: #121212;
-  border-top: 1px solid #2c2c2c;
+/* slide panel */
+.slide-panel{
+  background:#181818;
+  border-right-color:#3a3a3a;
 }
 
-.footer a {
-  color: #bbb;
+.slide-store-select{
+  background:#202020;
+  color:#f1f1f1;
+  border-color:#4a4a4a;
 }
 
-.footer a:hover {
-  color: #fff;
+.slide-panel-title,
+.slide-panel-heading,
+.slide-subheading,
+.slide-panel-link{
+  color:#e8e8e8;
 }
 
-/* Pager */
-.pager-btn {
-  background: #1f1f1f;
-  border: 1px solid #333;
-  color: #ddd;
+.slide-divider{
+  border-top-color:#3a3a3a;
 }
 
-.pager-btn:hover {
-  background: #2a2a2a;
+.slide-check-option{
+  color:#e8e8e8;
 }
 
-/* Load more */
-.load-more-btn {
-  background: #1f1f1f;
-  border: 1px solid #333;
-  color: #ddd;
+.slide-check-box,
+.sb-gender-box{
+  background:#1f1f1f;
+  border-color:#5a5a5a;
 }
 
-/* Slide panel */
-.slide-panel {
-  background: #1a1a1a;
+/* buttons */
+.pager-btn,
+.load-more-btn,
+.slide-panel-close,
+.sb-submit{
+  background:#2b2b2b;
+  border-color:#4a4a4a;
+  color:#f1f1f1;
 }
 
-.slide-panel-link {
-  color: #ddd;
+.sb-secondary{
+  background:#1c1c1c;
+  color:#f1f1f1;
+  border:2px solid #4a4a4a;
 }
 
-.slide-panel-heading {
-  color: #fff;
+/* modal */
+.sb-alert-modal{
+  background:#181818;
+  border-right-color:#3a3a3a;
 }
 
-.slide-divider {
-  border-color: #333;
+.sb-note,
+.sb-confirm-details{
+  background:#202020;
+  color:#e8e8e8;
+  border-color:#3a3a3a;
 }
 
-/* ========================================
-   DARK MODE ICON + LOGO SWAPS
-   ======================================== */
-
-.brand-logo {
-  content: url("/images/logo-dark-mode.svg");
-}
-
-#menuBtn {
-  content: url("/images/menu-dark-mode.svg");
-}
-
-#fetchBtn {
-  content: url("/images/mag_glass-dark-mode.svg");
-}
-
-/* Icons that should stay light */
-.input-icon {
-  filter: brightness(0) invert(1);
-}
-
-/* Sort arrows */
-.sort-arrow {
-  filter: brightness(0) invert(1);
-}
-
-/* Back to top */
-.to-top {
-  background: #1f1f1f;
-  color: #fff;
-  border: 1px solid #333;
+.sb-dollar{
+  color:#d8d8d8;
 }
