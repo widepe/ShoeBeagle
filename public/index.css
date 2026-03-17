@@ -17,7 +17,7 @@ html{ -webkit-text-size-adjust:100%; }
 :root{
   --sb-blue:#214478ff;
 
-  --bg:#fff5ef;  
+  --bg:#fff5ef;
   --card-bg:#d5deed;
   --sb-blue-rgb: 33 68 120;
 
@@ -83,16 +83,30 @@ html{ -webkit-text-size-adjust:100%; }
      - same input shape + background + highlight as main page
      - completed inputs turn same light blue as "completed" email
   ========================================================= */
-  --sb-modal-bg: #ff660045;               /* requested RGBA hex */
-  --sb-input-bg: #f8f8f8;                 /* same as main input */
+  --sb-modal-bg: #ff660045;
+  --sb-input-bg: #f8f8f8;
   --sb-input-radius: calc(0.5rem * var(--top-scale));
   --sb-input-shadow: 0px 0px 7px rgb(33 68 121 / 28%);
-  --sb-focus-border: #1a3661;             /* same as .sb-input:focus currently uses */
-  --sb-focus-ring: 0 0 0 3px rgba(33,68,120,0.10); /* same focus ring */
-  --sb-done-bg: rgba(232,240,255,1);      /* light blue "done" fill */
+  --sb-focus-border: #1a3661;
+  --sb-focus-ring: 0 0 0 3px rgba(33,68,120,0.10);
+  --sb-done-bg: rgba(232,240,255,1);
 
   --theme-fade-ms: 180ms;
-  --theme-wash-ms: 160ms;   
+  --theme-wash-ms: 160ms;
+}
+
+html[data-theme="dark"]{
+  --sb-blue:#9fc1f3;
+  --bg:#0f1724;
+  --card-bg:#1b2638;
+  --sb-blue-rgb:159 193 243;
+  --card-brand-color:#9fc1f3;
+
+  --sb-input-bg:#182233;
+  --sb-input-shadow:0px 0px 7px rgb(0 0 0 / 35%);
+  --sb-focus-border:#9fc1f3;
+  --sb-focus-ring:0 0 0 3px rgba(159,193,243,0.16);
+  --sb-done-bg:rgba(36,54,84,1);
 }
 
 /* =========================================================
@@ -112,6 +126,10 @@ body{
     max(var(--pad), env(safe-area-inset-right))
     max(8px, env(safe-area-inset-bottom))
     max(var(--pad), env(safe-area-inset-left));
+}
+
+html[data-theme="dark"] body{
+  color:#e7eefc;
 }
 
 .app{
@@ -165,11 +183,6 @@ body{
   height:calc(var(--btn-h) * 0.9);
   width:auto;
 }
-
-
-
-
-
 
 /* =========================================================
    MOBILE TOP BANNER
@@ -321,14 +334,21 @@ input[type="text"], input[type="search"]{
   border-radius:calc(0.5rem * var(--top-scale));
   border:1px solid var(--sb-blue);
   background:#f8f8f8;
-  box-shadow: 0px 0px 7px rgb(33 68 121 / 28%);
+  box-shadow:0px 0px 7px rgb(33 68 121 / 28%);
   font-size:var(--input-font);
   font-weight:500;
-  color:#;
+  color:#222222;
   transition:border-color 0.2s ease, background-color 0.2s ease;
   min-width:0;
 }
 input::placeholder{ color:#999; opacity:1; }
+
+html[data-theme="dark"] input[type="text"],
+html[data-theme="dark"] input[type="search"]{
+  background:var(--sb-input-bg);
+  color:#e7eefc;
+  box-shadow:var(--sb-input-shadow);
+}
 
 .input-clear{
   position:absolute;
@@ -366,6 +386,11 @@ input::placeholder{ color:#999; opacity:1; }
   z-index:30;
   padding:calc(0.25rem * var(--top-scale)) 0;
   display:none;
+}
+
+html[data-theme="dark"] .suggestions{
+  background:#182233;
+  box-shadow:0 6px 16px rgba(0,0,0,0.35);
 }
 
 .suggestion-item{
@@ -569,13 +594,18 @@ button{
   width:min(360px, 84vw);
   background:#f8f8f8;
   border-right:2px solid rgba(var(--sb-blue-rgb) / 0.3);
-  box-shadow:10px 0 24px rgba(0,0,0,0.5);
+  box-shadow:10px 0 24px rgba(0,0,0,0.18);
   padding:16px 14px;
   display:flex;
   flex-direction:column;
   position:relative;
   transform:translateX(-100%);
   transition:transform 280ms ease;
+}
+
+html[data-theme="dark"] .slide-panel{
+  background:#182233;
+  box-shadow:10px 0 24px rgba(0,0,0,0.5);
 }
 
 .slide-panel-backdrop.open .slide-panel{ transform:translateX(0); }
@@ -630,6 +660,11 @@ button{
   margin-bottom:6px;
 }
 
+html[data-theme="dark"] .slide-store-select{
+  background:#223049;
+  color:#e7eefc;
+}
+
 .slide-check-option{
   border:0;
   background:transparent;
@@ -643,6 +678,10 @@ button{
   cursor:pointer;
 }
 
+html[data-theme="dark"] .slide-check-option{
+  color:#e7eefc;
+}
+
 .slide-check-box{
   width:18px;
   height:18px;
@@ -652,6 +691,10 @@ button{
   justify-content:center;
   background:#fff;
   flex-shrink:0;
+}
+
+html[data-theme="dark"] .slide-check-box{
+  background:#223049;
 }
 
 .slide-check-mark{ display:none; font-size:14px; line-height:1; color:#1f6a2a; font-weight:900; }
@@ -742,6 +785,10 @@ button{
 .chip:hover{ background:#e8f0ff; }
 .chip.active{ background:var(--sb-blue); color:#fff; }
 
+html[data-theme="dark"] .chip{
+  background:#223049;
+}
+
 /* =========================================================
    GRIDS
 ========================================================= */
@@ -763,10 +810,8 @@ button{
 ========================================================= */
 .card{
   background:var(--card-bg);
-
   border:var(--card-border) solid #a6adb8;
   border-radius:var(--card-radius);
-  /* box-shadow: 0px 0px 2px 1px rgb(190 190 190); */
   padding:var(--card-pad);
   display:flex;
   flex-direction:column;
@@ -774,6 +819,10 @@ button{
   position:relative;
   aspect-ratio:3 / 4;
   min-width:0;
+}
+
+html[data-theme="dark"] .card{
+  border-color:#445470;
 }
 
 .card-link{
@@ -798,9 +847,13 @@ button{
   height:100%;
   object-fit:cover;
   background:#fff;
-  border:var(--img-border) solid #a6adb8; 
+  border:var(--img-border) solid #a6adb8;
   border-radius:var(--img-radius);
   display:block;
+}
+
+html[data-theme="dark"] .card img{
+  border-color:#445470;
 }
 
 .discount-badge{
@@ -847,7 +900,6 @@ button{
 }
 
 .card-title{
-  /* font-weight:600; */
   font-size:var(--card-title-size);
   line-height:1.25;
   display:-webkit-box;
@@ -865,6 +917,10 @@ button{
   font-size:var(--card-store-size);
 }
 
+html[data-theme="dark"] .card-store{
+  color:#c7d5ee;
+}
+
 .card-price-row{
   display:flex;
   align-items:baseline;
@@ -878,6 +934,10 @@ button{
   color:#777;
   text-decoration:line-through;
   font-size:0.85em;
+}
+
+html[data-theme="dark"] .card-original-price{
+  color:#aab7cf;
 }
 
 /* =========================================================
@@ -896,6 +956,10 @@ button{
   word-break:normal;
 }
 
+html[data-theme="dark"] .disclaimer{
+  color:#b8c5dc;
+}
+
 /* =========================================================
    FOOTER
 ========================================================= */
@@ -905,9 +969,14 @@ button{
   background:var(--bg);
   border-top:1px solid rgba(0,0,0,0.08);
   font-size:1.2rem;
-  color:#;
+  color:#2d2d2d;
   text-align:center;
   width:100%;
+}
+
+html[data-theme="dark"] .footer{
+  color:#dbe7fb;
+  border-top:1px solid rgba(255,255,255,0.08);
 }
 
 .footer a{
@@ -1013,12 +1082,11 @@ button{
   .top-left{ order:0; flex:1 1 0; width:auto; min-width:0; }
 
   .brand-logo{
-    content:url("/images/logo-dark-mode.svg");
     height:calc(var(--input-h) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1)));
     max-height:calc(var(--input-h) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1)));
     width:auto;
   }
-}  
+}
 
 /* MOBILE PORTRAIT */
 @media (max-width:560px){
@@ -1051,11 +1119,13 @@ button{
   .mobile-top-banner{ display:none !important; }
   .app{ gap:0.25rem; }
 
-  /* prevent iOS zoom */
   input[type="text"], input[type="search"]{ font-size:16px; }
-  .suggestion-item{ font-size:19px; padding-top:calc(0.275rem * var(--top-scale)); padding-bottom:calc(0.275rem * var(--top-scale)); }
+  .suggestion-item{
+    font-size:19px;
+    padding-top:calc(0.275rem * var(--top-scale));
+    padding-bottom:calc(0.275rem * var(--top-scale));
+  }
 
-  /* --- Top layout: logo row, then inputs row --- */
   .topbar{
     flex-direction:column;
     align-items:center;
@@ -1091,9 +1161,7 @@ button{
     transition:none;
   }
 
-  /* --- Logo sizing --- */
   .brand-logo{
-    content:url("/images/logo-dark-mode.svg");
     display:block;
     width:min(82vw, calc(100vw - 86px));
     height:auto;
@@ -1101,7 +1169,6 @@ button{
     max-height:calc(var(--input-h) * 2.2);
   }
 
-  /* row */
   .row{
     flex-wrap:nowrap;
     align-items:center;
@@ -1113,13 +1180,11 @@ button{
     min-width:0;
   }
 
-  /* icons / clears */
   .input-icon{
     width:calc(32px * var(--top-scale));
     height:calc(32px * var(--top-scale));
   }
 
-  /* X centers against input height */
   .input-clear{
     position:absolute;
     right:calc(0.55rem * var(--top-scale));
@@ -1135,8 +1200,6 @@ button{
     line-height:1;
   }
 
-  /* Buttons */
-
   .row{
     display:flex;
     align-items:center;
@@ -1146,7 +1209,6 @@ button{
   .input-wrapper{
     flex:1 1 auto;
     min-width:0;
-
     display:flex;
     align-items:stretch;
   }
@@ -1154,7 +1216,7 @@ button{
   .input-wrapper input[type="text"],
   .input-wrapper input[type="search"]{
     flex:1 1 auto;
-  }   
+  }
 
   #menuBtn,
   #fetchBtn{
@@ -1162,7 +1224,6 @@ button{
     width:var(--btn-eq-w);
     min-width:var(--btn-eq-w);
     height:var(--btn-h);
-
   }
 
   .input-controls{
@@ -1182,7 +1243,6 @@ button{
 
   .top-right{ justify-content:flex-start; }
 
-  /* --- Mobile 1-col results layout --- */
   .shoe-grid{
     width:100%;
     max-width:none;
@@ -1210,28 +1270,28 @@ button{
     height:auto;
   }
 
-.card-image-wrapper{
-  flex:0 0 42%;
-  width:auto;
-  aspect-ratio:5 / 4;
-  overflow:hidden;
-  border-radius:0.6rem;
-}
+  .card-image-wrapper{
+    flex:0 0 42%;
+    width:auto;
+    aspect-ratio:5 / 4;
+    overflow:hidden;
+    border-radius:0.6rem;
+  }
 
-.card img{
-  width:100%;
-  height:100%;
-  object-fit:cover;
+  .card img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    background:#fff;
+    border:var(--img-border) solid #a6adb8;
+    border-radius:var(--img-radius);
+    display:block;
+  }
 
-  background:#fff;
+  html[data-theme="dark"] .card img{
+    border-color:#445470;
+  }
 
-  border:var(--img-border) solid #a6adb8;   /* ✅ ADD THIS */
-  border-radius:0.6rem;
-
-  display:block;
-}
-
-   
   .card-tags{
     position:absolute;
     left:0.35rem;
@@ -1324,7 +1384,7 @@ button{
   background:var(--sb-blue);
   color:#fff;
 
-  font-size:0.95rem;  
+  font-size:0.95rem;
   font-weight:800;
 }
 
@@ -1358,8 +1418,6 @@ button{
 /* =========================================================
    SET ALERT MODAL (UPDATED to match main search inputs)
 ========================================================= */
-
-/* Alert modal: highlight the next field to fill (KEEP – but match main input radius) */
 .sb-next .sb-input,
 .sb-gender.sb-next,
 .sb-price-wrap.sb-next{
@@ -1368,13 +1426,11 @@ button{
   border-radius: var(--sb-input-radius);
 }
 
-/* Disable gender block until it's time */
 .sb-gender.sb-disabled{
   opacity: 0.55;
   pointer-events: none;
 }
 
-/* Backdrop tint + blur */
 .sb-alert-backdrop{
   position:fixed;
   inset:0;
@@ -1398,7 +1454,6 @@ button{
   transition:opacity 280ms ease;
 }
 
-/* price alert slide-out panel */
 .sb-alert-modal{
   height:100%;
   width:min(420px, 92vw);
@@ -1413,15 +1468,18 @@ button{
 
   padding:12px 16px 16px;
 
-  box-shadow:10px 0 24px rgba(0,0,0,0.5);
+  box-shadow:10px 0 24px rgba(0,0,0,0.18);
   position:relative;
   transform:translateX(-100%);
   transition:transform 280ms ease;
 }
 .sb-alert-backdrop.open .sb-alert-modal{ transform:translateX(0); }
 
+html[data-theme="dark"] .sb-alert-modal{
+  background:#182233;
+  box-shadow:10px 0 24px rgba(0,0,0,0.5);
+}
 
-/* close X: RIGHT + gray + aligned */
 .sb-alert-close{
   position:absolute;
   top:10px;
@@ -1443,7 +1501,6 @@ button{
 }
 .sb-alert-close:hover{ color:#555; opacity:1; }
 
-/* title */
 .sb-alert-title{
   text-align:center;
   color:var(--sb-blue);
@@ -1454,7 +1511,6 @@ button{
   padding-top:2px;
 }
 
-/* form wrapper */
 .sb-alert-form{
   display:flex;
   flex-direction:column;
@@ -1475,39 +1531,37 @@ button{
   margin-top:16px;
 }
 
-/* ✅ Inputs: EXACTLY like main search box (shape, bg, shadow, focus ring)
-   Also: prevent "shape changing" by keeping border width constant everywhere */
 .sb-input{
   width:100%;
-  height:var(--input-h);                      /* match main input height */
-  border-radius: var(--sb-input-radius);      /* match main input radius */
+  height:var(--input-h);
+  border-radius: var(--sb-input-radius);
   border:1px solid var(--sb-blue);
   background: var(--sb-input-bg);
   box-shadow: var(--sb-input-shadow);
   padding:0 17px;
-  font-size:16px;                             /* stable in modal */
+  font-size:16px;
   font-weight:500;
-  color:#222222;  /* Search input text color */
+  color:#222222;
   transition:border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
   box-sizing:border-box;
 }
 
+html[data-theme="dark"] .sb-input{
+  color:#e7eefc;
+}
+
 .sb-input::placeholder{ color:#999; opacity:1; }
 
-/* ✅ Same highlight as main page (no shape change) */
 .sb-input:focus{
   outline:none;
   border-color: var(--sb-focus-border);
   box-shadow: var(--sb-focus-ring), var(--sb-input-shadow);
 }
 
-/* ✅ Completed inputs turn light blue (same behavior you described)
-   (JS already controls when fields are "ok"; we hook into built-in validity) */
 .sb-input:not(:placeholder-shown):not(:focus){
   background: var(--sb-done-bg);
 }
 
-/* Keep wrapper */
 .sb-input-wrap{ position:relative; }
 
 .sb-clear{
@@ -1533,7 +1587,6 @@ button{
 }
 .sb-clear:hover{ color:#555; opacity:1; }
 
-/* suggestions */
 .sb-sug{
   position:absolute;
   top:calc(var(--input-h) + 4px);
@@ -1547,6 +1600,12 @@ button{
   padding:4px 0;
   z-index:5;
 }
+
+html[data-theme="dark"] .sb-sug{
+  background:#182233;
+  box-shadow:0 6px 16px rgba(0,0,0,0.35);
+}
+
 .sb-sug .item{
   padding:10px 12px;
   cursor:pointer;
@@ -1568,8 +1627,8 @@ button{
 .sb-sug .item:hover .sb-sug-rest,
 .sb-sug .item.active .sb-sug-rest,
 .suggestion-item:hover .suggestion-rest,
-.suggestion-item.active .suggestion-rest{   
-   color:#2345b0ff;
+.suggestion-item.active .suggestion-rest{
+  color:#2345b0ff;
 }
 .sb-sug .item:hover,
 .sb-sug .item.active{ background:#e8f0ff; }
@@ -1598,6 +1657,11 @@ button{
   font-weight:600;
   color:#2d2d2d;
 }
+
+html[data-theme="dark"] .sb-gender-option{
+  color:#e7eefc;
+}
+
 .sb-gender-box{
   width:18px;
   height:18px;
@@ -1608,6 +1672,11 @@ button{
   background:#fff;
   flex-shrink:0;
 }
+
+html[data-theme="dark"] .sb-gender-box{
+  background:#223049;
+}
+
 .sb-gender-check{
   display:none;
   font-size:14px;
@@ -1618,7 +1687,6 @@ button{
 .sb-gender-option.active .sb-gender-check{ display:block; }
 .sb-gender-label{ font-size:0.95rem; }
 
-/* price wrap: match height and keep shape stable */
 .sb-price-wrap{
   position:relative;
   height:var(--input-h);
@@ -1639,9 +1707,13 @@ button{
   font-weight:600;
   pointer-events:none;
 }
+
+html[data-theme="dark"] .sb-dollar{
+  color:#dbe7fb;
+}
+
 .sb-clear-price{ right:10px; }
 
-/* buttons */
 .sb-submit{
   width:100%;
   height:46px;
@@ -1661,6 +1733,11 @@ button{
   border:2px solid var(--sb-blue);
   color:var(--sb-blue);
 }
+
+html[data-theme="dark"] .sb-secondary{
+  background:#223049;
+}
+
 .sb-secondary:hover{ background:rgba(33,68,120,0.10); }
 
 .sb-note{
@@ -1672,6 +1749,12 @@ button{
   font-size:0.9rem;
   line-height:1.45;
 }
+
+html[data-theme="dark"] .sb-note{
+  background:#182233;
+  color:#dbe7fb;
+}
+
 .sb-note-title{
   font-weight:900;
   color:var(--sb-blue);
@@ -1716,6 +1799,12 @@ button{
   border:1px solid rgba(46,160,67,0.3);
   font-size:0.95rem;
 }
+
+html[data-theme="dark"] .sb-confirm-details{
+  background:#223049;
+  color:#e7eefc;
+}
+
 .sb-confirm-details strong{ color:var(--sb-blue); }
 .sb-confirm-msg{
   margin:10px 0;
@@ -1741,11 +1830,8 @@ button{
 /* =========================================================
    THEME SWITCH SMOOTHING
 ========================================================= */
-
-/* Only animate colors/shadows/borders, never layout */
 body,
 .app,
-.topbar,
 .status-message,
 .filters,
 .disclaimer,
@@ -1753,8 +1839,6 @@ body,
 .card,
 .card-image-wrapper,
 .card img,
-.slide-panel,
-.sb-alert-modal,
 .suggestions,
 .sb-sug,
 input[type="text"],
@@ -1780,7 +1864,7 @@ input[type="search"],
 .slide-subheading,
 .slide-panel-link,
 .price-alert-trigger,
-.topbar-stack-link {
+.topbar-stack-link{
   transition:
     background-color var(--theme-fade-ms) ease,
     color var(--theme-fade-ms) ease,
@@ -1789,7 +1873,21 @@ input[type="search"],
     opacity var(--theme-fade-ms) ease;
 }
 
-/* tiny wash during theme flip so it feels less abrupt */
+html.theme-switching .slide-panel,
+html.theme-switching .slide-panel-backdrop,
+html.theme-switching .sb-alert-modal,
+html.theme-switching .sb-alert-backdrop,
+html.theme-switching .brand-logo,
+html.theme-switching .topbar,
+html.theme-switching .top-right,
+html.theme-switching .top-left,
+html.theme-switching #menuBtn,
+html.theme-switching #fetchBtn,
+html.theme-switching #modeToggleBtn img,
+html.theme-switching #searchShoeIcon{
+  transition:none !important;
+}
+
 body::after{
   content:"";
   position:fixed;
@@ -1807,21 +1905,17 @@ html.theme-switching body::after{
   opacity:1;
 }
 
-/* light wash when entering dark mode */
 html.theme-switching.to-dark body::after{
   background:rgba(10,14,24,0.06);
 }
 
-/* light wash when entering light mode */
 html.theme-switching.to-light body::after{
   background:rgba(255,255,255,0.10);
 }
 
-/* respect reduced motion */
 @media (prefers-reduced-motion: reduce){
   body,
   .app,
-  .topbar,
   .status-message,
   .filters,
   .disclaimer,
@@ -1829,8 +1923,6 @@ html.theme-switching.to-light body::after{
   .card,
   .card-image-wrapper,
   .card img,
-  .slide-panel,
-  .sb-alert-modal,
   .suggestions,
   .sb-sug,
   input[type="text"],
