@@ -1,8 +1,8 @@
 @import url('/index.css?v=130');
 
 :root{
-  --bg:#121212;
-  --card-bg:#1e1e1e;
+  --bg:#0c0e11;
+  --card-bg:#1f2630;
   --card-brand-color:#e9eef7;
   --sb-blue:#9fc1f3;
   --sb-blue-rgb:159 193 243;
@@ -11,7 +11,7 @@
 /* page */
 html,
 body{
-  background:#121212;
+  background:var(--bg);
   color:#e8e8e8;
 }
 
@@ -27,7 +27,7 @@ body{
 /* cards */
 .card{
   background:var(--card-bg);
-  border-color:#3a3a3a;
+  border-color:#313131;
 }
 
 .card img{
