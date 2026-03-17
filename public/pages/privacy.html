@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
   <link rel="icon" type="image/png" href="/images/favicon.png">
 
@@ -9,7 +8,6 @@
   <title>Privacy Policy – Shoe Beagle</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- ✅ Theme initializer (REQUIRED) -->
   <script>
     (function () {
       try {
@@ -23,213 +21,171 @@
     })();
   </script>
 
+  <link rel="stylesheet" href="/index.css?v=130" />
+
   <style>
-    body {
-      margin: 0;
-      padding: 2rem 1rem;
-      background: #f4ede3ff;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      color: #2d2d2d;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-      box-sizing: border-box;
+    .legal-page{
+      width:100%;
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      padding:2rem 1rem;
+      box-sizing:border-box;
     }
 
-    .container {
-      width: 100%;
-      max-width: 850px;
-      background: #ffffff;
-      border-radius: 0.75rem;
-      border: 2px solid #214478ff;
-      padding: 1.75rem 2rem 1rem;
-      box-sizing: border-box;
-      line-height: 1.6;
+    .legal-card{
+      width:100%;
+      max-width:850px;
+      padding:1.75rem 2rem 1rem;
+      line-height:1.6;
+      aspect-ratio:auto;
     }
 
-    .logo {
-      display: block;
-      width: 600px;
-      max-width: 100%;
-      margin: 0 auto 1rem;
-      cursor: pointer;
-      transition: opacity 0.2s ease;
+    .legal-logo{
+      display:block;
+      width:600px;
+      max-width:100%;
+      margin:0 auto 1rem;
+      cursor:pointer;
+      transition:opacity 0.2s ease;
     }
-    .logo:hover { opacity: 0.9; }
+    .legal-logo:hover{ opacity:0.9; }
 
-    h2 {
-      text-align: center;
-      margin-top: 0.25rem;
-      margin-bottom: 1rem;
-      font-size: 1.8rem;
-      color: #214478ff;
-    }
-
-    p {
-      margin: 0.7rem 0;
-      font-size: 1rem;
-      color: #2d2d2d;
+    .legal-title{
+      text-align:center;
+      margin:0.25rem 0 1rem;
+      font-size:1.8rem;
+      color:var(--sb-blue);
     }
 
-    ul {
-      margin: 0.5rem 0 1rem 1.2rem;
+    .legal-copy p,
+    .legal-copy li{
+      color:inherit;
+      font-size:1rem;
     }
 
-    .home-btn {
-      display: block;
-      margin: 1.5rem auto 0.25rem;
-      padding: 0.6rem 1.25rem;
-      border-radius: 999px;
-      border: 1px solid #214478ff;
-      background: #214478ff;
-      color: white;
-      font-size: 0.95rem;
-      cursor: pointer;
-      text-align: center;
-      text-decoration: none;
-      font-weight: 600;
-      transition: background 0.2s ease;
-      width: max-content;
-    }
-    .home-btn:hover {
-      background: #1a3661;
+    .legal-copy p{
+      margin:0.7rem 0;
     }
 
-    .footer {
-      margin-top: 1.5rem;
-      padding: 0.75rem 1rem;
-      text-align: center;
-      font-size: 0.82rem;
-      color: #444;
+    .legal-copy ul{
+      margin:0.5rem 0 1rem 1.2rem;
     }
 
-    .footer a {
-      color: #214478ff;
-      text-decoration: none;
-      font-weight: 600;
-      margin: 0 0.25rem;
-      cursor: pointer;
+    .legal-copy h3{
+      margin:1.1rem 0 0.4rem;
+      font-size:1.05rem;
+      color:var(--sb-blue);
     }
 
-    .footer a:hover {
-      text-decoration: underline;
+    .legal-home-btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width:120px;
+      height:42px;
+      padding:0 1.25rem;
+      margin:1.5rem auto 0.25rem;
+      text-decoration:none;
     }
 
-    /* =========================
-       DARK MODE
-    ========================= */
-
-    html[data-theme="dark"] body {
-      background: #0c0e11;
-      color: #e8e8e8;
+    .legal-footer{
+      margin-top:1.5rem;
+      text-align:center;
+      font-size:0.82rem;
     }
 
-    html[data-theme="dark"] .container {
-      background: #1f2630;
-      border-color: #313131;
+    .legal-copy a{
+      color:var(--sb-blue);
+      text-decoration:none;
+      font-weight:600;
     }
 
-    html[data-theme="dark"] h2 {
-      color: #e8e8e8;
+    .legal-copy a:hover{
+      text-decoration:underline;
     }
 
-    html[data-theme="dark"] p,
-    html[data-theme="dark"] li {
-      color: #e8e8e8;
-    }
+    @media (max-width:560px){
+      .legal-card{
+        padding:1.1rem 1rem 0.75rem;
+      }
 
-    html[data-theme="dark"] .home-btn {
-      border-color: #4a4a4a;
-      background: #2b2b2b;
-      color: #f1f1f1;
-    }
-
-    html[data-theme="dark"] .home-btn:hover {
-      background: #3a3a3a;
-    }
-
-    html[data-theme="dark"] .footer {
-      color: #e8e8e8;
-    }
-
-    html[data-theme="dark"] .footer a {
-      color: #9fc1f3;
-    }
-
-    /* ✅ Logo swap */
-    html[data-theme="dark"] .logo {
-      content: url("/images/logo-dark-mode.svg");
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .logo,
-      .home-btn {
-        transition: none;
+      .legal-title{
+        font-size:1.5rem;
       }
     }
   </style>
 </head>
 
 <body>
+  <div class="app legal-page">
+    <div class="card legal-card">
+      <a href="/">
+        <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="legal-logo" id="legalLogo">
+      </a>
 
-  <div class="container">
+      <h2 class="legal-title">Privacy Policy</h2>
 
-    <a href="/">
-      <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="logo">
-    </a>
+      <div class="legal-copy">
+        <p>At Shoe Beagle, we take your privacy seriously. This Privacy Policy explains what information we collect, how we use it, and what choices you have.</p>
 
-    <h2>Privacy Policy</h2>
+        <h3>Information We Collect</h3>
+        <p>We may collect:</p>
+        <ul>
+          <li>Basic information you enter on the site (such as email for price alerts)</li>
+          <li>Anonymous usage data (such as pages visited and searches performed)</li>
+          <li>Technical data such as browser type and device type</li>
+        </ul>
 
-    <p>At Shoe Beagle, we take your privacy seriously. This Privacy Policy explains what information we collect, how we use it, and what choices you have.</p>
+        <h3>How We Use Information</h3>
+        <p>We use information to:</p>
+        <ul>
+          <li>Send alerts you choose to receive</li>
+          <li>Improve search and deal results</li>
+          <li>Maintain and improve site performance</li>
+        </ul>
 
-    <h3>Information We Collect</h3>
-    <p>We may collect:</p>
-    <ul>
-      <li>Basic information you enter on the site (such as email for price alerts)</li>
-      <li>Anonymous usage data (such as pages visited and searches performed)</li>
-      <li>Technical data such as browser type and device type</li>
-    </ul>
+        <h3>Affiliate Links</h3>
+        <p>Some links on Shoe Beagle are affiliate links. This means if you click a link and make a purchase, we may earn a small commission at no extra cost to you.</p>
 
-    <h3>How We Use Information</h3>
-    <p>We use information to:</p>
-    <ul>
-      <li>Send alerts you choose to receive</li>
-      <li>Improve search and deal results</li>
-      <li>Maintain and improve site performance</li>
-    </ul>
+        <h3>Sharing Your Information</h3>
+        <p>We do not sell or share your personal information with third parties except:</p>
+        <ul>
+          <li>When required by law</li>
+          <li>To trusted partners who help operate the website (with strict privacy controls)</li>
+        </ul>
 
-    <h3>Affiliate Links</h3>
-    <p>Some links on Shoe Beagle are affiliate links. This means if you click a link and make a purchase, we may earn a small commission at no extra cost to you.</p>
+        <h3>Cookies</h3>
+        <p>We may use cookies to improve site experience and track anonymous usage. You can adjust cookie settings in your browser at any time.</p>
 
-    <h3>Sharing Your Information</h3>
-    <p>We do not sell or share your personal information with third parties except:</p>
-    <ul>
-      <li>When required by law</li>
-      <li>To trusted partners who help operate the website (with strict privacy controls)</li>
-    </ul>
+        <h3>Your Rights</h3>
+        <p>You may request to:</p>
+        <ul>
+          <li>Stop receiving emails</li>
+          <li>Delete your stored information</li>
+          <li>Get a copy of data we have collected about you</li>
+        </ul>
 
-    <h3>Cookies</h3>
-    <p>We may use cookies to improve site experience and track anonymous usage. You can adjust cookie settings in your browser at any time.</p>
+        <h3>Contact</h3>
+        <p>Please, <a href="mailto:contact@shoebeagle.com?subject=ShoeBeagle Inquiry">contact</a> us if you have questions about this policy.</p>
+      </div>
 
-    <h3>Your Rights</h3>
-    <p>You may request to:</p>
-    <ul>
-      <li>Stop receiving emails</li>
-      <li>Delete your stored information</li>
-      <li>Get a copy of data we have collected about you</li>
-    </ul>
+      <a href="/" class="btn-eq legal-home-btn">Home</a>
+    </div>
 
-    <h3>Contact</h3>
-    <p>Please, <a href="mailto:contact@shoebeagle.com?subject=ShoeBeagle Inquiry">contact</a> us if you have questions about this policy.</p>
-
-    <a href="/" class="home-btn">Home</a>
-
+    <div class="footer legal-footer">
+      © 2026 Shoe Beagle. All rights reserved.
+    </div>
   </div>
 
-  <div class="footer">
-    © 2026 Shoe Beagle. All rights reserved.
-  </div>
-
+  <script>
+    (function () {
+      const logo = document.getElementById("legalLogo");
+      if (!logo) return;
+      const isDark = document.documentElement.dataset.theme === "dark";
+      logo.src = isDark ? "/images/logo-dark-mode.svg" : "/images/logo.svg";
+    })();
+  </script>
 </body>
 </html>
