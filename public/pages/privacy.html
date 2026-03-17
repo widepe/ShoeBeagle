@@ -2,11 +2,26 @@
 <html lang="en">
 <head>
   <!-- Favicon -->
-<link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
-<link rel="icon" type="image/png" href="/images/favicon.png">
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
+  <link rel="icon" type="image/png" href="/images/favicon.png">
+
   <meta charset="UTF-8" />
   <title>Privacy Policy – Shoe Beagle</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- ✅ Theme initializer (REQUIRED) -->
+  <script>
+    (function () {
+      try {
+        const savedTheme = localStorage.getItem("sb-theme");
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const useDark = savedTheme ? savedTheme === "dark" : prefersDark;
+        document.documentElement.dataset.theme = useDark ? "dark" : "light";
+      } catch {
+        document.documentElement.dataset.theme = "light";
+      }
+    })();
+  </script>
 
   <style>
     body {
@@ -100,6 +115,59 @@
     .footer a:hover {
       text-decoration: underline;
     }
+
+    /* =========================
+       DARK MODE
+    ========================= */
+
+    html[data-theme="dark"] body {
+      background: #0c0e11;
+      color: #e8e8e8;
+    }
+
+    html[data-theme="dark"] .container {
+      background: #1f2630;
+      border-color: #313131;
+    }
+
+    html[data-theme="dark"] h2 {
+      color: #e8e8e8;
+    }
+
+    html[data-theme="dark"] p,
+    html[data-theme="dark"] li {
+      color: #e8e8e8;
+    }
+
+    html[data-theme="dark"] .home-btn {
+      border-color: #4a4a4a;
+      background: #2b2b2b;
+      color: #f1f1f1;
+    }
+
+    html[data-theme="dark"] .home-btn:hover {
+      background: #3a3a3a;
+    }
+
+    html[data-theme="dark"] .footer {
+      color: #e8e8e8;
+    }
+
+    html[data-theme="dark"] .footer a {
+      color: #9fc1f3;
+    }
+
+    /* ✅ Logo swap */
+    html[data-theme="dark"] .logo {
+      content: url("/images/logo-dark-mode.svg");
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .logo,
+      .home-btn {
+        transition: none;
+      }
+    }
   </style>
 </head>
 
@@ -153,10 +221,8 @@
     </ul>
 
     <h3>Contact</h3>
-    <p>Please,  <a href="mailto:contact@shoebeagle.com?subject=ShoeBeagle Inquiry"
-   title="contact@shoebeagle.com"> contact</a> us if you have questions about this policy.</p>
+    <p>Please, <a href="mailto:contact@shoebeagle.com?subject=ShoeBeagle Inquiry">contact</a> us if you have questions about this policy.</p>
 
-    <!-- Back returns home -->
     <a href="/" class="home-btn">Home</a>
 
   </div>
