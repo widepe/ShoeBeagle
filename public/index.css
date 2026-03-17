@@ -242,8 +242,22 @@ html[data-theme="dark"] .sb-confirm-details{
 html[data-theme="dark"] .sb-dollar{
   color:#d8d8d8;
 }
+/* =========================
+   PAGE TRANSITIONS
+========================= */
 
-/* =========================================================
+body{
+  opacity:1;
+  transition:opacity 180ms ease;
+}
+
+body.page-is-leaving{
+  opacity:0;
+}
+
+html.page-preload body{
+  opacity:0;
+}/* =========================================================
    BASE LAYOUT
 ========================================================= */
 body{
