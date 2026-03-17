@@ -9,16 +9,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <script>
-    (function () {
-      try {
-        const savedTheme = localStorage.getItem("sb-theme");
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        const useDark = savedTheme ? savedTheme === "dark" : prefersDark;
-        document.documentElement.dataset.theme = useDark ? "dark" : "light";
-      } catch {
-        document.documentElement.dataset.theme = "light";
-      }
-    })();
+  (function () {
+    document.documentElement.classList.add("page-preload");
+
+    try {
+      const savedTheme = localStorage.getItem("sb-theme");
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const useDark = savedTheme ? savedTheme === "dark" : prefersDark;
+      document.documentElement.dataset.theme = useDark ? "dark" : "light";
+    } catch {
+      document.documentElement.dataset.theme = "light";
+    }
+  })();
   </script>
 
   <link rel="stylesheet" href="/index.css?v=130" />
@@ -122,7 +124,7 @@
   <div class="app legal-page">
     <div class="card legal-card">
       <a href="/">
-        <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="legal-logo" id="legalLogo">
+        <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="legal-logo" data-theme-logo>
       </a>
 
       <h2 class="legal-title">Privacy Policy</h2>
@@ -180,12 +182,50 @@
   </div>
 
   <script>
-    (function () {
-      const logo = document.getElementById("legalLogo");
-      if (!logo) return;
-      const isDark = document.documentElement.dataset.theme === "dark";
-      logo.src = isDark ? "/images/logo-dark-mode.svg" : "/images/logo.svg";
-    })();
+  (function () {
+    window.addEventListener("pageshow", function () {
+      document.documentElement.classList.remove("page-preload");
+
+      const logo = document.querySelector("[data-theme-logo]");
+      if (logo) {
+        const isDark = document.documentElement.dataset.theme === "dark";
+        logo.src = isDark ? "/images/logo-dark-mode.svg" : "/images/logo.svg";
+      }
+    });
+
+    document.addEventListener("click", function (e) {
+      const link = e.target.closest("a");
+      if (!link) return;
+
+      const href = link.getAttribute("href");
+      const target = link.getAttribute("target");
+
+      if (
+        !href ||
+        href.startsWith("#") ||
+        href.startsWith("mailto:") ||
+        href.startsWith("tel:") ||
+        target === "_blank" ||
+        link.hasAttribute("data-no-fade") ||
+        e.metaKey ||
+        e.ctrlKey ||
+        e.shiftKey ||
+        e.altKey
+      ) {
+        return;
+      }
+
+      const url = new URL(link.href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+
+      e.preventDefault();
+      document.body.classList.add("page-is-leaving");
+
+      setTimeout(() => {
+        window.location.href = link.href;
+      }, 180);
+    });
+  })();
   </script>
 </body>
 </html>
