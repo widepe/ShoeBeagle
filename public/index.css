@@ -129,6 +129,10 @@ html[data-theme="dark"] .card img{
   border-color:#3a3a3a;
 }
 
+html[data-theme="dark"] .card-image-wrapper img{
+  filter: brightness(.8) contrast(1.1);
+}
+
 html[data-theme="dark"] .status-message,
 html[data-theme="dark"] .card-title,
 html[data-theme="dark"] .card-store,
