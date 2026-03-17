@@ -41,40 +41,14 @@ html{ -webkit-text-size-adjust:100%; }
 
   /* =========================================================
      GRID + CARD SYSTEM
-     Desktop/tablet card internals scale from actual card width.
-     Base card width is your prior desktop width: 182px.
+     Card metrics are defined in .shoe-grid (which is a container)
+     so --card-box-w resolves from the live 100cqw value there.
+     The :root values below are ONLY fallbacks for non-container
+     contexts (e.g. the daily-deals heading area).
   ========================================================= */
   --cols:6;
   --card-brand-color:#214478ff;
   --grid-gap:14px;
-
-  /* actual card width; set by .shoe-grid container */
-  --card-box-w:182px;
-
-  /* desktop/tablet vertical card metrics */
-  --card-pad:calc(var(--card-box-w) * 0.0659340659);          /* 12 / 182 */
-  --card-gap:calc(var(--card-box-w) * 0.0329670330);          /*  6 / 182 */
-  --card-content-gap:calc(var(--card-box-w) * 0.0274725275);  /*  5 / 182 */
-
-  --card-title-size:calc(var(--card-box-w) * 0.0989010989);   /* 18 / 182 */
-  --card-store-size:calc(var(--card-box-w) * 0.0824175824);   /* 15 / 182 */
-  --card-price-size:calc(var(--card-box-w) * 0.0989010989);   /* 18 / 182 */
-  --card-tag-size:calc(var(--card-box-w) * 0.0659340659);     /* 12 / 182 */
-
-  --badge-font:calc(var(--card-box-w) * 0.0659340659);        /* 12 / 182 */
-  --badge-pad-y:calc(var(--card-box-w) * 0.0109890110);       /*  2 / 182 */
-  --badge-pad-x:calc(var(--card-box-w) * 0.0439560440);       /*  8 / 182 */
-  --badge-offset:calc(var(--card-box-w) * 0.0329670330);      /*  6 / 182 */
-
-  --img-radius:calc(var(--card-box-w) * 0.0549450549);        /* 10 / 182 */
-
-  --card-border:calc(var(--card-box-w) * 0.0109890110);       /*  2 / 182 */
-  --img-border:calc(var(--card-box-w) * 0.0054945055);        /*  1 / 182 */
-  --card-radius:calc(var(--card-box-w) * 0.0659340659);       /* 12 / 182 */
-
-  --card-tags-gap:calc(var(--card-box-w) * 0.0329670330);     /*  6 / 182 */
-  --price-row-gap:calc(var(--card-box-w) * 0.0329670330);     /*  6 / 182 */
-  --orig-price-ml:calc(var(--card-box-w) * 0.0329670330);     /*  6 / 182 */
 
   /* SET ALERT MODAL TOKENS */
   --sb-modal-bg:#ff660045;
@@ -398,6 +372,9 @@ html[data-theme="dark"] body{
   order:0;
   margin-right:0;
   padding-right:0;
+  /* FIX: remove any left padding/margin that was causing the gap */
+  margin-left:0;
+  padding-left:0;
   min-width:0;
 }
 
@@ -659,12 +636,26 @@ button{
   display:block;
 }
 
-/* Menu icon aligned to right like light mode icon */
+/* =========================================================
+   MENU ICON — FIX: size it directly instead of scaling with
+   transform, which leaves phantom layout space on the left.
+   Target rendered size was ~30px (42px * 0.7225). We set the
+   img dimensions directly and remove the transform entirely.
+========================================================= */
 #menuBtn{
   display:block;
   margin:0;
-  transform:scale(0.7225);
-  transform-origin:right center;
+  padding:0;
+  /* actual rendered size = var(--btn-h) * 0.7225 ≈ 30px at default scale */
+  height:calc(var(--btn-h) * 0.7225);
+  width:calc(var(--btn-h) * 0.7225);
+  min-width:calc(var(--btn-h) * 0.7225);
+  max-width:calc(var(--btn-h) * 0.7225);
+  /* no transform — eliminates the phantom left-side layout gap */
+  transform:none;
+  transform-origin:unset;
+  cursor:pointer;
+  object-fit:contain;
 }
 
 #fetchBtn{
@@ -925,6 +916,13 @@ html[data-theme="dark"] .chip{
 
 /* =========================================================
    GRIDS
+   
+   KEY FIX: All card metric custom properties are now defined
+   inside .shoe-grid, which has container-type:inline-size.
+   This means every --card-* calc() uses the LIVE 100cqw value
+   for --card-box-w, so fonts and spacing scale continuously
+   as the grid narrows or widens. Previously they were on :root
+   with a fixed 182px fallback and never updated.
 ========================================================= */
 .daily-deals{
   width:100%;
@@ -943,8 +941,36 @@ html[data-theme="dark"] .chip{
   align-items:stretch;
   container-type:inline-size;
 
-  /* actual vertical-card width */
-  --card-box-w:calc((100cqw - ((var(--cols) - 1) * var(--grid-gap))) / var(--cols));
+  /* ── live card width (resolves inside the container) ── */
+  --card-box-w:calc(
+    (100cqw - (var(--pad) * 2) - ((var(--cols) - 1) * var(--grid-gap)))
+    / var(--cols)
+  );
+
+  /* ── all card metrics derived from live --card-box-w ── */
+  --card-pad:           calc(var(--card-box-w) * 0.0659340659);
+  --card-gap:           calc(var(--card-box-w) * 0.0329670330);
+  --card-content-gap:   calc(var(--card-box-w) * 0.0274725275);
+
+  --card-title-size:    calc(var(--card-box-w) * 0.0989010989);
+  --card-store-size:    calc(var(--card-box-w) * 0.0824175824);
+  --card-price-size:    calc(var(--card-box-w) * 0.0989010989);
+  --card-tag-size:      calc(var(--card-box-w) * 0.0659340659);
+
+  --badge-font:         calc(var(--card-box-w) * 0.0659340659);
+  --badge-pad-y:        calc(var(--card-box-w) * 0.0109890110);
+  --badge-pad-x:        calc(var(--card-box-w) * 0.0439560440);
+  --badge-offset:       calc(var(--card-box-w) * 0.0329670330);
+
+  --img-radius:         calc(var(--card-box-w) * 0.0549450549);
+
+  --card-border:        calc(var(--card-box-w) * 0.0109890110);
+  --img-border:         calc(var(--card-box-w) * 0.0054945055);
+  --card-radius:        calc(var(--card-box-w) * 0.0659340659);
+
+  --card-tags-gap:      calc(var(--card-box-w) * 0.0329670330);
+  --price-row-gap:      calc(var(--card-box-w) * 0.0329670330);
+  --orig-price-ml:      calc(var(--card-box-w) * 0.0329670330);
 }
 
 /* =========================================================
@@ -983,7 +1009,7 @@ html[data-theme="dark"] .card{
   position:relative;
   width:100%;
   overflow:hidden;
-  aspect-ratio:5 / 4; /* 5 wide, 4 tall */
+  aspect-ratio:5 / 4;
 }
 
 .card img{
@@ -1380,6 +1406,9 @@ html[data-theme="dark"] .footer{
     width:var(--btn-eq-w);
     min-width:var(--btn-eq-w);
     height:var(--btn-h);
+    /* reset the direct-sizing from desktop rule on mobile */
+    max-width:var(--btn-eq-w);
+    transform:none;
   }
 
   .input-controls{
@@ -1408,11 +1437,15 @@ html[data-theme="dark"] .footer{
     justify-content:stretch;
     gap:var(--grid-gap);
 
-    /* horizontal mobile card: scale text from actual content column width,
-       not full card width */
+    /* ── mobile horizontal card: text column drives the scale ── */
     --mobile-image-share:0.42;
     --mobile-gap:var(--card-gap);
-    --card-box-w:calc((100cqw - var(--mobile-gap)) * (1 - var(--mobile-image-share)));
+
+    /* card-box-w = text portion width = (full width - gap) * text share */
+    --card-box-w:calc(
+      (100cqw - (max(10px, var(--pad)) * 2) - var(--mobile-gap))
+      * (1 - var(--mobile-image-share))
+    );
   }
 
   /* restore image-left / text-right layout */
