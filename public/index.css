@@ -39,39 +39,42 @@ html{ -webkit-text-size-adjust:100%; }
   --logo-scale:calc(2 * var(--top-scale));
   --top-rows:1;
 
-  /* GRID / CARD */
+  /* =========================================================
+     GRID + CARD SYSTEM
+     Desktop/tablet card internals scale from actual card width.
+     Base card width is your prior desktop width: 182px.
+  ========================================================= */
   --cols:6;
   --card-brand-color:#214478ff;
   --grid-gap:14px;
 
-  /* base desktop card width from your prior design */
+  /* actual card width; set by .shoe-grid container */
   --card-box-w:182px;
-  --card-scale:1;
 
-  /* true proportional scaling */
-  --card-pad:calc(12px * var(--card-scale));
-  --card-gap:calc(6px * var(--card-scale));
-  --card-content-gap:calc(5px * var(--card-scale));
+  /* desktop/tablet vertical card metrics */
+  --card-pad:calc(var(--card-box-w) * 0.0659340659);          /* 12 / 182 */
+  --card-gap:calc(var(--card-box-w) * 0.0329670330);          /*  6 / 182 */
+  --card-content-gap:calc(var(--card-box-w) * 0.0274725275);  /*  5 / 182 */
 
-  --card-title-size:calc(18px * var(--card-scale));
-  --card-store-size:calc(15px * var(--card-scale));
-  --card-price-size:calc(18px * var(--card-scale));
-  --card-tag-size:calc(12px * var(--card-scale));
+  --card-title-size:calc(var(--card-box-w) * 0.0989010989);   /* 18 / 182 */
+  --card-store-size:calc(var(--card-box-w) * 0.0824175824);   /* 15 / 182 */
+  --card-price-size:calc(var(--card-box-w) * 0.0989010989);   /* 18 / 182 */
+  --card-tag-size:calc(var(--card-box-w) * 0.0659340659);     /* 12 / 182 */
 
-  --badge-font:calc(12px * var(--card-scale));
-  --badge-pad-y:calc(2px * var(--card-scale));
-  --badge-pad-x:calc(8px * var(--card-scale));
-  --badge-offset:calc(6px * var(--card-scale));
+  --badge-font:calc(var(--card-box-w) * 0.0659340659);        /* 12 / 182 */
+  --badge-pad-y:calc(var(--card-box-w) * 0.0109890110);       /*  2 / 182 */
+  --badge-pad-x:calc(var(--card-box-w) * 0.0439560440);       /*  8 / 182 */
+  --badge-offset:calc(var(--card-box-w) * 0.0329670330);      /*  6 / 182 */
 
-  --img-radius:calc(10px * var(--card-scale));
+  --img-radius:calc(var(--card-box-w) * 0.0549450549);        /* 10 / 182 */
 
-  --card-border:calc(2px * var(--card-scale));
-  --img-border:calc(1px * var(--card-scale));
-  --card-radius:calc(12px * var(--card-scale));
+  --card-border:calc(var(--card-box-w) * 0.0109890110);       /*  2 / 182 */
+  --img-border:calc(var(--card-box-w) * 0.0054945055);        /*  1 / 182 */
+  --card-radius:calc(var(--card-box-w) * 0.0659340659);       /* 12 / 182 */
 
-  --card-tags-gap:calc(6px * var(--card-scale));
-  --price-row-gap:calc(6px * var(--card-scale));
-  --orig-price-ml:calc(6px * var(--card-scale));
+  --card-tags-gap:calc(var(--card-box-w) * 0.0329670330);     /*  6 / 182 */
+  --price-row-gap:calc(var(--card-box-w) * 0.0329670330);     /*  6 / 182 */
+  --orig-price-ml:calc(var(--card-box-w) * 0.0329670330);     /*  6 / 182 */
 
   /* SET ALERT MODAL TOKENS */
   --sb-modal-bg:#ff660045;
@@ -656,7 +659,7 @@ button{
   display:block;
 }
 
-/* remove visible extra right gap on menu icon */
+/* Menu icon aligned to right like light mode icon */
 #menuBtn{
   display:block;
   margin:0;
@@ -940,9 +943,8 @@ html[data-theme="dark"] .chip{
   align-items:stretch;
   container-type:inline-size;
 
-  /* actual card width used to scale every card element */
+  /* actual vertical-card width */
   --card-box-w:calc((100cqw - ((var(--cols) - 1) * var(--grid-gap))) / var(--cols));
-  --card-scale:calc(var(--card-box-w) / 182);
 }
 
 /* =========================================================
@@ -1406,9 +1408,11 @@ html[data-theme="dark"] .footer{
     justify-content:stretch;
     gap:var(--grid-gap);
 
-    /* full card width available to the single-column mobile card */
-    --card-box-w:100cqw;
-    --card-scale:calc(var(--card-box-w) / 182);
+    /* horizontal mobile card: scale text from actual content column width,
+       not full card width */
+    --mobile-image-share:0.42;
+    --mobile-gap:var(--card-gap);
+    --card-box-w:calc((100cqw - var(--mobile-gap)) * (1 - var(--mobile-image-share)));
   }
 
   /* restore image-left / text-right layout */
