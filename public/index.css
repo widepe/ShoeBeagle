@@ -39,46 +39,41 @@ html{ -webkit-text-size-adjust:100%; }
   --logo-scale:calc(2 * var(--top-scale));
   --top-rows:1;
 
-  /* =========================================================
-     GRID + CARD SYSTEM
-     Base proportions are derived from your current desktop/tablet card
-     at roughly 182px wide (260 * 0.7).
-  ========================================================= */
+  /* GRID / CARD */
   --cols:6;
   --card-brand-color:#214478ff;
-  --grid-gap:clamp(10px, 0.95vw, 14px);
+  --grid-gap:14px;
 
-  /* set by .shoe-grid via container units */
+  /* base desktop card width from your prior design */
   --card-box-w:182px;
+  --card-scale:1;
 
-  /* card internals scale proportionally from card width */
-  --card-pad:clamp(8px, calc(var(--card-box-w) * 0.04615), 12px);
-  --card-gap:clamp(4px, calc(var(--card-box-w) * 0.02460), 7px);
-  --card-content-gap:clamp(3px, calc(var(--card-box-w) * 0.01846), 6px);
+  /* true proportional scaling */
+  --card-pad:calc(12px * var(--card-scale));
+  --card-gap:calc(6px * var(--card-scale));
+  --card-content-gap:calc(5px * var(--card-scale));
 
-  --card-title-size:clamp(14px, calc(var(--card-box-w) * 0.07692), 20px);
-  --card-store-size:clamp(11px, calc(var(--card-box-w) * 0.06462), 17px);
-  --card-price-size:clamp(14px, calc(var(--card-box-w) * 0.07692), 20px);
-  --card-tag-size:clamp(10px, calc(var(--card-box-w) * 0.05538), 15px);
+  --card-title-size:calc(18px * var(--card-scale));
+  --card-store-size:calc(15px * var(--card-scale));
+  --card-price-size:calc(18px * var(--card-scale));
+  --card-tag-size:calc(12px * var(--card-scale));
 
-  --badge-font:clamp(10px, calc(var(--card-box-w) * 0.05538), 15px);
-  --badge-pad-y:clamp(1px, calc(var(--card-box-w) * 0.00923), 3px);
-  --badge-pad-x:clamp(5px, calc(var(--card-box-w) * 0.03077), 9px);
-  --badge-offset:clamp(4px, calc(var(--card-box-w) * 0.02154), 8px);
+  --badge-font:calc(12px * var(--card-scale));
+  --badge-pad-y:calc(2px * var(--card-scale));
+  --badge-pad-x:calc(8px * var(--card-scale));
+  --badge-offset:calc(6px * var(--card-scale));
 
-  --img-radius:clamp(6px, calc(var(--card-box-w) * 0.03692), 11px);
+  --img-radius:calc(10px * var(--card-scale));
 
-  --card-border:clamp(1px, calc(var(--card-box-w) * 0.00769), 2px);
-  --img-border:clamp(1px, calc(var(--card-box-w) * 0.00385), 1.5px);
-  --card-radius:clamp(8px, calc(var(--card-box-w) * 0.04615), 14px);
+  --card-border:calc(2px * var(--card-scale));
+  --img-border:calc(1px * var(--card-scale));
+  --card-radius:calc(12px * var(--card-scale));
 
-  --card-tags-gap:clamp(4px, calc(var(--card-box-w) * 0.01900), 8px);
-  --price-row-gap:clamp(4px, calc(var(--card-box-w) * 0.01650), 8px);
-  --orig-price-ml:clamp(5px, calc(var(--card-box-w) * 0.01920), 10px);
+  --card-tags-gap:calc(6px * var(--card-scale));
+  --price-row-gap:calc(6px * var(--card-scale));
+  --orig-price-ml:calc(6px * var(--card-scale));
 
-  /* =========================================================
-     SET ALERT MODAL TOKENS
-  ========================================================= */
+  /* SET ALERT MODAL TOKENS */
   --sb-modal-bg:#ff660045;
   --sb-input-bg:#f8f8f8;
   --sb-input-radius:calc(0.5rem * var(--top-scale));
@@ -399,6 +394,7 @@ html[data-theme="dark"] body{
   gap:var(--gap);
   order:0;
   margin-right:0;
+  padding-right:0;
   min-width:0;
 }
 
@@ -660,9 +656,12 @@ button{
   display:block;
 }
 
+/* remove visible extra right gap on menu icon */
 #menuBtn{
+  display:block;
+  margin:0;
   transform:scale(0.7225);
-  transform-origin:center;
+  transform-origin:right center;
 }
 
 #fetchBtn{
@@ -941,8 +940,9 @@ html[data-theme="dark"] .chip{
   align-items:stretch;
   container-type:inline-size;
 
-  /* actual card width used to scale the internals */
+  /* actual card width used to scale every card element */
   --card-box-w:calc((100cqw - ((var(--cols) - 1) * var(--grid-gap))) / var(--cols));
+  --card-scale:calc(var(--card-box-w) / 182);
 }
 
 /* =========================================================
@@ -981,7 +981,7 @@ html[data-theme="dark"] .card{
   position:relative;
   width:100%;
   overflow:hidden;
-  aspect-ratio:4 / 3;
+  aspect-ratio:5 / 4; /* 5 wide, 4 tall */
 }
 
 .card img{
@@ -1177,7 +1177,10 @@ html[data-theme="dark"] .footer{
 
 /* TABLET LANDSCAPE */
 @media (min-width:820px) and (max-width:1366px) and (orientation:landscape){
-  :root{ --cols:5; }
+  :root{
+    --cols:5;
+    --grid-gap:12px;
+  }
 
   .price-alert-trigger,
   .topbar-stack-link,
@@ -1210,7 +1213,10 @@ html[data-theme="dark"] .footer{
 
 /* MOBILE LANDSCAPE */
 @media (max-width:800px) and (orientation:landscape){
-  :root{ --cols:3; }
+  :root{
+    --cols:3;
+    --grid-gap:10px;
+  }
 
   .price-alert-trigger,
   .topbar-stack-link,
@@ -1399,12 +1405,71 @@ html[data-theme="dark"] .footer{
     grid-template-columns:1fr;
     justify-content:stretch;
     gap:var(--grid-gap);
+
+    /* full card width available to the single-column mobile card */
     --card-box-w:100cqw;
+    --card-scale:calc(var(--card-box-w) / 182);
   }
 
+  /* restore image-left / text-right layout */
   .card{
     width:100%;
     margin:0;
+    aspect-ratio:auto;
+    border-radius:var(--card-radius);
+    padding:var(--card-pad);
+    position:relative;
+    overflow:visible;
+  }
+
+  .card-link{
+    flex-direction:row;
+    align-items:stretch;
+    gap:var(--card-gap);
+    height:auto;
+  }
+
+  .card-image-wrapper{
+    flex:0 0 42%;
+    width:auto;
+    aspect-ratio:5 / 4;
+    overflow:hidden;
+    border-radius:var(--img-radius);
+  }
+
+  .card img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    background:#fff;
+    border:var(--img-border) solid #a6adb8;
+    border-radius:var(--img-radius);
+    display:block;
+  }
+
+  html[data-theme="dark"] .card img{
+    border-color:#445470;
+  }
+
+  .card-tags{
+    position:absolute;
+    left:var(--badge-offset);
+    right:var(--badge-offset);
+    bottom:var(--badge-offset);
+    z-index:40;
+    display:flex;
+    justify-content:space-between;
+    gap:var(--card-tags-gap);
+    pointer-events:none;
+  }
+
+  .card-tag{
+    font-weight:600;
+    font-size:var(--card-tag-size);
+    color:var(--sb-blue);
+    white-space:nowrap;
+    text-shadow:0 0 3px rgba(255,255,255,0.85), 0 0 5px rgba(255,255,255,0.65);
+    display:inline-block;
   }
 
   .status-message{ font-size:1.1rem; }
