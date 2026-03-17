@@ -63,9 +63,9 @@ body{
 input[type="text"],
 input[type="search"],
 .sb-input{
-  background:#1c1c1c;
+  background:#0b0b0b;
   color:#f1f1f1;
-  border-color:#4a4a4a;
+  border-color:#313131;
   box-shadow:none;
 }
 
