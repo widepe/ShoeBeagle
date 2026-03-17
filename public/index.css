@@ -955,7 +955,7 @@ html[data-theme="dark"] .chip{
   display:grid;
   gap:var(--grid-gap);
   grid-template-columns:repeat(var(--cols), var(--card-w));
-  width:fit-content;
+  width:100%;
   max-width:100%;
   margin:1.0rem auto 0;
   justify-content:center;
