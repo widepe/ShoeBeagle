@@ -335,11 +335,11 @@ const modeToggleIcon = document.getElementById("modeToggleIcon");
  let usingDarkTheme = document.documentElement.dataset.theme === "dark";
 
 function applyTheme() {
-  if (!themeStylesheet || !modeToggleIcon) return;
+  if (!modeToggleIcon) return;
+
+  document.documentElement.dataset.theme = usingDarkTheme ? "dark" : "light";
 
   if (usingDarkTheme) {
-    themeStylesheet.href = "/index-dark.css?v=2";
-
     modeToggleIcon.src = "/images/dark-mode.svg";
     modeToggleIcon.alt = "Dark mode";
 
@@ -349,10 +349,7 @@ function applyTheme() {
     if (searchShoeIcon) searchShoeIcon.src = "/images/shoe-dark-mode.svg";
 
     modeToggleBtn?.setAttribute("aria-pressed", "true");
-    document.documentElement.dataset.theme = "dark";
   } else {
-    themeStylesheet.href = "/index.css?v=130";
-
     modeToggleIcon.src = "/images/light-mode.svg";
     modeToggleIcon.alt = "Light mode";
 
@@ -362,9 +359,9 @@ function applyTheme() {
     if (searchShoeIcon) searchShoeIcon.src = "/images/shoe.svg";
 
     modeToggleBtn?.setAttribute("aria-pressed", "false");
-    document.documentElement.dataset.theme = "light";
   }
 }
+
 
 function runThemeSwitch(nextDarkTheme) {
   const root = document.documentElement;
