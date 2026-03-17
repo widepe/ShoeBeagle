@@ -387,7 +387,6 @@ html[data-theme="dark"] body{
    TOPBAR (inputs + logo)
 ========================================================= */
 .topbar{
-  width:100%;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -395,7 +394,13 @@ html[data-theme="dark"] body{
   margin-top:2px;
 
   flex-wrap:nowrap;
-  padding:0 var(--pad);
+
+  /* 🔑 KEY FIX */
+  width:min(calc(var(--grid-w) + (2 * var(--pad))), 100%);
+  margin-left:auto;
+  margin-right:auto;
+
+  padding:0; /* important: remove extra width mismatch */
 }
 
 .top-left{
