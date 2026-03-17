@@ -2,11 +2,26 @@
 <html lang="en">
 <head>
   <!-- Favicon -->
-<link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
-<link rel="icon" type="image/png" href="/images/favicon.png">
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
+  <link rel="icon" type="image/png" href="/images/favicon.png">
+
   <meta charset="UTF-8" />
   <title>About – Shoe Beagle</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Set theme before paint so this page matches the homepage -->
+  <script>
+    (function () {
+      try {
+        const savedTheme = localStorage.getItem("sb-theme");
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const useDark = savedTheme ? savedTheme === "dark" : prefersDark;
+        document.documentElement.dataset.theme = useDark ? "dark" : "light";
+      } catch {
+        document.documentElement.dataset.theme = "light";
+      }
+    })();
+  </script>
 
   <style>
     body {
@@ -58,7 +73,7 @@
       color: #2d2d2d;
     }
 
-    /* 💥 Marty floats left with text wrapping */
+    /* Marty floats left with text wrapping */
     .marty {
       width: 200px;
       max-width: 45%;
@@ -113,6 +128,56 @@
     .footer a:hover {
       text-decoration: underline;
     }
+
+    /* =========================
+       DARK MODE
+    ========================= */
+    html[data-theme="dark"] body {
+      background: #0c0e11;
+      color: #e8e8e8;
+    }
+
+    html[data-theme="dark"] .container {
+      background: #1f2630;
+      border-color: #313131;
+    }
+
+    html[data-theme="dark"] h2 {
+      color: #e8e8e8;
+    }
+
+    html[data-theme="dark"] p {
+      color: #e8e8e8;
+    }
+
+    html[data-theme="dark"] .home-btn {
+      border-color: #4a4a4a;
+      background: #2b2b2b;
+      color: #f1f1f1;
+    }
+
+    html[data-theme="dark"] .home-btn:hover {
+      background: #3a3a3a;
+    }
+
+    html[data-theme="dark"] .footer {
+      color: #e8e8e8;
+    }
+
+    html[data-theme="dark"] .footer a {
+      color: #9fc1f3;
+    }
+
+    html[data-theme="dark"] .logo {
+      content: url("/images/logo-dark-mode.svg");
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .logo,
+      .home-btn {
+        transition: none;
+      }
+    }
   </style>
 </head>
 
@@ -126,7 +191,6 @@
 
     <h2>About Us</h2>
 
-    <!-- Marty floats left and text wraps -->
     <img src="/images/marty.svg" alt="Marty the Beagle" class="marty">
 
     <p>Shoe Beagle is a price comparison website dedicated to helping runners find the best deals on running shoes. We provide side-by-side price comparisons across multiple retailers, allowing users to search by brand and model to find the lowest prices.</p>
@@ -137,7 +201,6 @@
 
     <p><strong>Affiliate Disclosure:</strong> Some of the links on Shoe Beagle are affiliate links. This means Shoe Beagle may earn a small commission if you click a link and make a purchase, at no extra cost to you.</p>
 
-    <!-- Stop Marty float so button sits below -->
     <div class="clear"></div>
 
     <a href="/" class="home-btn">Home</a>
