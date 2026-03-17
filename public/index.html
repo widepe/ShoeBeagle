@@ -332,9 +332,9 @@ const modeToggleIcon = document.getElementById("modeToggleIcon");
       if (footerYear) footerYear.textContent = new Date().getFullYear();
       if (logoLink) logoLink.addEventListener("click", () => location.reload());
 
-      let usingDarkTheme = document.documentElement.dataset.theme === "dark";
+ let usingDarkTheme = document.documentElement.dataset.theme === "dark";
 
-      function applyTheme() {
+function applyTheme() {
   if (!themeStylesheet || !modeToggleIcon) return;
 
   if (usingDarkTheme) {
@@ -366,20 +366,36 @@ const modeToggleIcon = document.getElementById("modeToggleIcon");
   }
 }
 
+function runThemeSwitch(nextDarkTheme) {
+  const root = document.documentElement;
 
-      applyTheme();
+  root.classList.remove("theme-switching", "to-dark", "to-light");
 
-      if (modeToggleBtn) {
-        modeToggleBtn.addEventListener("click", () => {
-          usingDarkTheme = !usingDarkTheme;
-          document.documentElement.dataset.theme = usingDarkTheme ? "dark" : "light";
-          try {
-            localStorage.setItem("sb-theme", usingDarkTheme ? "dark" : "light");
-          } catch {}
-          applyTheme();
-          syncPanelControls();
-        });
-      }
+  root.classList.add("theme-switching");
+  root.classList.add(nextDarkTheme ? "to-dark" : "to-light");
+
+  usingDarkTheme = nextDarkTheme;
+  applyTheme();
+
+  try {
+    localStorage.setItem("sb-theme", usingDarkTheme ? "dark" : "light");
+  } catch {}
+
+  window.clearTimeout(window.__sbThemeSwitchTimer);
+  window.__sbThemeSwitchTimer = window.setTimeout(() => {
+    root.classList.remove("theme-switching", "to-dark", "to-light");
+  }, 190);
+}
+
+applyTheme();
+
+if (modeToggleBtn) {
+  modeToggleBtn.addEventListener("click", () => {
+    runThemeSwitch(!usingDarkTheme);
+    syncPanelControls();
+  });
+}
+
 
       // --- Slide panel toggle ---
       function isPanelOpen() {
@@ -1280,20 +1296,17 @@ const modeToggleIcon = document.getElementById("modeToggleIcon");
         });
       });
 
-      panelThemeOptions.forEach((option) => {
-        option.addEventListener("click", () => {
-          const value = option.getAttribute("data-panel-theme") || "light";
-          const nextDarkTheme = value === "dark";
-          if (usingDarkTheme === nextDarkTheme) return;
-          usingDarkTheme = nextDarkTheme;
-          document.documentElement.dataset.theme = usingDarkTheme ? "dark" : "light";
-          try {
-            localStorage.setItem("sb-theme", usingDarkTheme ? "dark" : "light");
-          } catch {}
-          applyTheme();
-          syncPanelControls();
-        });
-      });
+     panelThemeOptions.forEach((option) => {
+  option.addEventListener("click", () => {
+    const value = option.getAttribute("data-panel-theme") || "light";
+    const nextDarkTheme = value === "dark";
+    if (usingDarkTheme === nextDarkTheme) return;
+
+    runThemeSwitch(nextDarkTheme);
+    syncPanelControls();
+  });
+});
+
 
       if (panelStoreSelect) {
         panelStoreSelect.addEventListener("change", () => {
