@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
   <link rel="icon" type="image/png" href="/images/favicon.png">
 
@@ -9,207 +8,186 @@
   <title>About – Shoe Beagle</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Set theme before paint so this page matches the homepage -->
   <script>
-    (function () {
-      try {
-        const savedTheme = localStorage.getItem("sb-theme");
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        const useDark = savedTheme ? savedTheme === "dark" : prefersDark;
-        document.documentElement.dataset.theme = useDark ? "dark" : "light";
-      } catch {
-        document.documentElement.dataset.theme = "light";
-      }
-    })();
+  (function () {
+    document.documentElement.classList.add("page-preload");
+
+    try {
+      const savedTheme = localStorage.getItem("sb-theme");
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const useDark = savedTheme ? savedTheme === "dark" : prefersDark;
+      document.documentElement.dataset.theme = useDark ? "dark" : "light";
+    } catch {
+      document.documentElement.dataset.theme = "light";
+    }
+  })();
   </script>
 
+  <link rel="stylesheet" href="/index.css?v=130" />
+
   <style>
-    body {
-      margin: 0;
-      padding: 2rem 1rem;
-      background: #f4ede3ff;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      color: #2d2d2d;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-      box-sizing: border-box;
+    .legal-page{
+      width:100%;
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      padding:2rem 1rem;
+      box-sizing:border-box;
     }
 
-    .container {
-      width: 100%;
-      max-width: 850px;
-      background: #ffffff;
-      border-radius: 0.75rem;
-      border: 2px solid #214478ff;
-      padding: 1.75rem 2rem 1rem;
-      box-sizing: border-box;
-      line-height: 1.6;
+    .legal-card{
+      width:100%;
+      max-width:850px;
+      padding:1.75rem 2rem 1rem;
+      line-height:1.6;
+      aspect-ratio:auto;
     }
 
-    /* Logo same size as home page */
-    .logo {
-      display: block;
-      width: 600px;
-      max-width: 100%;
-      margin: 0 auto 1rem;
-      cursor: pointer;
-      transition: opacity 0.2s ease;
+    .legal-logo{
+      display:block;
+      width:600px;
+      max-width:100%;
+      margin:0 auto 1rem;
+      cursor:pointer;
+      transition:opacity 0.2s ease;
     }
-    .logo:hover { opacity: 0.9; }
+    .legal-logo:hover{ opacity:0.9; }
 
-    h2 {
-      text-align: center;
-      margin-top: 0.25rem;
-      margin-bottom: 1rem;
-      font-size: 1.8rem;
-      color: #214478ff;
+    .legal-title{
+      text-align:center;
+      margin:0.25rem 0 1rem;
+      font-size:1.8rem;
+      color:var(--sb-blue);
     }
 
-    p {
-      margin: 0.7rem 0;
-      font-size: 1rem;
-      color: #2d2d2d;
+    .legal-copy p{
+      margin:0.7rem 0;
+      font-size:1rem;
+      color:inherit;
     }
 
-    /* Marty floats left with text wrapping */
-    .marty {
-      width: 200px;
-      max-width: 45%;
-      float: left;
-      margin: 0 1rem 0.75rem 0;
-      display: block;
+    .legal-marty{
+      width:200px;
+      max-width:45%;
+      float:left;
+      margin:0 1rem 0.75rem 0;
+      display:block;
     }
 
-    /* Stops float so the Back button doesn’t wrap beside Marty */
-    .clear {
-      clear: both;
+    .legal-clear{
+      clear:both;
     }
 
-    /* Back/Home button */
-    .home-btn {
-      display: block;
-      margin: 1.5rem auto 0.25rem;
-      padding: 0.6rem 1.25rem;
-      border-radius: 999px;
-      border: 1px solid #214478ff;
-      background: #214478ff;
-      color: white;
-      font-size: 0.95rem;
-      cursor: pointer;
-      text-align: center;
-      text-decoration: none;
-      font-weight: 600;
-      transition: background 0.2s ease;
-      width: max-content;
-    }
-    .home-btn:hover {
-      background: #1a3661;
+    .legal-home-btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width:120px;
+      height:42px;
+      padding:0 1.25rem;
+      margin:1.5rem auto 0.25rem;
+      text-decoration:none;
     }
 
-    /* Footer */
-    .footer {
-      margin-top: 1.5rem;
-      padding: 0.75rem 1rem;
-      text-align: center;
-      font-size: 0.82rem;
-      color: #444;
+    .legal-footer{
+      margin-top:1.5rem;
+      text-align:center;
+      font-size:0.82rem;
     }
 
-    .footer a {
-      color: #214478ff;
-      text-decoration: none;
-      font-weight: 600;
-      margin: 0 0.25rem;
-      cursor: pointer;
-    }
+    @media (max-width:560px){
+      .legal-card{
+        padding:1.1rem 1rem 0.75rem;
+      }
 
-    .footer a:hover {
-      text-decoration: underline;
-    }
+      .legal-marty{
+        width:160px;
+      }
 
-    /* =========================
-       DARK MODE
-    ========================= */
-    html[data-theme="dark"] body {
-      background: #0c0e11;
-      color: #e8e8e8;
-    }
-
-    html[data-theme="dark"] .container {
-      background: #1f2630;
-      border-color: #313131;
-    }
-
-    html[data-theme="dark"] h2 {
-      color: #e8e8e8;
-    }
-
-    html[data-theme="dark"] p {
-      color: #e8e8e8;
-    }
-
-    html[data-theme="dark"] .home-btn {
-      border-color: #4a4a4a;
-      background: #2b2b2b;
-      color: #f1f1f1;
-    }
-
-    html[data-theme="dark"] .home-btn:hover {
-      background: #3a3a3a;
-    }
-
-    html[data-theme="dark"] .footer {
-      color: #e8e8e8;
-    }
-
-    html[data-theme="dark"] .footer a {
-      color: #9fc1f3;
-    }
-
-    html[data-theme="dark"] .logo {
-      content: url("/images/logo-dark-mode.svg");
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .logo,
-      .home-btn {
-        transition: none;
+      .legal-title{
+        font-size:1.5rem;
       }
     }
   </style>
 </head>
 
 <body>
+  <div class="app legal-page">
+    <div class="card legal-card">
+      <a href="/">
+        <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="legal-logo" data-theme-logo>
+      </a>
 
-  <div class="container">
+      <h2 class="legal-title">About Us</h2>
 
-    <a href="/">
-      <img src="/images/logo.svg" alt="Shoe Beagle Logo" class="logo">
-    </a>
+      <div class="legal-copy">
+        <img src="/images/marty.svg" alt="Marty the Beagle" class="legal-marty">
 
-    <h2>About Us</h2>
+        <p>Shoe Beagle is a price comparison website dedicated to helping runners find the best deals on running shoes. We provide side-by-side price comparisons across multiple retailers, allowing users to search by brand and model to find the lowest prices.</p>
 
-    <img src="/images/marty.svg" alt="Marty the Beagle" class="marty">
+        <p>Our platform features price alerts, real-time deal updates, and direct links to merchant sites where users can complete their purchases.</p>
 
-    <p>Shoe Beagle is a price comparison website dedicated to helping runners find the best deals on running shoes. We provide side-by-side price comparisons across multiple retailers, allowing users to search by brand and model to find the lowest prices.</p>
+        <p>We do our best to sniff out the best running shoe deals for you!</p>
 
-    <p>Our platform features price alerts, real-time deal updates, and direct links to merchant sites where users can complete their purchases.</p>
+        <p><strong>Affiliate Disclosure:</strong> Some of the links on Shoe Beagle are affiliate links. This means Shoe Beagle may earn a small commission if you click a link and make a purchase, at no extra cost to you.</p>
 
-    <p>We do our best to sniff out the best running shoe deals for you!</p>
+        <div class="legal-clear"></div>
+      </div>
 
-    <p><strong>Affiliate Disclosure:</strong> Some of the links on Shoe Beagle are affiliate links. This means Shoe Beagle may earn a small commission if you click a link and make a purchase, at no extra cost to you.</p>
+      <a href="/" class="btn-eq legal-home-btn">Home</a>
+    </div>
 
-    <div class="clear"></div>
-
-    <a href="/" class="home-btn">Home</a>
-
+    <div class="footer legal-footer">
+      © 2026 Shoe Beagle. All rights reserved.
+    </div>
   </div>
 
-  <div class="footer">
-    © 2026 Shoe Beagle. All rights reserved.
-  </div>
+  <script>
+  (function () {
+    window.addEventListener("pageshow", function () {
+      document.documentElement.classList.remove("page-preload");
 
+      const logo = document.querySelector("[data-theme-logo]");
+      if (logo) {
+        const isDark = document.documentElement.dataset.theme === "dark";
+        logo.src = isDark ? "/images/logo-dark-mode.svg" : "/images/logo.svg";
+      }
+    });
+
+    document.addEventListener("click", function (e) {
+      const link = e.target.closest("a");
+      if (!link) return;
+
+      const href = link.getAttribute("href");
+      const target = link.getAttribute("target");
+
+      if (
+        !href ||
+        href.startsWith("#") ||
+        href.startsWith("mailto:") ||
+        href.startsWith("tel:") ||
+        target === "_blank" ||
+        link.hasAttribute("data-no-fade") ||
+        e.metaKey ||
+        e.ctrlKey ||
+        e.shiftKey ||
+        e.altKey
+      ) {
+        return;
+      }
+
+      const url = new URL(link.href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+
+      e.preventDefault();
+      document.body.classList.add("page-is-leaving");
+
+      setTimeout(() => {
+        window.location.href = link.href;
+      }, 180);
+    });
+  })();
+  </script>
 </body>
 </html>
