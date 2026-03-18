@@ -71,7 +71,7 @@ html[data-theme="dark"]{
   --sb-blue-rgb:159 193 243;
   --card-brand-color:#e9eef7;
 
-  --sb-input-bg:#0b0b0b;
+  --sb-input-bg:#000000;
   --sb-input-shadow:none;
   --sb-focus-border:#313131;
   --sb-focus-ring:0 0 0 3px rgba(159,193,243,0.10);
@@ -124,7 +124,7 @@ html[data-theme="dark"] input[type="search"],
 html[data-theme="dark"] .sb-input{
   background:#0b0b0b;
   color:#f1f1f1;
-  border-color:#313131;
+  border-color:#9fc1f373;
   box-shadow:none;
 }
 
