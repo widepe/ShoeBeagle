@@ -957,7 +957,7 @@ html[data-theme="dark"] .chip{
   --card-price-size:    calc(var(--card-box-w) * 0.080);
   --card-tag-size:      calc(var(--card-box-w) * 0.060);
 
-  --badge-font:         calc(var(--card-box-w) * 0.060);
+  --badge-font:         calc(var(--card-box-w) * 0.050);
   --badge-pad-y:        calc(var(--card-box-w) * 0.0109890110);
   --badge-pad-x:        calc(var(--card-box-w) * 0.0439560440);
   --badge-offset:       calc(var(--card-box-w) * 0.0329670330);
