@@ -196,6 +196,14 @@
             <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
             <span>Dark mode</span>
           </button>
+          <div class="slide-columns-control" aria-label="Column controls">
+            <div class="slide-subheading">Columns:</div>
+            <div class="slide-columns-row">
+              <button type="button" class="slide-columns-btn" id="columnsDownBtn" aria-label="Decrease columns">−</button>
+              <div class="slide-columns-value" id="columnsValue" aria-live="polite">1</div>
+              <button type="button" class="slide-columns-btn" id="columnsUpBtn" aria-label="Increase columns">+</button>
+            </div>
+          </div>
         </div>
 
         <hr class="slide-divider" />
@@ -285,9 +293,14 @@ const modeToggleIcon = document.getElementById("modeToggleIcon");
       const panelGenderOptions = Array.from(document.querySelectorAll("[data-panel-gender]"));
       const panelSortOptions = Array.from(document.querySelectorAll("[data-panel-sort]"));
       const panelThemeOptions = Array.from(document.querySelectorAll("[data-panel-theme]"));
+      const columnsValueEl = document.getElementById("columnsValue");
+      const columnsDownBtn = document.getElementById("columnsDownBtn");
+      const columnsUpBtn = document.getElementById("columnsUpBtn");
 
-      const PAGE_SIZE = 12;
+      const STORAGE_VISIBLE_COLS = "sb-visible-cols";
       let pageIndex = 0;
+      let visibleCols = 1;
+      let userColumnOverride = false;
 
       const prevPageBtn = document.getElementById("prevPage");
       const nextPageBtn = document.getElementById("nextPage");
@@ -300,6 +313,108 @@ const modeToggleIcon = document.getElementById("modeToggleIcon");
 
       function isMobilePortrait() {
         return window.matchMedia("(max-width: 560px) and (orientation: portrait)").matches;
+      }
+
+      function updateBodyScrollLock() {
+        const alertBackdrop = document.getElementById("sbAlertBackdrop");
+        const alertOpen = !!alertBackdrop?.classList.contains("open");
+        if (isPanelOpen() || alertOpen) document.body.style.overflow = "hidden";
+        else document.body.style.overflow = "";
+      }
+
+      function getDefaultVisibleCols() {
+        const width = window.innerWidth || document.documentElement.clientWidth || 0;
+        const isLandscape = window.matchMedia("(orientation: landscape)").matches;
+
+        if (isMobilePortrait()) return 1;
+        if (width >= 1440) return 8;
+        if (width >= 1024) return 7;
+        if (width >= 820 && width <= 1023 && isLandscape) return 6;
+        if (width >= 768 && width <= 819 && !isLandscape) return 4;
+        if (width <= 819 && isLandscape) return 3;
+        return 6;
+      }
+
+      function getGridMetrics() {
+        const activeGrid = dailyDeals && dailyDeals.style.display !== "none" ? dailyDealsGrid : resultsEl;
+        const grid = activeGrid || resultsEl || dailyDealsGrid;
+        if (!grid) return { availableWidth: 0, gap: 14 };
+
+        const cs = window.getComputedStyle(grid);
+        const gap = parseFloat(cs.columnGap || cs.gap || "14") || 14;
+        const padLeft = parseFloat(cs.paddingLeft || "0") || 0;
+        const padRight = parseFloat(cs.paddingRight || "0") || 0;
+        const availableWidth = Math.max(0, grid.clientWidth - padLeft - padRight);
+        return { availableWidth, gap };
+      }
+
+      function getColumnBounds() {
+        if (isMobilePortrait()) return { min: 1, max: 1 };
+        const { availableWidth, gap } = getGridMetrics();
+        if (!availableWidth) return { min: 1, max: 1 };
+
+        let min = Math.max(1, Math.ceil((availableWidth + gap) / (240 + gap)));
+        let max = Math.max(1, Math.floor((availableWidth + gap) / (120 + gap)));
+        if (max < min) {
+          const pinned = Math.max(1, Math.round((availableWidth + gap) / (180 + gap)));
+          min = pinned;
+          max = pinned;
+        }
+        return { min, max };
+      }
+
+      function clampCols(cols) {
+        const { min, max } = getColumnBounds();
+        const n = Math.max(min, Math.min(max, Number(cols) || min));
+        return Math.max(1, n);
+      }
+
+      function persistVisibleColsIfOverridden() {
+        if (!userColumnOverride) return;
+        try {
+          localStorage.setItem(STORAGE_VISIBLE_COLS, String(visibleCols));
+        } catch {}
+      }
+
+      function setVisibleCols(cols, { persist = false } = {}) {
+        visibleCols = clampCols(cols);
+        document.documentElement.style.setProperty("--visible-cols", String(visibleCols));
+        document.documentElement.style.setProperty("--cols", String(visibleCols));
+        if (columnsValueEl) columnsValueEl.textContent = String(visibleCols);
+        if (persist) {
+          userColumnOverride = true;
+          persistVisibleColsIfOverridden();
+        }
+      }
+
+      function loadInitialVisibleCols() {
+        let next = getDefaultVisibleCols();
+        try {
+          const stored = Number(localStorage.getItem(STORAGE_VISIBLE_COLS));
+          if (Number.isFinite(stored) && stored > 0) {
+            next = stored;
+            userColumnOverride = true;
+          }
+        } catch {}
+        setVisibleCols(next);
+      }
+
+      function syncColumnsButtons() {
+        const bounds = getColumnBounds();
+        if (columnsDownBtn) columnsDownBtn.disabled = visibleCols <= bounds.min;
+        if (columnsUpBtn) columnsUpBtn.disabled = visibleCols >= bounds.max;
+      }
+
+      function getPageSize() {
+        return isMobilePortrait() ? 12 : Math.max(1, visibleCols);
+      }
+
+      function renderCurrentGridForLayoutChange() {
+        if (dailyDeals && dailyDeals.style.display !== "none") {
+          renderDailyDealsNow();
+          return;
+        }
+        renderFilteredResults({ resetPage: true, append: false });
       }
 
       function runPagerTransitionThen(fn) {
@@ -401,12 +516,14 @@ if (modeToggleBtn) {
         slidePanelBackdrop.classList.add("open");
         slidePanelBackdrop.setAttribute("aria-hidden", "false");
         if (menuBtn) menuBtn.setAttribute("aria-expanded", "true");
+        updateBodyScrollLock();
       }
       function closePanel() {
         if (!slidePanelBackdrop) return;
         slidePanelBackdrop.classList.remove("open");
         slidePanelBackdrop.setAttribute("aria-hidden", "true");
         if (menuBtn) menuBtn.setAttribute("aria-expanded", "false");
+        updateBodyScrollLock();
       }
       function togglePanel() {
         if (isPanelOpen()) closePanel();
@@ -1155,16 +1272,18 @@ if (modeToggleBtn) {
       }
 
       function totalPagesCount(total) {
-        return Math.max(1, Math.ceil((Number(total) || 0) / PAGE_SIZE));
+        return Math.max(1, Math.ceil((Number(total) || 0) / getPageSize()));
       }
 
       function updateNavUI(totalFiltered) {
         const pager = document.querySelector(".pager");
+        const pageSize = getPageSize();
 
         if (isMobilePortrait()) {
           if (pager) pager.style.display = "none";
-          const hasMore = (pageIndex + 1) * PAGE_SIZE < (Number(totalFiltered) || 0);
+          const hasMore = (pageIndex + 1) * pageSize < (Number(totalFiltered) || 0);
           if (loadMoreWrap) loadMoreWrap.style.display = hasMore ? "flex" : "none";
+          syncColumnsButtons();
           return;
         }
 
@@ -1178,6 +1297,7 @@ if (modeToggleBtn) {
         if (nextPageBtn) nextPageBtn.disabled = pageIndex + 1 >= pages;
 
         if (pager) pager.style.display = pages > 1 ? "flex" : "none";
+        syncColumnsButtons();
       }
 
       function applyFilters(items) {
@@ -1236,8 +1356,9 @@ if (modeToggleBtn) {
 
         if (resetPage) pageIndex = 0;
 
-        const start = pageIndex * PAGE_SIZE;
-        const slice = filtered.slice(start, start + PAGE_SIZE);
+        const pageSize = getPageSize();
+        const start = pageIndex * pageSize;
+        const slice = filtered.slice(start, start + pageSize);
 
         if (!append) resultsEl.innerHTML = "";
         slice.forEach((item) => resultsEl.appendChild(createDealCard(item)));
@@ -1263,11 +1384,15 @@ if (modeToggleBtn) {
         if (!sourceDeals || !sourceDeals.length) return;
 
         const filtered = getFilteredAndSorted(sourceDeals);
+        const pageSize = getPageSize();
+        const start = isMobilePortrait() ? 0 : pageIndex * pageSize;
+        const slice = isMobilePortrait() ? filtered : filtered.slice(start, start + pageSize);
 
         dailyDealsGrid.innerHTML = "";
-        filtered.forEach((item) => dailyDealsGrid.appendChild(createDealCard(item)));
+        slice.forEach((item) => dailyDealsGrid.appendChild(createDealCard(item)));
 
         if (dailyDeals) dailyDeals.style.display = filtered.length ? "block" : "none";
+        updateNavUI(filtered.length);
       }
 
       panelGenderOptions.forEach((option) => {
@@ -1325,7 +1450,7 @@ if (modeToggleBtn) {
         loadMoreBtn.addEventListener("click", () => {
           const filtered = getFilteredAndSorted(lastSearchResults);
           const total = filtered.length;
-          const hasMore = (pageIndex + 1) * PAGE_SIZE < total;
+          const hasMore = (pageIndex + 1) * getPageSize() < total;
           if (!hasMore) return;
 
           pageIndex++;
@@ -1339,7 +1464,7 @@ if (modeToggleBtn) {
 
           runPagerTransitionThen(() => {
             pageIndex--;
-            renderFilteredResults({ resetPage: false, append: false });
+            renderCurrentGridForLayoutChange();
             resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
           });
         });
@@ -1347,15 +1472,41 @@ if (modeToggleBtn) {
 
       if (nextPageBtn) {
         nextPageBtn.addEventListener("click", () => {
-          const filtered = getFilteredAndSorted(lastSearchResults);
+          const sourceItems =
+            dailyDeals && dailyDeals.style.display !== "none"
+              ? (selectedStore ? lastAllDeals : lastDailyDeals)
+              : lastSearchResults;
+          const filtered = getFilteredAndSorted(sourceItems || []);
           const pages = totalPagesCount(filtered.length);
           if (pageIndex >= pages - 1) return;
 
           runPagerTransitionThen(() => {
             pageIndex++;
-            renderFilteredResults({ resetPage: false, append: false });
+            renderCurrentGridForLayoutChange();
             resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
           });
+        });
+      }
+
+      if (columnsDownBtn) {
+        columnsDownBtn.addEventListener("click", () => {
+          if (isMobilePortrait()) return;
+          const bounds = getColumnBounds();
+          if (visibleCols <= bounds.min) return;
+          setVisibleCols(visibleCols - 1, { persist: true });
+          pageIndex = 0;
+          renderCurrentGridForLayoutChange();
+        });
+      }
+
+      if (columnsUpBtn) {
+        columnsUpBtn.addEventListener("click", () => {
+          if (isMobilePortrait()) return;
+          const bounds = getColumnBounds();
+          if (visibleCols >= bounds.max) return;
+          setVisibleCols(visibleCols + 1, { persist: true });
+          pageIndex = 0;
+          renderCurrentGridForLayoutChange();
         });
       }
 
@@ -1502,6 +1653,7 @@ if (modeToggleBtn) {
 
       loadDailyDeals();
       loadDealsSuggestionIndex();
+      loadInitialVisibleCols();
 
       function updateToTopVisibility() {
         if (!toTopBtn) return;
@@ -1514,7 +1666,12 @@ if (modeToggleBtn) {
       }
 
       window.addEventListener("scroll", updateToTopVisibility, { passive: true });
-      window.addEventListener("resize", updateToTopVisibility);
+      window.addEventListener("resize", () => {
+        updateToTopVisibility();
+        const fallback = userColumnOverride ? visibleCols : getDefaultVisibleCols();
+        setVisibleCols(fallback);
+        renderCurrentGridForLayoutChange();
+      });
       updateToTopVisibility();
 
       if (toTopBtn) {
@@ -1630,6 +1787,7 @@ if (modeToggleBtn) {
       });
 
       syncPanelControls();
+      syncColumnsButtons();
       if (qInput) qInput.addEventListener("input", updateFetchReady);
     })();
   </script>
@@ -2181,7 +2339,8 @@ if (modeToggleBtn) {
         closeSuggestions();
         backdrop.classList.remove("open");
         backdrop.setAttribute("aria-hidden", "true");
-        document.body.style.overflow = "";
+        const menuOpen = document.getElementById("slidePanelBackdrop")?.classList.contains("open");
+        document.body.style.overflow = menuOpen ? "hidden" : "";
         clearNextHighlight();
         if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
       }
