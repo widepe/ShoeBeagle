@@ -1104,7 +1104,6 @@ html[data-theme="dark"] .chip{
 .card-tag{
   font-weight:600;
   font-size:var(--card-tag-size);
-  color:var(--sb-blue); 
   line-height:1.1;
   white-space:nowrap;
 }
