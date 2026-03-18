@@ -709,7 +709,7 @@ button{
 
 .slide-panel{
   height:100%;
-  width:min(280px, 84vw);
+  width:min(220px, 84vw);
   background:#f8f8f8;
   box-shadow:10px 0 24px rgba(0,0,0,0.5);
   padding:16px 24px;
