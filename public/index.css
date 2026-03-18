@@ -153,8 +153,7 @@ html[data-theme="dark"] .sb-sug-rest{
 }
 
 html[data-theme="dark"] .slide-panel{
-  background:#181818;
-  border-right-color:#3a3a3a;
+  background:#4c525c;
 }
 
 html[data-theme="dark"] .slide-store-select{
@@ -171,7 +170,7 @@ html[data-theme="dark"] .slide-panel-link{
 }
 
 html[data-theme="dark"] .slide-divider{
-  border-top-color:#3a3a3a;
+  border-top-color:#656c77;
 }
 
 html[data-theme="dark"] .slide-check-option{
@@ -713,8 +712,7 @@ button{
   height:100%;
   width:min(360px, 84vw);
   background:#f8f8f8;
-  border-right:2px solid rgba(var(--sb-blue-rgb) / 0.3);
-  box-shadow:10px 0 24px rgba(0,0,0,0.18);
+  box-shadow:10px 0 24px rgba(0,0,0,0.5);
   padding:16px 14px;
   display:flex;
   flex-direction:column;
@@ -1043,9 +1041,9 @@ html[data-theme="dark"] .chip{
   min-width:0;
 }
 
-html[data-theme="dark"] .card{
+/* html[data-theme="dark"] .card{
   border-color:#445470;
-}
+} */
 
 .card-link{
   display:flex;
@@ -1074,9 +1072,9 @@ html[data-theme="dark"] .card{
   display:block;
 }
 
-/* html[data-theme="dark"] .card img{
+ html[data-theme="dark"] .card img{
   border-color:#445470;
-} */
+} 
 
 .discount-badge{
   position:absolute;
