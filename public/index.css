@@ -1032,7 +1032,7 @@ html[data-theme="dark"] .chip{
   width:100%;
   max-width:100%;
   background:var(--card-bg);
-  border:var(--card-border) solid #cad2e0;
+  /* border:var(--card-border) solid #cad2e0; */
   border-radius:var(--card-radius);
   padding:var(--card-pad);
   display:flex;
@@ -1069,14 +1069,14 @@ html[data-theme="dark"] .card{
   height:100%;
   object-fit:cover;
   background:#fff;
-  border:var(--img-border) solid #a6adb8;
+  border:var(--img-border) solid #cad2e0;
   border-radius:var(--img-radius);
   display:block;
 }
 
-html[data-theme="dark"] .card img{
+/* html[data-theme="dark"] .card img{
   border-color:#445470;
-}
+} */
 
 .discount-badge{
   position:absolute;
