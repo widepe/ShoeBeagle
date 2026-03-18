@@ -110,8 +110,7 @@ html[data-theme="dark"] .footer,
 html[data-theme="dark"] .footer-copy,
 html[data-theme="dark"] .footer-links,
 html[data-theme="dark"] .footer a,
-html[data-theme="dark"] .price,
-html[data-theme="dark"] .card-tag{
+html[data-theme="dark"] .price{
   color:#e8e8e8;
 }
 
