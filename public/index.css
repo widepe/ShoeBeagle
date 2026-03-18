@@ -200,7 +200,6 @@ html[data-theme="dark"] .sb-secondary{
 
 html[data-theme="dark"] .sb-alert-modal{
   background:#181818;
-  border-right-color:#3a3a3a;
 }
 
 html[data-theme="dark"] .sb-note,
@@ -1703,7 +1702,6 @@ html[data-theme="dark"] .footer{
   overflow-y:auto;
   overflow-x:hidden;
   background:#f8f8f8;
-  border-right:2px solid rgba(var(--sb-blue-rgb) / 0.3);
   border-radius:0;
   padding:12px 16px 16px;
   box-shadow:10px 0 24px rgba(0,0,0,0.18);
@@ -1729,7 +1727,7 @@ html[data-theme="dark"] .sb-alert-modal{
   cursor:pointer;
   font-size:32px;
   line-height:1;
-  font-weight:900;
+  font-weight:400;
   color:#888;
   opacity:.9;
 }
