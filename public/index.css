@@ -1104,15 +1104,12 @@ html[data-theme="dark"] .chip{
 .card-tag{
   font-weight:600;
   font-size:var(--card-tag-size);
-  color:var(--sb-blue);
+  color:var(--sb-blue); 
   line-height:1.1;
   white-space:nowrap;
-  text-shadow:0 0 3px rgba(255,255,255,0.8), 0 0 5px rgba(255,255,255,0.6);
 }
 
-html[data-theme="dark"] .card-tag{
-    color:var(--sb-blue); 
-}
+
 .card-content{
   display:flex;
   flex-direction:column;
