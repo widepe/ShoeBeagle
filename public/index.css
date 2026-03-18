@@ -497,7 +497,7 @@ html[data-theme="dark"] input[type="search"]{
 }
 
 html[data-theme="dark"] .suggestions{
-  background:#182233;
+  background:#484c54;
   box-shadow:0 6px 16px rgba(0,0,0,0.35);
 }
 
@@ -724,7 +724,7 @@ button{
 }
 
 html[data-theme="dark"] .slide-panel{
-  background:#182233;
+  background:#484c54;
   box-shadow:10px 0 24px rgba(0,0,0,0.5);
 }
 
