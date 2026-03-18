@@ -67,7 +67,7 @@ html{ -webkit-text-size-adjust:100%; }
 html[data-theme="dark"]{
   --sb-blue:#9fc1f3;
   --bg:#0c0e11;
-  --card-bg:#1f2630;
+  --card-bg:#29313e;
   --sb-blue-rgb:159 193 243;
   --card-brand-color:#e9eef7;
 
