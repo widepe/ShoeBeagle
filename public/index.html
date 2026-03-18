@@ -271,10 +271,18 @@
             </button>
           </div>
 
-          <div class="sidebar-panel">
-            <div class="sidebar-heading sidebar-heading-rss">RSS FEED</div>
-            <div class="sidebar-placeholder">Feed items coming soon.</div>
-          </div>
+          <section class="sidebar-panel rss-section" id="recentArticlesSection" aria-label="Recent articles">
+            <div class="rss-head">
+              <h2 class="sidebar-heading sidebar-heading-rss rss-titleHead">Recent Articles</h2>
+              <div class="rss-controls" aria-label="Recent articles controls">
+                <button type="button" class="rss-btn" id="rssPrevBtn" aria-label="Previous article" disabled>←</button>
+                <button type="button" class="rss-btn" id="rssNextBtn" aria-label="Next article" disabled>→</button>
+              </div>
+            </div>
+            <div class="rss-rail">
+              <div class="rss-track" id="rssTrack" aria-live="polite"></div>
+            </div>
+          </section>
 
           <div class="sidebar-panel">
             <div class="sidebar-heading">EXTRA</div>
@@ -2739,5 +2747,6 @@ if (modeToggleBtn) {
       }
     })();
   </script>
+  <script src="/js/rss-feed.js" defer></script>
 </body>
 </html>
