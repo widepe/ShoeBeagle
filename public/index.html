@@ -218,19 +218,87 @@
 
     <!-- MAIN -->
     <div id="mainContent">
-      <div class="status-message" id="statusMessage">Marty’s Daily Deals</div>
+      <div class="content-shell">
+        <aside class="left-sidebar" aria-label="Marketplace controls">
+          <div class="sidebar-panel">
+            <button type="button" class="sidebar-link-btn" data-open-alert>PRICE ALERT</button>
+          </div>
 
-      <div class="daily-deals" id="dailyDeals">
-        <div class="shoe-grid" id="dailyDealsGrid"></div>
-      </div>
+          <div class="sidebar-panel">
+            <div class="sidebar-heading">FILTER</div>
+            <label class="sidebar-subheading" for="sidebarStoreSelect">Store:</label>
+            <select id="sidebarStoreSelect" class="slide-store-select" aria-label="Filter by store (desktop)">
+              <option value="">All stores</option>
+            </select>
+            <div class="sidebar-subheading">Gender:</div>
+            <button type="button" class="slide-check-option" data-panel-gender="womens">
+              <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+              <span>Women's</span>
+            </button>
+            <button type="button" class="slide-check-option" data-panel-gender="mens">
+              <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+              <span>Men's</span>
+            </button>
+          </div>
 
-      <div class="shoe-grid" id="results"></div>
+          <div class="sidebar-panel">
+            <div class="sidebar-heading">SORT</div>
+            <div class="sidebar-subheading">Price:</div>
+            <button type="button" class="slide-check-option" data-panel-sort="price-asc">
+              <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+              <span>Low</span>
+              <img src="/images/fetch_arrow.svg" class="sort-arrow" alt="to" />
+              <span>High</span>
+            </button>
+            <button type="button" class="slide-check-option" data-panel-sort="price-desc">
+              <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+              <span>High</span>
+              <img src="/images/fetch_arrow.svg" class="sort-arrow sort-arrow-left" alt="to" />
+              <span>Low</span>
+            </button>
+          </div>
 
-      <p class="disclaimer">
-        Some links are affiliate links, meaning we may earn a commission at no extra cost to you. Prices and availability are set by the retailer, and may change--verify details on the retailer’s site before purchasing.
-      </p>      
-      <div class="load-more-wrap" id="loadMoreWrap" style="display:none;">
-        <button id="loadMoreBtn" class="load-more-btn" type="button">Load more</button>
+          <div class="sidebar-panel">
+            <div class="sidebar-heading">DISPLAY</div>
+            <div class="sidebar-subheading">Mode:</div>
+            <button type="button" class="slide-check-option" data-panel-theme="light">
+              <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+              <span>Light mode</span>
+            </button>
+            <button type="button" class="slide-check-option" data-panel-theme="dark">
+              <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+              <span>Dark mode</span>
+            </button>
+          </div>
+
+          <div class="sidebar-panel">
+            <div class="sidebar-heading sidebar-heading-rss">RSS FEED</div>
+            <div class="sidebar-placeholder">Feed items coming soon.</div>
+          </div>
+
+          <div class="sidebar-panel">
+            <div class="sidebar-heading">EXTRA</div>
+            <div class="sidebar-placeholder">Ad slot / future content</div>
+            <div class="sidebar-placeholder">Ad slot / future content</div>
+          </div>
+        </aside>
+
+        <div class="content-main">
+          <div class="status-message" id="statusMessage">Marty’s Daily Deals</div>
+
+          <div class="daily-deals" id="dailyDeals">
+            <div class="shoe-grid" id="dailyDealsGrid"></div>
+          </div>
+
+          <div class="shoe-grid" id="results"></div>
+
+          <p class="disclaimer">
+            Some links are affiliate links, meaning we may earn a commission at no extra cost to you. Prices and availability are set by the retailer, and may change--verify details on the retailer’s site before purchasing.
+          </p>
+          <div class="load-more-wrap" id="loadMoreWrap" style="display:none;">
+            <button id="loadMoreBtn" class="load-more-btn" type="button">Load more</button>
+          </div>
+        </div>
       </div>
 
 
@@ -292,7 +360,10 @@ const modeToggleIcon = document.getElementById("modeToggleIcon");
       const slidePanelBackdrop = document.getElementById("slidePanelBackdrop");
       const panelCloseBtn = document.getElementById("panelCloseBtn");
       const panelXCloseBtn = document.getElementById("panelXCloseBtn");
-      const panelStoreSelect = document.getElementById("panelStoreSelect");
+      const panelStoreSelects = [
+        document.getElementById("panelStoreSelect"),
+        document.getElementById("sidebarStoreSelect"),
+      ].filter(Boolean);
       const panelGenderOptions = Array.from(document.querySelectorAll("[data-panel-gender]"));
       const panelSortOptions = Array.from(document.querySelectorAll("[data-panel-sort]"));
       const panelThemeOptions = Array.from(document.querySelectorAll("[data-panel-theme]"));
@@ -409,7 +480,7 @@ const modeToggleIcon = document.getElementById("modeToggleIcon");
       }
 
       function getPageSize() {
-        return isMobilePortrait() ? 12 : Math.max(1, visibleCols);
+        return isMobilePortrait() ? 12 : Math.max(visibleCols * 3, 12);
       }
 
       function renderCurrentGridForLayoutChange() {
@@ -596,7 +667,7 @@ if (modeToggleBtn) {
       }
 
       function syncStoreOptions() {
-        if (!panelStoreSelect) return;
+        if (!panelStoreSelects.length) return;
 
         const stores = Array.from(
           new Set(
@@ -606,18 +677,26 @@ if (modeToggleBtn) {
           )
         ).sort((a, b) => a.localeCompare(b));
 
-        const previousValue = panelStoreSelect.value;
-        panelStoreSelect.innerHTML = '<option value="">All stores</option>';
+        const previousValue = panelStoreSelects[0]?.value || "";
 
-        stores.forEach((store) => {
-          const option = document.createElement("option");
-          option.value = store;
-          option.textContent = store;
-          panelStoreSelect.appendChild(option);
+        panelStoreSelects.forEach((selectEl) => {
+          selectEl.innerHTML = "";
+          const allOpt = document.createElement("option");
+          allOpt.value = "";
+          allOpt.textContent = "All stores";
+          selectEl.appendChild(allOpt);
+          stores.forEach((store) => {
+            const option = document.createElement("option");
+            option.value = store;
+            option.textContent = store;
+            selectEl.appendChild(option);
+          });
         });
 
         const nextValue = stores.includes(previousValue) ? previousValue : "";
-        panelStoreSelect.value = nextValue;
+        panelStoreSelects.forEach((selectEl) => {
+          selectEl.value = nextValue;
+        });
         selectedStore = nextValue;
       }
 
@@ -1254,6 +1333,10 @@ if (modeToggleBtn) {
       });
 
       function syncPanelControls() {
+        panelStoreSelects.forEach((selectEl) => {
+          selectEl.value = selectedStore || "";
+        });
+
         panelGenderOptions.forEach((option) => {
           const isOn = option.getAttribute("data-panel-gender") === selectedGender;
           option.classList.toggle("active", isOn);
@@ -1281,25 +1364,16 @@ if (modeToggleBtn) {
       function updateNavUI(totalFiltered) {
         const pager = document.querySelector(".pager");
         const pageSize = getPageSize();
+        if (pager) pager.style.display = "none";
 
-        if (isMobilePortrait()) {
-          if (pager) pager.style.display = "none";
-          const hasMore = (pageIndex + 1) * pageSize < (Number(totalFiltered) || 0);
-          if (loadMoreWrap) loadMoreWrap.style.display = hasMore ? "flex" : "none";
-          syncColumnsButtons();
-          return;
-        }
-
-        if (loadMoreWrap) loadMoreWrap.style.display = "none";
+        const hasMore = (pageIndex + 1) * pageSize < (Number(totalFiltered) || 0);
+        if (loadMoreWrap) loadMoreWrap.style.display = hasMore ? "flex" : "none";
 
         const pages = totalPagesCount(totalFiltered);
         const current = Math.min(pageIndex + 1, pages);
-
         if (pageLabelEl) pageLabelEl.textContent = `${current} of ${pages}`;
         if (prevPageBtn) prevPageBtn.disabled = pageIndex <= 0;
         if (nextPageBtn) nextPageBtn.disabled = pageIndex + 1 >= pages;
-
-        if (pager) pager.style.display = pages > 1 ? "flex" : "none";
         syncColumnsButtons();
       }
 
@@ -1380,18 +1454,19 @@ if (modeToggleBtn) {
         updateNavUI(filtered.length);
       }
 
-      function renderDailyDealsNow() {
+      function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
         if (!dailyDealsGrid) return;
 
         const sourceDeals = selectedStore ? lastAllDeals : lastDailyDeals;
         if (!sourceDeals || !sourceDeals.length) return;
 
         const filtered = getFilteredAndSorted(sourceDeals);
+        if (resetPage) pageIndex = 0;
         const pageSize = getPageSize();
-        const start = isMobilePortrait() ? 0 : pageIndex * pageSize;
-        const slice = isMobilePortrait() ? filtered : filtered.slice(start, start + pageSize);
+        const start = pageIndex * pageSize;
+        const slice = filtered.slice(start, start + pageSize);
 
-        dailyDealsGrid.innerHTML = "";
+        if (!append) dailyDealsGrid.innerHTML = "";
         slice.forEach((item) => dailyDealsGrid.appendChild(createDealCard(item)));
 
         if (dailyDeals) dailyDeals.style.display = filtered.length ? "block" : "none";
@@ -1431,10 +1506,13 @@ if (modeToggleBtn) {
 });
 
 
-      if (panelStoreSelect) {
-        panelStoreSelect.addEventListener("change", () => {
-          selectedStore = panelStoreSelect.value || "";
+      panelStoreSelects.forEach((storeSelectEl) => {
+        storeSelectEl.addEventListener("change", () => {
+          selectedStore = storeSelectEl.value || "";
           pageIndex = 0;
+          panelStoreSelects.forEach((otherSelect) => {
+            if (otherSelect !== storeSelectEl) otherSelect.value = selectedStore;
+          });
 
           if (selectedStore) {
             renderSelectedStoreInventory();
@@ -1447,17 +1525,22 @@ if (modeToggleBtn) {
             if (dailyDeals) dailyDeals.style.display = "block";
           }
         });
-      }
+      });
 
       if (loadMoreBtn) {
         loadMoreBtn.addEventListener("click", () => {
-          const filtered = getFilteredAndSorted(lastSearchResults);
+          const showingDailyDeals = dailyDeals && dailyDeals.style.display !== "none";
+          const sourceItems = showingDailyDeals
+            ? (selectedStore ? lastAllDeals : lastDailyDeals)
+            : lastSearchResults;
+          const filtered = getFilteredAndSorted(sourceItems || []);
           const total = filtered.length;
           const hasMore = (pageIndex + 1) * getPageSize() < total;
           if (!hasMore) return;
 
           pageIndex++;
-          renderFilteredResults({ resetPage: false, append: true });
+          if (showingDailyDeals) renderDailyDealsNow({ resetPage: false, append: true });
+          else renderFilteredResults({ resetPage: false, append: true });
         });
       }
 
