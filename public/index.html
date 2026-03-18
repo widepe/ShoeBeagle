@@ -196,14 +196,6 @@
             <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
             <span>Dark mode</span>
           </button>
-          <div class="slide-cols-row" aria-label="Visible columns control">
-            <span class="slide-subheading">Columns:</span>
-            <span class="slide-cols-value" id="panelColsValue">0</span>
-            <div class="slide-cols-controls">
-              <button type="button" class="slide-cols-btn" id="panelColsDown" aria-label="Decrease columns">▼</button>
-              <button type="button" class="slide-cols-btn" id="panelColsUp" aria-label="Increase columns">▲</button>
-            </div>
-          </div>
         </div>
 
         <hr class="slide-divider" />
@@ -293,9 +285,6 @@ const modeToggleIcon = document.getElementById("modeToggleIcon");
       const panelGenderOptions = Array.from(document.querySelectorAll("[data-panel-gender]"));
       const panelSortOptions = Array.from(document.querySelectorAll("[data-panel-sort]"));
       const panelThemeOptions = Array.from(document.querySelectorAll("[data-panel-theme]"));
-      const panelColsValue = document.getElementById("panelColsValue");
-      const panelColsDown = document.getElementById("panelColsDown");
-      const panelColsUp = document.getElementById("panelColsUp");
 
       const PAGE_SIZE = 12;
       let pageIndex = 0;
@@ -308,117 +297,9 @@ const modeToggleIcon = document.getElementById("modeToggleIcon");
       const loadMoreWrap = document.getElementById("loadMoreWrap");
       const loadMoreBtn = document.getElementById("loadMoreBtn");
       const toTopBtn = document.getElementById("toTopBtn");
-      const rootStyle = document.documentElement.style;
-      const COLS_STORAGE_KEY = "sb-visible-cols";
-      const GRID_GAP = 14;
-      const CARD_MIN_W = 120;
-      const CARD_MAX_W = 240;
-
-      const scrollLockState = { panel: false, alert: false };
-      window.__sbSetScrollLock = (key, locked) => {
-        scrollLockState[key] = !!locked;
-        document.body.classList.toggle("no-page-scroll", scrollLockState.panel || scrollLockState.alert);
-      };
 
       function isMobilePortrait() {
         return window.matchMedia("(max-width: 560px) and (orientation: portrait)").matches;
-      }
-      function isLandscape() {
-        return window.matchMedia("(orientation: landscape)").matches;
-      }
-      function getViewportDefaultCols() {
-        const w = window.innerWidth || document.documentElement.clientWidth || 0;
-        if (w >= 1440) return 8; // desktop
-        if (w >= 1024 && w <= 1439) return 7; // laptop
-        if (w >= 820 && w <= 1023 && isLandscape()) return 6; // tablet landscape
-        if (w >= 768 && w <= 819 && !isLandscape()) return 4; // tablet portrait
-        if (w <= 819 && isLandscape()) return 3; // mobile landscape
-        return 4;
-      }
-      function getGridInnerWidth(gridEl) {
-        if (!gridEl) return 0;
-        const styles = window.getComputedStyle(gridEl);
-        const leftPad = parseFloat(styles.paddingLeft) || 0;
-        const rightPad = parseFloat(styles.paddingRight) || 0;
-        return Math.max(0, gridEl.clientWidth - leftPad - rightPad);
-      }
-      function clampColsToCardRules(cols, innerWidth) {
-        const width = Math.max(0, Number(innerWidth) || 0);
-        const requested = Math.max(1, Math.round(Number(cols) || 1));
-        const minCols = Math.max(1, Math.ceil((width + GRID_GAP) / (CARD_MAX_W + GRID_GAP)));
-        const maxCols = Math.max(1, Math.floor((width + GRID_GAP) / (CARD_MIN_W + GRID_GAP)));
-        const boundedMin = Math.min(minCols, maxCols);
-        return Math.max(boundedMin, Math.min(requested, maxCols));
-      }
-
-      let userVisibleCols = (() => {
-        try {
-          const saved = Number(localStorage.getItem(COLS_STORAGE_KEY));
-          return Number.isFinite(saved) && saved >= 1 ? Math.round(saved) : null;
-        } catch {
-          return null;
-        }
-      })();
-      let activeVisibleCols = 1;
-
-      function getCurrentCols() {
-        if (isMobilePortrait()) return 1;
-        const width = Math.max(getGridInnerWidth(resultsEl), getGridInnerWidth(dailyDealsGrid));
-        const preferred = userVisibleCols ?? getViewportDefaultCols();
-        return clampColsToCardRules(preferred, width);
-      }
-      function applyVisibleCols() {
-        activeVisibleCols = getCurrentCols();
-        rootStyle.setProperty("--visible-cols", String(activeVisibleCols));
-        if (panelColsValue) panelColsValue.textContent = String(activeVisibleCols);
-      }
-      function persistVisibleCols(cols) {
-        try {
-          localStorage.setItem(COLS_STORAGE_KEY, String(cols));
-        } catch {}
-      }
-      function changeVisibleCols(delta) {
-        if (isMobilePortrait()) return;
-        const base = userVisibleCols ?? activeVisibleCols ?? getViewportDefaultCols();
-        const next = clampColsToCardRules(base + delta, Math.max(getGridInnerWidth(resultsEl), getGridInnerWidth(dailyDealsGrid)));
-        if (next === base) return;
-        userVisibleCols = next;
-        persistVisibleCols(next);
-        applyVisibleCols();
-        updateNavUI(getFilteredAndSorted(lastSearchResults).length);
-      }
-      function getActiveArrowGrid() {
-        const resultsHasCards = !!resultsEl?.children?.length;
-        const dealsHasCards = !!dailyDealsGrid?.children?.length && dailyDeals?.style.display !== "none";
-        if (resultsHasCards) return resultsEl;
-        if (dealsHasCards) return dailyDealsGrid;
-        return resultsEl;
-      }
-      function getScrollStep(gridEl) {
-        if (!gridEl) return 0;
-        const styles = window.getComputedStyle(gridEl);
-        const cardWidth = parseFloat(styles.getPropertyValue("--card-box-w")) || 0;
-        return Math.max(cardWidth + GRID_GAP, gridEl.clientWidth * 0.85);
-      }
-      function scrollActiveGrid(direction) {
-        const gridEl = getActiveArrowGrid();
-        if (!gridEl) return;
-        gridEl.scrollBy({ left: direction * getScrollStep(gridEl), behavior: "smooth" });
-      }
-      function syncArrowButtons() {
-        if (isMobilePortrait()) return;
-        const pager = document.querySelector(".pager");
-        const gridEl = getActiveArrowGrid();
-        if (!gridEl || !gridEl.children.length) {
-          if (pager) pager.style.display = "none";
-          return;
-        }
-        const maxScroll = Math.max(0, gridEl.scrollWidth - gridEl.clientWidth);
-        const hasOverflow = maxScroll > 2;
-        if (pager) pager.style.display = hasOverflow ? "flex" : "none";
-        if (pageLabelEl) pageLabelEl.textContent = "Scroll";
-        if (prevPageBtn) prevPageBtn.disabled = !hasOverflow || gridEl.scrollLeft <= 1;
-        if (nextPageBtn) nextPageBtn.disabled = !hasOverflow || gridEl.scrollLeft >= maxScroll - 1;
       }
 
       function runPagerTransitionThen(fn) {
@@ -520,14 +401,12 @@ if (modeToggleBtn) {
         slidePanelBackdrop.classList.add("open");
         slidePanelBackdrop.setAttribute("aria-hidden", "false");
         if (menuBtn) menuBtn.setAttribute("aria-expanded", "true");
-        window.__sbSetScrollLock?.("panel", true);
       }
       function closePanel() {
         if (!slidePanelBackdrop) return;
         slidePanelBackdrop.classList.remove("open");
         slidePanelBackdrop.setAttribute("aria-hidden", "true");
         if (menuBtn) menuBtn.setAttribute("aria-expanded", "false");
-        window.__sbSetScrollLock?.("panel", false);
       }
       function togglePanel() {
         if (isPanelOpen()) closePanel();
@@ -1290,7 +1169,15 @@ if (modeToggleBtn) {
         }
 
         if (loadMoreWrap) loadMoreWrap.style.display = "none";
-        syncArrowButtons();
+
+        const pages = totalPagesCount(totalFiltered);
+        const current = Math.min(pageIndex + 1, pages);
+
+        if (pageLabelEl) pageLabelEl.textContent = `${current} of ${pages}`;
+        if (prevPageBtn) prevPageBtn.disabled = pageIndex <= 0;
+        if (nextPageBtn) nextPageBtn.disabled = pageIndex + 1 >= pages;
+
+        if (pager) pager.style.display = pages > 1 ? "flex" : "none";
       }
 
       function applyFilters(items) {
@@ -1348,15 +1235,12 @@ if (modeToggleBtn) {
         const filtered = getFilteredAndSorted(lastSearchResults);
 
         if (resetPage) pageIndex = 0;
-        if (!append) resultsEl.innerHTML = "";
 
-        if (isMobilePortrait()) {
-          const start = pageIndex * PAGE_SIZE;
-          const slice = filtered.slice(start, start + PAGE_SIZE);
-          slice.forEach((item) => resultsEl.appendChild(createDealCard(item)));
-        } else {
-          filtered.forEach((item) => resultsEl.appendChild(createDealCard(item)));
-        }
+        const start = pageIndex * PAGE_SIZE;
+        const slice = filtered.slice(start, start + PAGE_SIZE);
+
+        if (!append) resultsEl.innerHTML = "";
+        slice.forEach((item) => resultsEl.appendChild(createDealCard(item)));
 
         const displayQuery =
           [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() ||
@@ -1384,7 +1268,6 @@ if (modeToggleBtn) {
         filtered.forEach((item) => dailyDealsGrid.appendChild(createDealCard(item)));
 
         if (dailyDeals) dailyDeals.style.display = filtered.length ? "block" : "none";
-        syncArrowButtons();
       }
 
       panelGenderOptions.forEach((option) => {
@@ -1452,10 +1335,6 @@ if (modeToggleBtn) {
 
       if (prevPageBtn) {
         prevPageBtn.addEventListener("click", () => {
-          if (!isMobilePortrait()) {
-            scrollActiveGrid(-1);
-            return;
-          }
           if (pageIndex <= 0) return;
 
           runPagerTransitionThen(() => {
@@ -1468,10 +1347,6 @@ if (modeToggleBtn) {
 
       if (nextPageBtn) {
         nextPageBtn.addEventListener("click", () => {
-          if (!isMobilePortrait()) {
-            scrollActiveGrid(1);
-            return;
-          }
           const filtered = getFilteredAndSorted(lastSearchResults);
           const pages = totalPagesCount(filtered.length);
           if (pageIndex >= pages - 1) return;
@@ -1627,12 +1502,6 @@ if (modeToggleBtn) {
 
       loadDailyDeals();
       loadDealsSuggestionIndex();
-      applyVisibleCols();
-
-      panelColsDown?.addEventListener("click", () => changeVisibleCols(-1));
-      panelColsUp?.addEventListener("click", () => changeVisibleCols(1));
-      resultsEl?.addEventListener("scroll", syncArrowButtons, { passive: true });
-      dailyDealsGrid?.addEventListener("scroll", syncArrowButtons, { passive: true });
 
       function updateToTopVisibility() {
         if (!toTopBtn) return;
@@ -1645,11 +1514,7 @@ if (modeToggleBtn) {
       }
 
       window.addEventListener("scroll", updateToTopVisibility, { passive: true });
-      window.addEventListener("resize", () => {
-        applyVisibleCols();
-        updateToTopVisibility();
-        syncArrowButtons();
-      });
+      window.addEventListener("resize", updateToTopVisibility);
       updateToTopVisibility();
 
       if (toTopBtn) {
@@ -2307,7 +2172,7 @@ if (modeToggleBtn) {
 
         backdrop.classList.add("open");
         backdrop.setAttribute("aria-hidden", "false");
-        window.__sbSetScrollLock?.("alert", true);
+        document.body.style.overflow = "hidden";
 
         syncStepUI({ focusNext: true });
       }
@@ -2316,7 +2181,7 @@ if (modeToggleBtn) {
         closeSuggestions();
         backdrop.classList.remove("open");
         backdrop.setAttribute("aria-hidden", "true");
-        window.__sbSetScrollLock?.("alert", false);
+        document.body.style.overflow = "";
         clearNextHighlight();
         if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
       }
