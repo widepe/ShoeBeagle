@@ -439,26 +439,71 @@ html[data-theme="dark"] .sidebar-placeholder{
 }
 
 .rss-meta{
-  display:flex;
-  justify-content:space-between;
-  gap:8px;
-  font-size:0.75rem;
-  color:var(--meta-color);
+  display:none;
 }
 
 .rss-row{
-  display:flex;
-  gap:10px;
-  align-items:flex-start;
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) 90px;
+  grid-template-areas:
+    "title thumb"
+    "date  thumb"
+    "desc  source";
+  column-gap:10px;
+  row-gap:6px;
+  align-items:start;
   min-width:0;
 }
 
 .rss-thumbWrap{
+  grid-area:thumb;
   width:90px;
   height:78px;
-  flex:0 0 90px;
   border-radius:10px;
   overflow:hidden;
+  justify-self:end;
+  align-self:start;
+}
+
+.rss-content{
+  display:contents;
+}
+
+.rss-title{
+  grid-area:title;
+  margin:0;
+  font-size:0.9rem;
+  line-height:1.3;
+  font-weight:700;
+  min-width:0;
+}
+
+.rss-desc{
+  grid-area:desc;
+  margin:0;
+  font-size:0.82rem;
+  line-height:1.35;
+  color:var(--meta-color);
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:3;
+  overflow:hidden;
+}
+
+.rss-linkRow{
+  display:contents;
+}
+
+.rss-linkRow a{
+  display:none;
+}
+
+.rss-tabNote{
+  grid-area:source;
+  color:var(--meta-color);
+  font-size:0.72rem;
+  justify-self:end;
+  text-align:right;
 }
 
 .rss-thumb{
@@ -471,11 +516,6 @@ html[data-theme="dark"] .sidebar-placeholder{
 .rss-thumb.is-logo{
   object-fit:cover;
   padding:0;
-}
-
-.rss-content{
-  flex:1;
-  min-width:0;
 }
 
 .rss-title{
