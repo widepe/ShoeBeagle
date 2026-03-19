@@ -400,11 +400,11 @@ html[data-theme="dark"] .sidebar-placeholder{
   background:rgba(var(--sb-blue-rgb) / 0.9);
 }
 #rssPrevBtn{
-  left:8px;
+  left:4px;
 }
 
 #rssNextBtn{
-  right:8px;    
+  right:4px;    
 }
 
 .rss-btn:disabled{
@@ -460,10 +460,10 @@ html[data-theme="dark"] .sidebar-placeholder{
   grid-template-columns:minmax(0, 1fr) 90px;
   grid-template-areas:
     "title thumb"
-    "date thumb"
+    "date source"
     "desc source";
   column-gap:10px;
-  row-gap:6px;
+  row-gap:0;
   align-items:start;
   min-width:0;
 }
@@ -487,14 +487,16 @@ html[data-theme="dark"] .sidebar-placeholder{
   grid-area:title;
   margin:0;
   font-size:0.9rem;
-  line-height:1.3;
+  line-height:1.2;
   font-weight:700;
   min-width:0;
 }
 .rss-date{
   grid-area:date;
   margin:0;
+  padding-top:0;
   font-size:0.75rem;
+  line-height:1.1;
   color:var(--meta-color);
 }
 .rss-desc{
@@ -510,19 +512,31 @@ html[data-theme="dark"] .sidebar-placeholder{
 }
 
 .rss-linkRow{
-  display:contents;
+  grid-area:source;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  gap:2px;
+  font-size:0.8rem;
+  text-align:center;
 }
 
 .rss-linkRow a{
-  display:none;
+  display:inline-block;
+  color:var(--sb-blue);
+  font-weight:700;
+  text-decoration:none;
+}
+.rss-linkRow a:hover{
+  text-decoration:underline;
 }
 
 .rss-tabNote{
-  grid-area:source;
   color:var(--meta-color);
   font-size:0.72rem;
-  justify-self:end;
-  text-align:right;
+  text-align:center;
 }
 
 .rss-thumb{
@@ -643,10 +657,13 @@ html[data-theme="dark"] .rss-state{
     --rss-card-width:min(88vw, 320px);
   }
 
+  .rss-row{
+    grid-template-columns:minmax(0, 1fr) 82px;
+  }
+
   .rss-thumbWrap{
     width:82px;
     height:72px;
-    flex-basis:82px;
   }
 }
 
