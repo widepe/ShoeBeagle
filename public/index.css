@@ -1302,7 +1302,6 @@ html[data-theme="dark"] .chip{
   /* ── all card metrics derived from live --card-box-w ── */
   --card-pad:           calc(var(--card-box-w) * 0.05);
   --card-gap:           calc(var(--card-box-w) * 0.0329670330);
-  /* --card-content-gap:   calc(var(--card-box-w) * 0.0274725275); */
 
   --card-title-size:    calc(var(--card-box-w) * 0.075);
   --card-store-size:    calc(var(--card-box-w) * 0.070);
@@ -1423,7 +1422,6 @@ html[data-theme="dark"] .card-tag{
 .card-content{
   display:flex;
   flex-direction:column;
-  gap:var(--card-content-gap);
   flex:1;
   min-width:0;
 }
