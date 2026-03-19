@@ -148,11 +148,9 @@
       readLink.addEventListener('click', (event) => event.preventDefault());
     }
 
-    const tabNote = document.createElement('span');
-    tabNote.className = 'rss-tabNote';
-    tabNote.textContent = articleUrl ? 'opens new tab' : '';
 
-    linkRow.append(readLink, tabNote);
+
+    linkRow.append(readLink);
 
     article.append(meta, row, linkRow);
     return article;
