@@ -1,31 +1,20 @@
 // /api/scrapers/tc-running-co.js
-// CommonJS Vercel API route
+// Shopify JSON endpoint scraper for TC Running Co
 
-const cheerio = require("cheerio");
 const { put } = require("@vercel/blob");
 
 export const config = { maxDuration: 60 };
 
 const STORE = "TC Running Co";
 const SCHEMA_VERSION = 1;
-const VIA = "fetch-html";
+const VIA = "shopify-products-json";
+
+const START_URL =
+  "https://tcrunningco.com/collections/hawks-spot-flying-good-deals/products.json";
+
 const BLOB_URL =
   process.env.TCRUNNINGCO_DEALS_BLOB_URL ||
   "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/tc-running-co.json";
-
-const START_URL =
-  "https://tcrunningco.com/collections/hawks-spot-flying-good-deals" +
-  "?filter.p.m.custom.gender=Unisex" +
-  "&filter.p.m.custom.gender=Women" +
-  "&filter.p.m.custom.gender=Men" +
-  "&filter.p.m.custom.running_type=Track+and+Field" +
-  "&filter.p.m.custom.running_type=Cross+Country" +
-  "&filter.p.m.custom.running_type=Distance%2FMid-Distance" +
-  "&filter.p.m.custom.running_type=Sprints" +
-  "&filter.p.m.custom.running_type=Trail+Running" +
-  "&filter.p.m.custom.running_type=Road" +
-  "&filter.p.m.custom.running_type=Racing" +
-  "&filter.v.availability=1";
 
 const HIDDEN_PRICE_PATTERNS = [
   /see\s+price\s+in\s+cart/i,
@@ -45,25 +34,18 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function cleanText(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
+function cleanText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
 }
 
-function absUrl(url) {
-  if (!url) return null;
-  if (/^https?:\/\//i.test(url)) return url;
-  if (url.startsWith("//")) return `https:${url}`;
-  if (url.startsWith("/")) return `https://tcrunningco.com${url}`;
-  return `https://tcrunningco.com/${url.replace(/^\/+/, "")}`;
+function stripHtml(html) {
+  return cleanText(String(html || "").replace(/<[^>]*>/g, " "));
 }
 
-function parsePrice(text) {
-  if (!text) return null;
-  const cleaned = String(text).replace(/,/g, "");
-  const match = cleaned.match(/\$?\s*(\d+(?:\.\d{1,2})?)/);
-  if (!match) return null;
-  const n = Number(match[1]);
-  return Number.isFinite(n) ? n : null;
+function parseMoney(value) {
+  if (value == null || value === "") return null;
+  const n = Number(String(value).replace(/,/g, "").replace(/^\$/, "").trim());
+  return Number.isFinite(n) ? Number(n.toFixed(2)) : null;
 }
 
 function roundDiscountPercent(salePrice, originalPrice) {
@@ -78,29 +60,25 @@ function roundDiscountPercent(salePrice, originalPrice) {
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
 }
 
-function hasHiddenPrice(text) {
+function hasHiddenPriceText(text) {
   const t = cleanText(text);
   return HIDDEN_PRICE_PATTERNS.some((re) => re.test(t));
 }
 
-function inferGender({ title = "", url = "", description = "" }) {
-  const hay = `${title} ${url} ${description}`.toLowerCase();
-
-  if (/\bunisex\b/.test(hay)) return "unisex";
-  if (/\bmen['’]s\b|\bmens\b|\bmen\b/.test(hay)) return "mens";
-  if (/\bwomen['’]s\b|\bwomens\b|\bwomen\b/.test(hay)) return "womens";
-
-  return "unknown";
+function uniqNumbers(nums) {
+  return [...new Set(nums.filter((n) => Number.isFinite(n)).map((n) => Number(n.toFixed(2))))];
 }
 
-function inferShoeTypeFromSignals({ productType = "", tags = [], url = "", title = "" }) {
-  const hay = `${productType} ${Array.isArray(tags) ? tags.join(" ") : ""} ${url} ${title}`.toLowerCase();
+function minNum(nums) {
+  return nums.length ? Math.min(...nums) : null;
+}
 
-  if (/\btrail\b/.test(hay)) return "trail";
-  if (/\btrack\b|\btrack\s*&\s*field\b|\btrack\s+and\s+field\b/.test(hay)) return "track";
-  if (/\broad\b/.test(hay)) return "road";
+function maxNum(nums) {
+  return nums.length ? Math.max(...nums) : null;
+}
 
-  return "unknown";
+function escapeRegex(s) {
+  return String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function parseBrandModel(listingName, vendor) {
@@ -110,8 +88,8 @@ function parseBrandModel(listingName, vendor) {
   let model = title;
   model = model.replace(/^(men['’]s|mens|women['’]s|womens|unisex)\s+/i, "").trim();
 
-  const escapedBrand = brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  model = model.replace(new RegExp(`^${escapedBrand}\\s+`, "i"), "").trim();
+  const brandRe = new RegExp(`^${escapeRegex(brand)}\\s+`, "i");
+  model = model.replace(brandRe, "").trim();
 
   return {
     brand: brand || "Unknown",
@@ -119,100 +97,127 @@ function parseBrandModel(listingName, vendor) {
   };
 }
 
-function parseEmbeddedProductJson($, card) {
-  const out = {
-    productType: "",
-    tags: [],
-  };
+function inferGender(product) {
+  const tags = Array.isArray(product.tags) ? product.tags.join(" ") : "";
+  const hay = `${product.title || ""} ${tags} ${product.product_type || ""} ${product.handle || ""}`.toLowerCase();
 
-  $(card)
-    .find('script[type="application/json"], script[type="application/ld+json"]')
-    .each((_, el) => {
-      const raw = $(el).html();
-      if (!raw) return;
+  if (/\bunisex\b/.test(hay)) return "unisex";
+  if (/\bmen['’]s\b|\bmens\b|\bmen\b/.test(hay)) return "mens";
+  if (/\bwomen['’]s\b|\bwomens\b|\bwomen\b/.test(hay)) return "womens";
 
-      try {
-        const parsed = JSON.parse(raw);
+  return "unknown";
+}
 
-        const walk = (node) => {
-          if (!node || typeof node !== "object") return;
+function inferShoeType(product) {
+  const tags = Array.isArray(product.tags) ? product.tags.join(" ") : "";
+  const hay = `${product.product_type || ""} ${tags}`.toLowerCase();
 
-          if (typeof node.product_type === "string" && !out.productType) {
-            out.productType = node.product_type;
-          }
+  if (/\btrail\b/.test(hay)) return "trail";
+  if (/\broad\b/.test(hay)) return "road";
 
-          if (typeof node.productType === "string" && !out.productType) {
-            out.productType = node.productType;
-          }
+  if (
+    /\btrack\b/.test(hay) ||
+    /\btrack\s*&\s*field\b/.test(hay) ||
+    /\btrack\s+and\s+field\b/.test(hay) ||
+    /\bcross\s+country\b/.test(hay) ||
+    /\bsprints?\b/.test(hay) ||
+    /\bdistance\/mid-distance\b/.test(hay) ||
+    /\bdistance\b/.test(hay) ||
+    /\bmid-distance\b/.test(hay) ||
+    /\bspike\b/.test(hay)
+  ) {
+    return "track";
+  }
 
-          if (Array.isArray(node.tags) && !out.tags.length) {
-            out.tags = node.tags.filter(Boolean).map(String);
-          }
+  return "unknown";
+}
 
-          for (const value of Object.values(node)) {
-            if (value && typeof value === "object") walk(value);
-          }
-        };
+function isFootwearProduct(product) {
+  const tags = Array.isArray(product.tags) ? product.tags.join(" ") : "";
+  const body = stripHtml(product.body_html);
+  const hay = `${product.title || ""} ${product.product_type || ""} ${tags} ${body}`.toLowerCase();
 
-        walk(parsed);
-      } catch {
-        // ignore invalid JSON blocks
+  const explicitNonFootwear =
+    /\b(apparel|jacket|shorts|tights|singlet|bra|shirt|hoodie|pants|gloves|hat|socks?|sunglasses|belt|bottle|pack|vest)\b/.test(
+      hay
+    );
+
+  const explicitFootwear =
+    /\bfootwear\b/.test(String(product.product_type || "").toLowerCase()) ||
+    /\bshoe\b/.test(hay) ||
+    /\bspike\b/.test(hay) ||
+    /\btrainer\b/.test(hay) ||
+    /\bsneaker\b/.test(hay) ||
+    /\bclog\b/.test(hay);
+
+  if (explicitNonFootwear && !explicitFootwear) return false;
+  return explicitFootwear;
+}
+
+function getImageUrl(product) {
+  if (Array.isArray(product.images) && product.images.length) {
+    const src = product.images[0] && product.images[0].src;
+    if (src) return src;
+  }
+
+  if (Array.isArray(product.variants)) {
+    for (const variant of product.variants) {
+      if (variant && variant.featured_image && variant.featured_image.src) {
+        return variant.featured_image.src;
       }
-    });
-
-  return out;
-}
-
-function getNextPageUrl($, currentUrl) {
-  const candidates = [];
-
-  $('link[rel="next"]').each((_, el) => {
-    const href = $(el).attr("href");
-    if (href) candidates.push(href);
-  });
-
-  $('a[rel="next"], .pagination a, nav[aria-label*="Pagination"] a').each((_, el) => {
-    const href = $(el).attr("href");
-    const text = cleanText($(el).text());
-    const aria = cleanText($(el).attr("aria-label"));
-    if (href && (/next/i.test(text) || /next/i.test(aria))) {
-      candidates.push(href);
     }
-  });
-
-  for (const href of candidates) {
-    const full = absUrl(href);
-    if (full && full !== currentUrl) return full;
   }
 
-  try {
-    const u = new URL(currentUrl);
-    const currentPage = Number(u.searchParams.get("page") || "1");
-    u.searchParams.set("page", String(currentPage + 1));
-    return u.toString();
-  } catch {
-    return null;
-  }
+  return null;
 }
 
-async function fetchHtml(url, attempt = 1) {
+function buildListingUrl(product) {
+  if (!product || !product.handle) return null;
+  return `https://tcrunningco.com/products/${product.handle}`;
+}
+
+function summarizeVariantPricing(product) {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+
+  const availableVariants = variants.filter((v) => v && v.available === true);
+  const discountedAvailableVariants = availableVariants
+    .map((v) => {
+      const salePrice = parseMoney(v.price);
+      const originalPrice = parseMoney(v.compare_at_price);
+      return { salePrice, originalPrice, raw: v };
+    })
+    .filter(
+      (v) =>
+        Number.isFinite(v.salePrice) &&
+        Number.isFinite(v.originalPrice) &&
+        v.salePrice < v.originalPrice
+    );
+
+  return {
+    totalVariants: variants.length,
+    availableVariants: availableVariants.length,
+    discountedAvailableVariants,
+  };
+}
+
+async function fetchJson(url, attempt = 1) {
   const resp = await fetch(url, {
     headers: {
       "user-agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+      accept: "application/json,text/plain,*/*",
       "accept-language": "en-US,en;q=0.9",
-      accept: "text/html,application/xhtml+xml",
       "cache-control": "no-cache",
       pragma: "no-cache",
+      referer: "https://tcrunningco.com/",
     },
   });
 
   if (resp.status === 429) {
-    if (attempt <= 3) {
-      const wait = 1500 * attempt;
-      console.warn(`TC Running Co: 429 hit for ${url}, retrying in ${wait}ms...`);
+    if (attempt <= 6) {
+      const wait = 2500 * attempt + Math.floor(Math.random() * 1000);
       await sleep(wait);
-      return fetchHtml(url, attempt + 1);
+      return fetchJson(url, attempt + 1);
     }
     throw new Error(`Fetch failed 429 after retries for ${url}`);
   }
@@ -221,7 +226,7 @@ async function fetchHtml(url, attempt = 1) {
     throw new Error(`Fetch failed ${resp.status} for ${url}`);
   }
 
-  return await resp.text();
+  return await resp.json();
 }
 
 module.exports = async function handler(req, res) {
@@ -233,58 +238,59 @@ module.exports = async function handler(req, res) {
   //   return res.status(401).json({ success: false, error: "Unauthorized" });
   // }
 
-  const visited = new Set();
   const sourceUrls = [];
   const allDeals = [];
   const pageSummaries = [];
 
   const dropCounts = {
-    totalTiles: 0,
+    totalProducts: 0,
+    dropped_notFootwear: 0,
     dropped_hiddenPrice: 0,
     dropped_missingListingName: 0,
     dropped_missingListingURL: 0,
     dropped_missingImageURL: 0,
+    dropped_noAvailableVariants: 0,
     dropped_missingOriginalPrice: 0,
     dropped_missingSalePrice: 0,
     dropped_saleNotLessThanOriginal: 0,
     dropped_duplicateAfterMerge: 0,
   };
 
-  const genderCounts = {
-    mens: 0,
-    womens: 0,
-    unisex: 0,
-    unknown: 0,
-  };
-
-  let dealsFound = 0;
+  let page = 1;
   let pagesFetched = 0;
-  let currentUrl = START_URL;
+  let dealsFound = 0;
   const MAX_PAGES = 100;
 
   try {
-    while (currentUrl && !visited.has(currentUrl) && pagesFetched < MAX_PAGES) {
-      visited.add(currentUrl);
-      sourceUrls.push(currentUrl);
+    while (page <= MAX_PAGES) {
+      const pageUrl = `${START_URL}?page=${page}`;
+      let payload;
 
-      const html = await fetchHtml(currentUrl);
-      const $ = cheerio.load(html);
+      try {
+        payload = await fetchJson(pageUrl);
+      } catch (err) {
+        if (String(err?.message || err).includes("429")) break;
+        throw err;
+      }
 
-      const $cards = $('.productgrid--item[data-product-item]');
-      if (!$cards.length) break;
+      const products = Array.isArray(payload?.products) ? payload.products : [];
+      if (!products.length) break;
 
+      sourceUrls.push(pageUrl);
       pagesFetched += 1;
 
       const pageSummary = {
-        page: pagesFetched,
-        url: currentUrl,
-        tilesFound: $cards.length,
+        page,
+        url: pageUrl,
+        productsFound: products.length,
         extracted: 0,
         dropped: {
+          notFootwear: 0,
           hiddenPrice: 0,
           missingListingName: 0,
           missingListingURL: 0,
           missingImageURL: 0,
+          noAvailableVariants: 0,
           missingOriginalPrice: 0,
           missingSalePrice: 0,
           saleNotLessThanOriginal: 0,
@@ -298,123 +304,135 @@ module.exports = async function handler(req, res) {
         },
       };
 
-      $cards.each((_, card) => {
-        dropCounts.totalTiles += 1;
+      for (const product of products) {
+        dropCounts.totalProducts += 1;
         dealsFound += 1;
 
-        const cardText = cleanText($(card).text());
-
-        if (hasHiddenPrice(cardText)) {
-          dropCounts.dropped_hiddenPrice += 1;
-          pageSummary.dropped.hiddenPrice += 1;
-          return;
-        }
-
-        const title = cleanText(
-          $(card).find(".productitem--title a, .productitem--title").first().text()
-        );
-        if (!title) {
+        const listingName = cleanText(product.title);
+        if (!listingName) {
           dropCounts.dropped_missingListingName += 1;
           pageSummary.dropped.missingListingName += 1;
-          return;
+          continue;
         }
 
-        const href = $(card)
-          .find("a.productitem--image-link, .productitem--title a, a[data-product-page-link]")
-          .first()
-          .attr("href");
-        const listingURL = absUrl(href);
+        if (!isFootwearProduct(product)) {
+          dropCounts.dropped_notFootwear += 1;
+          pageSummary.dropped.notFootwear += 1;
+          continue;
+        }
 
+        const listingURL = buildListingUrl(product);
         if (!listingURL) {
           dropCounts.dropped_missingListingURL += 1;
           pageSummary.dropped.missingListingURL += 1;
-          return;
+          continue;
         }
 
-        const imageURL = absUrl(
-          $(card).find(".productitem--image-primary").first().attr("src") ||
-            $(card).find(".productitem--image-alternate").first().attr("src") ||
-            $(card).find("img").first().attr("src")
-        );
-
+        const imageURL = getImageUrl(product);
         if (!imageURL) {
           dropCounts.dropped_missingImageURL += 1;
           pageSummary.dropped.missingImageURL += 1;
-          return;
+          continue;
         }
 
-        const vendor = cleanText($(card).find(".productitem--vendor").first().text());
+        const searchableText = [
+          product.title,
+          product.product_type,
+          Array.isArray(product.tags) ? product.tags.join(" ") : "",
+          stripHtml(product.body_html),
+        ].join(" ");
 
-        const compareAtText = cleanText(
-          $(card).find(".price__compare-at .money, .price__compare-at--single").first().text()
-        );
-        const currentText = cleanText(
-          $(card).find(".price__current .money, .price__current--on-sale .money").first().text()
-        );
-
-        if (hasHiddenPrice(`${compareAtText} ${currentText}`)) {
+        if (hasHiddenPriceText(searchableText)) {
           dropCounts.dropped_hiddenPrice += 1;
           pageSummary.dropped.hiddenPrice += 1;
-          return;
+          continue;
         }
 
-        const originalPrice = parsePrice(compareAtText);
-        if (!Number.isFinite(originalPrice)) {
-          dropCounts.dropped_missingOriginalPrice += 1;
-          pageSummary.dropped.missingOriginalPrice += 1;
-          return;
+        const pricing = summarizeVariantPricing(product);
+
+        if (!pricing.availableVariants) {
+          dropCounts.dropped_noAvailableVariants += 1;
+          pageSummary.dropped.noAvailableVariants += 1;
+          continue;
         }
 
-        const salePrice = parsePrice(currentText);
-        if (!Number.isFinite(salePrice)) {
-          dropCounts.dropped_missingSalePrice += 1;
-          pageSummary.dropped.missingSalePrice += 1;
-          return;
-        }
+        if (!pricing.discountedAvailableVariants.length) {
+          const availableSalePrices = pricing.availableVariants
+            ? (product.variants || [])
+                .filter((v) => v && v.available === true)
+                .map((v) => parseMoney(v.price))
+                .filter((n) => Number.isFinite(n))
+            : [];
 
-        if (!(salePrice < originalPrice)) {
+          const availableOriginalPrices = pricing.availableVariants
+            ? (product.variants || [])
+                .filter((v) => v && v.available === true)
+                .map((v) => parseMoney(v.compare_at_price))
+                .filter((n) => Number.isFinite(n))
+            : [];
+
+          if (!availableSalePrices.length) {
+            dropCounts.dropped_missingSalePrice += 1;
+            pageSummary.dropped.missingSalePrice += 1;
+            continue;
+          }
+
+          if (!availableOriginalPrices.length) {
+            dropCounts.dropped_missingOriginalPrice += 1;
+            pageSummary.dropped.missingOriginalPrice += 1;
+            continue;
+          }
+
           dropCounts.dropped_saleNotLessThanOriginal += 1;
           pageSummary.dropped.saleNotLessThanOriginal += 1;
-          return;
+          continue;
         }
 
-        const description = cleanText($(card).find(".productitem--description").first().text());
-        const gender = inferGender({
-          title,
-          url: listingURL,
-          description,
-        });
+        const salePrices = uniqNumbers(
+          pricing.discountedAvailableVariants.map((v) => v.salePrice)
+        );
+        const originalPrices = uniqNumbers(
+          pricing.discountedAvailableVariants.map((v) => v.originalPrice)
+        );
+        const discounts = uniqNumbers(
+          pricing.discountedAvailableVariants.map((v) =>
+            roundDiscountPercent(v.salePrice, v.originalPrice)
+          )
+        );
 
-        const embeddedJsonSignals = parseEmbeddedProductJson($, card);
+        const hasSingleSale = salePrices.length === 1;
+        const hasSingleOriginal = originalPrices.length === 1;
+        const hasSingleDiscount = discounts.length === 1;
 
-        // Per your instruction: default unknown unless JSON/category signals tag it.
-        const shoeType = inferShoeTypeFromSignals({
-          productType: embeddedJsonSignals.productType,
-          tags: embeddedJsonSignals.tags,
-          url: "",
-          title: "",
-        });
-
-        const { brand, model } = parseBrandModel(title, vendor);
-        const discountPercent = roundDiscountPercent(salePrice, originalPrice);
+        const gender = inferGender(product);
+        const shoeType = inferShoeType(product);
+        const { brand, model } = parseBrandModel(listingName, product.vendor);
 
         const deal = {
           schemaVersion: SCHEMA_VERSION,
 
-          listingName: title,
+          listingName,
 
           brand,
           model,
 
-          salePrice,
-          originalPrice,
-          discountPercent,
+          salePrice: hasSingleSale ? salePrices[0] : null,
+          originalPrice: hasSingleOriginal ? originalPrices[0] : null,
+          discountPercent:
+            hasSingleSale && hasSingleOriginal && hasSingleDiscount
+              ? discounts[0]
+              : null,
 
-          salePriceLow: null,
-          salePriceHigh: null,
-          originalPriceLow: null,
-          originalPriceHigh: null,
-          discountPercentUpTo: null,
+          salePriceLow: hasSingleSale ? null : minNum(salePrices),
+          salePriceHigh: hasSingleSale ? null : maxNum(salePrices),
+
+          originalPriceLow: hasSingleOriginal ? null : minNum(originalPrices),
+          originalPriceHigh: hasSingleOriginal ? null : maxNum(originalPrices),
+
+          discountPercentUpTo:
+            hasSingleSale && hasSingleOriginal && hasSingleDiscount
+              ? null
+              : maxNum(discounts),
 
           store: STORE,
 
@@ -422,30 +440,20 @@ module.exports = async function handler(req, res) {
           imageURL,
 
           gender,
-          shoeType: shoeType || "unknown",
+          shoeType,
         };
 
         allDeals.push(deal);
-
-        if (genderCounts[gender] == null) genderCounts.unknown += 1;
-        else genderCounts[gender] += 1;
+        pageSummary.extracted += 1;
 
         if (pageSummary.genderCounts[gender] == null) pageSummary.genderCounts.unknown += 1;
         else pageSummary.genderCounts[gender] += 1;
-
-        pageSummary.extracted += 1;
-      });
+      }
 
       pageSummaries.push(pageSummary);
+      page += 1;
 
-      const nextUrl = getNextPageUrl($, currentUrl);
-      if (!nextUrl || visited.has(nextUrl)) break;
-
-      currentUrl = nextUrl;
-
-      await sleep(1000 + Math.random() * 800);
-
-      if ($cards.length < 24) break;
+      await sleep(250 + Math.floor(Math.random() * 350));
     }
 
     const deduped = [];
@@ -454,8 +462,12 @@ module.exports = async function handler(req, res) {
     for (const deal of allDeals) {
       const key = [
         deal.listingURL,
-        deal.salePrice,
-        deal.originalPrice,
+        deal.salePrice ?? "",
+        deal.originalPrice ?? "",
+        deal.salePriceLow ?? "",
+        deal.salePriceHigh ?? "",
+        deal.originalPriceLow ?? "",
+        deal.originalPriceHigh ?? "",
         deal.gender,
       ].join("||");
 
@@ -468,7 +480,7 @@ module.exports = async function handler(req, res) {
       deduped.push(deal);
     }
 
-    const finalGenderCounts = {
+    const genderCounts = {
       mens: 0,
       womens: 0,
       unisex: 0,
@@ -476,8 +488,8 @@ module.exports = async function handler(req, res) {
     };
 
     for (const deal of deduped) {
-      if (finalGenderCounts[deal.gender] == null) finalGenderCounts.unknown += 1;
-      else finalGenderCounts[deal.gender] += 1;
+      if (genderCounts[deal.gender] == null) genderCounts.unknown += 1;
+      else genderCounts[deal.gender] += 1;
     }
 
     const lastUpdated = nowIso();
@@ -495,10 +507,10 @@ module.exports = async function handler(req, res) {
 
       dealsFound,
       dealsExtracted: deduped.length,
-      mensDeals: finalGenderCounts.mens,
-      womensDeals: finalGenderCounts.womens,
-      unisexDeals: finalGenderCounts.unisex,
-      unknownDeals: finalGenderCounts.unknown,
+      mensDeals: genderCounts.mens,
+      womensDeals: genderCounts.womens,
+      unisexDeals: genderCounts.unisex,
+      unknownDeals: genderCounts.unknown,
 
       scrapeDurationMs,
 
@@ -528,11 +540,10 @@ module.exports = async function handler(req, res) {
 
       dealsFound,
       dealsExtracted: deduped.length,
-
-      mensDeals: finalGenderCounts.mens,
-      womensDeals: finalGenderCounts.womens,
-      unisexDeals: finalGenderCounts.unisex,
-      unknownDeals: finalGenderCounts.unknown,
+      mensDeals: genderCounts.mens,
+      womensDeals: genderCounts.womens,
+      unisexDeals: genderCounts.unisex,
+      unknownDeals: genderCounts.unknown,
 
       scrapeDurationMs,
 
@@ -549,8 +560,8 @@ module.exports = async function handler(req, res) {
       notes: [
         "HTTP response intentionally omits the deals array.",
         "Blob file contains top-level metadata plus deals array only.",
-        "Hidden-price tiles are skipped.",
-        "shoeType defaults to unknown unless JSON/category signals are present.",
+        "Hidden-price items are skipped if any hidden-price text appears in JSON fields.",
+        "shoeType defaults to unknown unless tags or product_type clearly indicate road, trail, or track.",
       ],
     });
   } catch (err) {
@@ -564,10 +575,10 @@ module.exports = async function handler(req, res) {
       pagesFetched,
       dealsFound,
       dealsExtracted: allDeals.length,
-      mensDeals: genderCounts.mens,
-      womensDeals: genderCounts.womens,
-      unisexDeals: genderCounts.unisex,
-      unknownDeals: genderCounts.unknown,
+      mensDeals: 0,
+      womensDeals: 0,
+      unisexDeals: 0,
+      unknownDeals: 0,
       scrapeDurationMs: Date.now() - startedAt,
       ok: false,
       error: err?.message || String(err),
