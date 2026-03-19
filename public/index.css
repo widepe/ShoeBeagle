@@ -507,7 +507,7 @@ html[data-theme="dark"] .sidebar-placeholder{
   text-decoration:none;
   display:-webkit-box;
   -webkit-box-orient:vertical;
-  -webkit-line-clamp:2;
+  -webkit-line-clamp:3;
   overflow:hidden;
 }
 
@@ -516,7 +516,7 @@ html[data-theme="dark"] .sidebar-placeholder{
 }
 
 .rss-date{
-  margin:0;
+  margin:4px;
   padding:0;
   font-size:0.75rem;
   line-height:1;
