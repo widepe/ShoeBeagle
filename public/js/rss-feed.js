@@ -86,7 +86,8 @@
       image.classList.add('is-logo');
     });
 
-    thumbWrap.appendChild(image);
+   thumbWrap.appendChild(image);
+thumbWrap.appendChild(linkRow);
 
     const content = document.createElement('div');
     content.className = 'rss-content';
@@ -148,7 +149,6 @@
 
     linkRow.append(source, readLink);
 
-    content.appendChild(linkRow);
 
     row.append(thumbWrap, content);
     article.append(row);
