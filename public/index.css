@@ -1682,20 +1682,24 @@ html[data-theme="dark"] .footer{
     margin-top:0;
   }
 
-  .top-right{
-    order:0;
-    width:100%;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    margin:0 0 6px 0;
-    max-width:none;
-    overflow:visible;
-    transition:none;
-    will-change:auto;
-    flex:0 0 auto;
-    align-self:stretch;
-  }
+.top-right{
+  order:0;
+  width:100%;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin:0 0 6px 0;
+  max-width:none;
+  overflow:visible;
+  transition:none;
+  will-change:auto;
+  flex:0 0 auto;
+  align-self:stretch;
+}
+
+.top-right .brand-logo{
+  margin-left:auto;
+}
 
   .top-left{
     order:1;
