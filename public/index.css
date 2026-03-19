@@ -387,11 +387,11 @@ html[data-theme="dark"] .sidebar-placeholder{
   background:rgba(var(--sb-blue-rgb) / 0.9);
 }
 #rssPrevBtn{
-  left:-14px;
+  left:14px;
 }
 
 #rssNextBtn{
-  right:-14px;
+  right:14px;
 }
 
 .rss-btn:disabled{
