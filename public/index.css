@@ -470,7 +470,6 @@ html[data-theme="dark"] .sidebar-placeholder{
   display:flex;
   flex-direction:column;
   align-items:center;
-  gap:4px;
 }
 
 .rss-content{
