@@ -266,8 +266,7 @@ module.exports = async function handler(req, res) {
 
   try {
     while (page <= MAX_PAGES) {
-      const pageUrl = `${START_URL}?page=${page}`;
-      let payload;
+const pageUrl = `${START_URL}?limit=250&page=${page}`;      let payload;
 
       try {
         payload = await fetchJson(pageUrl);
@@ -452,7 +451,7 @@ module.exports = async function handler(req, res) {
       pageSummaries.push(pageSummary);
       page += 1;
 
-      await sleep(250 + Math.floor(Math.random() * 350));
+
     }
 
     const deduped = [];
