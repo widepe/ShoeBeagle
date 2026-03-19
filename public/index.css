@@ -345,24 +345,21 @@ html[data-theme="dark"] .sidebar-placeholder{
    RECENT ARTICLES / RSS CAROUSEL
 ========================================================= */
 .rss-section{
+  position:relative;
   gap:10px;
 }
 
 .rss-head{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
+  display:block;
 }
 
 .rss-titleHead{
-  margin:0;
+  margin:0 0 8px 0;
   font-size:0.98rem;
 }
 
 .rss-controls{
-  display:flex;
-  gap:8px;
+  display:contents;
 }
 
 .rss-btn{
@@ -371,16 +368,28 @@ html[data-theme="dark"] .sidebar-placeholder{
   background:#fff;
   color:var(--sb-blue);
   border-radius:10px;
-  width:36px;
-  height:36px;
+  width:28px;
+  height:42px;
   display:inline-flex;
   align-items:center;
   justify-content:center;
   line-height:1;
-  font-size:1.05rem;
+  font-size:1rem;
   font-weight:700;
   cursor:pointer;
   box-shadow:0 4px 10px rgba(0,0,0,0.08);
+  position:absolute;
+  top:50%;
+  transform:translateY(-50%);
+  z-index:3;
+}
+
+#rssPrevBtn{
+  left:-14px;
+}
+
+#rssNextBtn{
+  right:-14px;
 }
 
 .rss-btn:disabled{
@@ -390,6 +399,7 @@ html[data-theme="dark"] .sidebar-placeholder{
 }
 
 .rss-rail{
+  position:relative;
   border:1px solid rgba(var(--sb-blue-rgb) / 0.35);
   border-radius:12px;
   background:rgba(255,255,255,0.58);
@@ -397,7 +407,6 @@ html[data-theme="dark"] .sidebar-placeholder{
   box-shadow:0 8px 18px rgba(0,0,0,0.05);
   overflow:hidden;
 }
-
 .rss-track{
   --rss-card-width:100%;
   --rss-card-gap:10px;
