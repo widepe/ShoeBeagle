@@ -300,6 +300,19 @@ html[data-theme="dark"] body{
   letter-spacing:0.02em;
 }
 
+.left-sidebar > .sidebar-heading{
+  font-size:1.4rem;
+  font-weight:600;
+  color:var(--sb-blue);
+  text-align:center;
+  margin:0 0 0.75rem 0;
+  min-height:1.4em;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 12px;
+}
+
 .sidebar-subheading{
   color:var(--sb-blue);
   font-weight:700;
