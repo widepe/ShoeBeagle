@@ -812,7 +812,7 @@ html[data-theme="dark"] .suggestions{
 .suggestion-item{
   padding:calc(0.25rem * var(--top-scale)) calc(0.75rem * var(--top-scale)) calc(0.25rem * var(--top-scale)) var(--search-text-inset);
   text-align:left;
-  font-size:calc(1.25rem * var(--top-scale));
+  font-size:var(--input-font);   /*            calc(1.25rem * var(--top-scale)); */
   font-family:inherit;
   font-weight:500;
   line-height:1.2;
