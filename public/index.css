@@ -364,26 +364,28 @@ html[data-theme="dark"] .sidebar-placeholder{
 
 .rss-btn{
   appearance:none;
-  border:1px solid rgba(var(--sb-blue-rgb) / 0.35);
-  background:#fff;
-  color:var(--sb-blue);
-  border-radius:10px;
-  width:28px;
-  height:42px;
+  border:1px solid rgba(var(--sb-blue-rgb) / 0.55);
+  background:rgba(var(--sb-blue-rgb) / 0.75);
+  color:#fff;
+  border-radius:999px;
+  width:34px;
+  height:34px;
   display:inline-flex;
   align-items:center;
   justify-content:center;
   line-height:1;
-  font-size:1rem;
-  font-weight:700;
+  font-size:16px;
+  font-weight:900;
   cursor:pointer;
-  box-shadow:0 4px 10px rgba(0,0,0,0.08);
+  box-shadow:0 8px 18px rgba(0,0,0,0.18);
   position:absolute;
   top:50%;
   transform:translateY(-50%);
-  z-index:3;
+  z-index:5;
 }
-
+.rss-btn:hover{
+  background:rgba(var(--sb-blue-rgb) / 0.9);
+}
 #rssPrevBtn{
   left:-14px;
 }
