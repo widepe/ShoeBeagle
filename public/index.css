@@ -466,14 +466,10 @@ html[data-theme="dark"] .sidebar-placeholder{
 }
 
 .rss-thumbWrap{
-  grid-area:thumb;
-  width:90px;
-  height:78px;
-  border-radius:10px;
-  overflow:hidden;
-  justify-self:end;
-  align-self:start;
-  flex:none;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:4px;
 }
 
 .rss-content{
@@ -534,9 +530,9 @@ html[data-theme="dark"] .sidebar-placeholder{
 }
 
 .rss-tabNote{
-  color:var(--meta-color);
-  font-size:0.72rem;
   text-align:center;
+  font-size:0.72rem;
+  color:var(--meta-color);
 }
 
 .rss-thumb{
@@ -585,23 +581,17 @@ html[data-theme="dark"] .sidebar-placeholder{
 }
 
 .rss-linkRow{
-  margin-top:auto;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:8px;
-  font-size:0.8rem;
-}
-
-.rss-linkRow{
-  grid-area:source;
-  margin:0;
+  margin-top:4px;
   display:flex;
   flex-direction:column;
-  align-items:flex-end;
-  justify-content:flex-start;
-  gap:4px;
-  font-size:0.8rem;
+  align-items:center;
+  gap:2px;
+}
+
+.rss-linkRow a{
+  font-size:0.75rem;
+  color:var(--sb-blue);
+  text-decoration:none;
 }
 
 .rss-tabNote{
