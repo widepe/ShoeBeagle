@@ -10,7 +10,19 @@ const SCHEMA_VERSION = 1;
 const VIA = "shopify-products-json";
 
 const START_URL =
-  "https://tcrunningco.com/collections/hawks-spot-flying-good-deals/products.json";
+  "https://tcrunningco.com/collections/hawks-spot-flying-good-deals/products.json" +
+  "?filter.p.m.custom.gender=Men" +
+  "&filter.p.m.custom.gender=Women" +
+  "&filter.p.m.custom.gender=Unisex" +
+  "&filter.p.m.custom.running_type=Racing" +
+  "&filter.p.m.custom.running_type=Road" +
+  "&filter.p.m.custom.running_type=Trail+Running" +
+  "&filter.p.m.custom.running_type=Distance%2FMid-Distance" +
+  "&filter.p.m.custom.running_type=Cross+Country" +
+  "&filter.p.m.custom.running_type=Stability" +
+  "&filter.p.m.custom.running_type=Neutral" +
+  "&filter.p.m.custom.running_type=Recovery" +
+  "&filter.v.availability=1";
 
 const BLOB_URL =
   process.env.TCRUNNINGCO_DEALS_BLOB_URL ||
