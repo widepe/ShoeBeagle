@@ -945,6 +945,32 @@
   "notes": "Sports Basement running shoe deals scraper using Algolia search API plus Vercel blob write. Queries the running deals search results for q=shoes deals with named_tags.Activity=Running. Paginates through Algolia hitsPerPage batches and writes sportsbasement.json. listingName comes from hit.title. brand comes from vendor. model is listingName with leading brand removed. listingURL is built from product handle. imageURL comes from image or product_image. Gender is inferred from named_tags, tags, handle, and title. shoeType is trail for trail, track for spike/track, road for road, else unknown. Hidden-price tiles like see price in cart or bag are skipped. Includes top-level pageSummaries, dropCounts, droppedReasons, and mens/womens/unisex/unknown totals."
 },
 
+{
+  "id": "tc-running-co",
+  "displayName": "TC Running Co",
+  "addedAt": "2026-03-19",
+  "lastUpdated": "2026-03-19",
+  "scrapedUrls": [
+    "https://tcrunningco.com/collections/hawks-spot-flying-good-deals",
+    "https://tcrunningco.com/collections/hawks-spot-flying-good-deals/products.json?limit=250&page=1"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/tc-running-co.json"
+  ],
+  "aliases": [
+    "tc running co",
+    "twin cities running company",
+    "tc running",
+    "tcrunningco",
+    "the running company"
+  ],
+  "enabled": true,
+  "scraperType": "vercel",
+  "envVar": "TCRUNNINGCO_DEALS_BLOB_URL",
+  "baseUrl": "https://tcrunningco.com",
+  "notes": "TC Running Co sale running shoes scraper via Shopify collection products.json API. Scrapes the Hawk's Spot Flying Good Deals collection using the exposed products.json endpoint with limit=250 pagination. Applies storefront-style filtering in scraper code before blob save: requires an in-stock discounted variant, allowed gender (mens/womens/unisex), and allowed running-type signals (road, trail, racing, stability, neutral, recovery, cross country, distance/mid-distance). Preserves listingName exactly as scraped, parses brand from vendor with title fallback, derives model from listingName, parses gender from title/product_type/tags, and maps shoeType from tags/product_type signals: trail -> trail, road/stability/neutral/recovery -> road, racing/cross country/distance-mid-distance/track/spike -> track, else unknown. Skips hidden-price items. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice, with honest range support when discounted available variants produce real ranges. Response includes dropCounts and pageSummaries, while the saved blob contains top-level metadata plus deals only. Writes to tc-running-co.json."
+},
+
   {
   "id": "topo-athletic",
   "displayName": "Topo Athletic",
