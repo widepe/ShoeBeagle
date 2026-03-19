@@ -392,7 +392,7 @@ html[data-theme="dark"] .sidebar-placeholder{
   cursor:pointer;
   box-shadow:0 8px 18px rgba(0,0,0,0.18);
   position:absolute;
-  top:56%;
+  top:66%;
   transform:translateY(-50%);
   z-index:5;
 }
@@ -459,11 +459,8 @@ html[data-theme="dark"] .sidebar-placeholder{
   display:grid;
   grid-template-columns:minmax(0, 1fr) 90px;
   grid-template-areas:
-    "title thumb"
-    "date source"
-    "desc source";
+    "content thumb";
   column-gap:10px;
-  row-gap:0;
   align-items:start;
   min-width:0;
 }
@@ -480,23 +477,26 @@ html[data-theme="dark"] .sidebar-placeholder{
 }
 
 .rss-content{
-  display:contents;
+  grid-area:content;
+  display:flex;
+  flex-direction:column;
+  gap:0;
+  min-width:0;
 }
 
 .rss-title{
-  grid-area:title;
   margin:0;
+  padding:0;
   font-size:0.9rem;
-  line-height:1.2;
+  line-height:1.1;
   font-weight:700;
   min-width:0;
 }
 .rss-date{
-  grid-area:date;
   margin:0;
-  padding-top:0;
+  padding:0;
   font-size:0.75rem;
-  line-height:1.1;
+  line-height:1;
   color:var(--meta-color);
 }
 .rss-desc{
