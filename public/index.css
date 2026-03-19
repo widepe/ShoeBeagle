@@ -392,7 +392,7 @@ html[data-theme="dark"] .sidebar-placeholder{
   cursor:pointer;
   box-shadow:0 8px 18px rgba(0,0,0,0.18);
   position:absolute;
-  top:66%;
+  top:80%;
   transform:translateY(-50%);
   z-index:5;
 }
