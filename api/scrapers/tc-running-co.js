@@ -1,5 +1,6 @@
 // /api/scrapers/tc-running-co.js
 // Shopify JSON endpoint scraper for TC Running Co
+// Writes only products that match the store-style filters in code before blob save.
 
 const { put } = require("@vercel/blob");
 
@@ -97,24 +98,71 @@ function parseBrandModel(listingName, vendor) {
   };
 }
 
-function inferGender(product) {
-  const tags = Array.isArray(product.tags) ? product.tags.join(" ") : "";
-  const hay = `${product.title || ""} ${tags} ${product.product_type || ""} ${product.handle || ""}`.toLowerCase();
+function normalizeTagList(product) {
+  return Array.isArray(product.tags)
+    ? product.tags.map((t) => cleanText(t).toLowerCase())
+    : [];
+}
 
-  if (/\bunisex\b/.test(hay)) return "unisex";
-  if (/\bmen['’]s\b|\bmens\b|\bmen\b/.test(hay)) return "mens";
-  if (/\bwomen['’]s\b|\bwomens\b|\bwomen\b/.test(hay)) return "womens";
+function inferGender(product) {
+  const tags = normalizeTagList(product);
+  const hay = `${product.title || ""} ${product.product_type || ""} ${tags.join(" ")} ${product.handle || ""}`.toLowerCase();
+
+  if (tags.includes("unisex") || /\bunisex\b/.test(hay)) return "unisex";
+  if (
+    tags.includes("mens") ||
+    tags.includes("men's") ||
+    /\bmen['’]s\b|\bmens\b|\bmen\b/.test(hay)
+  ) {
+    return "mens";
+  }
+  if (
+    tags.includes("womens") ||
+    tags.includes("women's") ||
+    /\bwomen['’]s\b|\bwomens\b|\bwomen\b/.test(hay)
+  ) {
+    return "womens";
+  }
 
   return "unknown";
 }
 
+function inferRunningTypeToken(product) {
+  const tags = normalizeTagList(product);
+  const hay = `${product.title || ""} ${product.product_type || ""} ${tags.join(" ")}`.toLowerCase();
+
+  if (/\btrail\b|\btrail running\b/.test(hay)) return "trail";
+  if (/\broad\b/.test(hay)) return "road";
+  if (/\bracing\b/.test(hay)) return "racing";
+  if (/\bstability\b/.test(hay)) return "stability";
+  if (/\bneutral\b/.test(hay)) return "neutral";
+  if (/\brecovery\b/.test(hay)) return "recovery";
+  if (/\bcross country\b/.test(hay)) return "cross-country";
+  if (/\bdistance\/mid-distance\b|\bdistance\b|\bmid-distance\b/.test(hay)) {
+    return "distance-mid-distance";
+  }
+  return null;
+}
+
 function inferShoeType(product) {
-  const tags = Array.isArray(product.tags) ? product.tags.join(" ") : "";
-  const hay = `${product.product_type || ""} ${tags}`.toLowerCase();
+  const runningType = inferRunningTypeToken(product);
+  if (runningType === "trail") return "trail";
+  if (runningType === "road" || runningType === "stability" || runningType === "neutral" || runningType === "recovery") {
+    return "road";
+  }
+  if (
+    runningType === "racing" ||
+    runningType === "cross-country" ||
+    runningType === "distance-mid-distance"
+  ) {
+    return "track";
+  }
+
+  const tags = normalizeTagList(product);
+  const hay = `${product.product_type || ""} ${tags.join(" ")}`.toLowerCase();
 
   if (/\btrail\b/.test(hay)) return "trail";
   if (/\broad\b/.test(hay)) return "road";
-
   if (
     /\btrack\b/.test(hay) ||
     /\btrack\s*&\s*field\b/.test(hay) ||
@@ -133,15 +181,15 @@ function inferShoeType(product) {
 }
 
 function isFootwearProduct(product) {
-  const tags = Array.isArray(product.tags) ? product.tags.join(" ") : "";
+  const tags = normalizeTagList(product);
   const body = stripHtml(product.body_html);
-  const hay = `${product.title || ""} ${product.product_type || ""} ${tags} ${body}`.toLowerCase();
+  const hay = `${product.title || ""} ${product.product_type || ""} ${tags.join(" ")} ${body}`.toLowerCase();
 
   if (/\b(sunglasses|hat|belt|bottle|pack|vest)\b/.test(hay)) return false;
 
   if (
     /\b(apparel|jacket|shorts|tights|singlet|bra|shirt|hoodie|pants|gloves|socks?)\b/.test(hay) &&
-    !/\b(shoe|spike|trainer|sneaker|clog|running|road|trail|track|distance|cross country|racing|stability|neutral|recovery)\b/.test(hay)
+    !/\b(shoe|spike|trainer|sneaker|clog|running|road|trail|track|distance|cross country|racing|stability|neutral|recovery|footwear)\b/.test(hay)
   ) {
     return false;
   }
@@ -155,6 +203,47 @@ function isFootwearProduct(product) {
   }
 
   return true;
+}
+
+function productHasInStockDiscountedVariant(product) {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+
+  return variants.some((v) => {
+    if (!v || v.available !== true) return false;
+
+    const salePrice = parseMoney(v.price);
+    const originalPrice = parseMoney(v.compare_at_price);
+
+    return (
+      Number.isFinite(salePrice) &&
+      Number.isFinite(originalPrice) &&
+      salePrice < originalPrice
+    );
+  });
+}
+
+function passesStorefrontFilters(product) {
+  const gender = inferGender(product);
+  const runningType = inferRunningTypeToken(product);
+
+  const allowedGender =
+    gender === "mens" || gender === "womens" || gender === "unisex";
+
+  const allowedRunningType =
+    runningType === "road" ||
+    runningType === "trail" ||
+    runningType === "racing" ||
+    runningType === "stability" ||
+    runningType === "neutral" ||
+    runningType === "recovery" ||
+    runningType === "cross-country" ||
+    runningType === "distance-mid-distance";
+
+  return (
+    productHasInStockDiscountedVariant(product) &&
+    allowedGender &&
+    allowedRunningType
+  );
 }
 
 function getImageUrl(product) {
@@ -182,23 +271,28 @@ function buildListingUrl(product) {
 function summarizeVariantPricing(product) {
   const variants = Array.isArray(product.variants) ? product.variants : [];
 
-  const availableVariants = variants.filter((v) => v && v.available === true);
-  const discountedAvailableVariants = availableVariants
-    .map((v) => {
+  const discountedAvailableVariants = variants
+    .filter((v) => {
+      if (!v || v.available !== true) return false;
+
       const salePrice = parseMoney(v.price);
       const originalPrice = parseMoney(v.compare_at_price);
-      return { salePrice, originalPrice, raw: v };
+
+      return (
+        Number.isFinite(salePrice) &&
+        Number.isFinite(originalPrice) &&
+        salePrice < originalPrice
+      );
     })
-    .filter(
-      (v) =>
-        Number.isFinite(v.salePrice) &&
-        Number.isFinite(v.originalPrice) &&
-        v.salePrice < v.originalPrice
-    );
+    .map((v) => ({
+      salePrice: parseMoney(v.price),
+      originalPrice: parseMoney(v.compare_at_price),
+      raw: v,
+    }));
 
   return {
     totalVariants: variants.length,
-    availableVariants: availableVariants.length,
+    availableVariants: discountedAvailableVariants.length,
     discountedAvailableVariants,
   };
 }
@@ -218,7 +312,7 @@ async function fetchJson(url, attempt = 1) {
 
   if (resp.status === 429) {
     if (attempt <= 6) {
-      const wait = 2500 * attempt + Math.floor(Math.random() * 1000);
+      const wait = 1500 * attempt + Math.floor(Math.random() * 500);
       await sleep(wait);
       return fetchJson(url, attempt + 1);
     }
@@ -248,6 +342,7 @@ module.exports = async function handler(req, res) {
   const dropCounts = {
     totalProducts: 0,
     dropped_notFootwear: 0,
+    dropped_failedStorefrontFilters: 0,
     dropped_hiddenPrice: 0,
     dropped_missingListingName: 0,
     dropped_missingListingURL: 0,
@@ -266,8 +361,9 @@ module.exports = async function handler(req, res) {
 
   try {
     while (page <= MAX_PAGES) {
-const pageUrl = `${START_URL}?limit=250&page=${page}`;      let payload;
+      const pageUrl = `${START_URL}?limit=250&page=${page}`;
 
+      let payload;
       try {
         payload = await fetchJson(pageUrl);
       } catch (err) {
@@ -288,6 +384,7 @@ const pageUrl = `${START_URL}?limit=250&page=${page}`;      let payload;
         extracted: 0,
         dropped: {
           notFootwear: 0,
+          failedStorefrontFilters: 0,
           hiddenPrice: 0,
           missingListingName: 0,
           missingListingURL: 0,
@@ -320,6 +417,12 @@ const pageUrl = `${START_URL}?limit=250&page=${page}`;      let payload;
         if (!isFootwearProduct(product)) {
           dropCounts.dropped_notFootwear += 1;
           pageSummary.dropped.notFootwear += 1;
+          continue;
+        }
+
+        if (!passesStorefrontFilters(product)) {
+          dropCounts.dropped_failedStorefrontFilters += 1;
+          pageSummary.dropped.failedStorefrontFilters += 1;
           continue;
         }
 
@@ -450,8 +553,6 @@ const pageUrl = `${START_URL}?limit=250&page=${page}`;      let payload;
 
       pageSummaries.push(pageSummary);
       page += 1;
-
-
     }
 
     const deduped = [];
@@ -558,6 +659,7 @@ const pageUrl = `${START_URL}?limit=250&page=${page}`;      let payload;
       notes: [
         "HTTP response intentionally omits the deals array.",
         "Blob file contains top-level metadata plus deals array only.",
+        "Storefront-style filters are enforced in scraper code before blob save.",
         "Hidden-price items are skipped if any hidden-price text appears in JSON fields.",
         "shoeType defaults to unknown unless tags or product_type clearly indicate road, trail, or track.",
       ],
