@@ -63,98 +63,97 @@
     return null;
   };
 
-    const makeCard = (item) => {
-    const article = document.createElement('article');
-    article.className = 'rss-card';
+const makeCard = (item) => {
+  const article = document.createElement('article');
+  article.className = 'rss-card';
 
-    const row = document.createElement('div');
-    row.className = 'rss-row';
+  const row = document.createElement('div');
+  row.className = 'rss-row';
 
-    const thumbWrap = document.createElement('div');
-    thumbWrap.className = 'rss-thumbWrap';
+  const thumbWrap = document.createElement('div');
+  thumbWrap.className = 'rss-thumbWrap';
 
-    const image = document.createElement('img');
-    const pickedImage = getImageForItem(item);
-    image.className = `rss-thumb${pickedImage.logo ? ' is-logo' : ''}`;
-    image.src = pickedImage.url;
-    image.alt = '';
-    image.loading = 'lazy';
-    image.decoding = 'async';
-    image.referrerPolicy = 'no-referrer';
-    image.addEventListener('error', () => {
-      image.src = PLACEHOLDER_IMG;
-      image.classList.add('is-logo');
-    });
+  const image = document.createElement('img');
+  const pickedImage = getImageForItem(item);
+  image.className = `rss-thumb${pickedImage.logo ? ' is-logo' : ''}`;
+  image.src = pickedImage.url;
+  image.alt = '';
+  image.loading = 'lazy';
+  image.decoding = 'async';
+  image.referrerPolicy = 'no-referrer';
+  image.addEventListener('error', () => {
+    image.src = PLACEHOLDER_IMG;
+    image.classList.add('is-logo');
+  });
 
-   thumbWrap.appendChild(image);
-thumbWrap.appendChild(linkRow);
+  const content = document.createElement('div');
+  content.className = 'rss-content';
 
-    const content = document.createElement('div');
-    content.className = 'rss-content';
+  const title = document.createElement('h3');
+  title.className = 'rss-title';
 
-    const title = document.createElement('h3');
-    title.className = 'rss-title';
+  const titleLink = document.createElement('a');
+  const articleUrl = safeUrl(item.link);
+  titleLink.href = articleUrl || '#';
+  titleLink.target = '_blank';
+  titleLink.rel = 'noopener';
+  titleLink.textContent = (item.title || '').trim() || 'Untitled article';
 
-    const titleLink = document.createElement('a');
-    const articleUrl = safeUrl(item.link);
-    titleLink.href = articleUrl || '#';
-    titleLink.target = '_blank';
-    titleLink.rel = 'noopener';
-    titleLink.textContent = (item.title || '').trim() || 'Untitled article';
+  if (!articleUrl) {
+    titleLink.removeAttribute('target');
+    titleLink.removeAttribute('rel');
+    titleLink.setAttribute('aria-disabled', 'true');
+    titleLink.addEventListener('click', (event) => event.preventDefault());
+  }
 
-    if (!articleUrl) {
-      titleLink.removeAttribute('target');
-      titleLink.removeAttribute('rel');
-      titleLink.setAttribute('aria-disabled', 'true');
-      titleLink.addEventListener('click', (event) => event.preventDefault());
-    }
+  title.appendChild(titleLink);
+  content.appendChild(title);
 
-    title.appendChild(titleLink);
-    content.appendChild(title);
+  const publishedText = formatDate(item.publishedAt);
+  if (publishedText) {
+    const published = document.createElement('div');
+    published.className = 'rss-date';
+    published.textContent = publishedText;
+    content.appendChild(published);
+  }
 
-    const publishedText = formatDate(item.publishedAt);
-    if (publishedText) {
-      const published = document.createElement('div');
-      published.className = 'rss-date';
-      published.textContent = publishedText;
-      content.appendChild(published);
-    }
+  const descText = (item.description || '').trim();
+  if (descText) {
+    const desc = document.createElement('p');
+    desc.className = 'rss-desc';
+    desc.textContent = descText;
+    content.appendChild(desc);
+  }
 
-    const descText = (item.description || '').trim();
-    if (descText) {
-      const desc = document.createElement('p');
-      desc.className = 'rss-desc';
-      desc.textContent = descText;
-      content.appendChild(desc);
-    }
+  const linkRow = document.createElement('div');
+  linkRow.className = 'rss-linkRow';
 
-    const linkRow = document.createElement('div');
-    linkRow.className = 'rss-linkRow';
+  const source = document.createElement('span');
+  source.className = 'rss-tabNote';
+  source.textContent = (item.source || '').trim() || 'Unknown source';
 
-    const source = document.createElement('span');
-    source.className = 'rss-tabNote';
-    source.textContent = (item.source || '').trim() || 'Unknown source';
+  const readLink = document.createElement('a');
+  readLink.textContent = 'Read →';
+  readLink.href = articleUrl || '#';
 
-    const readLink = document.createElement('a');
-    readLink.textContent = 'Read →';
-    readLink.href = articleUrl || '#';
+  if (articleUrl) {
+    readLink.target = '_blank';
+    readLink.rel = 'noopener';
+  } else {
+    readLink.setAttribute('aria-disabled', 'true');
+    readLink.addEventListener('click', (event) => event.preventDefault());
+  }
 
-    if (articleUrl) {
-      readLink.target = '_blank';
-      readLink.rel = 'noopener';
-    } else {
-      readLink.setAttribute('aria-disabled', 'true');
-      readLink.addEventListener('click', (event) => event.preventDefault());
-    }
+  linkRow.append(source, readLink);
 
-    linkRow.append(source, readLink);
+  thumbWrap.appendChild(image);
+  thumbWrap.appendChild(linkRow);
 
+  row.append(thumbWrap, content);
+  article.append(row);
 
-    row.append(thumbWrap, content);
-    article.append(row);
-
-    return article;
-  };
+  return article;
+};
 
   const renderState = (message) => {
     track.textContent = '';
