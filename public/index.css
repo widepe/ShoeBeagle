@@ -1337,8 +1337,6 @@ html[data-theme="dark"] .chip{
   width:100%;
   max-width:100%;
   background:var(--card-bg);
-  /* border:var(--card-border) solid #cad2e0; */
-  border-radius:var(--card-radius);
   padding:var(--card-pad);
   display:flex;
   flex-direction:column;
@@ -1348,9 +1346,6 @@ html[data-theme="dark"] .chip{
   min-width:0;
 }
 
-/* html[data-theme="dark"] .card{
-  border-color:#445470;
-} */
 
 .card-link{
   display:flex;
