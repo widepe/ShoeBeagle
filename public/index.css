@@ -1349,7 +1349,9 @@ html[data-theme="dark"] .chip{
   text-align:left;
   position:relative;
   aspect-ratio:3 / 4;
-  min-width:0;
+  border-radius: var(--card-radius);
+  overflow: hidden;    
+   min-width:0;
 }
 
 
