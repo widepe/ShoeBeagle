@@ -1,4 +1,4 @@
-// /api/scrapers/tc_running_co_deals.js
+// /api/scrapers/tc-running-co.js
 // CommonJS Vercel API route
 
 const cheerio = require("cheerio");
@@ -9,6 +9,9 @@ export const config = { maxDuration: 60 };
 const STORE = "TC Running Co";
 const SCHEMA_VERSION = 1;
 const VIA = "fetch-html";
+const BLOB_URL =
+  process.env.TCRUNNINGCO_DEALS_BLOB_URL ||
+  "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/tc-running-co.json";
 
 const START_URL =
   "https://tcrunningco.com/collections/hawks-spot-flying-good-deals" +
@@ -38,6 +41,14 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function cleanText(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
 function absUrl(url) {
   if (!url) return null;
   if (/^https?:\/\//i.test(url)) return url;
@@ -46,16 +57,12 @@ function absUrl(url) {
   return `https://tcrunningco.com/${url.replace(/^\/+/, "")}`;
 }
 
-function cleanText(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
-}
-
 function parsePrice(text) {
   if (!text) return null;
   const cleaned = String(text).replace(/,/g, "");
-  const m = cleaned.match(/\$?\s*(\d+(?:\.\d{1,2})?)/);
-  if (!m) return null;
-  const n = Number(m[1]);
+  const match = cleaned.match(/\$?\s*(\d+(?:\.\d{1,2})?)/);
+  if (!match) return null;
+  const n = Number(match[1]);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -79,19 +86,19 @@ function hasHiddenPrice(text) {
 function inferGender({ title = "", url = "", description = "" }) {
   const hay = `${title} ${url} ${description}`.toLowerCase();
 
+  if (/\bunisex\b/.test(hay)) return "unisex";
   if (/\bmen['’]s\b|\bmens\b|\bmen\b/.test(hay)) return "mens";
   if (/\bwomen['’]s\b|\bwomens\b|\bwomen\b/.test(hay)) return "womens";
-  if (/\bunisex\b/.test(hay)) return "unisex";
 
   return "unknown";
 }
 
-function inferShoeTypeFromJsonSignals({ productType = "", tags = [] }) {
-  const hay = `${productType} ${Array.isArray(tags) ? tags.join(" ") : ""}`.toLowerCase();
+function inferShoeTypeFromSignals({ productType = "", tags = [], url = "", title = "" }) {
+  const hay = `${productType} ${Array.isArray(tags) ? tags.join(" ") : ""} ${url} ${title}`.toLowerCase();
 
-  if (/\broad\b/.test(hay)) return "road";
   if (/\btrail\b/.test(hay)) return "trail";
   if (/\btrack\b|\btrack\s*&\s*field\b|\btrack\s+and\s+field\b/.test(hay)) return "track";
+  if (/\broad\b/.test(hay)) return "road";
 
   return "unknown";
 }
@@ -101,11 +108,8 @@ function parseBrandModel(listingName, vendor) {
   const brand = cleanText(vendor) || title.split(/\s+/)[0] || "Unknown";
 
   let model = title;
-
-  // Remove leading men's / women's / unisex label from model only.
   model = model.replace(/^(men['’]s|mens|women['’]s|womens|unisex)\s+/i, "").trim();
 
-  // Remove leading brand from model when duplicated.
   const escapedBrand = brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   model = model.replace(new RegExp(`^${escapedBrand}\\s+`, "i"), "").trim();
 
@@ -116,44 +120,45 @@ function parseBrandModel(listingName, vendor) {
 }
 
 function parseEmbeddedProductJson($, card) {
-  // Best effort only. If not found, shoeType remains unknown.
   const out = {
     productType: "",
     tags: [],
   };
 
-  const jsonScripts = $(card).find('script[type="application/json"], script[type="application/ld+json"]');
+  $(card)
+    .find('script[type="application/json"], script[type="application/ld+json"]')
+    .each((_, el) => {
+      const raw = $(el).html();
+      if (!raw) return;
 
-  jsonScripts.each((_, el) => {
-    const raw = $(el).html();
-    if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw);
 
-    try {
-      const parsed = JSON.parse(raw);
+        const walk = (node) => {
+          if (!node || typeof node !== "object") return;
 
-      const walk = (node) => {
-        if (!node || typeof node !== "object") return;
+          if (typeof node.product_type === "string" && !out.productType) {
+            out.productType = node.product_type;
+          }
 
-        if (typeof node.product_type === "string" && !out.productType) {
-          out.productType = node.product_type;
-        }
-        if (typeof node.productType === "string" && !out.productType) {
-          out.productType = node.productType;
-        }
-        if (Array.isArray(node.tags) && !out.tags.length) {
-          out.tags = node.tags.filter(Boolean).map(String);
-        }
+          if (typeof node.productType === "string" && !out.productType) {
+            out.productType = node.productType;
+          }
 
-        for (const v of Object.values(node)) {
-          if (v && typeof v === "object") walk(v);
-        }
-      };
+          if (Array.isArray(node.tags) && !out.tags.length) {
+            out.tags = node.tags.filter(Boolean).map(String);
+          }
 
-      walk(parsed);
-    } catch {
-      // ignore bad JSON blocks
-    }
-  });
+          for (const value of Object.values(node)) {
+            if (value && typeof value === "object") walk(value);
+          }
+        };
+
+        walk(parsed);
+      } catch {
+        // ignore invalid JSON blocks
+      }
+    });
 
   return out;
 }
@@ -170,10 +175,7 @@ function getNextPageUrl($, currentUrl) {
     const href = $(el).attr("href");
     const text = cleanText($(el).text());
     const aria = cleanText($(el).attr("aria-label"));
-    if (
-      href &&
-      (/next/i.test(text) || /next/i.test(aria) || /page\s*\d+/i.test(text))
-    ) {
+    if (href && (/next/i.test(text) || /next/i.test(aria))) {
       candidates.push(href);
     }
   });
@@ -183,7 +185,6 @@ function getNextPageUrl($, currentUrl) {
     if (full && full !== currentUrl) return full;
   }
 
-  // Fallback: increment page param if page=N exists or append page=2
   try {
     const u = new URL(currentUrl);
     const currentPage = Number(u.searchParams.get("page") || "1");
@@ -194,15 +195,27 @@ function getNextPageUrl($, currentUrl) {
   }
 }
 
-async function fetchHtml(url) {
+async function fetchHtml(url, attempt = 1) {
   const resp = await fetch(url, {
     headers: {
       "user-agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
       "accept-language": "en-US,en;q=0.9",
       accept: "text/html,application/xhtml+xml",
+      "cache-control": "no-cache",
+      pragma: "no-cache",
     },
   });
+
+  if (resp.status === 429) {
+    if (attempt <= 3) {
+      const wait = 1500 * attempt;
+      console.warn(`TC Running Co: 429 hit for ${url}, retrying in ${wait}ms...`);
+      await sleep(wait);
+      return fetchHtml(url, attempt + 1);
+    }
+    throw new Error(`Fetch failed 429 after retries for ${url}`);
+  }
 
   if (!resp.ok) {
     throw new Error(`Fetch failed ${resp.status} for ${url}`);
@@ -245,8 +258,8 @@ module.exports = async function handler(req, res) {
   };
 
   let dealsFound = 0;
-  let currentUrl = START_URL;
   let pagesFetched = 0;
+  let currentUrl = START_URL;
   const MAX_PAGES = 100;
 
   try {
@@ -258,10 +271,7 @@ module.exports = async function handler(req, res) {
       const $ = cheerio.load(html);
 
       const $cards = $('.productgrid--item[data-product-item]');
-      if (!$cards.length) {
-        // stop if a paginated page returns no products
-        break;
-      }
+      if (!$cards.length) break;
 
       pagesFetched += 1;
 
@@ -303,7 +313,6 @@ module.exports = async function handler(req, res) {
         const title = cleanText(
           $(card).find(".productitem--title a, .productitem--title").first().text()
         );
-
         if (!title) {
           dropCounts.dropped_missingListingName += 1;
           pageSummary.dropped.missingListingName += 1;
@@ -324,8 +333,8 @@ module.exports = async function handler(req, res) {
 
         const imageURL = absUrl(
           $(card).find(".productitem--image-primary").first().attr("src") ||
-          $(card).find(".productitem--image-alternate").first().attr("src") ||
-          $(card).find("img").first().attr("src")
+            $(card).find(".productitem--image-alternate").first().attr("src") ||
+            $(card).find("img").first().attr("src")
         );
 
         if (!imageURL) {
@@ -336,20 +345,27 @@ module.exports = async function handler(req, res) {
 
         const vendor = cleanText($(card).find(".productitem--vendor").first().text());
 
-        const originalPrice = parsePrice(
+        const compareAtText = cleanText(
           $(card).find(".price__compare-at .money, .price__compare-at--single").first().text()
         );
+        const currentText = cleanText(
+          $(card).find(".price__current .money, .price__current--on-sale .money").first().text()
+        );
 
+        if (hasHiddenPrice(`${compareAtText} ${currentText}`)) {
+          dropCounts.dropped_hiddenPrice += 1;
+          pageSummary.dropped.hiddenPrice += 1;
+          return;
+        }
+
+        const originalPrice = parsePrice(compareAtText);
         if (!Number.isFinite(originalPrice)) {
           dropCounts.dropped_missingOriginalPrice += 1;
           pageSummary.dropped.missingOriginalPrice += 1;
           return;
         }
 
-        const salePrice = parsePrice(
-          $(card).find(".price__current .money, .price__current--on-sale .money").first().text()
-        );
-
+        const salePrice = parsePrice(currentText);
         if (!Number.isFinite(salePrice)) {
           dropCounts.dropped_missingSalePrice += 1;
           pageSummary.dropped.missingSalePrice += 1;
@@ -363,13 +379,23 @@ module.exports = async function handler(req, res) {
         }
 
         const description = cleanText($(card).find(".productitem--description").first().text());
-        const gender = inferGender({ title, url: listingURL, description });
+        const gender = inferGender({
+          title,
+          url: listingURL,
+          description,
+        });
 
         const embeddedJsonSignals = parseEmbeddedProductJson($, card);
-        const shoeType = inferShoeTypeFromJsonSignals(embeddedJsonSignals);
+
+        // Per your instruction: default unknown unless JSON/category signals tag it.
+        const shoeType = inferShoeTypeFromSignals({
+          productType: embeddedJsonSignals.productType,
+          tags: embeddedJsonSignals.tags,
+          url: "",
+          title: "",
+        });
 
         const { brand, model } = parseBrandModel(title, vendor);
-
         const discountPercent = roundDiscountPercent(salePrice, originalPrice);
 
         const deal = {
@@ -413,13 +439,13 @@ module.exports = async function handler(req, res) {
       pageSummaries.push(pageSummary);
 
       const nextUrl = getNextPageUrl($, currentUrl);
-
       if (!nextUrl || visited.has(nextUrl)) break;
 
-      // Stop early if this page was short, a common Shopify signal for last page.
-      if ($cards.length < 24) break;
-
       currentUrl = nextUrl;
+
+      await sleep(1000 + Math.random() * 800);
+
+      if ($cards.length < 24) break;
     }
 
     const deduped = [];
@@ -435,13 +461,23 @@ module.exports = async function handler(req, res) {
 
       if (seen.has(key)) {
         dropCounts.dropped_duplicateAfterMerge += 1;
-        const pageSummary = pageSummaries.find((p) => p.url && deal.listingURL.includes("/products/"));
-        if (pageSummary) pageSummary.dropped.duplicateAfterMerge += 1;
         continue;
       }
 
       seen.add(key);
       deduped.push(deal);
+    }
+
+    const finalGenderCounts = {
+      mens: 0,
+      womens: 0,
+      unisex: 0,
+      unknown: 0,
+    };
+
+    for (const deal of deduped) {
+      if (finalGenderCounts[deal.gender] == null) finalGenderCounts.unknown += 1;
+      else finalGenderCounts[deal.gender] += 1;
     }
 
     const lastUpdated = nowIso();
@@ -459,10 +495,10 @@ module.exports = async function handler(req, res) {
 
       dealsFound,
       dealsExtracted: deduped.length,
-      mensDeals: genderCounts.mens,
-      womensDeals: genderCounts.womens,
-      unisexDeals: genderCounts.unisex,
-      unknownDeals: genderCounts.unknown,
+      mensDeals: finalGenderCounts.mens,
+      womensDeals: finalGenderCounts.womens,
+      unisexDeals: finalGenderCounts.unisex,
+      unknownDeals: finalGenderCounts.unknown,
 
       scrapeDurationMs,
 
@@ -472,12 +508,12 @@ module.exports = async function handler(req, res) {
       deals: deduped,
     };
 
-const blob = await put("tc-running-co.json", JSON.stringify(blobData, null, 2), {
-  access: "public",
-  contentType: "application/json",
-  addRandomSuffix: false,
-  allowOverwrite: true,
-});
+    const blob = await put("tc-running-co.json", JSON.stringify(blobData, null, 2), {
+      access: "public",
+      contentType: "application/json",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    });
 
     return res.status(200).json({
       success: true,
@@ -493,10 +529,10 @@ const blob = await put("tc-running-co.json", JSON.stringify(blobData, null, 2), 
       dealsFound,
       dealsExtracted: deduped.length,
 
-      mensDeals: genderCounts.mens,
-      womensDeals: genderCounts.womens,
-      unisexDeals: genderCounts.unisex,
-      unknownDeals: genderCounts.unknown,
+      mensDeals: finalGenderCounts.mens,
+      womensDeals: finalGenderCounts.womens,
+      unisexDeals: finalGenderCounts.unisex,
+      unknownDeals: finalGenderCounts.unknown,
 
       scrapeDurationMs,
 
@@ -506,13 +542,15 @@ const blob = await put("tc-running-co.json", JSON.stringify(blobData, null, 2), 
       dropCounts,
       pageSummaries,
 
-     blobPath: "tc-running-co.json",
+      blobPath: "tc-running-co.json",
+      blobUrl: BLOB_URL,
+      uploadedBlobUrl: blob.url,
 
       notes: [
         "HTTP response intentionally omits the deals array.",
         "Blob file contains top-level metadata plus deals array only.",
         "Hidden-price tiles are skipped.",
-        "shoeType defaults to unknown unless a JSON/category signal is found.",
+        "shoeType defaults to unknown unless JSON/category signals are present.",
       ],
     });
   } catch (err) {
@@ -535,6 +573,8 @@ const blob = await put("tc-running-co.json", JSON.stringify(blobData, null, 2), 
       error: err?.message || String(err),
       dropCounts,
       pageSummaries,
+      blobPath: "tc-running-co.json",
+      blobUrl: BLOB_URL,
     });
   }
 };
