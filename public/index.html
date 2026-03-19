@@ -536,7 +536,7 @@ const modeToggleIcon = document.getElementById("modeToggleIcon");
 
       // Unified state
       let selectedGender = "";    // "" | "mens" | "womens"
-      let currentSort = "price-asc";
+      let currentSort = "";
       let selectedStore = "";
 
       if (footerYear) footerYear.textContent = new Date().getFullYear();
@@ -1412,13 +1412,70 @@ if (modeToggleBtn) {
         });
       }
 
-      function getFilteredAndSorted(items) {
-        const filtered = applyFilters(items);
-        if (currentSort === "price-desc") {
-          return filtered.slice().sort((a, b) => Number(b.salePrice || 0) - Number(a.salePrice || 0));
-        }
-        return filtered.slice().sort((a, b) => Number(a.salePrice || 0) - Number(b.salePrice || 0));
-      }
+      function getDiscountPercentValue(item) {
+  const sale = Number(item?.salePrice);
+  const original = Number(item?.originalPrice);
+  const discountPercent = Number(item?.discountPercent);
+
+  if (Number.isFinite(sale) && Number.isFinite(original) && original > 0 && sale < original) {
+    return ((original - sale) / original) * 100;
+  }
+
+  if (Number.isFinite(discountPercent) && discountPercent > 0) {
+    return discountPercent;
+  }
+
+  return -1;
+}
+
+function getSavingsValue(item) {
+  const sale = Number(item?.salePrice);
+  const original = Number(item?.originalPrice);
+
+  if (Number.isFinite(sale) && Number.isFinite(original) && original > sale) {
+    return original - sale;
+  }
+
+  const discountPercent = Number(item?.discountPercent);
+  if (Number.isFinite(sale) && Number.isFinite(discountPercent) && discountPercent > 0 && discountPercent < 100) {
+    const guessedOriginal = sale / (1 - discountPercent / 100);
+    if (Number.isFinite(guessedOriginal) && guessedOriginal > sale) {
+      return guessedOriginal - sale;
+    }
+  }
+
+  return -1;
+}
+
+function getFilteredAndSorted(items) {
+  const filtered = applyFilters(items);
+
+  if (!currentSort) {
+    return filtered.slice();
+  }
+
+  if (currentSort === "discount-desc") {
+    return filtered.slice().sort((a, b) => {
+      return getDiscountPercentValue(b) - getDiscountPercentValue(a);
+    });
+  }
+
+  if (currentSort === "savings-desc") {
+    return filtered.slice().sort((a, b) => {
+      return getSavingsValue(b) - getSavingsValue(a);
+    });
+  }
+
+  if (currentSort === "price-desc") {
+    return filtered.slice().sort((a, b) => Number(b.salePrice || 0) - Number(a.salePrice || 0));
+  }
+
+  if (currentSort === "price-asc") {
+    return filtered.slice().sort((a, b) => Number(a.salePrice || 0) - Number(b.salePrice || 0));
+  }
+
+  return filtered.slice();
+}
 
       function getDiscountInfo(item) {
         const current = Number(item.salePrice);
@@ -1506,16 +1563,15 @@ if (modeToggleBtn) {
         });
       });
 
-      panelSortOptions.forEach((option) => {
-        option.addEventListener("click", () => {
-          const value = option.getAttribute("data-panel-sort") || "price-asc";
-          if (!value || value === currentSort) return;
-          currentSort = value;
-          syncPanelControls();
-          renderDailyDealsNow();
-          renderFilteredResults({ resetPage: true, append: false });
-        });
-      });
+panelSortOptions.forEach((option) => {
+  option.addEventListener("click", () => {
+    const value = option.getAttribute("data-panel-sort") || "";
+    currentSort = currentSort === value ? "" : value;
+    syncPanelControls();
+    renderDailyDealsNow();
+    renderFilteredResults({ resetPage: true, append: false });
+  });
+});
 
      panelThemeOptions.forEach((option) => {
   option.addEventListener("click", () => {
@@ -1837,10 +1893,8 @@ if (modeToggleBtn) {
 
         const results = data && data.results ? data.results : [];
         lastSearchResults = results;
-
-        selectedGender = "";
         syncPanelControls();
-
+        
         if (!results.length) {
           if (brand && model && dealsSuggest.ready) {
             const modelNorm = normalizeStr(model);
@@ -1874,10 +1928,8 @@ if (modeToggleBtn) {
               if (correctedResults.length) {
                 currentSearch = { brand: actualBrand, model };
                 lastSearchResults = correctedResults;
-
-                selectedGender = "";
                 syncPanelControls();
-
+                
                 renderFilteredResults({ resetPage: true, append: false });
                 statusMessageEl.innerHTML = `No results for <strong>${displayQuery}</strong> — showing ${correctedResults.length} ${actualBrand} ${model} result${correctedResults.length === 1 ? "" : "s"} instead.`;
                 return;
