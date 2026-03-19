@@ -391,7 +391,7 @@ html[data-theme="dark"] .sidebar-placeholder{
 }
 
 #rssNextBtn{
-  right:14px;
+  right:-14px;
 }
 
 .rss-btn:disabled{
