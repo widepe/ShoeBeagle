@@ -63,20 +63,9 @@
     return null;
   };
 
-  const makeCard = (item) => {
+    const makeCard = (item) => {
     const article = document.createElement('article');
     article.className = 'rss-card';
-
-    const meta = document.createElement('div');
-    meta.className = 'rss-meta';
-
-    const source = document.createElement('span');
-    source.textContent = (item.source || '').trim() || 'Unknown source';
-
-    const published = document.createElement('span');
-    published.textContent = formatDate(item.publishedAt);
-
-    meta.append(source, published);
 
     const row = document.createElement('div');
     row.className = 'rss-row';
@@ -120,8 +109,15 @@
     }
 
     title.appendChild(titleLink);
-
     content.appendChild(title);
+
+    const publishedText = formatDate(item.publishedAt);
+    if (publishedText) {
+      const published = document.createElement('div');
+      published.className = 'rss-date';
+      published.textContent = publishedText;
+      content.appendChild(published);
+    }
 
     const descText = (item.description || '').trim();
     if (descText) {
@@ -131,10 +127,12 @@
       content.appendChild(desc);
     }
 
-    row.append(thumbWrap, content);
-
     const linkRow = document.createElement('div');
     linkRow.className = 'rss-linkRow';
+
+    const source = document.createElement('span');
+    source.className = 'rss-tabNote';
+    source.textContent = (item.source || '').trim() || 'Unknown source';
 
     const readLink = document.createElement('a');
     readLink.textContent = 'Read →';
@@ -148,11 +146,13 @@
       readLink.addEventListener('click', (event) => event.preventDefault());
     }
 
+    linkRow.append(source, readLink);
 
+    content.appendChild(linkRow);
 
-    linkRow.append(readLink);
+    row.append(thumbWrap, content);
+    article.append(row);
 
-    article.append(meta, row, linkRow);
     return article;
   };
 
