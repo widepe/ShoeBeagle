@@ -1809,14 +1809,14 @@ html[data-theme="dark"] .footer{
     min-width:0;
   }
 
-  .card-link{
-    display:grid;
-    grid-template-columns:42% minmax(0, 1fr);
-    align-items:start;
-    gap:var(--card-gap);
-    height:100%;
-    min-width:0;
-  }
+.card-link{
+  display:grid;
+  grid-template-columns:42% minmax(0, 1fr);
+  align-items:stretch;
+  gap:var(--card-gap);
+  height:100%;
+  min-width:0;
+}
 
   .card-image-wrapper{
     width:100%;
