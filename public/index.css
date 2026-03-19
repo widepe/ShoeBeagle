@@ -447,12 +447,7 @@ html[data-theme="dark"] .sidebar-placeholder{
   height:78px;
   flex:0 0 90px;
   border-radius:10px;
-  border:1px solid rgba(var(--sb-blue-rgb) / 0.24);
-  background:rgba(var(--sb-blue-rgb) / 0.08);
   overflow:hidden;
-  display:flex;
-  align-items:center;
-  justify-content:center;
 }
 
 .rss-thumb{
@@ -463,8 +458,8 @@ html[data-theme="dark"] .sidebar-placeholder{
 }
 
 .rss-thumb.is-logo{
-  object-fit:contain;
-  padding:8px;
+  object-fit:cover;
+  padding:0;
 }
 
 .rss-content{
