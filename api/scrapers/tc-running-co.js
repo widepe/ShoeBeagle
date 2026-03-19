@@ -10,19 +10,7 @@ const SCHEMA_VERSION = 1;
 const VIA = "shopify-products-json";
 
 const START_URL =
-  "https://tcrunningco.com/collections/hawks-spot-flying-good-deals/products.json" +
-  "?filter.p.m.custom.gender=Men" +
-  "&filter.p.m.custom.gender=Women" +
-  "&filter.p.m.custom.gender=Unisex" +
-  "&filter.p.m.custom.running_type=Racing" +
-  "&filter.p.m.custom.running_type=Road" +
-  "&filter.p.m.custom.running_type=Trail+Running" +
-  "&filter.p.m.custom.running_type=Distance%2FMid-Distance" +
-  "&filter.p.m.custom.running_type=Cross+Country" +
-  "&filter.p.m.custom.running_type=Stability" +
-  "&filter.p.m.custom.running_type=Neutral" +
-  "&filter.p.m.custom.running_type=Recovery" +
-  "&filter.v.availability=1";
+  "https://tcrunningco.com/collections/hawks-spot-flying-good-deals/products.json";
 
 const BLOB_URL =
   process.env.TCRUNNINGCO_DEALS_BLOB_URL ||
@@ -149,21 +137,24 @@ function isFootwearProduct(product) {
   const body = stripHtml(product.body_html);
   const hay = `${product.title || ""} ${product.product_type || ""} ${tags} ${body}`.toLowerCase();
 
-  const explicitNonFootwear =
-    /\b(apparel|jacket|shorts|tights|singlet|bra|shirt|hoodie|pants|gloves|hat|socks?|sunglasses|belt|bottle|pack|vest)\b/.test(
+  if (/\b(sunglasses|hat|belt|bottle|pack|vest)\b/.test(hay)) return false;
+
+  if (
+    /\b(apparel|jacket|shorts|tights|singlet|bra|shirt|hoodie|pants|gloves|socks?)\b/.test(hay) &&
+    !/\b(shoe|spike|trainer|sneaker|clog|running|road|trail|track|distance|cross country|racing|stability|neutral|recovery)\b/.test(hay)
+  ) {
+    return false;
+  }
+
+  if (
+    !/\b(shoe|spike|trainer|sneaker|clog|running|road|trail|track|distance|cross country|racing|stability|neutral|recovery|footwear)\b/.test(
       hay
-    );
+    )
+  ) {
+    return false;
+  }
 
-  const explicitFootwear =
-    /\bfootwear\b/.test(String(product.product_type || "").toLowerCase()) ||
-    /\bshoe\b/.test(hay) ||
-    /\bspike\b/.test(hay) ||
-    /\btrainer\b/.test(hay) ||
-    /\bsneaker\b/.test(hay) ||
-    /\bclog\b/.test(hay);
-
-  if (explicitNonFootwear && !explicitFootwear) return false;
-  return explicitFootwear;
+  return true;
 }
 
 function getImageUrl(product) {
@@ -369,19 +360,15 @@ module.exports = async function handler(req, res) {
         }
 
         if (!pricing.discountedAvailableVariants.length) {
-          const availableSalePrices = pricing.availableVariants
-            ? (product.variants || [])
-                .filter((v) => v && v.available === true)
-                .map((v) => parseMoney(v.price))
-                .filter((n) => Number.isFinite(n))
-            : [];
+          const availableSalePrices = (product.variants || [])
+            .filter((v) => v && v.available === true)
+            .map((v) => parseMoney(v.price))
+            .filter((n) => Number.isFinite(n));
 
-          const availableOriginalPrices = pricing.availableVariants
-            ? (product.variants || [])
-                .filter((v) => v && v.available === true)
-                .map((v) => parseMoney(v.compare_at_price))
-                .filter((n) => Number.isFinite(n))
-            : [];
+          const availableOriginalPrices = (product.variants || [])
+            .filter((v) => v && v.available === true)
+            .map((v) => parseMoney(v.compare_at_price))
+            .filter((n) => Number.isFinite(n));
 
           if (!availableSalePrices.length) {
             dropCounts.dropped_missingSalePrice += 1;
