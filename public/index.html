@@ -305,14 +305,16 @@
           </div>
         </aside>
 
-        <div class="content-main">
-          <div class="status-message" id="statusMessage">Marty’s Daily Deals</div>
+       <div class="content-main">
+  <div class="status-message" id="statusMessage">Marty’s Daily Deals</div>
 
-          <div class="daily-deals" id="dailyDeals">
-            <div class="shoe-grid" id="dailyDealsGrid"></div>
-          </div>
+  <div class="daily-deals" id="dailyDeals">
+    <div class="shoe-grid" id="dailyDealsGrid"></div>
+  </div>
 
-          <p class="disclaimer">
+  <div id="results" class="shoe-grid"></div>
+
+  <p class="disclaimer">
             Some links are affiliate links, and we may earn a commission at no extra cost to you. Prices and availability are set by retailers, and may change. Verify details on the retailer’s site.
           </p>
           <div class="load-more-wrap" id="loadMoreWrap" style="display:none;">
@@ -360,7 +362,10 @@
     (() => {
       const form = document.getElementById("search-form");
       const statusMessageEl = document.getElementById("statusMessage");
-      const resultsEl = document.getElementById("results");
+    const resultsEl = document.getElementById("results");
+if (!resultsEl) {
+  console.error('Missing #results element in index.html');
+}
       const dailyDeals = document.getElementById("dailyDeals");
       const dailyDealsGrid = document.getElementById("dailyDealsGrid");
       const fetchBtn = document.getElementById("fetchBtn");
