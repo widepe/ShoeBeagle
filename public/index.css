@@ -1696,10 +1696,10 @@ html[data-theme="dark"] .footer{
 }
 .display-panel{
   display:none;
-}   
-}/* MOBILE PORTRAIT */
-@media (max-width:768px){
+}
 
+/* MOBILE PORTRAIT */
+@media (max-width:768px){
   .content-shell{
     display:block;
   }
