@@ -274,7 +274,7 @@ html[data-theme="dark"] body{
   grid-template-columns:minmax(240px, 280px) minmax(0, 1fr);
   gap:18px;
   align-items:end;
-     margin-bottom:1rem;
+  margin-bottom:0.7rem;
 }
 
 .content-header-left,
