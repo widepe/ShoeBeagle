@@ -279,9 +279,10 @@ html[data-theme="dark"] body{
 
 .content-header-left,
 .content-header-right{
+  display:flex;
+  align-items:flex-end;
   min-width:0;
 }
-
 .content-shell{
   width:100%;
   display:grid;
