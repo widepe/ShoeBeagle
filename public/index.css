@@ -261,6 +261,21 @@ html[data-theme="dark"] body{
   overflow-x:clip;
 }
 
+.content-heading{
+  width:100%;
+  display:flex;
+  justify-content:center;
+  align-items:flex-end;
+  text-align:center;
+
+  font-size:1.3rem;
+  font-weight:600;         /* stronger than sidebar */
+  color:var(--sb-blue);
+
+  margin:0;
+}
+
+
 #mainContent{
   width:100%;
   flex:1 0 auto;
@@ -325,8 +340,8 @@ html[data-theme="dark"] body{
   text-align:center;
 
   color:var(--sb-blue);
-  font-weight:600;
-  font-size:1.3rem;   
+  font-weight:400;
+  font-size:1.1rem;   
   margin:0;
 }
 
