@@ -98,8 +98,8 @@ html[data-theme="dark"] .card img{
   border-color:#3a3a3a;
 }
 
-.card-image-wrapper img,
-.rss-thumb{
+html[data-theme="dark"] .card-image-wrapper img,
+html[data-theme="dark"] .rss-thumb{
   filter:brightness(.8) contrast(1.1);
 }
 
@@ -156,11 +156,7 @@ html[data-theme="dark"] .slide-panel{
   background:#4c525c;
 }
 
-html[data-theme="dark"] .slide-store-select{
-  background: var(--card-bg);
-   color:#f1f1f1;
-  border-color:#4a4a4a;
-}
+
 
 html[data-theme="dark"] .slide-panel-title,
 html[data-theme="dark"] .slide-panel-heading,
@@ -1174,7 +1170,7 @@ html[data-theme="dark"] .slide-panel{
 .slide-store-select{
   width:calc(100% - 8px);
   height:36px;
-  border:1px solid rgba(0, 0, 0, 0.6);
+  border:1px solid rgba(0, 0, 0, 0.1);
   border-radius:8px;
   background-color:#eee7e3;
   color:#2d2d2d;
@@ -1184,8 +1180,9 @@ html[data-theme="dark"] .slide-panel{
 }
 
 html[data-theme="dark"] .slide-store-select{
-  background:#223049;
-  color:#e7eefc;
+  background: var(--card-bg);
+   color:#f1f1f1;
+  border-color:#4a4a4a;
 }
 
 .slide-check-option{
@@ -2149,9 +2146,9 @@ html[data-theme="dark"] .sb-alert-modal{
   width:100%;
   height:var(--input-h);
   border-radius:var(--sb-input-radius);
-  border:1px solid var(--sb-blue);
+  border:2px solid var(--sb-blue);
   background:var(--input-bg);
-  box-shadow:var(--sb-input-shadow);
+  /*box-shadow:var(--sb-input-shadow); */
   padding:0 17px;
   font-size:16px;
   font-weight:500;
@@ -2551,7 +2548,7 @@ html.theme-switching.to-light body::after{
   .sb-input,
   .btn-eq,
   .chip,
-  .slide-store-select,
+  ,
   .slide-check-box,
   .sb-gender-box,
   .sb-note,
