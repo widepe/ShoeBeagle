@@ -320,10 +320,10 @@ html[data-theme="dark"] body{
 
 .sidebar-panel{
   border-radius:12px;
-  padding:12px;
+  padding:0px;
   display:flex;
   flex-direction:column;
-  gap:8px;
+  gap:4px;
 }
 
 .sidebar-heading{
@@ -1168,7 +1168,7 @@ html[data-theme="dark"] .slide-panel{
 .slide-subheading{ color:var(--sb-blue); font-weight:700; }
 
 .slide-store-select{
-  width:calc(100% - 8px);
+  width:100%;
   height:36px;
   border:1px solid rgba(0, 0, 0, 0.1);
   border-radius:8px;
@@ -1189,7 +1189,7 @@ html[data-theme="dark"] .slide-store-select{
   border:0;
   background:transparent;
   color:rgba(0, 0, 0, 0.8);
-   padding:0;
+  padding-left:30px;
   display:flex;
   align-items:center;
   gap:8px;
