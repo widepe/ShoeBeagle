@@ -296,7 +296,7 @@ html[data-theme="dark"] body{
 
 .sidebar-heading{
    display:flex;
-align-items:flex-end;
+   align-items:flex-end;
    color:var(--sb-blue);
   font-weight:800;
   letter-spacing:0.02em;
