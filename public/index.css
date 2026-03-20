@@ -20,8 +20,9 @@ html{ -webkit-text-size-adjust:100%; }
   --bg:#fff5ef;
   --card-bg:#d5deed;
   --sb-blue-rgb:33 68 120;
-
-  --maxw:1440px;
+  --input-bg:#f8f8f8;   /* search and input and check box and drop down backgrounds */
+   
+   --maxw:1440px;
   --pad:12px;
 
   --top-scale:0.75;
@@ -53,7 +54,6 @@ html{ -webkit-text-size-adjust:100%; }
 
   /* SET ALERT MODAL TOKENS */
   --sb-modal-bg:#ff660045;
-  --sb-input-bg:#f8f8f8;
   --sb-input-radius:calc(0.5rem * var(--top-scale));
   --sb-input-shadow:0px 0px 7px rgb(33 68 121 / 28%);
   --sb-focus-border:#1a3661;
@@ -71,7 +71,7 @@ html[data-theme="dark"]{
   --sb-blue-rgb:159 193 243;
   --card-brand-color:#e9eef7;
 
-  --sb-input-bg:#000000;
+  --input-bg:#2a2a2a;
   --sb-input-shadow:none;
   --sb-focus-border:#313131;
   --sb-focus-ring:0 0 0 3px rgba(159,193,243,0.10);
@@ -798,6 +798,8 @@ form#search-form{
   gap:calc(var(--gap) * 0.5);
 }
 
+
+
 .input-wrapper{
   position:relative;
   flex:1 1 auto;
@@ -835,7 +837,7 @@ input::placeholder{ color:#999; opacity:1; }
 
 html[data-theme="dark"] input[type="text"],
 html[data-theme="dark"] input[type="search"]{
-  background:var(--sb-input-bg);
+  background:var(--input-bg);
   color:#e7eefc;
   box-shadow:var(--sb-input-shadow);
 }
@@ -1155,7 +1157,7 @@ html[data-theme="dark"] .slide-panel{
   height:36px;
   border:1px solid var(--sb-blue);
   border-radius:8px;
-  background:#fff;
+  background-color:var(--input-bg);
   color:#2d2d2d;
   padding:0 10px;
   font-size:0.95rem;
@@ -1187,11 +1189,11 @@ html[data-theme="dark"] .slide-check-option{
 .slide-check-box{
   width:0.9rem;
   height:0.9rem;
-  border:1px solid var(--sb-blue);
+border:1px solid #3a3a3a;
   display:flex;
   align-items:center;
   justify-content:center;
-  background:#fff;
+  background-color:var(--input-bg);
   flex-shrink:0;
 }
 
@@ -1565,7 +1567,7 @@ html[data-theme="dark"] .disclaimer{
   background:var(--bg);
   border-top:1px solid rgba(0,0,0,0.08);
   font-size:1.2rem;
-  color:#2d2d2d;
+  color:#3a3a3a;
   text-align:center;
   width:100%;
 }
@@ -2128,7 +2130,7 @@ html[data-theme="dark"] .sb-alert-modal{
   height:var(--input-h);
   border-radius:var(--sb-input-radius);
   border:1px solid var(--sb-blue);
-  background:var(--sb-input-bg);
+  background:var(--input-bg);
   box-shadow:var(--sb-input-shadow);
   padding:0 17px;
   font-size:16px;
