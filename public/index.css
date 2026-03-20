@@ -293,6 +293,12 @@ html[data-theme="dark"] body{
   align-items:start;
 }
 
+/* Hide DISPLAY panel on desktop */
+.left-sidebar .sidebar-panel:has([data-panel-theme]){
+  display:none;
+}
+
+
 .left-sidebar{
   position:sticky;
   top:12px;
@@ -1696,9 +1702,12 @@ html[data-theme="dark"] .footer{
     width:auto;
   }
 }
-
-/* MOBILE PORTRAIT */
+.display-panel{
+  display:none;
+}   
+}/* MOBILE PORTRAIT */
 @media (max-width:768px){
+
   .content-shell{
     display:block;
   }
@@ -1707,6 +1716,8 @@ html[data-theme="dark"] .footer{
     display:none;
   }
 }
+
+
 @media (max-width:560px){
   .price-alert-trigger,
   .topbar-stack-link,
