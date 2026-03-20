@@ -278,6 +278,8 @@ html[data-theme="dark"] body{
 }
 
 .content-header-left,
+
+
 .content-header-right{
   display:flex;
   align-items:flex-end;
@@ -312,9 +314,9 @@ html[data-theme="dark"] body{
 
 .sidebar-heading{
   display:flex;
-  align-items:flex-end;   /* keeps bottom alignment */
-  justify-content:center; /* centers horizontally */
-  text-align:center;      /* ensures text itself is centered */
+  align-items:flex-end; 
+  justify-content:center; 
+  text-align:center;       
 
   color:var(--sb-blue);
   font-weight:800;
