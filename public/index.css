@@ -268,11 +268,13 @@ html[data-theme="dark"] body{
   align-items:flex-end;
   text-align:center;
 
-  font-size:1.3rem;
-  font-weight:600;         /* stronger than sidebar */
+  font-size:1.1rem;
+  font-weight:600;
   color:var(--sb-blue);
 
   margin:0;
+  padding:0 12px;   /* 👈 ADD THIS */
+  box-sizing:border-box; /* 👈 ensures true centering */
 }
 
 
@@ -341,7 +343,7 @@ html[data-theme="dark"] body{
 
   color:var(--sb-blue);
   font-weight:400;
-  font-size:1.1rem;   
+  font-size:1rem;   
   margin:0;
 }
 
