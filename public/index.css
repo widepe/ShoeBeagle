@@ -172,9 +172,6 @@ html[data-theme="dark"] .slide-divider{
   border-top-color:#656c77;
 }
 
-html[data-theme="dark"] .slide-check-option{
-  color:#e8e8e8;
-}
 
 html[data-theme="dark"] .slide-check-box,
 html[data-theme="dark"] .sb-gender-box{
@@ -1205,7 +1202,7 @@ html[data-theme="dark"] .slide-store-select{
 }
 
 html[data-theme="dark"] .slide-check-option{
-  color:#e7eefc;
+  color:#cdd4e2;
 }
 
 .slide-check-box{
