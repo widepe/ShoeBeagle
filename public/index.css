@@ -156,8 +156,8 @@ html[data-theme="dark"] .slide-panel{
 }
 
 html[data-theme="dark"] .slide-store-select{
-  background:#202020;
-  color:#f1f1f1;
+  background: var(--card-bg);
+   color:#f1f1f1;
   border-color:#4a4a4a;
 }
 
@@ -1202,7 +1202,7 @@ html[data-theme="dark"] .slide-check-option{
 .slide-check-box{
   width:0.9rem;
   height:0.9rem;
-border:1px solid #3a3a3a;
+  border:1px solid #5e5e5e;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -1211,7 +1211,7 @@ border:1px solid #3a3a3a;
 }
 
 html[data-theme="dark"] .slide-check-box{
-  background:#223049;
+  background-color:var(--input-bg);
 }
 
 .slide-check-mark{
