@@ -179,7 +179,7 @@ html[data-theme="dark"] .slide-check-option{
 html[data-theme="dark"] .slide-check-box,
 html[data-theme="dark"] .sb-gender-box{
 background-color:var(--input-bg);
-  border-color:#5a5a5a;
+  border-color:#353e4d;
 }
 
 html[data-theme="dark"] .pager-btn,
@@ -380,7 +380,7 @@ html[data-theme="dark"] body{
 }
 
 html[data-theme="dark"] .sidebar-panel{
-  border-color:#3d495d;
+  border-color:#353e4d;
   background:#1a1f28;
 }
 
