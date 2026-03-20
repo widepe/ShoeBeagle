@@ -122,9 +122,8 @@ html[data-theme="dark"] .card-original-price{
 html[data-theme="dark"] input[type="text"],
 html[data-theme="dark"] input[type="search"],
 html[data-theme="dark"] .sb-input{
-  background:#0b0b0b;
-  color:#f1f1f1;
-  border-color:#9fc1f373;
+background-color:var(--input-bg);
+   border-color:#9fc1f373;
   box-shadow:none;
 }
 
