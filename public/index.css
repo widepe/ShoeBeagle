@@ -1922,7 +1922,8 @@ html[data-theme="dark"] .footer{
   }
 }
 @media (max-width:900px){
-  .content-shell{
+  .content-shell,
+  .content-header-grid{
     grid-template-columns:minmax(240px, 260px) minmax(0, 1fr);
   }
 }
