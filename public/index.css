@@ -885,14 +885,20 @@ html[data-theme="dark"] input[type="search"]{
   top:calc(var(--input-h) + 4px);
   left:0;
   right:0;
-  background:#fff;
-  border:1px solid var(--sb-blue);
+
+  background:rgba(255,255,255,0.65);   /* 👈 transparent */
+  backdrop-filter:blur(10px);          /* 👈 blur */
+  -webkit-backdrop-filter:blur(10px);  /* 👈 Safari */
+
+  border:1px solid rgba(var(--sb-blue-rgb) / 0.35);
   border-radius:calc(0.5rem * var(--top-scale));
   margin-top:calc(0.15rem * var(--top-scale));
+
   overflow-y:auto;
-  box-shadow:0 6px 12px rgba(0,0,0,0.08);
+  box-shadow:0 8px 20px rgba(0,0,0,0.12);
   z-index:30;
   padding:calc(0.25rem * var(--top-scale)) 0;
+
   display:none;
 }
 
