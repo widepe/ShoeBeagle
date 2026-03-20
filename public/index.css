@@ -71,7 +71,7 @@ html[data-theme="dark"]{
   --sb-blue-rgb:159 193 243;
   --card-brand-color:#e9eef7;
 
-  --input-bg:#2a2a2a;
+  --input-bg:#000000;
   --sb-input-shadow:none;
   --sb-focus-border:#313131;
   --sb-focus-ring:0 0 0 3px rgba(159,193,243,0.10);
