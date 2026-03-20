@@ -512,9 +512,12 @@ html[data-theme="dark"] .sidebar-placeholder{
 .rss-thumbWrap{
   grid-area:thumb;
   display:flex;
-  flex-direction:column;
   align-items:center;
-  height:100%;
+  justify-content:center;
+
+  width:90px;
+  height:70px;          /* 👈 ADD FIXED HEIGHT */
+  overflow:hidden;      /* 👈 prevents overflow */
 }
 
 .rss-content{
