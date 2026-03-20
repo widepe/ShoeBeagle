@@ -267,6 +267,20 @@ html[data-theme="dark"] body{
   flex:1 0 auto;
 }
 
+
+.content-header-grid{
+  width:100%;
+  display:grid;
+  grid-template-columns:minmax(240px, 280px) minmax(0, 1fr);
+  gap:18px;
+  align-items:end;
+}
+
+.content-header-left,
+.content-header-right{
+  min-width:0;
+}
+
 .content-shell{
   width:100%;
   display:grid;
