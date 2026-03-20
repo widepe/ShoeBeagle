@@ -604,7 +604,7 @@ html[data-theme="dark"] .rss-rail{
 
 html[data-theme="dark"] .rss-card{
   border-color:#3d495d;
-  background:#1a1f28;
+  background:var(--card-bg);
   box-shadow:none;
 }
 
