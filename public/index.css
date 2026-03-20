@@ -319,14 +319,16 @@ html[data-theme="dark"] body{
 }
 
 .sidebar-heading{
+  width:100%;    
   display:flex;
+  justify-content:center;
   align-items:flex-end; 
-  justify-content:center; 
-  text-align:center;       
+  text-align:center;
 
   color:var(--sb-blue);
   font-weight:800;
   letter-spacing:0.02em;
+  margin:0;
 }
 
 .left-sidebar > .sidebar-heading{
