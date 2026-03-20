@@ -98,7 +98,8 @@ html[data-theme="dark"] .card img{
   border-color:#3a3a3a;
 }
 
-html[data-theme="dark"] .card-image-wrapper img{
+.card-image-wrapper img,
+.rss-thumb{
   filter:brightness(.8) contrast(1.1);
 }
 
@@ -630,8 +631,6 @@ html[data-theme="dark"] .rss-card{
 }
 
 html[data-theme="dark"] .rss-thumbWrap{
-  border-color:#42516a;
-  background:#111722;
 }
 
 html[data-theme="dark"] .rss-state{
