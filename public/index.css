@@ -322,9 +322,7 @@ html[data-theme="dark"] body{
 }
 
 .sidebar-panel{
-  border:1px solid rgba(var(--sb-blue-rgb) / 0.35);
   border-radius:12px;
-  background:rgba(var(--sb-blue-rgb) / 0.06);
   padding:12px;
   display:flex;
   flex-direction:column;
@@ -448,11 +446,9 @@ html[data-theme="dark"] .sidebar-placeholder{
 
 .rss-rail{
   position:relative;
-  border:1px solid rgba(var(--sb-blue-rgb) / 0.35);
   border-radius:12px;
-  background:rgba(255,255,255,0.58);
+  background:rgb(221 213 209);
   padding:10px;
-  box-shadow:0 8px 18px rgba(0,0,0,0.05);
   overflow:hidden;
 }
 
@@ -482,11 +478,9 @@ html[data-theme="dark"] .sidebar-placeholder{
 .rss-card{
   flex:0 0 var(--rss-card-width);
   min-width:0;
-  border:1px solid rgba(var(--sb-blue-rgb) / 0.28);
   border-radius:12px;
-  background:var(--card-bg);
+  background:rgb(255 255 255 / 80%)
   padding:10px;
-  box-shadow:0 7px 16px rgba(0,0,0,0.06);
   display:flex;
   flex-direction:column;
   gap:8px;
@@ -1178,7 +1172,7 @@ html[data-theme="dark"] .slide-panel{
 .slide-store-select{
   width:calc(100% - 8px);
   height:36px;
-  border:1px solid var(--sb-blue);
+  border:1px solid rgba(0, 0, 0, 0.6);
   border-radius:8px;
   background-color:var(--input-bg);
   color:#2d2d2d;
@@ -1195,8 +1189,8 @@ html[data-theme="dark"] .slide-store-select{
 .slide-check-option{
   border:0;
   background:transparent;
-  color:#2d2d2d;
-  padding:0;
+  color:rgba(0, 0, 0, 0.8);
+   padding:0;
   display:flex;
   align-items:center;
   gap:8px;
@@ -1212,7 +1206,8 @@ html[data-theme="dark"] .slide-check-option{
 .slide-check-box{
   width:0.9rem;
   height:0.9rem;
-  border:1px solid #5e5e5e;
+  border:1px solid rgba(0, 0, 0, 0.6);
+  border-radius:4px;
   display:flex;
   align-items:center;
   justify-content:center;
