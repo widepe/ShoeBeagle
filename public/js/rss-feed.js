@@ -125,12 +125,12 @@ const makeCard = (item) => {
     content.appendChild(desc);
   }
 
-  const linkRow = document.createElement('div');
-  linkRow.className = 'rss-linkRow';
-
   const source = document.createElement('span');
   source.className = 'rss-tabNote';
   source.textContent = (item.source || '').trim() || 'Unknown source';
+
+  const linkRow = document.createElement('div');
+  linkRow.className = 'rss-linkRow';
 
   const readLink = document.createElement('a');
   readLink.textContent = 'Read →';
@@ -144,9 +144,10 @@ const makeCard = (item) => {
     readLink.addEventListener('click', (event) => event.preventDefault());
   }
 
-  linkRow.append(source, readLink);
+  linkRow.appendChild(readLink);
 
   thumbWrap.appendChild(image);
+  thumbWrap.appendChild(source);
   thumbWrap.appendChild(linkRow);
 
   row.append(thumbWrap, content);
