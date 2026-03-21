@@ -162,7 +162,24 @@
   "notes": "Champs Sports running shoes sale scraper using direct HTML fetch + Cheerio on the sale running shoes page. Parses product cards from returned HTML, preserving listingName exactly as scraped, deriving brand/model from listingName, parsing gender from the tile secondary line, and forcing shoeType to unknown unless strict trail/track keywords appear in the listing name. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Dedupe by listingURL. Metadata includes dropCounts, droppedDealsSample, and pageSummaries. Writes to champs-sale.json."
 },
 
-
+  {
+  "id": "commonwealth-running-co",
+  "displayName": "Commonwealth Running Co",
+  "addedAt": "2026-03-21",
+  "lastUpdated": "2026-03-21",
+  "scrapedUrls": [
+    "https://commonwealthrunning.com/collections/sale/products.json?activity=Running%2CCompetition%2CRoad%20running%2CTrail%20running%2CUltra%20running%2CMarathon&limit=250&page=1"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/commonwealth-running-co.json"
+  ],
+  "aliases": ["commonwealth running co", "commonwealth running", "commonwealth-running-co", "commonwealthrunning"],
+  "enabled": true,
+  "scraperType": "shopify-json",
+  "envVar": "COMMONWEALTH_DEALS_BLOB_URL",
+  "baseUrl": "https://commonwealthrunning.com",
+  "notes": "Commonwealth Running Co sale running shoes scraper via Shopify collection products.json. Scrapes the sale collection using the activity filter for Running, Competition, Road running, Trail running, Ultra running, and Marathon, with Shopify pagination via ?limit=250&page=N if additional pages exist. Extracts brand from Shopify vendor, preserves listingName from product title, derives model from listingName by removing leading brand pipe patterns when present, parses gender from product text signals, and assigns shoeType from JSON text only when clearly indicated by category or description terms such as road, trail, track, xc, cross country, or spikes; otherwise shoeType is unknown. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Skips hidden-price items, filters out non-running-shoe products, dedupes by listingURL, and writes to commonwealth-running-co.json."
+},
 {
   "id": "confluence-running",
   "displayName": "Confluence Running",
