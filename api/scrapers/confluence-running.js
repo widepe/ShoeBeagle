@@ -8,11 +8,11 @@
 // - Keep ONLY products that belong to allowed sale running-footwear categories
 // - Keep ONLY products with at least one variant having BOTH price and compare_at_price
 // - Drop products with only one price
-// - Brand = Shopify vendor
+// - Brand = Shopify vendor, except normalize Hoka One One -> Hoka
 // - listingName = product title
-// - model = listingName with leading brand/gender pipes stripped
+// - model = listingName with leading "brand |" removed, then keep only the next segment
 // - gender = mens / womens / unisex / unknown from product_type/title/tags
-// - shoeType = trail if category says trail, track if spikes/spike/racing flat category,
+// - shoeType = trail if category says trail, track if spikes/spike category,
 //              otherwise road if category is one of the allowed running-footwear categories,
 //              otherwise unknown
 // - Skip hidden-price products
@@ -32,11 +32,6 @@ const SCHEMA_VERSION = 1;
 const BASE_URL = "https://www.confluencerunning.com";
 const COLLECTION_URL = `${BASE_URL}/collections/sale-footwear`;
 const JSON_LIMIT = 250;
-
-const SOURCE_URLS_FOR_STORE_LIST = [
-  "https://www.confluencerunning.com/collections/sale-footwear?filter.p.product_type=Unisex+Spikes&filter.p.product_type=Women%27s+Neutral+High+Cushion+Footwear&filter.p.product_type=Women%27s+Neutral+Mid+Cushion+Footwear&filter.p.product_type=Women%27s+Neutral+Performance+Footwear&filter.p.product_type=Women%27s+Neutral+Race+Footwear&filter.p.product_type=Women%27s+Neutral+Trail+Footwear&filter.p.product_type=Women%27s+Neutral+Trail+WP+Footwear&filter.p.product_type=Women%27s+Spikes&filter.p.product_type=Women%27s+Stability+High+Cushion+Footwear&filter.p.product_type=Women%27s+Stability+Mid+Cushion+Footwear&sort_by=best-selling",
-  "https://www.confluencerunning.com/collections/sale-footwear?filter.p.product_type=Men%27s%20Neutral%20High%20Cushion%20Footwear&filter.p.product_type=Men%27s%20Neutral%20Mid%20Cushion%20Footwear&filter.p.product_type=Men%27s%20Neutral%20Mid%20Cushion%20WP%20Footwear&filter.p.product_type=Men%27s%20Neutral%20Performance%20Footwear&filter.p.product_type=Men%27s%20Neutral%20Race%20Footwear&filter.p.product_type=Men%27s%20Neutral%20Trail%20Footwear&filter.p.product_type=Men%27s%20Neutral%20Trail%20WP%20Footwear&filter.p.product_type=Men%27s%20Stability%20High%20Cushion%20Footwear&filter.p.product_type=Men%27s%20Stability%20Mid%20Cushion%20Footwear&filter.p.product_type=Men%27s%20Stability%20Mid%20Cushion%20WP%20Footwear&filter.p.product_type=Unisex%20Spikes&sort_by=best-selling"
-];
 
 const HIDDEN_PRICE_PATTERNS = [
   /see\s+price\s+in\s+cart/i,
@@ -105,31 +100,71 @@ function makeListingUrl(handle) {
 }
 
 function escapeRegex(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function stripLeadingGenderWords(s) {
-  return normalizeWhitespace(
-    s
-      .replace(/^Men['’]s\s*\|\s*/i, "")
-      .replace(/^Women['’]s\s*\|\s*/i, "")
-      .replace(/^Unisex\s*\|\s*/i, "")
-      .replace(/^Men['’]s\s+/i, "")
-      .replace(/^Women['’]s\s+/i, "")
-      .replace(/^Unisex\s+/i, "")
-  );
+function normalizeBrand(brand, listingName = "") {
+  const rawBrand = normalizeWhitespace(brand || "");
+  const rawListing = normalizeWhitespace(listingName || "");
+
+  if (!rawBrand && rawListing.includes("|")) {
+    return normalizeWhitespace(rawListing.split("|")[0]);
+  }
+
+  if (/^hoka one one$/i.test(rawBrand)) return "Hoka";
+
+  return rawBrand || "Unknown";
 }
 
 function deriveModel(listingName, brand) {
-  let s = normalizeWhitespace(listingName);
-  s = stripLeadingGenderWords(s);
+  const title = normalizeWhitespace(listingName || "");
+  const cleanBrand = normalizeBrand(brand, listingName);
 
-  if (brand) {
-    s = s.replace(new RegExp(`^${escapeRegex(brand)}\\s*\\|\\s*`, "i"), "");
-    s = s.replace(new RegExp(`^${escapeRegex(brand)}\\s+`, "i"), "");
+  if (!title) return "Unknown";
+
+  // Preferred rule for titles like:
+  // "Hoka | Gaviota 5 | Women's | Harbor Mist/Rose Gold"
+  const parts = title
+    .split("|")
+    .map((p) => normalizeWhitespace(p))
+    .filter(Boolean);
+
+  if (parts.length >= 2) {
+    const first = parts[0];
+    const second = parts[1];
+
+    if (
+      cleanBrand &&
+      first.localeCompare(cleanBrand, undefined, { sensitivity: "accent" }) === 0
+    ) {
+      return second || "Unknown";
+    }
+
+    // Handle near-matches like "Hoka" vs "Hoka One One"
+    if (
+      cleanBrand &&
+      (first.toLowerCase() === cleanBrand.toLowerCase() ||
+        first.toLowerCase().includes(cleanBrand.toLowerCase()) ||
+        cleanBrand.toLowerCase().includes(first.toLowerCase()))
+    ) {
+      return second || "Unknown";
+    }
   }
 
-  return normalizeWhitespace(s) || "Unknown";
+  // Fallback: remove leading "brand |" then keep only first remaining segment
+  let s = title;
+
+  if (cleanBrand) {
+    const escaped = escapeRegex(cleanBrand);
+    s = s.replace(new RegExp(`^${escaped}\\s*\\|\\s*`, "i"), "");
+  }
+
+  const fallbackParts = s
+    .split("|")
+    .map((p) => normalizeWhitespace(p))
+    .filter(Boolean);
+
+  return fallbackParts[0] || "Unknown";
 }
 
 function hasHiddenPrice(product) {
@@ -154,7 +189,7 @@ async function fetchJson(url) {
   const resp = await fetch(url, {
     headers: {
       "user-agent": "Mozilla/5.0",
-      "accept": "application/json,text/plain,*/*",
+      accept: "application/json,text/plain,*/*",
     },
   });
 
@@ -172,9 +207,9 @@ function detectGender(product) {
 
   const haystack = [type, title, ...tags].join(" | ");
 
-  if (/unisex/.test(haystack) || /m\d+\s*\/\s*w\d+/.test(haystack)) return "unisex";
   if (/women['’]?s|womens|women\b/.test(haystack)) return "womens";
   if (/men['’]?s|mens|men\b/.test(haystack)) return "mens";
+  if (/unisex/.test(haystack)) return "unisex";
   return "unknown";
 }
 
@@ -184,19 +219,17 @@ function detectShoeType(product) {
   const tags = safeArray(product.tags).map((t) => String(t).toLowerCase());
   const haystack = [type, title, ...tags].join(" | ");
 
-  if (/spikes?|racing flats?/.test(haystack)) return "track";
+  if (/spikes?/.test(haystack)) return "track";
   if (/trail/.test(haystack)) return "trail";
 
-  // Under your rule, if trail and spikes/track are explicitly categorized,
-  // then the other qualifying running-footwear categories count as road.
+  // Under your rule: if trail and spikes are explicit categories,
+  // the other qualifying running footwear categories count as road.
   if (
     /footwear/.test(type) &&
-    (
-      /neutral/.test(type) ||
+    (/neutral/.test(type) ||
       /stability/.test(type) ||
       /performance/.test(type) ||
-      /race/.test(type)
-    )
+      /race/.test(type))
   ) {
     return "road";
   }
@@ -225,9 +258,9 @@ function isAllowedRunningFootwear(product) {
     /nutrition/.test(type) ||
     /gel/.test(type) ||
     /bottle/.test(type) ||
+    /recovery footwear/.test(type) ||
     /sandal/.test(title) ||
-    /slide/.test(title) ||
-    /recovery footwear/.test(type)
+    /slide/.test(title)
   ) {
     return false;
   }
@@ -244,7 +277,6 @@ function isAllowedRunningFootwear(product) {
     return true;
   }
 
-  // Fallback: if product_type itself looks like sale running footwear
   if (/footwear/.test(type) && /running|race|trail|neutral|stability|performance/.test(haystack)) {
     return true;
   }
@@ -294,7 +326,7 @@ function parseProductToDeal(product, dropCounts) {
   const listingName = normalizeWhitespace(product.title || "");
   const listingURL = makeListingUrl(product.handle);
   const imageURL = firstImageUrl(product);
-  const brand = normalizeWhitespace(product.vendor || "") || "Unknown";
+  const brand = normalizeBrand(product.vendor, listingName);
   const model = deriveModel(listingName, brand);
   const gender = detectGender(product);
   const shoeType = detectShoeType(product);
