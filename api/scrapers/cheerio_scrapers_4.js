@@ -75,6 +75,7 @@ module.exports = async function handler(req, res) {
     tc_running_co: true,
     front_runners_la: true,
     confluence_running: true,
+    commonwealth_running_co: true,
   };
 
   const TARGETS = [];
@@ -96,6 +97,9 @@ module.exports = async function handler(req, res) {
 
   // Confluence Running via Shopify products.json.
   if (ENABLED.confluence_running) TARGETS.push("/api/scrapers/confluence-running");
+
+  // Commonwealth Running Co via Shopify products.json.
+if (ENABLED.commonwealth_running_co) TARGETS.push("/api/scrapers/commonwealth-running-co");
   
   try {
     const results = [];
