@@ -245,6 +245,31 @@
     "baseUrl": "https://www.footlocker.com",
     "notes": "no notes"
   },
+
+
+{
+  "id": "front-runners-la",
+  "displayName": "Front Runners LA",
+  "addedAt": "2026-03-21",
+  "lastUpdated": "2026-03-21",
+  "scrapedUrls": [
+    "https://frontrunnersla.com/collections/mens-running-shoes-in-los-angeles/products.json?limit=250&page=1",
+    "https://frontrunnersla.com/collections/women-tech-footwear-running/products.json?limit=250&page=1",
+    "https://frontrunnersla.com/collections/mens-tech-footwear-trail-los-angeles/products.json?limit=250&page=1",
+    "https://frontrunnersla.com/collections/women-tech-footwear-trail/products.json?limit=250&page=1"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/front-runners-la.json"
+  ],
+  "aliases": ["front runners la", "front-runners-la", "frontrunnersla", "front runners"],
+  "enabled": true,
+  "scraperType": "shopify-json",
+  "envVar": "FRONTRUNNERSLA_DEALS_BLOB_URL",
+  "baseUrl": "https://frontrunnersla.com",
+  "notes": "Front Runners LA running and trail shoe scraper via Shopify collection products.json endpoints. Scrapes mens road, womens road, mens trail, and womens trail collections directly from collection JSON. Determines brand from Shopify vendor, preserves listingName from product title, derives model by stripping leading gender and brand from listingName, sets gender from source collection, and sets shoeType by collection source: running pages = road and trail pages = trail. Keeps only products where at least one variant has both price and compare_at_price with salePrice < originalPrice. Drops products with only one price, hidden-price products, and duplicates by listingURL. Writes to front-runners-la.json."
+},
+
+  
   {
     "id": "gazelle-sports",
     "displayName": "Gazelle Sports",
