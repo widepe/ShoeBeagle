@@ -74,6 +74,7 @@ module.exports = async function handler(req, res) {
     running_company: true,
     tc_running_co: true,
     front_runners_la: true,
+    confluence_running: true,
   };
 
   const TARGETS = [];
@@ -93,6 +94,9 @@ module.exports = async function handler(req, res) {
   // Front Runners LA running + trail collections via Shopify products.json.
   if (ENABLED.front_runners_la) TARGETS.push("/api/scrapers/front-runners-la");
 
+  // Confluence Running via Shopify products.json.
+  if (ENABLED.confluence_running) TARGETS.push("/api/scrapers/confluence-running");
+  
   try {
     const results = [];
 
