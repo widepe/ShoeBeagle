@@ -10,6 +10,7 @@
 // - Drops products with only one price.
 // - Skips hidden-price products.
 // - Assigns shoeType from JSON text when possible; otherwise unknown.
+// - Cleans model from explicit model if present, otherwise from listingName.
 // - Response JSON does NOT include deals array.
 // - Saved blob JSON DOES include only top-level structure + deals array.
 //
@@ -23,8 +24,6 @@ const { put } = require("@vercel/blob");
 const STORE = "Commonwealth Running Co";
 const SCHEMA_VERSION = 1;
 const BASE_URL = "https://commonwealthrunning.com";
-const COLLECTION_URL =
-  `${BASE_URL}/collections/sale?activity=Running%2CCompetition%2CRoad%20running%2CTrail%20running%2CUltra%20running%2CMarathon`;
 const JSON_LIMIT = 250;
 
 const HIDDEN_PRICE_PATTERNS = [
@@ -121,44 +120,42 @@ function normalizeBrand(brand, listingName = "") {
   return rawBrand || "Unknown";
 }
 
-function deriveModel(listingName, brand) {
-  const title = normalizeWhitespace(listingName || "");
+function deriveModel(listingName, brand, explicitModel = "") {
+  const cleanExplicit = normalizeWhitespace(explicitModel || "");
+  if (cleanExplicit) return cleanExplicit;
+
+  let s = normalizeWhitespace(listingName || "");
   const cleanBrand = normalizeBrand(brand, listingName);
 
-  if (!title) return "Unknown";
+  if (!s) return "Unknown";
 
-  const parts = title
-    .split("|")
-    .map((p) => normalizeWhitespace(p))
-    .filter(Boolean);
+  // Remove leading gender
+  s = s.replace(/^women['’]s\s+/i, "");
+  s = s.replace(/^men['’]s\s+/i, "");
+  s = s.replace(/^womens\s+/i, "");
+  s = s.replace(/^mens\s+/i, "");
+  s = s.replace(/^unisex\s+/i, "");
 
-  if (parts.length >= 2) {
-    const first = parts[0];
-    const second = parts[1];
-
-    if (
-      cleanBrand &&
-      (first.localeCompare(cleanBrand, undefined, { sensitivity: "accent" }) === 0 ||
-        first.toLowerCase() === cleanBrand.toLowerCase() ||
-        first.toLowerCase().includes(cleanBrand.toLowerCase()) ||
-        cleanBrand.toLowerCase().includes(first.toLowerCase()))
-    ) {
-      return second || "Unknown";
-    }
-  }
-
-  let s = title;
+  // Remove leading brand
   if (cleanBrand) {
-    const escaped = escapeRegex(cleanBrand);
-    s = s.replace(new RegExp(`^${escaped}\\s*\\|\\s*`, "i"), "");
+    const escapedBrand = escapeRegex(cleanBrand);
+    s = s.replace(new RegExp(`^${escapedBrand}\\s+`, "i"), "");
+    s = s.replace(new RegExp(`^${escapedBrand}\\s*\\|\\s*`, "i"), "");
   }
 
-  const fallbackParts = s
-    .split("|")
-    .map((p) => normalizeWhitespace(p))
-    .filter(Boolean);
+  // If pipe-delimited, keep only the first segment after cleanup
+  if (s.includes("|")) {
+    s =
+      s
+        .split("|")
+        .map((p) => normalizeWhitespace(p))
+        .filter(Boolean)[0] || s;
+  }
 
-  return fallbackParts[0] || title || "Unknown";
+  // Remove trailing clearance marker
+  s = s.replace(/\s*\(clearance\)\s*$/i, "");
+
+  return normalizeWhitespace(s) || "Unknown";
 }
 
 function buildHaystack(product) {
@@ -315,7 +312,7 @@ function parseProductToDeal(product, dropCounts) {
   const listingURL = makeListingUrl(product.handle);
   const imageURL = firstImageUrl(product);
   const brand = normalizeBrand(product.vendor, listingName);
-  const model = deriveModel(listingName, brand);
+  const model = deriveModel(listingName, brand, product.model || "");
   const gender = detectGender(product);
   const shoeType = detectShoeType(product);
 
