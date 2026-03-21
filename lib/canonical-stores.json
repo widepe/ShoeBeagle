@@ -162,6 +162,28 @@
   "notes": "Champs Sports running shoes sale scraper using direct HTML fetch + Cheerio on the sale running shoes page. Parses product cards from returned HTML, preserving listingName exactly as scraped, deriving brand/model from listingName, parsing gender from the tile secondary line, and forcing shoeType to unknown unless strict trail/track keywords appear in the listing name. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Dedupe by listingURL. Metadata includes dropCounts, droppedDealsSample, and pageSummaries. Writes to champs-sale.json."
 },
 
+
+{
+  "id": "confluence-running",
+  "displayName": "Confluence Running",
+  "addedAt": "2026-03-21",
+  "lastUpdated": "2026-03-21",
+  "scrapedUrls": [
+    "https://www.confluencerunning.com/collections/sale-footwear/products.json?limit=250&page=1",
+    "https://www.confluencerunning.com/collections/sale-footwear/products.json?limit=250&page=2"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/confluence-running.json"
+  ],
+  "aliases": ["confluence running", "confluence-running", "confluencerunning"],
+  "enabled": true,
+  "scraperType": "shopify-json",
+  "envVar": "CONFLUENCERUNNING_DEALS_BLOB_URL",
+  "baseUrl": "https://www.confluencerunning.com",
+  "notes": "Confluence Running sale footwear scraper via Shopify collection products.json. Scrapes the sale-footwear collection with Shopify pagination using ?limit=250&page=N. Filters to running footwear categories only, excluding non-shoe items such as socks, apparel, accessories, and recovery footwear. Extracts brand from Shopify vendor, preserves listingName from product title, derives model by stripping leading gender and brand text from listingName, parses gender from product_type/title/tags, and assigns shoeType from category data: trail when trail is categorized, track when spikes/spike categories are present, and otherwise road for the remaining qualifying running footwear categories; falls back to unknown when category data is insufficient. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Skips hidden-price items and dedupes by listingURL. Writes to confluence-running.json."
+},
+
+  
 {
   "id": "dsw",
   "displayName": "DSW",
