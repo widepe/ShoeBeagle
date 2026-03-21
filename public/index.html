@@ -1715,15 +1715,12 @@ panelSortOptions.forEach((option) => {
 
         imgWrapper.appendChild(img);
 
-if (discount.hasDiscount) {
-  const pct = item.discountPercent ?? item.discountPercentUpTo;
-
-  if (pct >= 30) {
-    const badge = document.createElement('div');
-    badge.className = 'discount-badge';
-    badge.textContent = `${pct}% OFF`;
-    imgWrapper.appendChild(badge);
-  }
+if (discount.hasDiscount && discount.percent >= 30) {
+  const badge = document.createElement('div');
+  badge.className = 'discount-badge';
+  badge.textContent = `${discount.percent}% OFF`;
+  imgWrapper.appendChild(badge);
+}
 }
 
         const gRaw = norm(item.gender);
