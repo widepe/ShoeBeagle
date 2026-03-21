@@ -302,14 +302,14 @@ function initialDropCounts() {
 function blobPathFromEnv() {
   const url = process.env.FRONTRUNNERSLA_DEALS_BLOB_URL;
   if (!url) {
-    return "deals/front-runners-la.json";
+    return "front-runners-la.json";
   }
 
   try {
     const parsed = new URL(url);
-    return parsed.pathname.replace(/^\/+/, "") || "deals/front-runners-la.json";
+    return parsed.pathname.replace(/^\/+/, "") || "front-runners-la.json";
   } catch {
-    return "deals/front-runners-la.json";
+    return "front-runners-la.json";
   }
 }
 
