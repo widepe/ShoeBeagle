@@ -68,26 +68,30 @@ module.exports = async function handler(req, res) {
   // ==========================================================
   // EASY TOGGLES
   // ==========================================================
-const ENABLED = {
-  runpacers_sale: true,
-  therunningwellstore_sale: true,
-  running_company: true,
-  tc_running_co: true,
-};
+  const ENABLED = {
+    runpacers_sale: true,
+    therunningwellstore_sale: true,
+    running_company: true,
+    tc_running_co: true,
+    front_runners_la: true,
+  };
 
-const TARGETS = [];
+  const TARGETS = [];
 
-// RunPacers sale running shoes pages.
-if (ENABLED.runpacers_sale) TARGETS.push("/api/scrapers/runpacers-sale");
+  // RunPacers sale running shoes pages.
+  if (ENABLED.runpacers_sale) TARGETS.push("/api/scrapers/runpacers-sale");
 
-// The Running Well Store sale footwear collection via Shopify products.json.
-if (ENABLED.therunningwellstore_sale) TARGETS.push("/api/scrapers/therunningwellstore");
+  // The Running Well Store sale footwear collection via Shopify products.json.
+  if (ENABLED.therunningwellstore_sale) TARGETS.push("/api/scrapers/therunningwellstore");
 
-// Running Company sale running shoes scraper.
-if (ENABLED.running_company) TARGETS.push("/api/scrapers/running-company");
+  // Running Company sale running shoes scraper.
+  if (ENABLED.running_company) TARGETS.push("/api/scrapers/running-company");
 
-// TC Running Co sale running shoes scraper.
-if (ENABLED.tc_running_co) TARGETS.push("/api/scrapers/tc-running-co");
+  // TC Running Co sale running shoes scraper.
+  if (ENABLED.tc_running_co) TARGETS.push("/api/scrapers/tc-running-co");
+
+  // Front Runners LA running + trail collections via Shopify products.json.
+  if (ENABLED.front_runners_la) TARGETS.push("/api/scrapers/front-runners-la");
 
   try {
     const results = [];
