@@ -1718,13 +1718,16 @@ panelSortOptions.forEach((option) => {
         if (discount.hasDiscount) {
           const pct = deal.discountPercent ?? deal.discountPercentUpTo;
 
-if (pct >= 30) {
-  const badge = document.createElement('div');
-  badge.className = 'discount-badge';
-  badge.textContent = `${pct}% OFF`;
-  imageWrapper.appendChild(badge);
+if (discount.hasDiscount) {
+  const pct = item.discountPercent ?? item.discountPercentUpTo;
+
+  if (pct >= 30) {
+    const badge = document.createElement('div');
+    badge.className = 'discount-badge';
+    badge.textContent = `${pct}% OFF`;
+    imgWrapper.appendChild(badge);
+  }
 }
-        }
 
         const gRaw = norm(item.gender);
         const g = gRaw && gRaw !== "unknown" ? gRaw : "";
