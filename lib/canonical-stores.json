@@ -1070,7 +1070,7 @@
   "envVar": "SUPERRUNNERSHOP_DEALS_BLOB_URL",
   "baseUrl": "https://superrunnersshop.com",
   "notes": "Super Runners Shop sale scraper via collection HTML + Shopify products.json. Scrapes the sale footwear collection pages for page-level reporting and product tile extraction, and uses products.json for structured enrichment. Skips hidden-price tiles such as see price in cart / bag if they ever appear, though the current sale page appears to show standard sale pricing. Extracts listingName from the sale tile title, brand from the tile vendor or Shopify vendor, derives model from listingName after removing leading gender words and brand prefix, parses salePrice and originalPrice from the tile, keeps only true sale items where both prices exist and salePrice < originalPrice, sets range fields to null for single-price items, infers gender as mens, womens, unisex, or unknown from title/tags/text, sets shoeType to unknown unless Shopify tags or product_type clearly indicate road, trail, or track, dedupes by product handle/listingURL, omits deals array from the HTTP response, includes readable drop reasons and page summaries in the response, and writes top-level metadata plus deals array to super-runner-shop.json."
-}
+},
 
   
 {
