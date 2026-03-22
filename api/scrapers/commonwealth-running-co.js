@@ -4,8 +4,9 @@
 // Shopify collection JSON scraper for Commonwealth Running Co sale shoes.
 //
 // Rules:
-// - Reads Shopify collection JSON from the sale collection.
-// - Keeps only products that appear to be running shoes based on activity/category/text signals.
+// - Reads Shopify collection JSON from the filtered sale collection.
+// - Trusts the activity-filtered collection heavily.
+// - Keeps products unless they are obviously not shoes.
 // - Keeps only products with at least one variant having BOTH price and compare_at_price.
 // - Drops products with only one price.
 // - Skips hidden-price products.
@@ -25,6 +26,8 @@ const STORE = "Commonwealth Running Co";
 const SCHEMA_VERSION = 1;
 const BASE_URL = "https://commonwealthrunning.com";
 const JSON_LIMIT = 250;
+const ACTIVITY_FILTER =
+  "Ultra running,Road running,Competition,Trail running,Running,Marathon";
 
 const HIDDEN_PRICE_PATTERNS = [
   /see\s+price\s+in\s+cart/i,
@@ -129,21 +132,18 @@ function deriveModel(listingName, brand, explicitModel = "") {
 
   if (!s) return "Unknown";
 
-  // Remove leading gender
   s = s.replace(/^women['’]s\s+/i, "");
   s = s.replace(/^men['’]s\s+/i, "");
   s = s.replace(/^womens\s+/i, "");
   s = s.replace(/^mens\s+/i, "");
   s = s.replace(/^unisex\s+/i, "");
 
-  // Remove leading brand
   if (cleanBrand) {
     const escapedBrand = escapeRegex(cleanBrand);
     s = s.replace(new RegExp(`^${escapedBrand}\\s+`, "i"), "");
     s = s.replace(new RegExp(`^${escapedBrand}\\s*\\|\\s*`, "i"), "");
   }
 
-  // If pipe-delimited, keep only the first segment after cleanup
   if (s.includes("|")) {
     s =
       s
@@ -152,7 +152,6 @@ function deriveModel(listingName, brand, explicitModel = "") {
         .filter(Boolean)[0] || s;
   }
 
-  // Remove trailing clearance marker
   s = s.replace(/\s*\(clearance\)\s*$/i, "");
 
   return normalizeWhitespace(s) || "Unknown";
@@ -202,38 +201,40 @@ function detectShoeType(product) {
   return "unknown";
 }
 
-function isAllowedRunningShoe(product) {
+function isObviouslyNotShoe(product) {
   const haystack = buildHaystack(product);
   const productType = normalizeWhitespace(product.product_type).toLowerCase();
   const title = normalizeWhitespace(product.title).toLowerCase();
 
-  // Hard excludes only
   if (
-    /\b(sock|socks|apparel|shirt|shorts|pants|tight|tights|jacket|bra|hat|cap|visor|glove|bottle|belt|pack|nutrition|gel)\b/.test(
+    /\b(sock|socks|apparel|shirt|shorts|pants|tight|tights|jacket|bra|hat|cap|visor|glove|bottle|belt|pack|nutrition|gel|singlet|hoodie|crewneck|tee|t-shirt)\b/.test(
       haystack
     )
   ) {
-    return false;
+    return true;
   }
 
-  if (/\b(sandal|slide|recovery)\b/.test(haystack)) return false;
+  if (/\b(sandal|slide|recovery footwear)\b/.test(haystack)) return true;
 
-  // In this filtered collection, trust shoes/footwear
-  if (/\bshoe|shoes|footwear\b/.test(productType)) return true;
-  if (/\bshoe|shoes|footwear\b/.test(title)) return true;
+  if (
+    /\b(insole|insoles|sunglasses|watch|watches|mittens|gloves|hydration|handhelds)\b/.test(
+      haystack
+    )
+  ) {
+    return true;
+  }
 
-  // fallback: some running shoes may still not say "shoe" in title but do in body/tags
-  if (/\bshoe|shoes|footwear\b/.test(haystack)) return true;
+  // If Shopify clearly says Shoes/Footwear, trust it.
+  if (/\bshoe|shoes|footwear\b/.test(productType)) return false;
+  if (/\bshoe|shoes|footwear\b/.test(title)) return false;
 
+  // In the filtered sale collection, keep ambiguous items unless they are clearly non-shoes.
   return false;
 }
 
 function buildJsonUrl(page) {
   const u = new URL(`${BASE_URL}/collections/sale/products.json`);
-  u.searchParams.set(
-    "activity",
-    "Running,Competition,Road running,Trail running,Ultra running,Marathon"
-  );
+  u.searchParams.set("activity", ACTIVITY_FILTER);
   u.searchParams.set("limit", String(JSON_LIMIT));
   u.searchParams.set("page", String(page));
   return u.toString();
@@ -258,7 +259,7 @@ function initialDropCounts() {
   return {
     totalProductsSeen: 0,
     dropped_hiddenPrice: 0,
-    dropped_notRunningShoes: 0,
+    dropped_obviousNonShoes: 0,
     dropped_missingListingName: 0,
     dropped_missingListingURL: 0,
     dropped_missingImageURL: 0,
@@ -288,8 +289,8 @@ function parseProductToDeal(product, dropCounts) {
     return null;
   }
 
-  if (!isAllowedRunningShoe(product)) {
-    dropCounts.dropped_notRunningShoes += 1;
+  if (isObviouslyNotShoe(product)) {
+    dropCounts.dropped_obviousNonShoes += 1;
     return null;
   }
 
