@@ -76,6 +76,7 @@ module.exports = async function handler(req, res) {
     front_runners_la: true,
     confluence_running: true,
     commonwealth_running_co: true,
+    sixpm_running: true,
   };
 
   const TARGETS = [];
@@ -99,7 +100,10 @@ module.exports = async function handler(req, res) {
   if (ENABLED.confluence_running) TARGETS.push("/api/scrapers/confluence-running");
 
   // Commonwealth Running Co via Shopify products.json.
-if (ENABLED.commonwealth_running_co) TARGETS.push("/api/scrapers/commonwealth-running-co");
+  if (ENABLED.commonwealth_running_co) TARGETS.push("/api/scrapers/commonwealth-running-co");
+
+  // 6pm running shoes sale via exposed mobile API JSON.
+  if (ENABLED.sixpm_running) TARGETS.push("/api/scrapers/6pm-running");
   
   try {
     const results = [];
