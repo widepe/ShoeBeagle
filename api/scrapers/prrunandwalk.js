@@ -22,13 +22,15 @@
 // - top-level metadata + deals array only
 //
 // Strategy: Shopify products.json only (two clearance collections)
+// Products not matching a recognized running category tag are dropped.
 //
 // shoeType mapping (from product tags):
-//   "Running & Walking" → road
-//   "Trail"             → trail
-//   "Cross Country"     → xc
-//   "Track & Field"     → track
-//   anything else       → unknown
+//   "Running & Walking"        → road
+//   "Carbon Fiber Plate Shoes" → road
+//   "Trail"                    → trail
+//   "Cross Country"            → xc
+//   "Track & Field"            → track
+//   anything else              → unknown
 
 const { put } = require("@vercel/blob");
 
@@ -62,6 +64,14 @@ const HIDDEN_PRICE_PATTERNS = [
   /hidden\s+price/i,
   /add\s+for\s+price/i,
   /login\s+to\s+see\s+price/i,
+];
+
+const RUNNING_CATEGORY_PATTERNS = [
+  /\btrail\b/i,
+  /\btrack\s*&\s*field\b/i,
+  /\bcross\s*country\b/i,
+  /\brunning\s*&\s*walking\b/i,
+  /\bcarbon\s*fiber\s*plate\b/i,
 ];
 
 // ---------------------------------------------------------------------------
@@ -146,6 +156,7 @@ function inferShoeTypeFromTags(tags) {
   if (/\btrack\s*&\s*field\b/.test(joined) || /\btrack\b/.test(joined)) return "track";
   if (/\bcross\s*country\b/.test(joined)) return "xc";
   if (/\brunning\s*&\s*walking\b/.test(joined) || /\brunning\b/.test(joined)) return "road";
+  if (/\bcarbon\s*fiber\s*plate\b/.test(joined)) return "road";
   return "unknown";
 }
 
@@ -165,6 +176,7 @@ function makeSummary(key, collectionUrl) {
       missingHandle: 0,
       missingTitle: 0,
       hiddenPrice: 0,
+      notRunning: 0,
       missingSalePrice: 0,
       missingOriginalPrice: 0,
       notDiscounted: 0,
@@ -225,6 +237,14 @@ function extractDeal(product, collectionGender, summary) {
   const listingName = cleanText(product?.title);
   if (!listingName) {
     increment(summary.dropped, "missingTitle");
+    return null;
+  }
+
+  // Drop products not in a recognized running category
+  const tagString = Array.isArray(product.tags) ? product.tags.join(" ") : "";
+  const isRunning = RUNNING_CATEGORY_PATTERNS.some((rx) => rx.test(tagString));
+  if (!isRunning) {
+    increment(summary.dropped, "notRunning");
     return null;
   }
 
@@ -300,7 +320,7 @@ function extractDeal(product, collectionGender, summary) {
   const inferredGender = inferGenderFromText(
     listingName,
     handle,
-    Array.isArray(product.tags) ? product.tags.join(" ") : ""
+    tagString
   );
   const gender =
     inferredGender !== "unknown" ? inferredGender : collectionGender;
@@ -348,6 +368,7 @@ function prettyDropCounts(dropped) {
     missingHandle: dropped.missingHandle || 0,
     missingTitle: dropped.missingTitle || 0,
     hiddenPrice: dropped.hiddenPrice || 0,
+    notRunning: dropped.notRunning || 0,
     missingSalePrice: dropped.missingSalePrice || 0,
     missingOriginalPrice: dropped.missingOriginalPrice || 0,
     notDiscounted: dropped.notDiscounted || 0,
@@ -421,7 +442,7 @@ export default async function handler(req, res) {
     const lastUpdated = nowIso();
 
     const blobPath = (process.env[BLOB_ENV_KEY] || "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/prrunandwalk.json")
-  .replace(/^https?:\/\/[^/]+\//, "");
+      .replace(/^https?:\/\/[^/]+\//, "");
 
     const blobData = {
       store: STORE,
