@@ -420,8 +420,8 @@ export default async function handler(req, res) {
 
     const lastUpdated = nowIso();
 
-    const rawPath = process.env[BLOB_ENV_KEY] || "prrunandwalk.json";
-const blobPath = rawPath.replace(/^https?:\/\/[^/]+\//, "");
+    const blobPath = (process.env[BLOB_ENV_KEY] || "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/prrunandwalk.json")
+  .replace(/^https?:\/\/[^/]+\//, "");
 
     const blobData = {
       store: STORE,
