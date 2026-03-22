@@ -546,6 +546,7 @@ const TITLE_MODEL_EXCLUDE_PATTERNS = [
   "out of stock",
   "pack",
   "pants",
+  "pickleball",
   "pullover",
   "quarter-crew",
   "recovery",
