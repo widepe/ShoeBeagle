@@ -298,7 +298,7 @@ html[data-theme="dark"] body{
 .content-shell{
   width:100%;
   display:grid;
-  grid-template-columns:minmax(240px, 280px) minmax(0, 1fr);
+  grid-template-columns:minmax(160px, 200px) minmax(0, 1fr);  /* left sidebar i think */
   gap:18px;
   align-items:start;
 }
