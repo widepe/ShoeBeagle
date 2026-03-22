@@ -53,6 +53,12 @@
     "aliases": ["Craft"],
     "models": ["CTM Ultra", "CTM Ultra Carbon", "Pro Endur", "Nordlite", "Pacer"]
   },
+
+"Cole Haan": {
+    "aliases": ["Cole Haan", "cole haan", "Cole", "Haan", "colehaan"],
+    "models": []
+  },
+
   "Decathlon Kiprun": {
     "aliases": ["Decathlon Kiprun", "Kiprun"],
     "models": ["KD900", "KS900", "Ultralight", "Race Light"]
