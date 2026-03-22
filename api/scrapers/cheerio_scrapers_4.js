@@ -77,6 +77,7 @@ module.exports = async function handler(req, res) {
     confluence_running: true,
     commonwealth_running_co: true,
     sixpm_running: true,
+    footprintusa_running: true,
   };
 
   const TARGETS = [];
@@ -104,6 +105,9 @@ module.exports = async function handler(req, res) {
 
   // 6pm running shoes sale via exposed mobile API JSON.
   if (ENABLED.sixpm_running) TARGETS.push("/api/scrapers/6pm-running");
+
+  // Footprint USA running clearance via RetailConnect API.
+  if (ENABLED.footprintusa_running) TARGETS.push("/api/scrapers/footprintusa");
   
   try {
     const results = [];
