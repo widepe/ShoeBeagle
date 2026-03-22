@@ -10,6 +10,7 @@
 // - Keep only true sale items with both salePrice and originalPrice where salePrice < originalPrice
 // - Skip hidden-price items
 // - shoeType is always "unknown"
+// - Model rule: remove the gender and anything before it
 // - Response JSON does NOT include deals array
 // - Saved blob JSON DOES include top-level structure + deals array only
 //
@@ -123,33 +124,31 @@ function maxOrNull(arr) {
 function cleanBrand(brand) {
   const s = normalizeWhitespace(brand || "");
   if (!s) return "Unknown";
+
   if (/^on running$/i.test(s)) return "On";
   if (/^hoka one one$/i.test(s)) return "Hoka";
+  if (/^vivobarefoot$/i.test(s)) return "Vivobarefoot";
+
   return s;
 }
 
-function escapeRegex(s) {
-  return String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function deriveModel(listingName, brand) {
+function deriveModel(listingName) {
   let s = normalizeWhitespace(listingName || "");
-  const cleanBrandName = cleanBrand(brand);
-
   if (!s) return "Unknown";
 
-  s = s.replace(/^women['’]s\s+/i, "");
-  s = s.replace(/^men['’]s\s+/i, "");
-  s = s.replace(/^womens\s+/i, "");
-  s = s.replace(/^mens\s+/i, "");
-  s = s.replace(/^unisex\s+/i, "");
+  // Remove the gender and anything before it.
+  // Examples:
+  // "On Running Women's Cloudrunner 2" -> "Cloudrunner 2"
+  // "Hoka Women's Bondi 9" -> "Bondi 9"
+  // "Vivobarefoot Women's Primus Lite III All Weather in Obsidian" -> "Primus Lite III All Weather"
+  // "Men's On Cloudmonster 2" -> "Cloudmonster 2"
+  s = s.replace(/^.*?\b(Women['’]s|Womens|Men['’]s|Mens|Unisex)\b\s*/i, "");
 
-  if (cleanBrandName) {
-    const escapedBrand = escapeRegex(cleanBrandName);
-    s = s.replace(new RegExp(`^${escapedBrand}\\s+`, "i"), "");
-  }
-
+  // Remove trailing parenthetical text.
   s = s.replace(/\s*\([^)]*\)\s*$/i, "");
+
+  // Remove trailing color phrase like "in Obsidian"
+  s = s.replace(/\s+in\s+[^|]+$/i, "");
 
   return normalizeWhitespace(s) || "Unknown";
 }
@@ -235,7 +234,7 @@ function parseResultToDeal(result, source, dropCounts) {
   const listingName = normalizeWhitespace(product.title || "");
   const rawBrand = safeArray(product.brands)[0] || "";
   const brand = cleanBrand(rawBrand);
-  const model = deriveModel(listingName, brand);
+  const model = deriveModel(listingName);
   const listingURL = buildListingUrl(result);
   const imageURL = pickImageUrl(result);
   const gender = deriveGender(result, source.gender);
