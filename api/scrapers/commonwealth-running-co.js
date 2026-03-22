@@ -207,6 +207,7 @@ function isAllowedRunningShoe(product) {
   const productType = normalizeWhitespace(product.product_type).toLowerCase();
   const title = normalizeWhitespace(product.title).toLowerCase();
 
+  // Hard excludes only
   if (
     /\b(sock|socks|apparel|shirt|shorts|pants|tight|tights|jacket|bra|hat|cap|visor|glove|bottle|belt|pack|nutrition|gel)\b/.test(
       haystack
@@ -217,28 +218,12 @@ function isAllowedRunningShoe(product) {
 
   if (/\b(sandal|slide|recovery)\b/.test(haystack)) return false;
 
-  if (/\bshoe|shoes|footwear\b/.test(productType)) {
-    if (
-      /\b(running|competition|road running|trail running|ultra running|marathon|track|xc|cross country|spike|spikes|racer|trail|road)\b/.test(
-        haystack
-      )
-    ) {
-      return true;
-    }
-  }
+  // In this filtered collection, trust shoes/footwear
+  if (/\bshoe|shoes|footwear\b/.test(productType)) return true;
+  if (/\bshoe|shoes|footwear\b/.test(title)) return true;
 
-  if (
-    /\b(running|competition|road running|trail running|ultra running|marathon|track|xc|cross country|spike|spikes|racer|trail|road)\b/.test(
-      haystack
-    ) &&
-    /\bshoe|shoes|footwear\b/.test(haystack)
-  ) {
-    return true;
-  }
-
-  if (title.includes("shoe") && /\b(running|trail|track|xc|road|racer)\b/.test(haystack)) {
-    return true;
-  }
+  // fallback: some running shoes may still not say "shoe" in title but do in body/tags
+  if (/\bshoe|shoes|footwear\b/.test(haystack)) return true;
 
   return false;
 }
