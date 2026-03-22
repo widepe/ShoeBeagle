@@ -1050,6 +1050,29 @@
   "notes": "Sports Basement running shoe deals scraper using Algolia search API plus Vercel blob write. Queries the running deals search results for q=shoes deals with named_tags.Activity=Running. Paginates through Algolia hitsPerPage batches and writes sportsbasement.json. listingName comes from hit.title. brand comes from vendor. model is listingName with leading brand removed. listingURL is built from product handle. imageURL comes from image or product_image. Gender is inferred from named_tags, tags, handle, and title. shoeType is trail for trail, track for spike/track, road for road, else unknown. Hidden-price tiles like see price in cart or bag are skipped. Includes top-level pageSummaries, dropCounts, droppedReasons, and mens/womens/unisex/unknown totals."
 },
 
+
+{
+  "id": "super-runner-shop",
+  "displayName": "Super Runners Shop",
+  "addedAt": "2026-03-22",
+  "lastUpdated": "2026-03-22",
+  "scrapedUrls": [
+    "https://superrunnersshop.com/collections/footear-sale-shoes",
+    "https://superrunnersshop.com/collections/footear-sale-shoes?page=2",
+    "https://superrunnersshop.com/collections/footear-sale-shoes/products.json?limit=250&page=1"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/super-runner-shop.json"
+  ],
+  "aliases": ["super runners shop", "superrunnersshop", "super-runner-shop"],
+  "enabled": true,
+  "scraperType": "shopify-html-json",
+  "envVar": "SUPERRUNNERSHOP_DEALS_BLOB_URL",
+  "baseUrl": "https://superrunnersshop.com",
+  "notes": "Super Runners Shop sale scraper via collection HTML + Shopify products.json. Scrapes the sale footwear collection pages for page-level reporting and product tile extraction, and uses products.json for structured enrichment. Skips hidden-price tiles such as see price in cart / bag if they ever appear, though the current sale page appears to show standard sale pricing. Extracts listingName from the sale tile title, brand from the tile vendor or Shopify vendor, derives model from listingName after removing leading gender words and brand prefix, parses salePrice and originalPrice from the tile, keeps only true sale items where both prices exist and salePrice < originalPrice, sets range fields to null for single-price items, infers gender as mens, womens, unisex, or unknown from title/tags/text, sets shoeType to unknown unless Shopify tags or product_type clearly indicate road, trail, or track, dedupes by product handle/listingURL, omits deals array from the HTTP response, includes readable drop reasons and page summaries in the response, and writes top-level metadata plus deals array to super-runner-shop.json."
+}
+
+  
 {
   "id": "tc-running-co",
   "displayName": "TC Running Co",
