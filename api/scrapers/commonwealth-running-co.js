@@ -152,7 +152,8 @@ function deriveModel(listingName, brand, explicitModel = "") {
         .filter(Boolean)[0] || s;
   }
 
-  s = s.replace(/\s*\(clearance\)\s*$/i, "");
+// Remove ANY trailing parentheses like (Final Sale), (Seasonal), etc.
+s = s.replace(/\s*\([^)]*\)\s*$/i, "");
 
   return normalizeWhitespace(s) || "Unknown";
 }
