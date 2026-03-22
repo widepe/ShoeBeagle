@@ -149,12 +149,14 @@ async function fetchJson(url) {
   return res.json();
 }
 
-function parseTile($card) {
-  const linkEl =
-    $card.find('a[product-card-link]').filter((_, el) => {
+function parseTile($, $card) {
+  const linkEl = $card
+    .find('a[product-card-link]')
+    .filter((_, el) => {
       const href = $(el).attr("href") || "";
       return /\/products\//i.test(href);
-    }).first();
+    })
+    .first();
 
   const href = cleanText(linkEl.attr("href"));
   const listingURL = toAbsUrl(href);
