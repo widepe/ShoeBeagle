@@ -231,55 +231,32 @@
 </div>
   </div>
 
-  <div class="content-header-right">
-    <div class="status-message" id="statusMessage">
+<div class="content-header-right">
+  <div class="status-bar" id="statusBar">
+    <div class="status-message status-summary" id="statusMessage">
       Marty’s Daily Deals
     </div>
+
+    <div class="status-applied" id="statusAppliedFilters"></div>
+
+    <div class="status-sort-wrap" id="statusSortWrap" hidden>
+      <label class="status-sort-label" for="statusSortSelect">Sort</label>
+      <select id="statusSortSelect" class="status-sort-select" aria-label="Sort results">
+        <option value="">Default</option>
+        <option value="discount-desc">Largest Discount</option>
+        <option value="savings-desc">Biggest Savings</option>
+        <option value="price-asc">Price: low to high</option>
+        <option value="price-desc">Price: high to low</option>
+      </select>
+    </div>
   </div>
+</div>
 </div>      
       <div class="content-shell">
         <aside class="left-sidebar" aria-label="Marketplace controls">
 
 
-       <div class="sidebar-panel">
-  <div class="sidebar-heading">FILTER</div>
-
-  <button type="button" class="slide-check-option" data-panel-gender="womens" aria-pressed="false">
-    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
-    <span>Women's shoes</span>
-  </button>
-  <button type="button" class="slide-check-option" data-panel-gender="mens" aria-pressed="false">
-    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
-    <span>Men's shoes</span>
-  </button>
-
-  <select id="sidebarStoreSelect" class="slide-store-select" aria-label="Filter by store (desktop)"><option value="">All stores</option><option value="6pm">6pm</option><option value="Allbirds">Allbirds</option><option value="ALS">ALS</option><option value="ASICS">ASICS</option><option value="Backcountry">Backcountry</option><option value="Big Peach Running Co">Big Peach Running Co</option><option value="Big Shoes">Big Shoes</option><option value="Brooks Running">Brooks Running</option><option value="Champs Sports">Champs Sports</option><option value="Commonwealth Running Co">Commonwealth Running Co</option><option value="Confluence Running">Confluence Running</option><option value="DSW">DSW</option><option value="Famous Footwear">Famous Footwear</option><option value="Finish Line">Finish Line</option><option value="Fleet Feet">Fleet Feet</option><option value="Foot Locker">Foot Locker</option><option value="Footprint USA">Footprint USA</option><option value="Front Runners LA">Front Runners LA</option><option value="Gazelle Sports">Gazelle Sports</option><option value="Going, Going, Gone">Going, Going, Gone</option><option value="Hibbett">Hibbett</option><option value="HOKA">HOKA</option><option value="Holabird Sports">Holabird Sports</option><option value="JD Sports">JD Sports</option><option value="Journeys">Journeys</option><option value="Karhu">Karhu</option><option value="Luke's Locker">Luke's Locker</option><option value="Macy's">Macy's</option><option value="Marathon Sports">Marathon Sports</option><option value="Mizuno">Mizuno</option><option value="Newton Running">Newton Running</option><option value="Nike">Nike</option><option value="On">On</option><option value="Pacers Running">Pacers Running</option><option value="Performance Running">Performance Running</option><option value="PUMA">PUMA</option><option value="REI">REI</option><option value="RNJ Sports">RNJ Sports</option><option value="Run United">Run United</option><option value="Runners Plus">Runners Plus</option><option value="Running Center">Running Center</option><option value="Running Company">Running Company</option><option value="Running Warehouse">Running Warehouse</option><option value="Saucony">Saucony</option><option value="Shoe Carnival">Shoe Carnival</option><option value="Shoebacca">Shoebacca</option><option value="Sierra">Sierra</option><option value="Skechers">Skechers</option><option value="Sports Basement">Sports Basement</option><option value="TC Running Co">TC Running Co</option><option value="The Running Well Store">The Running Well Store</option><option value="Topo Athletic">Topo Athletic</option><option value="Track Shack">Track Shack</option><option value="Tradehome">Tradehome</option><option value="TYR">TYR</option><option value="Under Armour">Under Armour</option><option value="Zappos">Zappos</option></select>
-
-</div>
-
-    <div class="sidebar-panel">
-  <div class="sidebar-heading">SORT</div>
-
-  <button type="button" class="slide-check-option" data-panel-sort="discount-desc">
-    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
-    <span>Largest Discount</span>
-  </button>
-
-  <button type="button" class="slide-check-option" data-panel-sort="savings-desc">
-    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
-    <span>Biggest Savings</span>
-  </button>
-
-  <button type="button" class="slide-check-option" data-panel-sort="price-asc">
-    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
-    <span>Price: low to high</span>
-  </button>
-
-  <button type="button" class="slide-check-option" data-panel-sort="price-desc">
-    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
-    <span>Price: high to low</span>
-  </button>
-</div>
+     
 
           <div class="sidebar-panel display-panel">
             <div class="sidebar-heading">DISPLAY</div>
