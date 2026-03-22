@@ -156,7 +156,7 @@
     "models": ["Kjerag", "Tomir", "Kboix"]
   },
   "On": {
-    "aliases": ["On", "On Running"],
+    "aliases": ["On", "On Running", "on footwear"],
     "models": [
       "Cloudsurfer",
       "Cloudmonster",
@@ -181,6 +181,12 @@
     "aliases": ["Reebok"],
     "models": ["Floatride Energy", "Floatride Run Fast", "Symmetros"]
   },
+
+"Ryka": {
+    "aliases": ["Ryka", "ryka"],
+    "models": []
+  },
+  
   "Salomon": {
     "aliases": ["Salomon"],
     "models": ["S/Lab Pulsar", "Sense Ride", "Ultra Glide", "Speedcross", "Phantasm"]
