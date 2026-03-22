@@ -8,7 +8,10 @@
 // - Paginate using currentPage/pageCount from the API.
 // - Keep only true sale items with both price and originalPrice where salePrice < originalPrice.
 // - Skip hidden-price tiles.
-// - shoeType is always "unknown" unless clearly categorized in API data; this scraper leaves it unknown.
+// - shoeType is always "unknown" for this scraper.
+// - Enforce source gender:
+//   - womens source keeps only womens
+//   - mens source keeps only mens
 // - Response JSON does NOT include deals array.
 // - Saved blob JSON DOES include top-level structure + deals array only.
 //
@@ -106,18 +109,6 @@ function discountPct(original, sale) {
   return round2(((original - sale) / original) * 100);
 }
 
-function minOrNull(arr) {
-  return arr.length ? Math.min(...arr) : null;
-}
-
-function maxOrNull(arr) {
-  return arr.length ? Math.max(...arr) : null;
-}
-
-function uniqNumbers(values) {
-  return [...new Set(values.filter(Number.isFinite).map((v) => round2(v)))];
-}
-
 function buildApiUrl(source, pageIndexZeroBased) {
   const url = new URL(`${API_BASE}${source.apiPath}`);
   for (const [k, v] of Object.entries(source.params)) {
@@ -142,7 +133,8 @@ function pickImageUrl(result) {
       result.imageMap.MAIN ||
       result.imageMap.FRNT ||
       result.imageMap.LEFT ||
-      result.imageMap.TOPP;
+      result.imageMap.TOPP ||
+      result.imageMap.BACK;
     if (preferred) {
       return `https://m.media-amazon.com/images/I/${preferred}._AC_SR400,400_.jpg`;
     }
@@ -166,7 +158,6 @@ function hasHiddenPrice(result) {
 function cleanModelName(model) {
   let s = normalizeWhitespace(model || "");
   if (!s) return "Unknown";
-
   s = s.replace(/\s*\([^)]*\)\s*$/i, "");
   return normalizeWhitespace(s) || "Unknown";
 }
@@ -212,6 +203,16 @@ function parseResultToDeal(result, source, dropCounts) {
 
   if (!imageURL) {
     dropCounts.dropped_missingImageURL += 1;
+    return null;
+  }
+
+  if (source.gender === "womens" && gender !== "womens") {
+    dropCounts.dropped_wrongGenderForSource += 1;
+    return null;
+  }
+
+  if (source.gender === "mens" && gender !== "mens") {
+    dropCounts.dropped_wrongGenderForSource += 1;
     return null;
   }
 
@@ -270,6 +271,7 @@ function initialDropCounts() {
     dropped_missingSalePrice: 0,
     dropped_missingOriginalPrice: 0,
     dropped_saleNotLessThanOriginal: 0,
+    dropped_wrongGenderForSource: 0,
     dropped_duplicateAfterMerge: 0,
   };
 }
