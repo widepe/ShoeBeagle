@@ -2,6 +2,27 @@
 
 
 {
+  "id": "6pm-running",
+  "displayName": "6pm Running",
+  "addedAt": "2026-03-21",
+  "lastUpdated": "2026-03-21",
+  "scrapedUrls": [
+    "https://www.6pm.com/filters/womens/sneakers-athletic-shoes/running-shoes/ELzXARjQ7gHAAQHgAQHiAgQCAxgc.zso?t=running%20shoes&ot=running%20shoes",
+    "https://www.6pm.com/mens/shoes/sneakers-athletic-shoes/running-shoes/CK_XARC81wEY0O4BwAEC4gIEAQIDGA.zso?s=isNew%2Fdesc%2FgoLiveDate%2Fdesc%2FrecentSalesStyle%2Fdesc%2F"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/6pm-running.json"
+  ],
+  "aliases": ["6pm", "6pm running", "6pm-running"],
+  "enabled": true,
+  "scraperType": "mobile-api-json",
+  "envVar": "SIXPM_DEALS_BLOB_URL",
+  "baseUrl": "https://www.6pm.com",
+  "notes": "6pm running shoes sale scraper via exposed 6pm mobile API JSON. Scrapes womens and mens running shoes sale endpoints with pagination using pageCount/currentPage from the API, based on the supplied running-shoes filtered source URLs. Extracts listingName from productName, brand from brandName, cleans model from listingName by removing trailing parenthetical text, parses gender from txAttrFacet_Gender, and sets shoeType to unknown for all deals. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Skips hidden-price items, enforces source gender so womens source keeps only womens products and mens source keeps only mens products, dedupes by listingURL, and writes to 6pm-running.json."
+},
+  
+
+{
   "id": "adidas",
   "displayName": "Adidas",
   "addedAt": "2026-03-10",
