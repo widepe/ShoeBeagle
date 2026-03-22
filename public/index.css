@@ -1174,7 +1174,7 @@ html[data-theme="dark"] .slide-panel{
   border-radius:8px;
   background-color:#eee7e3;
   color:#2d2d2d;
-  padding:0 10px;
+  padding:0 0px;
   font-size:0.95rem;
   margin-bottom:6px;
 }
@@ -1189,7 +1189,7 @@ html[data-theme="dark"] .slide-store-select{
   border:0;
   background:transparent;
   color:rgba(0, 0, 0, 0.8);
-  padding-left:30px;
+  padding-left:0px;
   display:flex;
   align-items:center;
   gap:8px;
