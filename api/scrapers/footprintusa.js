@@ -1,16 +1,18 @@
 // /api/scrapers/footprintusa.js
 // CommonJS Vercel function
 //
-// Footprint USA running clearance footwear scraper via Retail Search API.
+// Footprint USA running clearance footwear scraper via Retail Connect search API.
 //
-// Rules:
-// - Scrape women's running clearance footwear collection
-// - Scrape men's running clearance footwear collection
-// - Keep only true sale items with both salePrice and originalPrice where salePrice < originalPrice
-// - Skip hidden-price items
-// - shoeType is always "unknown"
-// - Response JSON does NOT include deals array
-// - Saved blob JSON DOES include top-level structure + deals array only
+// Improvements in this version:
+// - Correctly unwraps API responses returned as { status, value: { results, pagination } }.
+// - Uses the confirmed collection id you captured.
+// - Adds an explicit gender filter per source to separate womens vs mens.
+// - Paginates using pagination.nextPage / totalPages.
+// - Keeps only true sale items with both price and originalPrice where salePrice < originalPrice.
+// - Skips hidden-price items.
+// - shoeType is always "unknown".
+// - Response JSON does NOT include deals array.
+// - Saved blob JSON DOES include top-level structure + deals array only.
 //
 // Env:
 // - BLOB_READ_WRITE_TOKEN
@@ -25,28 +27,22 @@ const BASE_URL = "https://footprintusa.co";
 const API_URL = "https://storefront.retailconnect.app/v1/search";
 const PAGE_SIZE = 48;
 
+const COMMON_COLLECTION_ID = "189135454347";
+
 const SOURCE_CONFIGS = [
   {
     key: "womens",
     gender: "womens",
+    genderFilterValue: "Female",
     pageUrl:
       "https://footprintusa.co/collections/clearance-womens-footwear?attributes.shop_by_sport=Running",
-    collectionId: "189135519883",
-    filters: [
-      { field: "attributes.rcc_collection_id", value: ["189135519883"] },
-      { field: "attributes.shop_by_sport", value: ["Running"] },
-    ],
   },
   {
     key: "mens",
     gender: "mens",
+    genderFilterValue: "Male",
     pageUrl:
       "https://footprintusa.co/collections/men-clearance-footwear?attributes.shop_by_sport=Running",
-    collectionId: "189135716491",
-    filters: [
-      { field: "attributes.rcc_collection_id", value: ["189135716491"] },
-      { field: "attributes.shop_by_sport", value: ["Running"] },
-    ],
   },
 ];
 
@@ -115,6 +111,10 @@ function discountPct(original, sale) {
   return round2(((original - sale) / original) * 100);
 }
 
+function uniqNumbers(values) {
+  return [...new Set(values.filter(Number.isFinite).map((v) => round2(v)))];
+}
+
 function minOrNull(arr) {
   return arr.length ? Math.min(...arr) : null;
 }
@@ -123,12 +123,8 @@ function maxOrNull(arr) {
   return arr.length ? Math.max(...arr) : null;
 }
 
-function uniqNumbers(values) {
-  return [...new Set(values.filter(Number.isFinite).map((v) => round2(v)))];
-}
-
 function cleanBrand(brand) {
-  let s = normalizeWhitespace(brand || "");
+  const s = normalizeWhitespace(brand || "");
   if (!s) return "Unknown";
   if (/^on running$/i.test(s)) return "On";
   if (/^hoka one one$/i.test(s)) return "Hoka";
@@ -161,29 +157,30 @@ function deriveModel(listingName, brand) {
   return normalizeWhitespace(s) || "Unknown";
 }
 
+function buildListingUrl(result) {
+  const url = result?.product?.uri || safeArray(result?.variants)[0]?.uri || "";
+  return typeof url === "string" && url.trim() ? url.trim() : null;
+}
+
 function pickImageUrl(result) {
   const productImages = safeArray(result?.product?.images);
   if (productImages[0]?.uri) return String(productImages[0].uri).trim();
 
-  const variantImages = safeArray(result?.variants?.[0]?.images);
+  const firstVariant = safeArray(result?.variants)[0];
+  const variantImages = safeArray(firstVariant?.images);
   if (variantImages[0]?.uri) return String(variantImages[0].uri).trim();
 
   return null;
 }
 
-function buildListingUrl(result) {
-  const productUri = result?.product?.uri;
-  const variantUri = result?.variants?.[0]?.uri;
-  const url = productUri || variantUri || "";
-  return typeof url === "string" && url.trim() ? url.trim() : null;
-}
-
 function buildHaystack(result) {
   const product = result?.product || {};
-  const firstVariant = safeArray(result?.variants)[0] || {};
+  const variants = safeArray(result?.variants);
+  const firstVariant = variants[0] || {};
+
   return JSON.stringify({
     title: product.title,
-    brand: safeArray(product.brands).join(" "),
+    brands: safeArray(product.brands).join(" "),
     categories: safeArray(product.categories).join(" "),
     description: product.description,
     genders: safeArray(firstVariant.genders).join(" "),
@@ -197,8 +194,8 @@ function hasHiddenPrice(result) {
 }
 
 function deriveGender(result, sourceGender) {
-  const variant = safeArray(result?.variants)[0] || {};
-  const genders = safeArray(variant.genders).map((x) => String(x).toLowerCase());
+  const firstVariant = safeArray(result?.variants)[0] || {};
+  const genders = safeArray(firstVariant.genders).map((x) => String(x).toLowerCase());
   const joined = genders.join(" | ");
 
   if (joined.includes("female")) return "womens";
@@ -306,10 +303,6 @@ function parseResultToDeal(result, source, dropCounts) {
   const originalValues = uniqNumbers(pricedVariants.map((v) => v.original));
   const discountValues = uniqNumbers(pricedVariants.map((v) => v.discount));
 
-  const singleSale = saleValues.length === 1 ? saleValues[0] : null;
-  const singleOriginal = originalValues.length === 1 ? originalValues[0] : null;
-  const singleDiscount = discountValues.length === 1 ? discountValues[0] : null;
-
   return {
     schemaVersion: SCHEMA_VERSION,
 
@@ -318,9 +311,9 @@ function parseResultToDeal(result, source, dropCounts) {
     brand,
     model,
 
-    salePrice: singleSale,
-    originalPrice: singleOriginal,
-    discountPercent: singleDiscount,
+    salePrice: saleValues.length === 1 ? saleValues[0] : null,
+    originalPrice: originalValues.length === 1 ? originalValues[0] : null,
+    discountPercent: discountValues.length === 1 ? discountValues[0] : null,
 
     salePriceLow: saleValues.length > 1 ? minOrNull(saleValues) : null,
     salePriceHigh: saleValues.length > 1 ? maxOrNull(saleValues) : null,
@@ -374,15 +367,18 @@ function makeRequestBody(source, page, nextPageToken = null) {
     page,
     placement: PLACEMENT,
     query: "",
-    filters: source.filters,
+    filters: [
+      { field: "attributes.rcc_collection_id", value: [COMMON_COLLECTION_ID] },
+      { field: "attributes.shop_by_sport", value: ["Running"] },
+      { field: "genders", value: [source.genderFilterValue] },
+    ],
     filterFields: FILTER_FIELDS,
     visitorId: "shoe-beagle-footprintusa",
     languageCode: "en-US",
   };
 
   if (nextPageToken) {
-    body.page = page;
-    body.pageToken = nextPageToken;
+    body.nextPage = nextPageToken;
   }
 
   return body;
@@ -393,6 +389,7 @@ async function fetchSearchPage(source, page, nextPageToken = null) {
     method: "POST",
     headers: {
       accept: "*/*",
+      "accept-language": "en-US,en;q=0.9",
       "content-type": "application/json",
       origin: BASE_URL,
       referer: `${BASE_URL}/`,
@@ -421,8 +418,9 @@ async function scrapeSource(source, combinedDropCounts) {
 
   while (true) {
     const data = await fetchSearchPage(source, page, nextPageToken);
-    const results = safeArray(data?.results);
-    const pagination = data?.pagination || {};
+    const payload = data?.value || data || {};
+    const results = safeArray(payload?.results);
+    const pagination = payload?.pagination || {};
     totalPages = Number(pagination.totalPages) || totalPages;
 
     sourceUrls.push(
