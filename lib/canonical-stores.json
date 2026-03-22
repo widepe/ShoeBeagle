@@ -670,6 +670,25 @@
   "notes": "On last-season/classics running shoes scraper via Algolia product search API. Uses the US_products_production_v3 index with filters for discounted visible shoes on the classics page across competition, marathon, road running, track and field, and trail running. Preserves listingName exactly from Algolia name, forces brand to On, sets model equal to listingName, maps gender only to mens/womens/unisex/unknown from the Algolia gender field, and maps shoeType from productSubtype/productSubtypes: road_running -> road, trail_running -> trail, track or track_and_field -> track, else unknown. Keeps only true sale items with both salePrice and originalPrice where salePrice < originalPrice. Dedupe by listingURL. Writes to on-last-season-shoes.json."
 },
 
+{
+  "id": "prrunandwalk",
+  "displayName": "PR Run & Walk",
+  "addedAt": "2026-03-22",
+  "lastUpdated": "2026-03-22",
+  "scrapedUrls": [
+    "https://prrunandwalk.com/collections/mens-clearance-footwear/products.json?limit=250&page=1",
+    "https://prrunandwalk.com/collections/womens-clearance-footwear/products.json?limit=250&page=1"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/prrunandwalk.json"
+  ],
+  "aliases": ["PR Run & Walk", "prrunandwalk"],
+  "enabled": true,
+  "scraperType": "shopify-products-json",
+  "envVar": "PRRUNANDWALK_DEALS_BLOB_URL",
+  "baseUrl": "https://prrunandwalk.com",
+  "notes": "PR Run & Walk clearance footwear scraper via Shopify products.json. Scrapes mens and womens clearance collections with pagination capped at 40 pages per collection. Gender falls back to collection gender if not inferable from title/tags. shoeType mapped from Shopify tags: Running & Walking → road, Trail → trail, Cross Country → xc, Track & Field → track, otherwise unknown. Drops products with no compare_at_price discount. Writes to prrunandwalk.json."
+},  
 
 {
   "id": "public-lands",
