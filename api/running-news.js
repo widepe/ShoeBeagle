@@ -12,7 +12,8 @@
 
 export default async function handler(req, res) {
   try {
-    const limit = clampInt(req.query.limit, 12, 1, 50);
+    const urlObj = new URL(req.url, "http://localhost");
+    const limit = clampInt(urlObj.searchParams.get("limit"), 12, 1, 50);
 
 const feeds = [
   { name: "iRunFar", url: "https://irunfar.com/feed" },
