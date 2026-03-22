@@ -307,6 +307,26 @@
   },
 
 
+  {
+  "id": "footprintusa",
+  "displayName": "Footprint USA",
+  "addedAt": "2026-03-22",
+  "lastUpdated": "2026-03-22",
+  "scrapedUrls": [
+    "https://footprintusa.co/collections/clearance-womens-footwear?attributes.shop_by_sport=Running",
+    "https://footprintusa.co/collections/men-clearance-footwear?attributes.shop_by_sport=Running"
+  ],
+  "expectedBlob": [
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/footprintusa.json"
+  ],
+  "aliases": ["footprint usa", "footprintusa", "footprint"],
+  "enabled": true,
+  "scraperType": "retailconnect-json",
+  "envVar": "FOOTPRINTUSA_DEALS_BLOB_URL",
+  "baseUrl": "https://footprintusa.co",
+  "notes": "Footprint USA running clearance footwear scraper via Retail Connect search API. Scrapes the womens and mens clearance footwear collection pages filtered by attributes.shop_by_sport=Running, using the corresponding Retail Connect search requests and pagination tokens from the API. Extracts listingName from product.title, brand from product.brands with light normalization such as On Running to On and Hoka One One to Hoka, derives model from listingName by removing leading gender and brand text and stripping trailing parenthetical text, parses gender from product variant gender data while enforcing source gender separation, and keeps shoeType as unknown for all deals. Keeps only true sale items where at least one product variant has both salePrice and originalPrice with salePrice < originalPrice. Skips hidden-price items, dedupes by listingURL, and writes to footprintusa.json."
+},
+
 {
   "id": "front-runners-la",
   "displayName": "Front Runners LA",
