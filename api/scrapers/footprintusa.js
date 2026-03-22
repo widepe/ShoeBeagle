@@ -3,16 +3,15 @@
 //
 // Footprint USA running clearance footwear scraper via Retail Connect search API.
 //
-// Improvements in this version:
-// - Correctly unwraps API responses returned as { status, value: { results, pagination } }.
-// - Uses the confirmed collection id you captured.
-// - Adds an explicit gender filter per source to separate womens vs mens.
-// - Paginates using pagination.nextPage / totalPages.
-// - Keeps only true sale items with both price and originalPrice where salePrice < originalPrice.
-// - Skips hidden-price items.
-// - shoeType is always "unknown".
-// - Response JSON does NOT include deals array.
-// - Saved blob JSON DOES include top-level structure + deals array only.
+// Rules:
+// - Scrape women's running clearance footwear collection
+// - Scrape men's running clearance footwear collection
+// - Correctly unwrap API responses returned as { status, value: { results, pagination } }
+// - Keep only true sale items with both salePrice and originalPrice where salePrice < originalPrice
+// - Skip hidden-price items
+// - shoeType is always "unknown"
+// - Response JSON does NOT include deals array
+// - Saved blob JSON DOES include top-level structure + deals array only
 //
 // Env:
 // - BLOB_READ_WRITE_TOKEN
@@ -27,20 +26,18 @@ const BASE_URL = "https://footprintusa.co";
 const API_URL = "https://storefront.retailconnect.app/v1/search";
 const PAGE_SIZE = 48;
 
-const COMMON_COLLECTION_ID = "189135454347";
-
 const SOURCE_CONFIGS = [
   {
     key: "womens",
     gender: "womens",
-    genderFilterValue: "Female",
+    collectionId: "189135519883",
     pageUrl:
       "https://footprintusa.co/collections/clearance-womens-footwear?attributes.shop_by_sport=Running",
   },
   {
     key: "mens",
     gender: "mens",
-    genderFilterValue: "Male",
+    collectionId: "189135454347",
     pageUrl:
       "https://footprintusa.co/collections/men-clearance-footwear?attributes.shop_by_sport=Running",
   },
@@ -158,7 +155,8 @@ function deriveModel(listingName, brand) {
 }
 
 function buildListingUrl(result) {
-  const url = result?.product?.uri || safeArray(result?.variants)[0]?.uri || "";
+  const url =
+    result?.product?.uri || safeArray(result?.product?.variants)[0]?.uri || "";
   return typeof url === "string" && url.trim() ? url.trim() : null;
 }
 
@@ -166,7 +164,7 @@ function pickImageUrl(result) {
   const productImages = safeArray(result?.product?.images);
   if (productImages[0]?.uri) return String(productImages[0].uri).trim();
 
-  const firstVariant = safeArray(result?.variants)[0];
+  const firstVariant = safeArray(result?.product?.variants)[0];
   const variantImages = safeArray(firstVariant?.images);
   if (variantImages[0]?.uri) return String(variantImages[0].uri).trim();
 
@@ -175,7 +173,7 @@ function pickImageUrl(result) {
 
 function buildHaystack(result) {
   const product = result?.product || {};
-  const variants = safeArray(result?.variants);
+  const variants = safeArray(product?.variants);
   const firstVariant = variants[0] || {};
 
   return JSON.stringify({
@@ -194,7 +192,7 @@ function hasHiddenPrice(result) {
 }
 
 function deriveGender(result, sourceGender) {
-  const firstVariant = safeArray(result?.variants)[0] || {};
+  const firstVariant = safeArray(result?.product?.variants)[0] || {};
   const genders = safeArray(firstVariant.genders).map((x) => String(x).toLowerCase());
   const joined = genders.join(" | ");
 
@@ -206,7 +204,7 @@ function deriveGender(result, sourceGender) {
 }
 
 function collectVariantPrices(result) {
-  const variants = safeArray(result?.variants);
+  const variants = safeArray(result?.product?.variants);
   const priced = [];
 
   for (const variant of variants) {
@@ -271,7 +269,7 @@ function parseResultToDeal(result, source, dropCounts) {
   const pricedVariants = collectVariantPrices(result);
 
   if (!pricedVariants.length) {
-    const variants = safeArray(result?.variants);
+    const variants = safeArray(result?.product?.variants);
     let sawMissingSale = false;
     let sawMissingOriginal = false;
     let sawSaleNotLower = false;
@@ -368,12 +366,11 @@ function makeRequestBody(source, page, nextPageToken = null) {
     placement: PLACEMENT,
     query: "",
     filters: [
-      { field: "attributes.rcc_collection_id", value: [COMMON_COLLECTION_ID] },
+      { field: "attributes.rcc_collection_id", value: [source.collectionId] },
       { field: "attributes.shop_by_sport", value: ["Running"] },
-      { field: "genders", value: [source.genderFilterValue] },
     ],
     filterFields: FILTER_FIELDS,
-    visitorId: "shoe-beagle-footprintusa",
+    visitorId: "64e382e1-84ef-4621-90e2-9def7b866aaa",
     languageCode: "en-US",
   };
 
@@ -390,7 +387,9 @@ async function fetchSearchPage(source, page, nextPageToken = null) {
     headers: {
       accept: "*/*",
       "accept-language": "en-US,en;q=0.9",
+      "cache-control": "no-cache",
       "content-type": "application/json",
+      pragma: "no-cache",
       origin: BASE_URL,
       referer: `${BASE_URL}/`,
       "user-agent":
