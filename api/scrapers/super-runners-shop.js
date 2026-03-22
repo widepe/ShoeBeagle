@@ -323,7 +323,7 @@ export default async function handler(req, res) {
 
     const lastUpdated = nowIso();
     const blobPath =
-      process.env[BLOB_ENV_KEY] || "deals/super-runner-shop.json";
+      process.env[BLOB_ENV_KEY] || "super-runner-shop.json";
 
     const blobData = {
       store: STORE,
