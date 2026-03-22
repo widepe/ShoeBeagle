@@ -209,7 +209,7 @@ async function scrapeCollectionPages() {
 
     const pageCards = [];
     $("product-card").each((_, el) => {
-      const parsed = parseTile($(el));
+      const parsed = parseTile($, $(el));
       if (parsed.handle) pageCards.push(parsed);
     });
 
