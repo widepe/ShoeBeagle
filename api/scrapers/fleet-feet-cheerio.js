@@ -232,7 +232,7 @@ async function scrapeFleetFeet() {
         if (!(originalPrice > salePrice && salePrice > 0)) return;
 
         const discountPercent = computeDiscountPercent(originalPrice, salePrice);
-        if (!Number.isFinite(discountPercent) || discountPercent < 5 || discountPercent > 90) return;
+        if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice) || salePrice >= originalPrice) return;
 
         const flags = getArrayField(data, "product.flags")
           .map((x) => normalizeWhitespace(x))
