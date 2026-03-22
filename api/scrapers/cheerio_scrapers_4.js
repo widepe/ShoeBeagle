@@ -78,6 +78,7 @@ module.exports = async function handler(req, res) {
     commonwealth_running_co: true,
     sixpm_running: true,
     footprintusa_running: true,
+    super_runners_shop: true,
   };
 
   const TARGETS = [];
@@ -108,6 +109,9 @@ module.exports = async function handler(req, res) {
 
   // Footprint USA running clearance via RetailConnect API.
   if (ENABLED.footprintusa_running) TARGETS.push("/api/scrapers/footprintusa");
+
+  // Super Runners Shop sale footwear via Shopify products.json.
+  if (ENABLED.super_runners_shop) TARGETS.push("/api/scrapers/super-runner-shop");
   
   try {
     const results = [];
