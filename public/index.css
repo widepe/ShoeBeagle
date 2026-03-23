@@ -476,7 +476,7 @@ html[data-theme="dark"] .sidebar-placeholder{
   flex:0 0 var(--rss-card-width);
   min-width:0;
   border-radius:12px;
-  background:rgb(255 255 255 / 80%)
+  background:rgb(255 255 255 / 80%);
   padding:10px;
   display:flex;
   flex-direction:column;
@@ -1283,17 +1283,89 @@ html[data-theme="dark"] .slide-check-box{
   font-weight:800;
 }
 
+
 /* =========================================================
    STATUS / FILTERS
 ========================================================= */
-.status-message{
-  font-size:1.4rem;
+.status-bar{
+  width:100%;
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) auto;
+  grid-template-areas:
+    "summary sort"
+    "applied sort";
+  align-items:end;
+  column-gap:12px;
+  row-gap:4px;
+  padding:0 var(--pad);
+  min-width:0;
+}
+
+.status-summary{
+  grid-area:summary;
+  margin:0;
+  padding:0;
+  text-align:left;
+  width:100%;
+  min-width:0;
+  font-size:1.2rem;
   font-weight:600;
   color:var(--sb-blue);
-  margin:0.35rem auto 0;
-  text-align:center;
-  width:100%;
-  padding:0 var(--pad);
+  line-height:1.15;
+}
+
+.status-applied{
+  grid-area:applied;
+  min-width:0;
+  font-size:0.88rem;
+  line-height:1.2;
+  color:var(--sb-blue);
+  text-align:left;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+
+.status-applied:empty{
+  display:none;
+}
+
+.status-sort-wrap{
+  grid-area:sort;
+  display:flex;
+  align-items:center;
+  justify-self:end;
+  gap:8px;
+  min-width:0;
+}
+
+.status-sort-label{
+  color:var(--sb-blue);
+  font-size:0.92rem;
+  font-weight:700;
+  white-space:nowrap;
+}
+
+.status-sort-select{
+  height:36px;
+  min-width:190px;
+  border:1px solid rgba(0, 0, 0, 0.1);
+  border-radius:8px;
+  background-color:#eee7e3;
+  color:#2d2d2d;
+  padding:0 10px;
+  font-size:0.95rem;
+}
+
+html[data-theme="dark"] .status-summary,
+html[data-theme="dark"] .status-applied,
+html[data-theme="dark"] .status-sort-label{
+  color:#e8e8e8;
+}
+
+html[data-theme="dark"] .status-sort-select{
+  background:var(--card-bg);
+  color:#f1f1f1;
+  border-color:#4a4a4a;
 }
 
 .filters{
@@ -2554,7 +2626,6 @@ html.theme-switching.to-light body::after{
   .sb-input,
   .btn-eq,
   .chip,
-  ,
   .slide-check-box,
   .sb-gender-box,
   .sb-note,
