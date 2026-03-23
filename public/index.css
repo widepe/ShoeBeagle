@@ -1186,7 +1186,7 @@ html[data-theme="dark"] .slide-panel{
   color:#2d2d2d;
   padding:0 18px;
   font-size:0.90rem;
-  margin-top:8px;
+  margin-top:0px;
 }
 
 html[data-theme="dark"] .slide-store-select{
