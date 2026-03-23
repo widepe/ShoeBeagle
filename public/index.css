@@ -1212,6 +1212,22 @@ html[data-theme="dark"] .slide-check-option{
   color:#cdd4e2;
 }
 
+.gender-row{
+  display:grid !important;
+  grid-template-columns:1fr 1fr !important;
+  column-gap:12px;
+  width:100%;
+}
+
+.gender-row .slide-check-option{
+  width:100%;
+  justify-content:flex-start;
+  text-align:left;
+}
+
+.gender-half{
+  width:100%;
+}
 .slide-check-box{
   width:0.9rem;
   height:0.9rem;
