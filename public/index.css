@@ -1603,6 +1603,10 @@ margin-top:0;
   border-color:#445470;
 } 
 
+
+
+
+
 .discount-badge{
   position:absolute;
   top:var(--badge-offset);
@@ -2041,6 +2045,7 @@ html[data-theme="dark"] .footer{
     aspect-ratio:5 / 4;
     overflow:hidden;
     border-radius:var(--img-radius);
+     position:relative;
   }
 
   .card-content{
@@ -2049,6 +2054,31 @@ html[data-theme="dark"] .footer{
     flex-direction:column;
     justify-content:flex-start;
   }
+
+.card-heart{
+  position:absolute;
+  top:6px;
+  right:6px;
+
+  width:18px;
+  height:18px;
+
+  object-fit:contain;
+  opacity:0.8;
+
+  cursor:pointer;
+  transition:transform 0.15s ease, opacity 0.15s ease;
+}
+
+.card-heart:hover{
+  opacity:1;
+  transform:scale(1.1);
+}
+
+   .card-heart.active{
+  filter: none;
+  transform:scale(1.1);
+}   
 
 .status-summary{
   font-size:1.05rem;
