@@ -348,6 +348,11 @@
     (() => {
       const form = document.getElementById("search-form");
       const statusMessageEl = document.getElementById("statusMessage");
+
+const statusAppliedFiltersEl = document.getElementById("statusAppliedFilters");
+const statusSortWrapEl = document.getElementById("statusSortWrap");
+const statusSortSelect = document.getElementById("statusSortSelect");
+      
     const resultsEl = document.getElementById("results");
 if (!resultsEl) {
   console.error('Missing #results element in index.html');
@@ -711,23 +716,18 @@ if (modeToggleBtn) {
         selectedStore = nextValue;
       }
 
-      function renderSelectedStoreInventory() {
-        if (!selectedStore) return false;
+function renderSelectedStoreInventory() {
+  if (!selectedStore) return false;
 
-        currentSearch = { brand: "", model: "" };
-        lastSearchResults = getSelectedStoreInventory();
-        if (qInput) qInput.value = "";
+  currentSearch = { brand: "", model: "" };
+  lastSearchResults = getSelectedStoreInventory();
+  if (qInput) qInput.value = "";
 
-        if (dailyDeals) dailyDeals.style.display = "none";
-        renderFilteredResults({ resetPage: true, append: false });
+  if (dailyDeals) dailyDeals.style.display = "none";
+  renderFilteredResults({ resetPage: true, append: false });
 
-        const count = getFilteredAndSorted(lastSearchResults).length;
-        statusMessageEl.textContent = count
-          ? `Showing ${count} deal${count === 1 ? "" : "s"} from ${selectedStore}.`
-          : `No deals currently available from ${selectedStore} with these filters.`;
-
-        return true;
-      }
+  return true;
+}
 
       // --- Helpers ---
       function normalizeStr(s) {
@@ -1343,30 +1343,34 @@ if (modeToggleBtn) {
         if (!inside) closeSuggestions();
       });
 
-      function syncPanelControls() {
-        panelStoreSelects.forEach((selectEl) => {
-          selectEl.value = selectedStore || "";
-        });
+ function syncPanelControls() {
+  panelStoreSelects.forEach((selectEl) => {
+    selectEl.value = selectedStore || "";
+  });
 
-        panelGenderOptions.forEach((option) => {
-          const isOn = option.getAttribute("data-panel-gender") === selectedGender;
-          option.classList.toggle("active", isOn);
-          option.setAttribute("aria-pressed", isOn ? "true" : "false");
-        });
+  panelGenderOptions.forEach((option) => {
+    const isOn = option.getAttribute("data-panel-gender") === selectedGender;
+    option.classList.toggle("active", isOn);
+    option.setAttribute("aria-pressed", isOn ? "true" : "false");
+  });
 
-        panelSortOptions.forEach((option) => {
-          const isOn = option.getAttribute("data-panel-sort") === currentSort;
-          option.classList.toggle("active", isOn);
-          option.setAttribute("aria-pressed", isOn ? "true" : "false");
-        });
+  panelSortOptions.forEach((option) => {
+    const isOn = option.getAttribute("data-panel-sort") === currentSort;
+    option.classList.toggle("active", isOn);
+    option.setAttribute("aria-pressed", isOn ? "true" : "false");
+  });
 
-        panelThemeOptions.forEach((option) => {
-          const isDarkOption = option.getAttribute("data-panel-theme") === "dark";
-          const isOn = isDarkOption ? usingDarkTheme : !usingDarkTheme;
-          option.classList.toggle("active", isOn);
-          option.setAttribute("aria-pressed", isOn ? "true" : "false");
-        });
-      }
+  if (statusSortSelect) {
+    statusSortSelect.value = currentSort || "";
+  }
+
+  panelThemeOptions.forEach((option) => {
+    const isDarkOption = option.getAttribute("data-panel-theme") === "dark";
+    const isOn = isDarkOption ? usingDarkTheme : !usingDarkTheme;
+    option.classList.toggle("active", isOn);
+    option.setAttribute("aria-pressed", isOn ? "true" : "false");
+  });
+}
 
       function totalPagesCount(total) {
         return Math.max(1, Math.ceil((Number(total) || 0) / getPageSize()));
@@ -1387,8 +1391,93 @@ if (modeToggleBtn) {
         if (nextPageBtn) nextPageBtn.disabled = pageIndex + 1 >= pages;
         syncColumnsButtons();
       }
+function getRenderedCardCount(gridEl) {
+  return gridEl ? gridEl.querySelectorAll(".card").length : 0;
+}
 
-      function applyFilters(items) {
+function getSearchDisplayQuery() {
+  return (
+    [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() ||
+    (qInput && qInput.value.trim() ? qInput.value.trim() : "all shoes")
+  );
+}
+
+function getAppliedFilterLabels() {
+  const labels = [];
+
+  if (selectedGender === "mens") labels.push("Men’s");
+  if (selectedGender === "womens") labels.push("Women’s");
+  if (selectedStore) labels.push(`Store: ${selectedStore}`);
+
+  return labels;
+}
+
+function getSortLabel(value) {
+  if (value === "discount-desc") return "Largest Discount";
+  if (value === "savings-desc") return "Biggest Savings";
+  if (value === "price-asc") return "Price: low to high";
+  if (value === "price-desc") return "Price: high to low";
+  return "Default";
+}
+
+function setStatusMeta(extraParts = []) {
+  if (!statusAppliedFiltersEl) return;
+
+  const parts = [...extraParts, ...getAppliedFilterLabels()];
+  statusAppliedFiltersEl.textContent = parts.join(" • ");
+}
+
+function setStatusSummary(text) {
+  if (statusMessageEl) statusMessageEl.textContent = text;
+}
+
+function setStatusSortVisibility(visible) {
+  if (!statusSortWrapEl) return;
+  statusSortWrapEl.hidden = !visible;
+}
+
+function updateStatusBar({ showingDailyDeals = false, totalBeforeFilters = 0, filteredTotal = 0, correctedFrom = "" } = {}) {
+  if (statusSortSelect) {
+    statusSortSelect.value = currentSort || "";
+  }
+
+  const hasSearch = !!([currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim());
+  const hasActiveFiltersOrSort = !!selectedGender || !!selectedStore || !!currentSort;
+
+  if (showingDailyDeals && !hasSearch && !hasActiveFiltersOrSort) {
+    setStatusSummary("Marty’s Daily Deals");
+    setStatusMeta([]);
+    setStatusSortVisibility(false);
+    return;
+  }
+
+  const activeGrid = showingDailyDeals ? dailyDealsGrid : resultsEl;
+  const displayedCount = getRenderedCardCount(activeGrid);
+
+  let summary = "";
+  if (hasSearch) {
+    const displayQuery = getSearchDisplayQuery();
+    if (totalBeforeFilters > 0) {
+      summary = `Displaying ${displayedCount} of ${totalBeforeFilters} deals on ${displayQuery}`;
+    } else {
+      summary = `No results found for ${displayQuery}`;
+    }
+  } else if (showingDailyDeals) {
+    summary = `Displaying ${displayedCount} of ${totalBeforeFilters} daily deals`;
+  } else {
+    summary = `Displaying ${displayedCount} of ${totalBeforeFilters} deals`;
+  }
+
+  setStatusSummary(summary);
+
+  const extraParts = [];
+  if (correctedFrom) {
+    extraParts.push(`Closest match for ${correctedFrom}`);
+  }
+  setStatusMeta(extraParts);
+
+  setStatusSortVisibility(hasSearch || hasActiveFiltersOrSort);
+}      function applyFilters(items) {
         const gSel = norm(selectedGender);
         const storeSel = normalizeStoreName(selectedStore);
 
@@ -1496,50 +1585,53 @@ function getFilteredAndSorted(items) {
         return { hasDiscount: false };
       }
 
-      function renderFilteredResults({ resetPage = true, append = false } = {}) {
-        const filtered = getFilteredAndSorted(lastSearchResults);
+      function renderFilteredResults({ resetPage = true, append = false, correctedFrom = "" } = {}) {
+  const filtered = getFilteredAndSorted(lastSearchResults);
 
-        if (resetPage) pageIndex = 0;
+  if (resetPage) pageIndex = 0;
 
-        const pageSize = getPageSize();
-        const start = pageIndex * pageSize;
-        const slice = filtered.slice(start, start + pageSize);
+  const pageSize = getPageSize();
+  const start = pageIndex * pageSize;
+  const slice = filtered.slice(start, start + pageSize);
 
-        if (!append) resultsEl.innerHTML = "";
-        slice.forEach((item) => resultsEl.appendChild(createDealCard(item)));
+  if (!append) resultsEl.innerHTML = "";
+  slice.forEach((item) => resultsEl.appendChild(createDealCard(item)));
 
-        const displayQuery =
-          [currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim() ||
-          (qInput && qInput.value.trim() ? qInput.value.trim() : "all shoes");
+  updateNavUI(filtered.length);
 
-        if (!filtered.length) {
-          statusMessageEl.textContent = `No results match your filters for ${displayQuery}.`;
-          updateNavUI(0);
-          return;
-        }
+  updateStatusBar({
+    showingDailyDeals: false,
+    totalBeforeFilters: lastSearchResults.length,
+    filteredTotal: filtered.length,
+    correctedFrom,
+  });
+}
+function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
+  if (!dailyDealsGrid) return;
 
-        statusMessageEl.textContent = `We found ${filtered.length} deal${filtered.length === 1 ? "" : "s"} on ${displayQuery}.`;
-        updateNavUI(filtered.length);
-      }
+  const sourceDeals = selectedStore ? lastAllDeals : lastDailyDeals;
+  if (!sourceDeals || !sourceDeals.length) return;
 
-      function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
-        if (!dailyDealsGrid) return;
+  const filtered = getFilteredAndSorted(sourceDeals);
+  if (resetPage) pageIndex = 0;
 
-        const sourceDeals = selectedStore ? lastAllDeals : lastDailyDeals;
-        if (!sourceDeals || !sourceDeals.length) return;
+  const pageSize = getPageSize();
+  const start = pageIndex * pageSize;
+  const slice = filtered.slice(start, start + pageSize);
 
-        const filtered = getFilteredAndSorted(sourceDeals);
-        if (resetPage) pageIndex = 0;
-        const pageSize = getPageSize();
-        const start = pageIndex * pageSize;
-        const slice = filtered.slice(start, start + pageSize);
+  if (!append) dailyDealsGrid.innerHTML = "";
+  slice.forEach((item) => dailyDealsGrid.appendChild(createDealCard(item)));
 
-        if (!append) dailyDealsGrid.innerHTML = "";
-        slice.forEach((item) => dailyDealsGrid.appendChild(createDealCard(item)));
+  if (dailyDeals) dailyDeals.style.display = filtered.length ? "block" : "none";
 
-        if (dailyDeals) dailyDeals.style.display = filtered.length ? "block" : "none";
-        updateNavUI(filtered.length);
-      }
+  updateNavUI(filtered.length);
+
+  updateStatusBar({
+    showingDailyDeals: true,
+    totalBeforeFilters: sourceDeals.length,
+    filteredTotal: filtered.length,
+  });
+}
 
       panelGenderOptions.forEach((option) => {
         option.addEventListener("click", () => {
@@ -1561,6 +1653,22 @@ panelSortOptions.forEach((option) => {
   });
 });
 
+
+if (statusSortSelect) {
+  statusSortSelect.addEventListener("change", () => {
+    currentSort = statusSortSelect.value || "";
+    pageIndex = 0;
+    syncPanelControls();
+
+    const showingDailyDeals = dailyDeals && dailyDeals.style.display !== "none";
+    if (showingDailyDeals) {
+      renderDailyDealsNow({ resetPage: true, append: false });
+    } else {
+      renderFilteredResults({ resetPage: true, append: false });
+    }
+  });
+}
+      
      panelThemeOptions.forEach((option) => {
   option.addEventListener("click", () => {
     const value = option.getAttribute("data-panel-theme") || "light";
@@ -1860,7 +1968,9 @@ if (discount.hasDiscount && discount.percent >= 30) {
         }
 
         currentSearch = { brand, model };
-        statusMessageEl.textContent = "Searching deals…";
+   setStatusSummary("Searching deals…");
+setStatusMeta([]);
+setStatusSortVisibility(true);
         resultsEl.innerHTML = "";
 
         const pager = document.querySelector(".pager");
@@ -1874,7 +1984,9 @@ if (discount.hasDiscount && discount.percent >= 30) {
           data = await res.json();
         } catch (err) {
           console.error("Search error:", err);
-          statusMessageEl.textContent = "Search failed. Please try again.";
+          setStatusSummary("Search failed. Please try again.");
+setStatusMeta([]);
+setStatusSortVisibility(true);
           if (dailyDeals) dailyDeals.style.display = "block";
           return;
         }
@@ -1906,7 +2018,9 @@ if (discount.hasDiscount && discount.percent >= 30) {
                 correctedData = await correctedRes.json();
               } catch (err) {
                 console.error("Corrected search error:", err);
-                statusMessageEl.textContent = `No results found for ${displayQuery}.`;
+                setStatusSummary(`No results found for ${displayQuery}`);
+setStatusMeta([]);
+setStatusSortVisibility(true);
                 if (dailyDeals) dailyDeals.style.display = "block";
                 return;
               }
@@ -1918,9 +2032,12 @@ if (discount.hasDiscount && discount.percent >= 30) {
                 lastSearchResults = correctedResults;
                 syncPanelControls();
                 
-                renderFilteredResults({ resetPage: true, append: false });
-                statusMessageEl.innerHTML = `No results for <strong>${displayQuery}</strong> — showing ${correctedResults.length} ${actualBrand} ${model} result${correctedResults.length === 1 ? "" : "s"} instead.`;
-                return;
+               renderFilteredResults({
+  resetPage: true,
+  append: false,
+  correctedFrom: displayQuery,
+});
+return;
               }
             }
           }
