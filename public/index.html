@@ -150,22 +150,39 @@
     <div class="slide-panel-section">
   <div class="slide-panel-heading">FILTERS:</div>
 
-  <button type="button" class="slide-check-option" data-panel-gender="womens">
+  <div class="gender-row">
+  <button type="button" class="slide-check-option gender-half" data-panel-gender="womens">
     <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
     <span>Women's</span>
   </button>
-  <button type="button" class="slide-check-option" data-panel-gender="mens">
+
+  <button type="button" class="slide-check-option gender-half" data-panel-gender="mens">
     <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
     <span>Men's</span>
   </button>
+</div>
 
-<select id="panelShoeTypeSelect" class="slide-store-select">
-  <option value="">All surface types</option>
-  <option value="road">Road</option>
-  <option value="trail">Trail</option>
-  <option value="track">Track</option>
-  <option value="xc">XC</option>
-</select>
+<div id="panelShoeTypeSelect" class="surface-grid" aria-label="Filter by shoe type">
+  <button type="button" class="slide-check-option surface-half" data-panel-shoetype="road">
+    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+    <span>Road</span>
+  </button>
+
+  <button type="button" class="slide-check-option surface-half" data-panel-shoetype="trail">
+    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+    <span>Trail</span>
+  </button>
+
+  <button type="button" class="slide-check-option surface-half" data-panel-shoetype="track">
+    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+    <span>Track</span>
+  </button>
+
+  <button type="button" class="slide-check-option surface-half" data-panel-shoetype="xc">
+    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+    <span>XC</span>
+  </button>
+</div>
 
   <select id="panelStoreSelect" class="slide-store-select" aria-label="Filter by store">
     <option value="">Store</option>
@@ -242,25 +259,40 @@
      <div class="sidebar-panel">
   <div class="sidebar-heading">Gender</div>
 
-  <button type="button" class="slide-check-option" data-panel-gender="womens">
+  <div class="gender-row">
+  <button type="button" class="slide-check-option gender-half" data-panel-gender="womens">
     <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
     <span>Women's</span>
   </button>
 
-<button type="button" class="slide-check-option" data-panel-gender="mens">
-  <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
-  <span>Men's</span>
-</button>
-
+  <button type="button" class="slide-check-option gender-half" data-panel-gender="mens">
+    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+    <span>Men's</span>
+  </button>
+</div>
 <div class="sidebar-heading">Running surface</div>
-       
-<select id="sidebarShoeTypeSelect" class="slide-store-select" aria-label="Filter by shoe type">
-  <option value="">All surfaces</option>
-  <option value="road">Road</option>
-  <option value="trail">Trail</option>
-  <option value="track">Track</option>
-  <option value="xc">XC</option>
-</select>
+
+<div id="sidebarShoeTypeSelect" class="surface-grid" aria-label="Filter by shoe type">
+  <button type="button" class="slide-check-option surface-half" data-panel-shoetype="road">
+    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+    <span>Road</span>
+  </button>
+
+  <button type="button" class="slide-check-option surface-half" data-panel-shoetype="trail">
+    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+    <span>Trail</span>
+  </button>
+
+  <button type="button" class="slide-check-option surface-half" data-panel-shoetype="track">
+    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+    <span>Track</span>
+  </button>
+
+  <button type="button" class="slide-check-option surface-half" data-panel-shoetype="xc">
+    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+    <span>XC</span>
+  </button>
+</div>
        
 <div class="sidebar-heading">Shoe store</div>
        
