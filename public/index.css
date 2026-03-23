@@ -773,8 +773,25 @@ html[data-theme="dark"] .rss-state{
   padding-left:0;
   min-width:0;
 }
+.topbar-stack-link{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  text-decoration:none;
+  color:var(--sb-blue);
+}
 
-/* =========================================================
+.topbar-icon{
+  height:1.1em;
+  width:1.1em;
+  object-fit:contain;
+  opacity:0.75;
+}
+html[data-theme="dark"] .topbar-stack-link{
+  color:var(--sb-blue);
+}/* =========================================================
    LOGO
 ========================================================= */
 .brand-logo{
