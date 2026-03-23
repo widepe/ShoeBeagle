@@ -118,10 +118,12 @@
     <span>PRICE</span>
     <span>ALERT</span>
   </button>
-  <a class="topbar-stack-link" href="#" aria-label="Favorites">
-    <span>FAVS</span>
-    <img src="/images/heart.svg" alt="" class="topbar-icon">
-  </a>
+<a class="topbar-stack-link" href="#" aria-label="Favorites">
+  <span>FAVS</span>
+  <svg class="topbar-heart" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 21s-6-4.35-9-7.5C-1 9 3 3 8 6c2 1 4 3 4 3s2-2 4-3c5-3 9 3 5 7.5C18 16.65 12 21 12 21z"/>
+  </svg>
+</a>
 
   <button
     type="button"
@@ -1902,21 +1904,24 @@ panelShoeTypeOptions.forEach((option) => {
         imgWrapper.appendChild(img);
 
 // FAVORITE HEART
-const heart = document.createElement("img");
-heart.src = "/images/heart.svg";
-heart.className = "card-heart";
-heart.alt = "";
-heart.setAttribute("aria-label", "Toggle favorite");
+const heartBtn = document.createElement("button");
+heartBtn.type = "button";
+heartBtn.className = "card-heart-btn";
+heartBtn.setAttribute("aria-label", "Toggle favorite");
 
-// toggle active state (placeholder for now)
-heart.addEventListener("click", (e) => {
+heartBtn.innerHTML = `
+  <svg class="card-heart" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 21s-6-4.35-9-7.5C-1 9 3 3 8 6c2 1 4 3 4 3s2-2 4-3c5-3 9 3 5 7.5C18 16.65 12 21 12 21z"/>
+  </svg>
+`;
+
+heartBtn.addEventListener("click", (e) => {
   e.preventDefault();
-  e.stopPropagation(); // IMPORTANT: prevents card click
-
-  heart.classList.toggle("active");
+  e.stopPropagation();
+  heartBtn.classList.toggle("active");
 });
 
-imgWrapper.appendChild(heart);        
+imgWrapper.appendChild(heartBtn);   
 
 if (discount.hasDiscount && discount.percent >= 30) {
   const badge = document.createElement('div');
