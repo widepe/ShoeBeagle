@@ -1903,8 +1903,7 @@ panelShoeTypeOptions.forEach((option) => {
 
         imgWrapper.appendChild(img);
 
-// FAVORITE HEART
-const heartBtn = document.createElement("button");
+  const heartBtn = document.createElement("button");
 heartBtn.type = "button";
 heartBtn.className = "card-heart-btn";
 heartBtn.setAttribute("aria-label", "Toggle favorite");
@@ -1921,8 +1920,7 @@ heartBtn.addEventListener("click", (e) => {
   heartBtn.classList.toggle("active");
 });
 
-imgWrapper.appendChild(heartBtn);   
-
+imgWrapper.appendChild(heartBtn);
 if (discount.hasDiscount && discount.percent >= 30) {
   const badge = document.createElement('div');
   badge.className = 'discount-badge';
