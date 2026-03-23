@@ -159,7 +159,7 @@
     <span>Men's</span>
   </button>
 
-<select id="sidebarShoeTypeSelect" class="slide-store-select">
+<select id="panelShoeTypeSelect" class="slide-store-select">
   <option value="">All shoe types</option>
   <option value="road">Road</option>
   <option value="trail">Trail</option>
@@ -247,12 +247,20 @@
     <span>Women's</span>
   </button>
 
-  <button type="button" class="slide-check-option" data-panel-gender="mens">
-    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
-    <span>Men's</span>
-  </button>
+<button type="button" class="slide-check-option" data-panel-gender="mens">
+  <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+  <span>Men's</span>
+</button>
 
-  <select id="sidebarStoreSelect" class="slide-store-select" aria-label="Filter by store">
+<select id="sidebarShoeTypeSelect" class="slide-store-select" aria-label="Filter by shoe type">
+  <option value="">All shoe types</option>
+  <option value="road">Road</option>
+  <option value="trail">Trail</option>
+  <option value="track">Track</option>
+  <option value="xc">XC</option>
+</select>
+
+<select id="sidebarStoreSelect" class="slide-store-select" aria-label="Filter by store">
     <option value="">All stores</option>
   </select>
 </div>
@@ -350,7 +358,10 @@
 const statusAppliedFiltersEl = document.getElementById("statusAppliedFilters");
 const statusSortWrapEl = document.getElementById("statusSortWrap");
 const statusSortSelect = document.getElementById("statusSortSelect");
-      const sidebarShoeTypeSelect = document.getElementById("sidebarShoeTypeSelect");
+     const panelShoeTypeSelects = [
+  document.getElementById("panelShoeTypeSelect"),
+  document.getElementById("sidebarShoeTypeSelect"),
+].filter(Boolean);
       
     const resultsEl = document.getElementById("results");
 if (!resultsEl) {
@@ -1345,6 +1356,9 @@ function renderSelectedStoreInventory() {
   panelStoreSelects.forEach((selectEl) => {
     selectEl.value = selectedStore || "";
   });
+panelShoeTypeSelects.forEach((selectEl) => {
+  selectEl.value = selectedShoeType || "";
+});
 
   panelGenderOptions.forEach((option) => {
     const isOn = option.getAttribute("data-panel-gender") === selectedGender;
@@ -1403,11 +1417,12 @@ function getSearchDisplayQuery() {
 function getAppliedFilterLabels() {
   const labels = [];
 
-  if (selectedGender === "mens") labels.push("Men’s");
-  if (selectedGender === "womens") labels.push("Women’s");
-  if (selectedStore) labels.push(`Store: ${selectedStore}`);
+if (selectedGender === "mens") labels.push("Men’s");
+if (selectedGender === "womens") labels.push("Women’s");
+if (selectedStore) labels.push(`Store: ${selectedStore}`);
+if (selectedShoeType) labels.push(`Type: ${selectedShoeType.toUpperCase()}`);
 
-  return labels;
+return labels;
 }
 
 function getSortLabel(value) {
@@ -1440,7 +1455,7 @@ function updateStatusBar({ showingDailyDeals = false, totalBeforeFilters = 0, fi
   }
 
   const hasSearch = !!([currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim());
-  const hasActiveFiltersOrSort = !!selectedGender || !!selectedStore || !!currentSort;
+ const hasActiveFiltersOrSort = !!selectedGender || !!selectedStore || !!selectedShoeType || !!currentSort;
 
   if (showingDailyDeals && !hasSearch && !hasActiveFiltersOrSort) {
     setStatusSummary("Marty’s Daily Deals");
@@ -1719,10 +1734,15 @@ if (selectedStore) {
       });
 
 
-if (sidebarShoeTypeSelect) {
-  sidebarShoeTypeSelect.addEventListener("change", () => {
-    selectedShoeType = sidebarShoeTypeSelect.value || "";
+panelShoeTypeSelects.forEach((selectEl) => {
+  selectEl.addEventListener("change", () => {
+    selectedShoeType = selectEl.value || "";
     pageIndex = 0;
+
+    panelShoeTypeSelects.forEach((otherSelect) => {
+      if (otherSelect !== selectEl) otherSelect.value = selectedShoeType;
+    });
+
     syncPanelControls();
 
     const showingDailyDeals = dailyDeals && dailyDeals.style.display !== "none";
@@ -1732,7 +1752,7 @@ if (sidebarShoeTypeSelect) {
       renderFilteredResults({ resetPage: true, append: false });
     }
   });
-}
+});
       
       if (loadMoreBtn) {
         loadMoreBtn.addEventListener("click", () => {
