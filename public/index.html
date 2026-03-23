@@ -1633,23 +1633,35 @@ function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
   });
 }
 
-      panelGenderOptions.forEach((option) => {
-        option.addEventListener("click", () => {
-          const value = option.getAttribute("data-panel-gender") || "";
-          selectedGender = selectedGender === value ? "" : value;
-          syncPanelControls();
-          renderDailyDealsNow();
-          renderFilteredResults({ resetPage: true, append: false });
-        });
-      });
+panelGenderOptions.forEach((option) => {
+  option.addEventListener("click", () => {
+    const value = option.getAttribute("data-panel-gender") || "";
+    selectedGender = selectedGender === value ? "" : value;
+    pageIndex = 0;
+    syncPanelControls();
+
+    const showingDailyDeals = dailyDeals && dailyDeals.style.display !== "none";
+    if (showingDailyDeals) {
+      renderDailyDealsNow({ resetPage: true, append: false });
+    } else {
+      renderFilteredResults({ resetPage: true, append: false });
+    }
+  });
+});
 
 panelSortOptions.forEach((option) => {
   option.addEventListener("click", () => {
     const value = option.getAttribute("data-panel-sort") || "";
     currentSort = currentSort === value ? "" : value;
+    pageIndex = 0;
     syncPanelControls();
-    renderDailyDealsNow();
-    renderFilteredResults({ resetPage: true, append: false });
+
+    const showingDailyDeals = dailyDeals && dailyDeals.style.display !== "none";
+    if (showingDailyDeals) {
+      renderDailyDealsNow({ resetPage: true, append: false });
+    } else {
+      renderFilteredResults({ resetPage: true, append: false });
+    }
   });
 });
 
@@ -1689,16 +1701,16 @@ if (statusSortSelect) {
             if (otherSelect !== storeSelectEl) otherSelect.value = selectedStore;
           });
 
-          if (selectedStore) {
-            renderSelectedStoreInventory();
-          } else {
-            lastSearchResults = [];
-            resultsEl.innerHTML = "";
-            statusMessageEl.textContent = "Marty’s Daily Deals";
-            updateNavUI(0);
-            renderDailyDealsNow();
-            if (dailyDeals) dailyDeals.style.display = "block";
-          }
+if (selectedStore) {
+  renderSelectedStoreInventory();
+} else {
+  lastSearchResults = [];
+  resultsEl.innerHTML = "";
+  currentSearch = { brand: "", model: "" };
+  updateNavUI(0);
+  renderDailyDealsNow({ resetPage: true, append: false });
+  if (dailyDeals) dailyDeals.style.display = "block";
+}
         });
       });
 
@@ -1947,10 +1959,12 @@ if (discount.hasDiscount && discount.percent >= 30) {
         const typedRaw = sanitizeInput(qInput.value);
         updateFetchReady();
 
-        if (!typedRaw) {
-          statusMessageEl.textContent = "Please enter a brand and/or a model.";
-          return;
-        }
+     if (!typedRaw) {
+  setStatusSummary("Please enter a brand and/or a model.");
+  setStatusMeta([]);
+  setStatusSortVisibility(false);
+  return;
+}
 
         let { brand, model } = splitBrandModelFromPicked(typedRaw);
         if (!brand && model && dealsSuggest.ready) {
@@ -1962,10 +1976,12 @@ if (discount.hasDiscount && discount.percent >= 30) {
         if (brand) brand = resolveClosestBrand(brand);
 
         const displayQuery = [brand, model].filter(Boolean).join(" ").trim();
-        if (!displayQuery) {
-          statusMessageEl.textContent = "Please enter a brand and/or a model.";
-          return;
-        }
+ if (!displayQuery) {
+  setStatusSummary("Please enter a brand and/or a model.");
+  setStatusMeta([]);
+  setStatusSortVisibility(false);
+  return;
+}
 
         currentSearch = { brand, model };
    setStatusSummary("Searching deals…");
@@ -2042,11 +2058,13 @@ return;
             }
           }
 
-          statusMessageEl.textContent = `No results found for ${displayQuery}.`;
-          if (pager) pager.style.display = "none";
-          if (loadMoreWrap) loadMoreWrap.style.display = "none";
-          if (dailyDeals) dailyDeals.style.display = "block";
-          return;
+    setStatusSummary(`No results found for ${displayQuery}`);
+setStatusMeta([]);
+setStatusSortVisibility(true);
+if (pager) pager.style.display = "none";
+if (loadMoreWrap) loadMoreWrap.style.display = "none";
+if (dailyDeals) dailyDeals.style.display = "block";
+return;
         }
 
         renderFilteredResults({ resetPage: true, append: false });
