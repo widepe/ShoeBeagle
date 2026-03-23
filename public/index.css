@@ -2002,7 +2002,13 @@ html[data-theme="dark"] .footer{
     justify-content:flex-start;
   }
 
-  .status-message{
+  .status-summary{
+  font-size:1.05rem;
+}
+
+.status-applied{
+  font-size:0.82rem;
+}
     font-size:1.1rem;
   }
 
@@ -2036,6 +2042,25 @@ html[data-theme="dark"] .footer{
   .content-header-grid{
     grid-template-columns:minmax(240px, 260px) minmax(0, 1fr);
   }
+  .status-bar{
+    grid-template-columns:minmax(0, 1fr);
+    grid-template-areas:
+      "summary"
+      "applied"
+      "sort";
+    row-gap:8px;
+  }
+
+  .status-sort-wrap{
+    justify-self:start;
+  }
+
+  .status-sort-select{
+    min-width:0;
+    width:100%;
+    max-width:260px;
+  }
+}   
 }
 
 /* =========================================================
@@ -2092,14 +2117,14 @@ html[data-theme="dark"] .footer{
 @media (min-width:901px){
   .top-left{ max-width:none; }
 
-  .topbar,
-  .status-message,
-  .filters,
-  .disclaimer{
-    width:100%;
-    margin-left:auto;
-    margin-right:auto;
-  }
+.topbar,
+.status-bar,
+.filters,
+.disclaimer{
+  width:100%;
+  margin-left:auto;
+  margin-right:auto;
+}
 
   .row .input-wrapper{
     flex:1 1 auto;
