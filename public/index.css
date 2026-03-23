@@ -784,12 +784,12 @@ html[data-theme="dark"] .rss-state{
   display:block;
 }
 
-}/* =========================================================
+/* =========================================================
    LOGO
 ========================================================= */
 .brand-logo{
-  height:calc((max(var(--input-h), var(--btn-h)) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1))) * var(--logo-scale));
-  max-height:calc((max(var(--input-h), var(--btn-h)) * var(--top-rows) + (var(--gap) * (var(--top-rows) - 1))) * var(--logo-scale));
+  height:calc(var(--input-h) * 1.5);
+  max-height:calc(var(--input-h) * 1.5);
   width:auto;
   max-width:100%;
   object-fit:contain;
