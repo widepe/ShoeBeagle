@@ -260,7 +260,7 @@ html[data-theme="dark"] body{
 .content-heading{
   width:100%;
   display:flex;
-  justify-content:center;
+  justify-content:left;
   align-items:flex-end;
   text-align:center;
 
@@ -340,7 +340,7 @@ html[data-theme="dark"] body{
   display:block;
   justify-content:center;
   align-items:flex-end;
-  text-align:center;
+  text-align:left;
 
   color:var(--sb-blue);
   font-weight:600;
