@@ -1476,10 +1476,22 @@ function getSortLabel(value) {
 function setStatusMeta(extraParts = []) {
   if (!statusAppliedFiltersEl) return;
 
-  const parts = [...extraParts, ...getAppliedFilterLabels()];
-  statusAppliedFiltersEl.textContent = parts.join(" • ");
-}
+  const filterParts = getAppliedFilterLabels();
+  const leadingParts = [...extraParts];
 
+  let text = "";
+
+  if (filterParts.length) {
+    const filterText = `Filters: ${filterParts.join(" • ")}`;
+    text = leadingParts.length
+      ? `${leadingParts.join(" • ")} • ${filterText}`
+      : filterText;
+  } else {
+    text = leadingParts.join(" • ");
+  }
+
+  statusAppliedFiltersEl.textContent = text;
+}
 function setStatusSummary(text) {
   if (statusMessageEl) statusMessageEl.textContent = text;
 }
