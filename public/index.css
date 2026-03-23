@@ -336,7 +336,7 @@ html[data-theme="dark"] body{
   color:var(--sb-blue);
   font-weight:600;
   font-size:1rem;   
-  margin:0;
+  margin-bottom:8px;
 }
 
 
@@ -1176,7 +1176,7 @@ html[data-theme="dark"] .slide-panel{
   color:#2d2d2d;
   padding:0 0px;
   font-size:0.95rem;
-  margin-bottom:8px;
+  margin-top:8px;
 }
 
 html[data-theme="dark"] .slide-store-select{
