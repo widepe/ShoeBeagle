@@ -394,10 +394,12 @@
 const statusAppliedFiltersEl = document.getElementById("statusAppliedFilters");
 const statusSortWrapEl = document.getElementById("statusSortWrap");
 const statusSortSelect = document.getElementById("statusSortSelect");
-     const panelShoeTypeSelects = [
+   const panelShoeTypeGroups = [
   document.getElementById("panelShoeTypeSelect"),
   document.getElementById("sidebarShoeTypeSelect"),
 ].filter(Boolean);
+
+const panelShoeTypeOptions = Array.from(document.querySelectorAll("[data-panel-shoetype]"));
       
     const resultsEl = document.getElementById("results");
 if (!resultsEl) {
@@ -1392,8 +1394,10 @@ function renderSelectedStoreInventory() {
   panelStoreSelects.forEach((selectEl) => {
     selectEl.value = selectedStore || "";
   });
-panelShoeTypeSelects.forEach((selectEl) => {
-  selectEl.value = selectedShoeType || "";
+panelShoeTypeOptions.forEach((option) => {
+  const isOn = option.getAttribute("data-panel-shoetype") === selectedShoeType;
+  option.classList.toggle("active", isOn);
+  option.setAttribute("aria-pressed", isOn ? "true" : "false");
 });
 
   panelGenderOptions.forEach((option) => {
@@ -1770,14 +1774,11 @@ if (selectedStore) {
       });
 
 
-panelShoeTypeSelects.forEach((selectEl) => {
-  selectEl.addEventListener("change", () => {
-    selectedShoeType = selectEl.value || "";
+panelShoeTypeOptions.forEach((option) => {
+  option.addEventListener("click", () => {
+    const value = option.getAttribute("data-panel-shoetype") || "";
+    selectedShoeType = selectedShoeType === value ? "" : value;
     pageIndex = 0;
-
-    panelShoeTypeSelects.forEach((otherSelect) => {
-      if (otherSelect !== selectEl) otherSelect.value = selectedShoeType;
-    });
 
     syncPanelControls();
 
