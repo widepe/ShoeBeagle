@@ -1802,11 +1802,13 @@ html[data-theme="dark"] .footer{
 /* MOBILE PORTRAIT */
 @media (max-width:768px){
   .content-shell{
-    display:block;
+    display:grid;
+    grid-template-columns:minmax(160px, 200px) minmax(0, 1fr);
+    gap:18px;
   }
 
   .left-sidebar{
-    display:none;
+    display:flex;
   }
 }
 
@@ -2002,15 +2004,13 @@ html[data-theme="dark"] .footer{
     justify-content:flex-start;
   }
 
-  .status-summary{
+.status-summary{
   font-size:1.05rem;
 }
 
 .status-applied{
   font-size:0.82rem;
 }
-    font-size:1.1rem;
-  }
 
   .disclaimer{
     max-width:none;
