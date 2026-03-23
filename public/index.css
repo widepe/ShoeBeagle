@@ -21,6 +21,8 @@ html{ -webkit-text-size-adjust:100%; }
   --card-bg:#d5deed;
   --sb-blue-rgb:33 68 120;
   --input-bg:#f8f8f8;   /* search and input and check box and drop down backgrounds */
+  --sidebar-w: minmax(160px, 200px);
+
    
    --maxw:1440px;
   --pad:12px;
@@ -281,13 +283,15 @@ html[data-theme="dark"] body{
 .content-header-grid{
   width:100%;
   display:grid;
-  grid-template-columns:minmax(240px, 280px) minmax(0, 1fr);
+  grid-template-columns:minmax(160px, 200px) minmax(0, 1fr);
   gap:18px;
   align-items:end;
   margin-bottom:0.7rem;
 }
 
-.content-header-left,
+.content-header-left {
+  width: 100%;
+}
 
 
 .content-header-right{
@@ -302,7 +306,11 @@ html[data-theme="dark"] body{
   gap:18px;
   align-items:start;
 }
-
+.content-shell,
+.content-header-grid {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+}
 /* Hide DISPLAY panel on desktop */
 .left-sidebar .sidebar-panel:has([data-panel-theme]){
   display:none;
@@ -324,11 +332,12 @@ html[data-theme="dark"] body{
   display:flex;
   flex-direction:column;
   gap:4px;
+   width:100%;
 }
 
 .sidebar-heading{
   width:100%;
-  display:flex;
+  display:block;
   justify-content:center;
   align-items:flex-end;
   text-align:center;
@@ -337,6 +346,7 @@ html[data-theme="dark"] body{
   font-weight:600;
   font-size:1rem;   
   margin-bottom:8px;
+  box-sizing: border-box;   
 }
 
 
@@ -1798,19 +1808,6 @@ html[data-theme="dark"] .footer{
   display:none;
 }
 
-/* MOBILE PORTRAIT */
-@media (max-width:768px){
-  .content-shell{
-    display:grid;
-    grid-template-columns:minmax(160px, 200px) minmax(0, 1fr);
-    gap:18px;
-  }
-
-  .left-sidebar{
-    display:flex;
-  }
-}
-
 
 @media (max-width:560px){
   .price-alert-trigger,
@@ -2060,7 +2057,7 @@ html[data-theme="dark"] .footer{
     max-width:260px;
   }
 }   
-}
+
 
 /* =========================================================
    RESULTS TRANSITION (disabled on mobile portrait)
