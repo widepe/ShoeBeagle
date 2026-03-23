@@ -773,24 +773,17 @@ html[data-theme="dark"] .rss-state{
   padding-left:0;
   min-width:0;
 }
-.topbar-stack-link{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:2px;
-  text-decoration:none;
-  color:var(--sb-blue);
+
+
+.topbar-heart{
+  width:1.1em;
+  height:1.1em;
+  fill:none;
+  stroke:#d96b6b;
+  stroke-width:1.5;
+  display:block;
 }
 
-.topbar-icon{
-  height:1.1em;
-  width:1.1em;
-  object-fit:contain;
-  opacity:0.75;
-}
-html[data-theme="dark"] .topbar-stack-link{
-  color:var(--sb-blue);
 }/* =========================================================
    LOGO
 ========================================================= */
@@ -1603,8 +1596,40 @@ margin-top:0;
   border-color:#445470;
 } 
 
+.card-heart-btn{
+  position:absolute;
+  top:6px;
+  right:6px;
+  border:none;
+  background:transparent;
+  padding:0;
+  margin:0;
+  cursor:pointer;
+  z-index:4;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
 
+.card-heart{
+  width:18px;
+  height:18px;
+  fill:none;
+  stroke:#d96b6b;
+  stroke-width:1.5;
+  display:block;
+  transition:transform 0.15s ease, fill 0.15s ease, stroke 0.15s ease;
+}
 
+.card-heart-btn:hover .card-heart{
+  transform:scale(1.08);
+}
+
+.card-heart-btn.active .card-heart{
+  fill:#d96b6b;
+  stroke:none;
+  transform:scale(1.08);
+}
 
 
 .discount-badge{
@@ -2055,30 +2080,7 @@ html[data-theme="dark"] .footer{
     justify-content:flex-start;
   }
 
-.card-heart{
-  position:absolute;
-  top:6px;
-  right:6px;
 
-  width:18px;
-  height:18px;
-
-  object-fit:contain;
-  opacity:0.8;
-
-  cursor:pointer;
-  transition:transform 0.15s ease, opacity 0.15s ease;
-}
-
-.card-heart:hover{
-  opacity:1;
-  transform:scale(1.1);
-}
-
-   .card-heart.active{
-  filter: none;
-  transform:scale(1.1);
-}   
 
 .status-summary{
   font-size:1.05rem;
