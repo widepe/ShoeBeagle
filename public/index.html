@@ -256,8 +256,23 @@
         <aside class="left-sidebar" aria-label="Marketplace controls">
 
 
-     
+     <div class="sidebar-panel">
+  <div class="sidebar-heading">FILTERS</div>
 
+  <button type="button" class="slide-check-option" data-panel-gender="womens">
+    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+    <span>Women's</span>
+  </button>
+
+  <button type="button" class="slide-check-option" data-panel-gender="mens">
+    <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
+    <span>Men's</span>
+  </button>
+
+  <select id="sidebarStoreSelect" class="slide-store-select" aria-label="Filter by store">
+    <option value="">All stores</option>
+  </select>
+</div>
           <div class="sidebar-panel display-panel">
             <div class="sidebar-heading">DISPLAY</div>
             <button type="button" class="slide-check-option" data-panel-theme="light">
