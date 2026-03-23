@@ -1237,6 +1237,22 @@ html[data-theme="dark"] .slide-check-box{
 }
 .slide-check-option.active .slide-check-mark{ display:block; }
 
+.surface-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  column-gap:12px;
+  row-gap:8px;
+  width:100%;
+}
+
+.surface-half{
+  width:100%;
+  justify-content:flex-start;
+  text-align:left;
+  padding-left:0;
+}
+
+
 .slide-columns-control{
   display:flex;
   flex-direction:column;
