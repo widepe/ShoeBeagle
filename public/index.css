@@ -269,7 +269,7 @@ html[data-theme="dark"] body{
   color:var(--sb-blue);
 
   margin:0;
-  padding:0 12px;   /* 👈 ADD THIS */
+  padding:0 0px;   /* 👈 ADD THIS */
   box-sizing:border-box; /* 👈 ensures true centering */
 }
 
@@ -1315,7 +1315,8 @@ html[data-theme="dark"] .slide-check-box{
   margin:0;
   padding:0;
   text-align:left;
-  width:100%;
+  align-items:center; 
+   width:100%;
   min-width:0;
   font-size:1.2rem;
   font-weight:600;
