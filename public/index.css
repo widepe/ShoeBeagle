@@ -21,10 +21,9 @@ html{ -webkit-text-size-adjust:100%; }
   --card-bg:#d5deed;
   --sb-blue-rgb:33 68 120;
   --input-bg:#f8f8f8;   /* search and input and check box and drop down backgrounds */
-  --sidebar-w: minmax(165px, 180px);
+  --sidebar-w: minmax(165px, 180px);   /* sidebar width range
 
-   
-   --maxw:1440px;
+  --maxw:1440px;
   --pad:12px;
 
   --top-scale:0.75;
