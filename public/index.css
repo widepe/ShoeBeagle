@@ -770,16 +770,14 @@ button{
   display:block;
   margin:0;
   padding:0;
-  /* actual rendered size = var(--btn-h) * 0.7225 ≈ 30px at default scale */
   height:calc(var(--btn-h) * 0.7225);
   width:calc(var(--btn-h) * 0.7225);
   min-width:calc(var(--btn-h) * 0.7225);
   max-width:calc(var(--btn-h) * 0.7225);
-  /* no transform — eliminates the phantom left-side layout gap */
   transform:none;
   transform-origin:unset;
   cursor:pointer;
-  object-fit:contain;
+  fill:var(--sb-blue);
 }
 
 #fetchBtn{
