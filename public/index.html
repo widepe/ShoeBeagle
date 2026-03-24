@@ -123,11 +123,16 @@
     <span>PRICE</span>
     <span>ALERT</span>
   </button>
-<a class="topbar-link" href="#" aria-label="Favorites">
+<a
+  id="favsLink"
+  class="topbar-link"
+  href="#"
+  aria-label="Favorites"
+>
   <span>FAVS</span>
   <svg class="topbar-heart" viewBox="-15 -15 220.92728 190.21409" style="fill-rule:evenodd" aria-hidden="true">
-  <path d="M 48.939829,6.4120451e-4 C -5.1459406,-0.2784688 -42.877761,90.905681 95.432589,160.18518 c 0.002,0.0111 0.003,0.0179 0.005,0.0289 0.009,-0.004 0.0174,-0.009 0.0264,-0.0134 0.009,0.004 0.017,0.009 0.0258,0.0134 0.002,-0.0111 0.003,-0.0179 0.005,-0.0289 C 233.80507,90.905681 196.07328,-0.2784688 141.98756,6.4120451e-4 116.97903,0.1296912 99.919069,19.524841 95.464299,25.193931 91.009779,19.525101 73.949369,0.1296912 48.940529,6.4120451e-4 Z"/>
-</svg>
+    <path d="M 48.939829,6.4120451e-4 C -5.1459406,-0.2784688 -42.877761,90.905681 95.432589,160.18518 c 0.002,0.0111 0.003,0.0179 0.005,0.0289 0.009,-0.004 0.0174,-0.009 0.0264,-0.0134 0.009,0.004 0.017,0.009 0.0258,0.0134 0.002,-0.0111 0.003,-0.0179 0.005,-0.0289 C 233.80507,90.905681 196.07328,-0.2784688 141.98756,6.4120451e-4 116.97903,0.1296912 99.919069,19.524841 95.464299,25.193931 91.009779,19.525101 73.949369,0.1296912 48.940529,6.4120451e-4 Z"/>
+  </svg>
 </a>
 
   <button
@@ -1413,6 +1418,109 @@ panelShoeTypeOptions.forEach((option) => {
   });
 }
 
+const STORAGE_FAVORITES = "sb-favorites-v1";
+let isShowingFavorites = false;
+let favoriteItems = loadFavoriteItems();
+
+function favoriteKeyForItem(item) {
+  const listing = String(item?.listingURL || "").trim();
+  if (listing) return listing;
+
+  return [
+    String(item?.store || "").trim(),
+    String(item?.brand || "").trim(),
+    String(item?.model || "").trim(),
+    String(item?.salePrice ?? "").trim(),
+    String(item?.imageURL || "").trim(),
+  ].join("|");
+}
+
+function loadFavoriteItems() {
+  try {
+    const raw = localStorage.getItem(STORAGE_FAVORITES);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFavoriteItems() {
+  try {
+    localStorage.setItem(STORAGE_FAVORITES, JSON.stringify(favoriteItems));
+  } catch (err) {
+    console.error("Failed saving favorites:", err);
+  }
+}
+
+function isFavoriteItem(item) {
+  const key = favoriteKeyForItem(item);
+  return favoriteItems.some((fav) => favoriteKeyForItem(fav) === key);
+}
+
+function addFavoriteItem(item) {
+  if (!item) return;
+  if (isFavoriteItem(item)) return;
+  favoriteItems.unshift(item);
+  saveFavoriteItems();
+}
+
+function removeFavoriteItem(item) {
+  const key = favoriteKeyForItem(item);
+  favoriteItems = favoriteItems.filter((fav) => favoriteKeyForItem(fav) !== key);
+  saveFavoriteItems();
+}
+
+function toggleFavoriteItem(item) {
+  if (isFavoriteItem(item)) {
+    removeFavoriteItem(item);
+    return false;
+  }
+  addFavoriteItem(item);
+  return true;
+}
+
+function getFavoriteItemsForDisplay() {
+  return getFilteredAndSorted(favoriteItems || []);
+}
+
+function renderFavoritesView({ resetPage = true, append = false } = {}) {
+  if (resetPage) pageIndex = 0;
+
+  isShowingFavorites = true;
+
+  if (dailyDeals) dailyDeals.style.display = "none";
+
+  const filtered = getFavoriteItemsForDisplay();
+  const pageSize = getPageSize();
+  const start = pageIndex * pageSize;
+  const slice = filtered.slice(start, start + pageSize);
+
+  if (!append) resultsEl.innerHTML = "";
+  slice.forEach((item) => resultsEl.appendChild(createDealCard(item)));
+
+  updateNavUI(filtered.length);
+
+  updateStatusBar({
+    showingDailyDeals: false,
+    showingFavorites: true,
+    totalBeforeFilters: favoriteItems.length,
+    filteredTotal: filtered.length,
+  });
+}
+
+function exitFavoritesView() {
+  isShowingFavorites = false;
+}
+
+function rerenderCurrentView({ resetPage = true, append = false, correctedFrom = "" } = {}) {
+  if (isShowingFavorites) {
+    renderFavoritesView({ resetPage, append });
+    return;
+  }
+
+rerenderCurrentView({ resetPage: true, append: false });
+}      
       function totalPagesCount(total) {
         return Math.max(1, Math.ceil((Number(total) || 0) / getPageSize()));
       }
@@ -1490,13 +1598,34 @@ function setStatusSortVisibility(visible) {
   statusSortWrapEl.hidden = !visible;
 }
 
-function updateStatusBar({ showingDailyDeals = false, totalBeforeFilters = 0, filteredTotal = 0, correctedFrom = "" } = {}) {
+function updateStatusBar({
+  showingDailyDeals = false,
+  showingFavorites = false,
+  totalBeforeFilters = 0,
+  filteredTotal = 0,
+  correctedFrom = ""
+} = {}) {
   if (statusSortSelect) {
     statusSortSelect.value = currentSort || "";
   }
 
   const hasSearch = !!([currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim());
- const hasActiveFiltersOrSort = !!selectedGender || !!selectedStore || !!selectedShoeType || !!currentSort;
+  const hasActiveFiltersOrSort = !!selectedGender || !!selectedStore || !!selectedShoeType || !!currentSort;
+
+  if (showingFavorites) {
+    const displayedCount = getRenderedCardCount(resultsEl);
+
+    if (filteredTotal > 0) {
+      setStatusSummary("Displaying favorites");
+      setStatusMeta([`Showing ${displayedCount} of ${filteredTotal}`]);
+    } else {
+      setStatusSummary("No favorites have been selected");
+      setStatusMeta([]);
+    }
+
+    setStatusSortVisibility(true);
+    return;
+  }
 
   if (showingDailyDeals && !hasSearch && !hasActiveFiltersOrSort) {
     setStatusSummary("Marty’s Daily Deals");
@@ -1531,7 +1660,24 @@ function updateStatusBar({ showingDailyDeals = false, totalBeforeFilters = 0, fi
   setStatusMeta(extraParts);
 
   setStatusSortVisibility(hasSearch || hasActiveFiltersOrSort);
-}      
+}
+
+
+const favsLink = document.getElementById("favsLink");
+
+function syncFavoritesLinkUI() {
+  if (!favsLink) return;
+  favsLink.classList.toggle("active", isShowingFavorites);
+}
+
+if (favsLink) {
+  favsLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    renderFavoritesView({ resetPage: true, append: false });
+    syncFavoritesLinkUI();
+  });
+}
+      
       function applyFilters(items) {
         const gSel = norm(selectedGender);
         const storeSel = normalizeStoreName(selectedStore);
@@ -1646,6 +1792,7 @@ function getFilteredAndSorted(items) {
       }
 
       function renderFilteredResults({ resetPage = true, append = false, correctedFrom = "" } = {}) {
+  isShowingFavorites = false;
   const filtered = getFilteredAndSorted(lastSearchResults);
 
   if (resetPage) pageIndex = 0;
@@ -1667,6 +1814,7 @@ function getFilteredAndSorted(items) {
   });
 }
 function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
+  isShowingFavorites = false;
   if (!dailyDealsGrid) return;
 
   const sourceDeals = selectedStore ? lastAllDeals : lastDailyDeals;
@@ -1701,11 +1849,7 @@ panelGenderOptions.forEach((option) => {
     syncPanelControls();
 
     const showingDailyDeals = dailyDeals && dailyDeals.style.display !== "none";
-    if (showingDailyDeals) {
-      renderDailyDealsNow({ resetPage: true, append: false });
-    } else {
-      renderFilteredResults({ resetPage: true, append: false });
-    }
+rerenderCurrentView({ resetPage: true, append: false });
   });
 });
 
@@ -1717,11 +1861,7 @@ panelSortOptions.forEach((option) => {
     syncPanelControls();
 
     const showingDailyDeals = dailyDeals && dailyDeals.style.display !== "none";
-    if (showingDailyDeals) {
-      renderDailyDealsNow({ resetPage: true, append: false });
-    } else {
-      renderFilteredResults({ resetPage: true, append: false });
-    }
+   rerenderCurrentView({ resetPage: true, append: false });
   });
 });
 
@@ -1753,26 +1893,34 @@ if (statusSortSelect) {
 });
 
 
-      panelStoreSelects.forEach((storeSelectEl) => {
-        storeSelectEl.addEventListener("change", () => {
-          selectedStore = storeSelectEl.value || "";
-          pageIndex = 0;
-          panelStoreSelects.forEach((otherSelect) => {
-            if (otherSelect !== storeSelectEl) otherSelect.value = selectedStore;
-          });
+panelStoreSelects.forEach((storeSelectEl) => {
+  storeSelectEl.addEventListener("change", () => {
+    selectedStore = storeSelectEl.value || "";
+    pageIndex = 0;
 
-if (selectedStore) {
-  renderSelectedStoreInventory();
-} else {
-  lastSearchResults = [];
-  resultsEl.innerHTML = "";
-  currentSearch = { brand: "", model: "" };
-  updateNavUI(0);
-  renderDailyDealsNow({ resetPage: true, append: false });
-  if (dailyDeals) dailyDeals.style.display = "block";
-}
-        });
-      });
+    panelStoreSelects.forEach((otherSelect) => {
+      if (otherSelect !== storeSelectEl) otherSelect.value = selectedStore;
+    });
+
+    if (isShowingFavorites) {
+      renderFavoritesView({ resetPage: true, append: false });
+      return;
+    }
+
+    if (selectedStore) {
+      exitFavoritesView();
+      renderSelectedStoreInventory();
+    } else {
+      exitFavoritesView();
+      lastSearchResults = [];
+      resultsEl.innerHTML = "";
+      currentSearch = { brand: "", model: "" };
+      updateNavUI(0);
+      renderDailyDealsNow({ resetPage: true, append: false });
+      if (dailyDeals) dailyDeals.style.display = "block";
+    }
+  });
+});
 
 
 panelShoeTypeOptions.forEach((option) => {
@@ -1792,52 +1940,82 @@ panelShoeTypeOptions.forEach((option) => {
   });
 });
       
-      if (loadMoreBtn) {
-        loadMoreBtn.addEventListener("click", () => {
-          const showingDailyDeals = dailyDeals && dailyDeals.style.display !== "none";
-          const sourceItems = showingDailyDeals
-            ? (selectedStore ? lastAllDeals : lastDailyDeals)
-            : lastSearchResults;
-          const filtered = getFilteredAndSorted(sourceItems || []);
-          const total = filtered.length;
-          const hasMore = (pageIndex + 1) * getPageSize() < total;
-          if (!hasMore) return;
+if (loadMoreBtn) {
+  loadMoreBtn.addEventListener("click", () => {
+    if (isShowingFavorites) {
+      const filtered = getFavoriteItemsForDisplay();
+      const total = filtered.length;
+      const hasMore = (pageIndex + 1) * getPageSize() < total;
+      if (!hasMore) return;
 
-          pageIndex++;
-          if (showingDailyDeals) renderDailyDealsNow({ resetPage: false, append: true });
-          else renderFilteredResults({ resetPage: false, append: true });
-        });
+      pageIndex++;
+      renderFavoritesView({ resetPage: false, append: true });
+      return;
+    }
+
+    const showingDailyDeals = dailyDeals && dailyDeals.style.display !== "none";
+    const sourceItems = showingDailyDeals
+      ? (selectedStore ? lastAllDeals : lastDailyDeals)
+      : lastSearchResults;
+
+    const filtered = getFilteredAndSorted(sourceItems || []);
+    const total = filtered.length;
+    const hasMore = (pageIndex + 1) * getPageSize() < total;
+    if (!hasMore) return;
+
+    pageIndex++;
+    if (showingDailyDeals) renderDailyDealsNow({ resetPage: false, append: true });
+    else renderFilteredResults({ resetPage: false, append: true });
+  });
+}
+
+if (prevPageBtn) {
+  prevPageBtn.addEventListener("click", () => {
+    if (pageIndex <= 0) return;
+
+    runPagerTransitionThen(() => {
+      pageIndex--;
+      if (isShowingFavorites) {
+        renderFavoritesView({ resetPage: false, append: false });
+      } else {
+        renderCurrentGridForLayoutChange();
       }
+      resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
 
-      if (prevPageBtn) {
-        prevPageBtn.addEventListener("click", () => {
-          if (pageIndex <= 0) return;
+  if (nextPageBtn) {
+  nextPageBtn.addEventListener("click", () => {
+    if (isShowingFavorites) {
+      const filtered = getFavoriteItemsForDisplay();
+      const pages = totalPagesCount(filtered.length);
+      if (pageIndex >= pages - 1) return;
 
-          runPagerTransitionThen(() => {
-            pageIndex--;
-            renderCurrentGridForLayoutChange();
-            resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
-          });
-        });
-      }
+      runPagerTransitionThen(() => {
+        pageIndex++;
+        renderFavoritesView({ resetPage: false, append: false });
+        resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      return;
+    }
 
-      if (nextPageBtn) {
-        nextPageBtn.addEventListener("click", () => {
-          const sourceItems =
-            dailyDeals && dailyDeals.style.display !== "none"
-              ? (selectedStore ? lastAllDeals : lastDailyDeals)
-              : lastSearchResults;
-          const filtered = getFilteredAndSorted(sourceItems || []);
-          const pages = totalPagesCount(filtered.length);
-          if (pageIndex >= pages - 1) return;
+    const sourceItems =
+      dailyDeals && dailyDeals.style.display !== "none"
+        ? (selectedStore ? lastAllDeals : lastDailyDeals)
+        : lastSearchResults;
 
-          runPagerTransitionThen(() => {
-            pageIndex++;
-            renderCurrentGridForLayoutChange();
-            resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
-          });
-        });
-      }
+    const filtered = getFilteredAndSorted(sourceItems || []);
+    const pages = totalPagesCount(filtered.length);
+    if (pageIndex >= pages - 1) return;
+
+    runPagerTransitionThen(() => {
+      pageIndex++;
+      renderCurrentGridForLayoutChange();
+      resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
 
       if (columnsDownBtn) {
         columnsDownBtn.addEventListener("click", () => {
@@ -1889,7 +2067,7 @@ panelShoeTypeOptions.forEach((option) => {
 
         imgWrapper.appendChild(img);
 
-  const heartBtn = document.createElement("button");
+const heartBtn = document.createElement("button");
 heartBtn.type = "button";
 heartBtn.className = "card-heart-btn";
 heartBtn.setAttribute("aria-label", "Toggle favorite");
@@ -1900,13 +2078,24 @@ heartBtn.innerHTML = `
   </svg>
 `;
 
+if (isFavoriteItem(item)) {
+  heartBtn.classList.add("active");
+}
+
 heartBtn.addEventListener("click", (e) => {
   e.preventDefault();
   e.stopPropagation();
-  heartBtn.classList.toggle("active");
+
+  const isNowFavorite = toggleFavoriteItem(item);
+  heartBtn.classList.toggle("active", isNowFavorite);
+
+  if (isShowingFavorites) {
+    renderFavoritesView({ resetPage: false, append: false });
+  }
 });
 
 imgWrapper.appendChild(heartBtn);
+        
 if (discount.hasDiscount && discount.percent >= 30) {
   const badge = document.createElement('div');
   badge.className = 'discount-badge';
