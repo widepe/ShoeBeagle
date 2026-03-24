@@ -738,6 +738,9 @@ button{
 }
 .topbar-link:hover{ opacity:0.88; }
 
+.topbar-link.active{
+  opacity:1;
+}
 
 .mode-toggle-btn{
   display:none;
