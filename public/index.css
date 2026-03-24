@@ -712,32 +712,13 @@ button{
   gap:calc(var(--gap) * 2);
 }
 
-.price-alert-trigger{
-  display:none;
-  border:none;
-  background:transparent;
-  color:var(--sb-blue);
-  height:var(--btn-h);
-  min-height:var(--btn-h);
-  padding:0;
-  margin:0;
-  line-height:1;
-  font-weight:800;
-  font-size:calc(1rem * var(--top-scale));
-  letter-spacing:0.03em;
-  cursor:pointer;
-  align-items:center;
-  justify-content:center;
-  flex-direction:column;
-}
 
-.price-alert-trigger span,
-.topbar-stack-link span{
+.topbar-link span,{
   display:block;
   text-align:center;
 }
 
-.topbar-stack-link{
+.topbar-link{
   display:none;
   border:none;
   background:transparent;
@@ -757,9 +738,8 @@ button{
   gap:calc(var(--gap) * 0.2);
   text-decoration:none;
 }
+.topbar-link:hover{ opacity:0.88; }
 
-.topbar-stack-link:hover{ opacity:0.88; }
-.price-alert-trigger:hover{ opacity:0.88; }
 
 .mode-toggle-btn{
   display:none;
@@ -1542,8 +1522,7 @@ html[data-theme="dark"] .footer{
     --grid-gap:12px;
   }
 
-  .price-alert-trigger,
-  .topbar-stack-link,
+  .topbar-link,
   .mode-toggle-btn{
     display:inline-flex;
   }
@@ -1578,8 +1557,7 @@ html[data-theme="dark"] .footer{
     --grid-gap:10px;
   }
 
-  .price-alert-trigger,
-  .topbar-stack-link,
+  .topbar-link,
   .mode-toggle-btn{
     display:none;
   }
@@ -1615,8 +1593,7 @@ html[data-theme="dark"] .footer{
 
 
 @media (max-width:560px){
-  .price-alert-trigger,
-  .topbar-stack-link,
+  .topbar-link,
   .mode-toggle-btn{
     display:none;
   }
@@ -2388,8 +2365,7 @@ input[type="search"],
 .slide-panel-heading,
 .slide-subheading,
 .slide-panel-link,
-.price-alert-trigger,
-.topbar-stack-link{
+.topbar-link,{
   transition:
     background-color var(--theme-fade-ms) ease,
     color var(--theme-fade-ms) ease,
@@ -2471,16 +2447,14 @@ html.theme-switching.to-light body::after{
   .slide-panel-heading,
   .slide-subheading,
   .slide-panel-link,
-  .price-alert-trigger,
-  .topbar-stack-link,
+  .topbar-link,
   body::after{
     transition:none !important;
   }
 }
 
 @media (min-width:1367px){
-  .price-alert-trigger,
-  .topbar-stack-link,
+  .topbar-link,
   .mode-toggle-btn{
     display:inline-flex;
   }
