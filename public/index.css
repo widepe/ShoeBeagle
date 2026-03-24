@@ -1529,8 +1529,6 @@ html[data-theme="dark"] .footer{
     width:100%;
     margin-left:auto;
     margin-right:auto;
-    padding-left:var(--pad);
-    padding-right:var(--pad);
     flex-wrap:nowrap;
     align-items:center;
   }
