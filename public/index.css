@@ -503,11 +503,10 @@ html[data-theme="dark"] .sidebar-placeholder{
 
 
 .topbar-heart{
-  width:1.1em;
-  height:1.1em;
-  fill:none;
-  stroke:#d96b6b;
-  stroke-width:1.5;
+  width:1em;
+  height:1em;
+  fill:#d96b6b;
+  stroke:none;
   display:block;
 }
 
