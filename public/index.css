@@ -1304,8 +1304,8 @@ margin-top:0;
 
 .card-heart-btn{
   position:absolute;
-  top:6px;
-  right:6px;
+  top:0px;
+  right:0px;
   border:none;
   background:transparent;
   padding:6px;
