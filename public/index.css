@@ -785,6 +785,7 @@ button{
 #fetchBtn{
   transform:scale(0.85);
   transform-origin:center;
+  fill:var(--sb-blue);
 }
 
 .btn-eq{
