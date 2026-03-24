@@ -1593,6 +1593,11 @@ html[data-theme="dark"] .footer{
     display:none;
   }
 
+  .left-sidebar{
+    display:none !important;
+  }
+}
+
   :root{
     --cols:1;
     --visible-cols:1;
