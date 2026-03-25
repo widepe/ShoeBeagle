@@ -225,8 +225,11 @@ html.page-preload body{
   opacity:0;
 }
 
-.filters-disabled{         /* for disabling filters in favorites view */
+.filters-disabled{
   opacity:0.55;
+}
+
+.filters-disabled.controls{
   pointer-events:none;
 }
 /* =========================================================
