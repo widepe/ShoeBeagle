@@ -308,8 +308,44 @@
 <div class="sidebar-heading">Store</div>
        
 <select id="sidebarStoreSelect" class="slide-store-select" aria-label="Filter by store">
-    <option value="">All stores</option>
-  </select>
+  <option value="">All stores</option>
+</select>
+
+<div class="sidebar-heading">Price range</div>
+
+<div class="price-range-filter" id="priceRangeFilter" aria-label="Filter by price range">
+  <div class="price-range-values">
+    <span id="priceMinLabel">$1</span>
+    <span id="priceMaxLabel">$400+</span>
+  </div>
+
+  <div class="price-range-slider-wrap">
+    <div class="price-range-track"></div>
+    <div class="price-range-fill" id="priceRangeFill"></div>
+
+    <input
+      type="range"
+      id="priceMinRange"
+      class="price-range-input"
+      min="1"
+      max="400"
+      step="1"
+      value="1"
+      aria-label="Minimum price"
+    />
+
+    <input
+      type="range"
+      id="priceMaxRange"
+      class="price-range-input"
+      min="1"
+      max="400"
+      step="1"
+      value="400"
+      aria-label="Maximum price"
+    />
+  </div>
+</div>
 </div>
           <div class="sidebar-panel display-panel">
             <div class="sidebar-heading">DISPLAY</div>
@@ -576,6 +612,8 @@ const modeToggleIcon = document.getElementById("modeToggleIcon");
       let selectedShoeType = "";
       let currentSort = "";
       let selectedStore = "";
+      let selectedPriceMin = 1;
+      let selectedPriceMax = 400;
 
       if (footerYear) footerYear.textContent = new Date().getFullYear();
       if (logoLink) logoLink.addEventListener("click", () => location.reload());
@@ -1382,6 +1420,32 @@ function renderSelectedStoreInventory() {
         if (!inside) closeSuggestions();
       });
 
+function formatPriceRangeLabel(value, isMax = false) {
+  const n = Number(value) || 1;
+  if (isMax && n >= 400) return "$400+";
+  return `$${n}`;
+}
+
+function syncPriceRangeUI() {
+  if (!priceMinRange || !priceMaxRange || !priceMinLabel || !priceMaxLabel || !priceRangeFill) return;
+
+  priceMinRange.value = String(selectedPriceMin);
+  priceMaxRange.value = String(selectedPriceMax);
+
+  priceMinLabel.textContent = formatPriceRangeLabel(selectedPriceMin, false);
+  priceMaxLabel.textContent = formatPriceRangeLabel(selectedPriceMax, true);
+
+  const min = 1;
+  const max = 400;
+  const leftPct = ((selectedPriceMin - min) / (max - min)) * 100;
+  const rightPct = ((selectedPriceMax - min) / (max - min)) * 100;
+
+  priceRangeFill.style.left = `${leftPct}%`;
+  priceRangeFill.style.width = `${Math.max(0, rightPct - leftPct)}%`;
+}
+
+
+      
  function syncPanelControls() {
   panelStoreSelects.forEach((selectEl) => {
     selectEl.value = selectedStore || "";
@@ -1561,12 +1625,17 @@ function getSearchDisplayQuery() {
 function getAppliedFilterLabels() {
   const labels = [];
 
-if (selectedGender === "mens") labels.push("Men’s");
-if (selectedGender === "womens") labels.push("Women’s");
-if (selectedStore) labels.push(`Store: ${selectedStore}`);
-if (selectedShoeType) labels.push(`Type: ${selectedShoeType.toUpperCase()}`);
+  if (selectedGender === "mens") labels.push("Men’s");
+  if (selectedGender === "womens") labels.push("Women’s");
+  if (selectedStore) labels.push(`Store: ${selectedStore}`);
+  if (selectedShoeType) labels.push(`Type: ${selectedShoeType.toUpperCase()}`);
 
-return labels;
+  if (selectedPriceMin > 1 || selectedPriceMax < 400) {
+    const maxLabel = selectedPriceMax >= 400 ? "$400+" : `$${selectedPriceMax}`;
+    labels.push(`Price: $${selectedPriceMin}–${maxLabel}`);
+  }
+
+  return labels;
 }
 
 function getSortLabel(value) {
@@ -1724,22 +1793,28 @@ function syncFavoritesFilterLockUI() {
 }
       syncFavoritesFilterLockUI();
       
-      function applyFilters(items) {
-        const gSel = norm(selectedGender);
-        const storeSel = normalizeStoreName(selectedStore);
+function applyFilters(items) {
+  const gSel = norm(selectedGender);
+  const storeSel = normalizeStoreName(selectedStore);
 
-return (items || []).filter((item) => {
-  const g = norm(item.gender);
-  const genderOk = !gSel || g === gSel || g === "unisex" || g === "unknown" || g === "";
+  return (items || []).filter((item) => {
+    const g = norm(item.gender);
+    const genderOk = !gSel || g === gSel || g === "unisex" || g === "unknown" || g === "";
 
-  const storeOk = !storeSel || normalizeStoreName(item?.store) === storeSel;
+    const storeOk = !storeSel || normalizeStoreName(item?.store) === storeSel;
 
-  const type = (item.shoeType || "").toLowerCase();
-  const typeOk = !selectedShoeType || type === selectedShoeType;
+    const type = (item.shoeType || "").toLowerCase();
+    const typeOk = !selectedShoeType || type === selectedShoeType;
 
-  return genderOk && storeOk && typeOk;
-});
-      }
+    const price = Number(item?.salePrice);
+    const hasPrice = Number.isFinite(price);
+
+    const minOk = !hasPrice ? false : price >= selectedPriceMin;
+    const maxOk = !hasPrice ? false : (selectedPriceMax >= 400 ? true : price <= selectedPriceMax);
+
+    return genderOk && storeOk && typeOk && minOk && maxOk;
+  });
+}
 
       function getDiscountPercentValue(item) {
   const sale = Number(item?.salePrice);
