@@ -99,8 +99,7 @@ html[data-theme="dark"] .card img{
   border-color:#3a3a3a;
 }
 
-html[data-theme="dark"] .card-image-wrapper img,
-html[data-theme="dark"] .rss-thumb{
+html[data-theme="dark"] .card-image-wrapper img{
   filter:brightness(.8) contrast(1.1);
 }
 
@@ -567,6 +566,8 @@ form#search-form{
   opacity:1;
 }
 
+
+
 input[type="text"], input[type="search"]{
   width:100%;
   height:var(--input-h);
@@ -881,8 +882,7 @@ html[data-theme="dark"] .slide-panel{
 
 .slide-panel-title{ font-size:1.2rem; margin-bottom:12px; }
 .slide-panel-heading{ font-size:1rem; margin-bottom:8px; }
-.slide-panel-section > .slide-panel-heading,
-.slide-panel-section > .slide-panel-heading-rss{
+.slide-panel-section > .slide-panel-heading{
   width:100%;
   margin-left:0;
 }
