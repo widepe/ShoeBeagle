@@ -1600,7 +1600,6 @@ html[data-theme="dark"] .footer{
   .left-sidebar{
     display:none !important;
   }
-}
 
   :root{
     --cols:1;
@@ -1636,6 +1635,115 @@ html[data-theme="dark"] .footer{
     width:100%;
     margin-top:0;
   }
+
+  .top-right{
+    order:0;
+    width:100%;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin:0 0 6px 0;
+    max-width:none;
+    overflow:visible;
+    transition:none;
+    will-change:auto;
+    flex:0 0 auto;
+    align-self:stretch;
+  }
+
+  .top-right .brand-logo{
+    margin-left:auto;
+  }
+
+  .top-left{
+    order:1;
+    flex:1 1 auto;
+    width:100%;
+    min-width:0;
+    margin-left:0;
+    max-width:none;
+    transition:none;
+  }
+
+  .brand-logo{
+    display:block;
+    width:min(82vw, calc(100vw - 86px));
+    height:auto;
+    max-width:100%;
+    max-height:calc(var(--input-h) * 2.2);
+  }
+
+  .row{
+    flex-wrap:nowrap;
+    align-items:center;
+    width:100%;
+    display:flex;
+    gap:var(--gap);
+  }
+
+  .input-wrapper{
+    flex:1 1 auto;
+    min-width:0;
+    display:flex;
+    align-items:stretch;
+  }
+
+  .input-wrapper input[type="text"],
+  .input-wrapper input[type="search"]{
+    flex:1 1 auto;
+  }
+
+  .input-icon{
+    width:calc(32px * var(--top-scale));
+    height:calc(32px * var(--top-scale));
+  }
+
+  .input-clear{
+    position:absolute;
+    right:calc(0.55rem * var(--top-scale));
+    top:0;
+    bottom:0;
+    margin:auto 0;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    height:1em;
+    line-height:1;
+  }
+
+  #menuBtn,
+  #fetchBtn{
+    flex:0 0 var(--btn-eq-w);
+    width:var(--btn-eq-w);
+    min-width:var(--btn-eq-w);
+    height:var(--btn-h);
+    max-width:var(--btn-eq-w);
+    transform:none;
+  }
+
+  .input-controls{
+    position:absolute;
+    right:calc(8px + (42px * var(--top-scale)));
+    top:50%;
+    transform:translateY(-50%);
+    border:none;
+    background:transparent;
+    padding:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+
+  .input-controls img{
+    width:18px;
+    height:18px;
+  }
+
+  .top-right{
+    justify-content:flex-start;
+  }
+}
 
 .top-right{
   order:0;
