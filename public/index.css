@@ -225,6 +225,10 @@ html.page-preload body{
   opacity:0;
 }
 
+.filters-disabled{         /* for disabling filters in favorites view */
+  opacity:0.55;
+  pointer-events:none;
+}
 /* =========================================================
    BASE LAYOUT
 ========================================================= */
@@ -421,10 +425,7 @@ html[data-theme="dark"] .sidebar-placeholder{
   width:auto;
 }
 
-.filters-disabled{         /* for disabling filters in favorites view */
-  opacity:0.55;
-  pointer-events:none;
-}
+
 /* =========================================================
    MOBILE TOP BANNER
 ========================================================= */
