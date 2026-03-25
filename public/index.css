@@ -561,9 +561,10 @@ form#search-form{
   transform:translateY(-50%);
   width:calc(30px * var(--top-scale));
   height:calc(30px * var(--top-scale));
+  display:block;
   pointer-events:none;
   z-index:10;
-  opacity:1;
+  fill:var(--sb-blue);
 }
 
 
