@@ -995,8 +995,9 @@ if (priceMinRange && priceMaxRange) {
           dealsSuggest.ready = true;
           syncStoreOptions();
 
-          // If a store is currently selected, render from full deals.json inventory.
-          renderDailyDealsNow();
+                   // Default page on load is Daily Deals.
+          renderDailyDealsView({ resetPage: true, append: false });
+          
         } catch (e) {
           console.error("[suggestions] Failed to build deals.json suggestion index:", e?.message || String(e));
           dealsSuggest.ready = false;
@@ -1601,8 +1602,8 @@ function getFavoriteItemsForDisplay() {
 function renderFavoritesView({ resetPage = true, append = false } = {}) {
   if (resetPage) pageIndex = 0;
 
-  isShowingFavorites = true;
-  syncFavoritesLinkUI();
+   isShowingFavorites = true;
+  syncDisplayPageLinksUI();
   syncFavoritesFilterLockUI();
 
   if (dailyDeals) dailyDeals.style.display = "none";
@@ -1627,8 +1628,32 @@ function renderFavoritesView({ resetPage = true, append = false } = {}) {
 
 function exitFavoritesView() {
   isShowingFavorites = false;
-  syncFavoritesLinkUI();
+  syncDisplayPageLinksUI();
   syncFavoritesFilterLockUI();
+}
+
+function renderDailyDealsView({ resetPage = true, append = false } = {}) {
+  exitFavoritesView();
+  currentSearch = { brand: "", model: "" };
+  lastSearchResults = [];
+  if (qInput) qInput.value = "";
+
+  resultsEl.innerHTML = "";
+  if (dailyDeals) dailyDeals.style.display = "block";
+
+  renderDailyDealsNow({ resetPage, append });
+  syncDisplayPageLinksUI();
+}
+
+function renderAllDealsView({ resetPage = true, append = false } = {}) {
+  exitFavoritesView();
+  currentSearch = { brand: "", model: "" };
+  lastSearchResults = lastAllDeals.slice();
+  if (qInput) qInput.value = "";
+
+  if (dailyDeals) dailyDeals.style.display = "none";
+  renderFilteredResults({ resetPage, append });
+  syncDisplayPageLinksUI();
 }
 
 function rerenderCurrentView({ resetPage = true, append = false, correctedFrom = "" } = {}) {
@@ -1806,11 +1831,58 @@ function updateStatusBar({
 }
 
 
+const dailyDealsLink = document.getElementById("dailyDealsLink");
+const allDealsLink = document.getElementById("allDealsLink");
 const favsLink = document.getElementById("favsLink");
 
+function isShowingDailyDealsView() {
+  return !!(dailyDeals && dailyDeals.style.display !== "none" && !isShowingFavorites);
+}
+
+function isShowingAllDealsView() {
+  return !isShowingFavorites && !isShowingDailyDealsView();
+}
+
+function syncDisplayPageLinksUI() {
+  const favsActive = !!isShowingFavorites;
+  const dailyActive = !favsActive && isShowingDailyDealsView();
+  const allActive = !favsActive && !dailyActive;
+
+  if (dailyDealsLink) {
+    dailyDealsLink.classList.toggle("active", dailyActive);
+    if (dailyActive) dailyDealsLink.setAttribute("aria-current", "page");
+    else dailyDealsLink.removeAttribute("aria-current");
+  }
+
+  if (allDealsLink) {
+    allDealsLink.classList.toggle("active", allActive);
+    if (allActive) allDealsLink.setAttribute("aria-current", "page");
+    else allDealsLink.removeAttribute("aria-current");
+  }
+
+  if (favsLink) {
+    favsLink.classList.toggle("active", favsActive);
+    if (favsActive) favsLink.setAttribute("aria-current", "page");
+    else favsLink.removeAttribute("aria-current");
+  }
+}
+
 function syncFavoritesLinkUI() {
-  if (!favsLink) return;
-  favsLink.classList.toggle("active", isShowingFavorites);
+  syncDisplayPageLinksUI();
+}
+
+if (dailyDealsLink) {
+  dailyDealsLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    renderDailyDealsView({ resetPage: true, append: false });
+  });
+}
+
+if (allDealsLink) {
+  allDealsLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    renderAllDealsView({ resetPage: true, append: false });
+  });
 }
 
 if (favsLink) {
@@ -2442,13 +2514,18 @@ if (discount.hasDiscount && discount.percent >= 30) {
 
   const rawQuery = (qInput?.value || "").trim().toLowerCase();
 
-  if (rawQuery === "all") {
-    currentSearch = { brand: "", model: "" };
-    lastSearchResults = lastAllDeals.slice();
+  if (rawQuery === "all" || rawQuery === "all deals") {
+    renderAllDealsView({ resetPage: true, append: false });
+    return;
+  }
 
-    if (dailyDeals) dailyDeals.style.display = "none";
+  if (rawQuery === "daily" || rawQuery === "daily deals") {
+    renderDailyDealsView({ resetPage: true, append: false });
+    return;
+  }
 
-    renderFilteredResults({ resetPage: true, append: false });
+  if (rawQuery === "favs" || rawQuery === "favorites") {
+    renderFavoritesView({ resetPage: true, append: false });
     return;
   }
 
