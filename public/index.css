@@ -281,7 +281,6 @@ html[data-theme="dark"] body{
 .content-header-grid{
   width:100%;
   display:grid;
-  grid-template-columns:minmax(160px, 200px) minmax(0, 1fr);
   gap:18px;
   align-items:end;
   margin-bottom:0.7rem;
@@ -300,7 +299,6 @@ html[data-theme="dark"] body{
 .content-shell{
   width:100%;
   display:grid;
-  grid-template-columns:minmax(160px, 200px) minmax(0, 1fr);  /* left sidebar i think */
   gap:18px;
   align-items:start;
 }
@@ -1743,7 +1741,6 @@ html[data-theme="dark"] .footer{
   .top-right{
     justify-content:flex-start;
   }
-}
 
   .shoe-grid{
     width:100%;
@@ -1763,21 +1760,21 @@ html[data-theme="dark"] .footer{
     min-width:0;
   }
 
-.card-link{
-  display:grid;
-  grid-template-columns:42% minmax(0, 1fr);
-  align-items:stretch;
-  gap:var(--card-gap);
-  height:100%;
-  min-width:0;
-}
+  .card-link{
+    display:grid;
+    grid-template-columns:42% minmax(0, 1fr);
+    align-items:stretch;
+    gap:var(--card-gap);
+    height:100%;
+    min-width:0;
+  }
 
   .card-image-wrapper{
     width:100%;
     aspect-ratio:5 / 4;
     overflow:hidden;
     border-radius:var(--img-radius);
-     position:relative;
+    position:relative;
   }
 
   .card-content{
@@ -1787,15 +1784,13 @@ html[data-theme="dark"] .footer{
     justify-content:flex-start;
   }
 
+  .status-summary{
+    font-size:1.05rem;
+  }
 
-
-.status-summary{
-  font-size:1.05rem;
-}
-
-.status-applied{
-  font-size:0.82rem;
-}
+  .status-applied{
+    font-size:0.82rem;
+  }
 
   .disclaimer{
     max-width:none;
@@ -2369,7 +2364,7 @@ input[type="search"],
 .slide-panel-heading,
 .slide-subheading,
 .slide-panel-link,
-.topbar-link,{
+.topbar-link{
   transition:
     background-color var(--theme-fade-ms) ease,
     color var(--theme-fade-ms) ease,
