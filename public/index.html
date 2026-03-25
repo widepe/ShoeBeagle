@@ -814,7 +814,7 @@ function renderSelectedStoreInventory() {
 
 if (priceMinRange && priceMaxRange) {
   priceMinRange.addEventListener("input", () => {
-    if (isShowingFavorites) return;
+    if (isShowingFavorites || (dailyDeals && dailyDeals.style.display !== "none")) return;
 
     const nextMin = Math.min(Number(priceMinRange.value || 1), selectedPriceMax);
     selectedPriceMin = nextMin;
@@ -824,7 +824,7 @@ if (priceMinRange && priceMaxRange) {
   });
 
   priceMaxRange.addEventListener("input", () => {
-    if (isShowingFavorites) return;
+    if (isShowingFavorites || (dailyDeals && dailyDeals.style.display !== "none")) return;
 
     const nextMax = Math.max(Number(priceMaxRange.value || 400), selectedPriceMin);
     selectedPriceMax = nextMax;
@@ -1744,12 +1744,17 @@ function updateStatusBar({
     return;
   }
 
-  if (showingDailyDeals && !hasSearch && !hasActiveFiltersOrSort) {
-    setStatusSummary("Marty’s Daily Deals");
-    setStatusMeta([]);
-    setStatusSortVisibility(false);
-    return;
-  }
+  if (showingDailyDeals) {
+  const displayedCount = getRenderedCardCount(dailyDealsGrid);
+
+  setStatusSummary("Marty’s Daily Deals");
+  setStatusMeta(
+    [`Showing ${displayedCount} of ${totalBeforeFilters}`, "Filters disabled"],
+    { includeFilters: false }
+  );
+  setStatusSortVisibility(true);
+  return;
+}
 
   const activeGrid = showingDailyDeals ? dailyDealsGrid : resultsEl;
   const displayedCount = getRenderedCardCount(activeGrid);
@@ -1799,7 +1804,8 @@ const filtersHeadingEl = document.getElementById("filtersHeading");
 const filtersSectionEls = document.querySelectorAll(".sidebar-heading");
 
 function syncFavoritesFilterLockUI() {
-  const locked = isShowingFavorites;
+  const showingDailyDeals = !!(dailyDeals && dailyDeals.style.display !== "none");
+  const locked = isShowingFavorites || showingDailyDeals;
 
   if (filtersHeadingEl) {
     filtersHeadingEl.textContent = locked ? "FILTERS (disabled)" : "FILTERS";
@@ -1839,8 +1845,6 @@ function syncFavoritesFilterLockUI() {
     priceMaxRange.disabled = locked;
     priceMaxRange.setAttribute("aria-disabled", locked ? "true" : "false");
   }
-
-  
 }
       syncFavoritesFilterLockUI();
 syncPanelControls();
@@ -1997,7 +2001,7 @@ function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
   const sourceDeals = selectedStore ? lastAllDeals : lastDailyDeals;
   if (!sourceDeals || !sourceDeals.length) return;
 
-  const filtered = getFilteredAndSorted(sourceDeals);
+  const filtered = getFilteredAndSorted(sourceDeals, { skipFilters: true });
   if (resetPage) pageIndex = 0;
 
   const pageSize = getPageSize();
@@ -2009,6 +2013,7 @@ function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
 
   if (dailyDeals) dailyDeals.style.display = filtered.length ? "block" : "none";
 
+  syncFavoritesFilterLockUI();
   updateNavUI(filtered.length);
 
   updateStatusBar({
@@ -2020,7 +2025,7 @@ function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
 
 panelGenderOptions.forEach((option) => {
   option.addEventListener("click", () => {
-    if (isShowingFavorites) return;
+    if (isShowingFavorites || (dailyDeals && dailyDeals.style.display !== "none")) return;
 
     const value = option.getAttribute("data-panel-gender") || "";
     selectedGender = selectedGender === value ? "" : value;
@@ -2066,7 +2071,7 @@ if (statusSortSelect) {
 
 panelStoreSelects.forEach((storeSelectEl) => {
   storeSelectEl.addEventListener("change", () => {
-    if (isShowingFavorites) {
+    if (isShowingFavorites || (dailyDeals && dailyDeals.style.display !== "none")) {
       panelStoreSelects.forEach((otherSelect) => {
         otherSelect.value = selectedStore || "";
       });
@@ -2098,7 +2103,7 @@ panelStoreSelects.forEach((storeSelectEl) => {
 
 panelShoeTypeOptions.forEach((option) => {
   option.addEventListener("click", () => {
-    if (isShowingFavorites) return;
+    if (isShowingFavorites || (dailyDeals && dailyDeals.style.display !== "none")) return;
 
     const value = option.getAttribute("data-panel-shoetype") || "";
     selectedShoeType = selectedShoeType === value ? "" : value;
@@ -2121,12 +2126,14 @@ if (loadMoreBtn) {
       return;
     }
 
-    const showingDailyDeals = dailyDeals && dailyDeals.style.display !== "none";
-    const sourceItems = showingDailyDeals
-      ? (selectedStore ? lastAllDeals : lastDailyDeals)
-      : lastSearchResults;
+const showingDailyDeals = dailyDeals && dailyDeals.style.display !== "none";
+const sourceItems = showingDailyDeals
+  ? (selectedStore ? lastAllDeals : lastDailyDeals)
+  : lastSearchResults;
 
-    const filtered = getFilteredAndSorted(sourceItems || []);
+const filtered = showingDailyDeals
+  ? getFilteredAndSorted(sourceItems || [], { skipFilters: true })
+  : getFilteredAndSorted(sourceItems || []);
     const total = filtered.length;
     const hasMore = (pageIndex + 1) * getPageSize() < total;
     if (!hasMore) return;
@@ -2168,12 +2175,15 @@ if (prevPageBtn) {
       return;
     }
 
-    const sourceItems =
-      dailyDeals && dailyDeals.style.display !== "none"
-        ? (selectedStore ? lastAllDeals : lastDailyDeals)
-        : lastSearchResults;
+    const showingDailyDeals = dailyDeals && dailyDeals.style.display !== "none";
+const sourceItems =
+  showingDailyDeals
+    ? (selectedStore ? lastAllDeals : lastDailyDeals)
+    : lastSearchResults;
 
-    const filtered = getFilteredAndSorted(sourceItems || []);
+const filtered = showingDailyDeals
+  ? getFilteredAndSorted(sourceItems || [], { skipFilters: true })
+  : getFilteredAndSorted(sourceItems || []);
     const pages = totalPagesCount(filtered.length);
     if (pageIndex >= pages - 1) return;
 
