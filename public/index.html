@@ -237,7 +237,7 @@
     <div id="mainContent">
 <div class="content-header-grid">
   <div class="content-header-left">
-<div class="content-heading">
+<div class="content-heading" id="filtersHeading">
   FILTERS
 </div>
   </div>
@@ -1487,6 +1487,7 @@ function renderFavoritesView({ resetPage = true, append = false } = {}) {
 
   isShowingFavorites = true;
   syncFavoritesLinkUI();
+  syncFavoritesFilterLockUI();
 
   if (dailyDeals) dailyDeals.style.display = "none";
 
@@ -1511,6 +1512,7 @@ function renderFavoritesView({ resetPage = true, append = false } = {}) {
 function exitFavoritesView() {
   isShowingFavorites = false;
   syncFavoritesLinkUI();
+  syncFavoritesFilterLockUI();
 }
 
 function rerenderCurrentView({ resetPage = true, append = false, correctedFrom = "" } = {}) {
@@ -1575,10 +1577,10 @@ function getSortLabel(value) {
   return "Default";
 }
 
-function setStatusMeta(extraParts = []) {
+function setStatusMeta(extraParts = [], { includeFilters = true } = {}) {
   if (!statusAppliedFiltersEl) return;
 
-  const filterParts = getAppliedFilterLabels();
+  const filterParts = includeFilters ? getAppliedFilterLabels() : [];
   const leadingParts = [...extraParts];
 
   let text = "";
@@ -1594,6 +1596,7 @@ function setStatusMeta(extraParts = []) {
 
   statusAppliedFiltersEl.textContent = text;
 }
+      
 function setStatusSummary(text) {
   if (statusMessageEl) statusMessageEl.textContent = text;
 }
@@ -1622,10 +1625,13 @@ function updateStatusBar({
 
     if (filteredTotal > 0) {
       setStatusSummary("Showing favorites");
-      setStatusMeta([`Showing ${displayedCount} of ${filteredTotal}`, "Filters disabled"]);
-    } else {
+      setStatusMeta(
+  [`Showing ${displayedCount} of ${filteredTotal}`, "Filters disabled"],
+  { includeFilters: false }
+);
+        } else {
       setStatusSummary("No favorites to show");
-      setStatusMeta(["Filters disabled"]);
+      setStatusMeta(["Filters disabled"], { includeFilters: false });
     }
 
     setStatusSortVisibility(true);
@@ -1681,6 +1687,33 @@ if (favsLink) {
     renderFavoritesView({ resetPage: true, append: false });
   });
 }
+
+
+const filtersHeadingEl = document.getElementById("filtersHeading");
+
+function syncFavoritesFilterLockUI() {
+  const locked = isShowingFavorites;
+
+  if (filtersHeadingEl) {
+    filtersHeadingEl.textContent = locked ? "FILTERS (disabled)" : "FILTERS";
+  }
+
+  panelGenderOptions.forEach((option) => {
+    option.classList.toggle("filters-disabled", locked);
+    option.setAttribute("aria-disabled", locked ? "true" : "false");
+  });
+
+  panelShoeTypeOptions.forEach((option) => {
+    option.classList.toggle("filters-disabled", locked);
+    option.setAttribute("aria-disabled", locked ? "true" : "false");
+  });
+
+  panelStoreSelects.forEach((selectEl) => {
+    selectEl.classList.toggle("filters-disabled", locked);
+    selectEl.disabled = locked;
+  });
+}
+      syncFavoritesFilterLockUI();
       
       function applyFilters(items) {
         const gSel = norm(selectedGender);
@@ -1851,13 +1884,13 @@ function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
 
 panelGenderOptions.forEach((option) => {
   option.addEventListener("click", () => {
+    if (isShowingFavorites) return;
+
     const value = option.getAttribute("data-panel-gender") || "";
     selectedGender = selectedGender === value ? "" : value;
     pageIndex = 0;
     syncPanelControls();
-
-    const showingDailyDeals = dailyDeals && dailyDeals.style.display !== "none";
-rerenderCurrentView({ resetPage: true, append: false });
+    rerenderCurrentView({ resetPage: true, append: false });
   });
 });
 
@@ -1897,17 +1930,19 @@ if (statusSortSelect) {
 
 panelStoreSelects.forEach((storeSelectEl) => {
   storeSelectEl.addEventListener("change", () => {
+    if (isShowingFavorites) {
+      panelStoreSelects.forEach((otherSelect) => {
+        otherSelect.value = selectedStore || "";
+      });
+      return;
+    }
+
     selectedStore = storeSelectEl.value || "";
     pageIndex = 0;
 
     panelStoreSelects.forEach((otherSelect) => {
       if (otherSelect !== storeSelectEl) otherSelect.value = selectedStore;
     });
-
-    if (isShowingFavorites) {
-      renderFavoritesView({ resetPage: true, append: false });
-      return;
-    }
 
     if (selectedStore) {
       exitFavoritesView();
@@ -1927,6 +1962,8 @@ panelStoreSelects.forEach((storeSelectEl) => {
 
 panelShoeTypeOptions.forEach((option) => {
   option.addEventListener("click", () => {
+    if (isShowingFavorites) return;
+
     const value = option.getAttribute("data-panel-shoetype") || "";
     selectedShoeType = selectedShoeType === value ? "" : value;
     pageIndex = 0;
