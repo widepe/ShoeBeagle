@@ -464,10 +464,16 @@ const modeToggleIcon = document.getElementById("modeToggleIcon");
       ].filter(Boolean);
       const panelGenderOptions = Array.from(document.querySelectorAll("[data-panel-gender]"));
       const panelSortOptions = Array.from(document.querySelectorAll("[data-panel-sort]"));
-      const panelThemeOptions = Array.from(document.querySelectorAll("[data-panel-theme]"));
-      const columnsValueEl = document.getElementById("columnsValue");
-      const columnsDownBtn = document.getElementById("columnsDownBtn");
-      const columnsUpBtn = document.getElementById("columnsUpBtn");
+const panelThemeOptions = Array.from(document.querySelectorAll("[data-panel-theme]"));
+const columnsValueEl = document.getElementById("columnsValue");
+const columnsDownBtn = document.getElementById("columnsDownBtn");
+const columnsUpBtn = document.getElementById("columnsUpBtn");
+
+const priceMinRange = document.getElementById("priceMinRange");
+const priceMaxRange = document.getElementById("priceMaxRange");
+const priceMinLabel = document.getElementById("priceMinLabel");
+const priceMaxLabel = document.getElementById("priceMaxLabel");
+const priceRangeFill = document.getElementById("priceRangeFill");
 
       const STORAGE_VISIBLE_COLS = "sb-visible-cols";
       let pageIndex = 0;
@@ -805,6 +811,29 @@ function renderSelectedStoreInventory() {
 
   return true;
 }
+
+if (priceMinRange && priceMaxRange) {
+  priceMinRange.addEventListener("input", () => {
+    if (isShowingFavorites) return;
+
+    const nextMin = Math.min(Number(priceMinRange.value || 1), selectedPriceMax);
+    selectedPriceMin = nextMin;
+    pageIndex = 0;
+    syncPanelControls();
+    rerenderCurrentView({ resetPage: true, append: false });
+  });
+
+  priceMaxRange.addEventListener("input", () => {
+    if (isShowingFavorites) return;
+
+    const nextMax = Math.max(Number(priceMaxRange.value || 400), selectedPriceMin);
+    selectedPriceMax = nextMax;
+    pageIndex = 0;
+    syncPanelControls();
+    rerenderCurrentView({ resetPage: true, append: false });
+  });
+}
+      
 
       // --- Helpers ---
       function normalizeStr(s) {
@@ -1478,6 +1507,8 @@ panelShoeTypeOptions.forEach((option) => {
     option.classList.toggle("active", isOn);
     option.setAttribute("aria-pressed", isOn ? "true" : "false");
   });
+
+  syncPriceRangeUI();
 }
 
 const STORAGE_FAVORITES = "sb-favorites-v1";
