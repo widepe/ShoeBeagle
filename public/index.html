@@ -1690,32 +1690,36 @@ if (favsLink) {
 
 
 const filtersHeadingEl = document.getElementById("filtersHeading");
-const filtersSectionEls = document.querySelectorAll(".sidebar-section-title");
-  function syncFavoritesFilterLockUI() {
+const filtersSectionEls = document.querySelectorAll(".sidebar-heading");
+
+function syncFavoritesFilterLockUI() {
   const locked = isShowingFavorites;
 
-if (filtersHeadingEl) {
-  filtersHeadingEl.textContent = locked ? "FILTERS (disabled)" : "FILTERS";
-  filtersHeadingEl.classList.toggle("filters-disabled", locked);
-}
+  if (filtersHeadingEl) {
+    filtersHeadingEl.textContent = locked ? "FILTERS (disabled)" : "FILTERS";
+    filtersHeadingEl.classList.toggle("filters-disabled", locked);
+  }
 
-filtersSectionEls.forEach((el) => {
-  el.classList.toggle("filters-disabled", locked);
-});
+  filtersSectionEls.forEach((el) => {
+    el.classList.toggle("filters-disabled", locked);
+  });
 
   panelGenderOptions.forEach((option) => {
     option.classList.toggle("filters-disabled", locked);
+    option.classList.add("controls");
     option.setAttribute("aria-disabled", locked ? "true" : "false");
   });
 
   panelShoeTypeOptions.forEach((option) => {
     option.classList.toggle("filters-disabled", locked);
+    option.classList.add("controls");
     option.setAttribute("aria-disabled", locked ? "true" : "false");
   });
 
   panelStoreSelects.forEach((selectEl) => {
     selectEl.classList.toggle("filters-disabled", locked);
     selectEl.disabled = locked;
+    selectEl.setAttribute("aria-disabled", locked ? "true" : "false");
   });
 }
       syncFavoritesFilterLockUI();
