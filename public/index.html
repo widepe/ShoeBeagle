@@ -1479,13 +1479,14 @@ function toggleFavoriteItem(item) {
 }
 
 function getFavoriteItemsForDisplay() {
-  return getFilteredAndSorted(favoriteItems || []);
+  return getFilteredAndSorted(favoriteItems || [], { skipFilters: true });
 }
 
 function renderFavoritesView({ resetPage = true, append = false } = {}) {
   if (resetPage) pageIndex = 0;
 
   isShowingFavorites = true;
+  syncFavoritesLinkUI();
 
   if (dailyDeals) dailyDeals.style.display = "none";
 
@@ -1509,6 +1510,7 @@ function renderFavoritesView({ resetPage = true, append = false } = {}) {
 
 function exitFavoritesView() {
   isShowingFavorites = false;
+  syncFavoritesLinkUI();
 }
 
 function rerenderCurrentView({ resetPage = true, append = false, correctedFrom = "" } = {}) {
@@ -1620,10 +1622,10 @@ function updateStatusBar({
 
     if (filteredTotal > 0) {
       setStatusSummary("Showing favorites");
-      setStatusMeta([`Showing ${displayedCount} of ${filteredTotal}`]);
+      setStatusMeta([`Showing ${displayedCount} of ${filteredTotal}`, "Filters disabled"]);
     } else {
       setStatusSummary("No favorites to show");
-      setStatusMeta([]);
+      setStatusMeta(["Filters disabled"]);
     }
 
     setStatusSortVisibility(true);
@@ -1677,7 +1679,6 @@ if (favsLink) {
   favsLink.addEventListener("click", (e) => {
     e.preventDefault();
     renderFavoritesView({ resetPage: true, append: false });
-    syncFavoritesLinkUI();
   });
 }
       
@@ -1733,34 +1734,38 @@ function getSavingsValue(item) {
   return -1;
 }
 
-function getFilteredAndSorted(items) {
-  const filtered = applyFilters(items);
+function getFilteredAndSorted(items, { skipFilters = false } = {}) {
+  const baseItems = skipFilters ? (items || []).slice() : applyFilters(items);
 
   if (!currentSort) {
-    return filtered.slice();
+    return baseItems.slice();
   }
 
   if (currentSort === "discount-desc") {
-    return filtered.slice().sort((a, b) => {
+    return baseItems.slice().sort((a, b) => {
       return getDiscountPercentValue(b) - getDiscountPercentValue(a);
     });
   }
 
   if (currentSort === "savings-desc") {
-    return filtered.slice().sort((a, b) => {
+    return baseItems.slice().sort((a, b) => {
       return getSavingsValue(b) - getSavingsValue(a);
     });
   }
 
   if (currentSort === "price-desc") {
-    return filtered.slice().sort((a, b) => Number(b.salePrice || 0) - Number(a.salePrice || 0));
+    return baseItems.slice().sort((a, b) =>
+      Number(b?.salePrice ?? Infinity) - Number(a?.salePrice ?? Infinity)
+    );
   }
 
   if (currentSort === "price-asc") {
-    return filtered.slice().sort((a, b) => Number(a.salePrice || 0) - Number(b.salePrice || 0));
+    return baseItems.slice().sort((a, b) =>
+      Number(a?.salePrice ?? Infinity) - Number(b?.salePrice ?? Infinity)
+    );
   }
 
-  return filtered.slice();
+  return baseItems.slice();
 }
 
       function getDiscountInfo(item) {
@@ -1795,7 +1800,7 @@ function getFilteredAndSorted(items) {
       }
 
       function renderFilteredResults({ resetPage = true, append = false, correctedFrom = "" } = {}) {
-  isShowingFavorites = false;
+  exitFavoritesView();
   const filtered = getFilteredAndSorted(lastSearchResults);
 
   if (resetPage) pageIndex = 0;
@@ -1817,7 +1822,7 @@ function getFilteredAndSorted(items) {
   });
 }
 function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
-  isShowingFavorites = false;
+  exitFavoritesView();
   if (!dailyDealsGrid) return;
 
   const sourceDeals = selectedStore ? lastAllDeals : lastDailyDeals;
