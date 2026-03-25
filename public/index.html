@@ -2280,19 +2280,31 @@ if (discount.hasDiscount && discount.percent >= 30) {
       }
 
       form.addEventListener("submit", async (e) => {
-        e.preventDefault();
+  e.preventDefault();
 
-        const typedRaw = sanitizeInput(qInput.value);
-        updateFetchReady();
+  const rawQuery = (qInput?.value || "").trim().toLowerCase();
 
-     if (!typedRaw) {
-  setStatusSummary("Please enter a brand and/or a model.");
-  setStatusMeta([]);
-  setStatusSortVisibility(false);
-  return;
-}
+  if (rawQuery === "database") {
+    currentSearch = { brand: "", model: "" };
+    lastSearchResults = lastAllDeals.slice();
 
-        let { brand, model } = splitBrandModelFromPicked(typedRaw);
+    if (dailyDeals) dailyDeals.style.display = "none";
+
+    renderFilteredResults({ resetPage: true, append: false });
+    return;
+  }
+
+  const typedRaw = sanitizeInput(qInput.value);
+  updateFetchReady();
+
+  if (!typedRaw) {
+    setStatusSummary("Please enter a brand and/or a model.");
+    setStatusMeta([]);
+    setStatusSortVisibility(false);
+    return;
+  }
+
+  let { brand, model } = splitBrandModelFromPicked(typedRaw);
         if (!brand && model && dealsSuggest.ready) {
           const exactBrand = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(model)) || "";
           const inferred = exactBrand || inferDefinitiveBrandFromPartialModel(model);
