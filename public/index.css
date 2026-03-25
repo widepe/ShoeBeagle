@@ -12,7 +12,7 @@
 html, body{ max-width:100%; overflow-x:hidden; }
 
 /* iOS Safari: prevent weird tap highlight & improve stability */
-html{ -webkit-text-size-adjust:100%; }
+html{ -webkit-text-size-adjust:100%; }f
 
 /* =========================================================
    DESIGN TOKENS
@@ -1558,6 +1558,10 @@ html[data-theme="dark"] .footer{
     display:none !important;
   }
 
+#filtersHeading{
+  display:none;
+}
+   
   .topbar-link,
   .mode-toggle-btn{
     display:none;
