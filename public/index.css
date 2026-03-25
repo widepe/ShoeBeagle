@@ -573,7 +573,7 @@ form#search-form{
   display:block;
   pointer-events:none;
   z-index:10;
-  fill:var(--sb-blue);
+  color:var(--sb-blue);
 }
 
 
