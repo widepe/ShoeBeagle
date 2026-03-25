@@ -1690,15 +1690,15 @@ html[data-theme="dark"] .footer{
     line-height:1;
   }
 
-  #menuBtn,
-  #fetchBtn{
-    flex:0 0 var(--btn-eq-w);
-    width:var(--btn-eq-w);
-    min-width:var(--btn-eq-w);
-    height:var(--btn-h);
-    max-width:var(--btn-eq-w);
-    transform:none;
-  }
+#menuBtn,
+#fetchBtn{
+  flex:0 0 calc(var(--btn-h) * 0.75);
+  width:calc(var(--btn-h) * 0.75);
+  min-width:calc(var(--btn-h) * 0.75);
+  height:calc(var(--btn-h) * 0.75);
+  max-width:calc(var(--btn-h) * 0.75);
+  transform:none;
+}
 
   .input-controls{
     position:absolute;
