@@ -1718,7 +1718,13 @@ function updateStatusBar({
   }
 
   const hasSearch = !!([currentSearch.brand, currentSearch.model].filter(Boolean).join(" ").trim());
-  const hasActiveFiltersOrSort = !!selectedGender || !!selectedStore || !!selectedShoeType || !!currentSort;
+  const hasActiveFiltersOrSort =
+  !!selectedGender ||
+  !!selectedStore ||
+  !!selectedShoeType ||
+  !!currentSort ||
+  selectedPriceMin > 1 ||
+  selectedPriceMax < 400;
 
   if (showingFavorites) {
     const displayedCount = getRenderedCardCount(resultsEl);
@@ -1821,8 +1827,23 @@ function syncFavoritesFilterLockUI() {
     selectEl.disabled = locked;
     selectEl.setAttribute("aria-disabled", locked ? "true" : "false");
   });
+
+  if (priceMinRange) {
+    priceMinRange.classList.toggle("filters-disabled", locked);
+    priceMinRange.disabled = locked;
+    priceMinRange.setAttribute("aria-disabled", locked ? "true" : "false");
+  }
+
+  if (priceMaxRange) {
+    priceMaxRange.classList.toggle("filters-disabled", locked);
+    priceMaxRange.disabled = locked;
+    priceMaxRange.setAttribute("aria-disabled", locked ? "true" : "false");
+  }
+
+  
 }
       syncFavoritesFilterLockUI();
+syncPanelControls();
       
 function applyFilters(items) {
   const gSel = norm(selectedGender);
@@ -2390,7 +2411,7 @@ if (discount.hasDiscount && discount.percent >= 30) {
 
   const rawQuery = (qInput?.value || "").trim().toLowerCase();
 
-  if (rawQuery === "database") {
+  if (rawQuery === "all") {
     currentSearch = { brand: "", model: "" };
     lastSearchResults = lastAllDeals.slice();
 
