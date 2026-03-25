@@ -1690,13 +1690,18 @@ if (favsLink) {
 
 
 const filtersHeadingEl = document.getElementById("filtersHeading");
-
-function syncFavoritesFilterLockUI() {
+const filtersSectionEls = document.querySelectorAll(".sidebar-section-title");
+  function syncFavoritesFilterLockUI() {
   const locked = isShowingFavorites;
 
-  if (filtersHeadingEl) {
-    filtersHeadingEl.textContent = locked ? "FILTERS (disabled)" : "FILTERS";
-  }
+if (filtersHeadingEl) {
+  filtersHeadingEl.textContent = locked ? "FILTERS (disabled)" : "FILTERS";
+  filtersHeadingEl.classList.toggle("filters-disabled", locked);
+}
+
+filtersSectionEls.forEach((el) => {
+  el.classList.toggle("filters-disabled", locked);
+});
 
   panelGenderOptions.forEach((option) => {
     option.classList.toggle("filters-disabled", locked);
