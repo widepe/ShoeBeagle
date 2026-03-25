@@ -1818,10 +1818,24 @@ html[data-theme="dark"] .footer{
   }
 }
 @media (max-width:900px){
+
+  /* hide sidebar completely */
+  .left-sidebar{
+    display:none !important;
+  }
+
+  /* hide FILTERS row */
+  .filters{
+    display:none !important;
+  }
+
+  /* remove sidebar column from layout */
   .content-shell,
   .content-header-grid{
-    grid-template-columns:minmax(240px, 260px) minmax(0, 1fr);
+    grid-template-columns:1fr !important;
   }
+
+  /* stack status bar properly */
   .status-bar{
     grid-template-columns:minmax(0, 1fr);
     grid-template-areas:
@@ -1831,17 +1845,17 @@ html[data-theme="dark"] .footer{
     row-gap:8px;
   }
 
+  /* prevent sort drifting off screen */
   .status-sort-wrap{
-    justify-self:start;
+    width:100%;
+    justify-self:stretch;
   }
 
   .status-sort-select{
-    min-width:0;
     width:100%;
     max-width:260px;
   }
-}   
-
+}
 
 /* =========================================================
    RESULTS TRANSITION (disabled on mobile portrait)
