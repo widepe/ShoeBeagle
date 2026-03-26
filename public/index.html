@@ -1465,6 +1465,259 @@ clearFiltersBtns.forEach((btn) => {
         }, 0);
       }
 
+function normalizeQueryForCommand(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function getCommandAction(rawQuery) {
+  const q = normalizeQueryForCommand(rawQuery).replace(/-/g, " ");
+
+  if (
+    q === "all" ||
+    q === "all deals" ||
+    q === "all shoes"
+  ) {
+    return { type: "mode", mode: "all" };
+  }
+
+  if (
+    q === "daily" ||
+    q === "daily deals"
+  ) {
+    return { type: "mode", mode: "daily" };
+  }
+
+  if (
+    q === "favs" ||
+    q === "favorites" ||
+    q === "saved" ||
+    q === "saved deals"
+  ) {
+    return { type: "mode", mode: "favorites" };
+  }
+
+  if (
+    q === "price alert" ||
+    q === "shoe price alert" ||
+    q === "running shoe price alert"
+  ) {
+    return { type: "modal", modal: "priceAlert" };
+  }
+
+  if (
+    q === "trail" ||
+    q === "trail shoes" ||
+    q === "trail running" ||
+    q === "trail running shoes"
+  ) {
+    return { type: "term", term: "trail" };
+  }
+
+  if (
+    q === "road" ||
+    q === "road shoes" ||
+    q === "road running" ||
+    q === "road running shoes"
+  ) {
+    return { type: "term", term: "road" };
+  }
+
+  if (
+    q === "track" ||
+    q === "track shoes" ||
+    q === "track running" ||
+    q === "track running shoes"
+  ) {
+    return { type: "term", term: "track" };
+  }
+
+  if (
+    q === "xc" ||
+    q === "xc shoes" ||
+    q === "cross country" ||
+    q === "cross country shoes"
+  ) {
+    return { type: "term", term: "xc" };
+  }
+
+  return null;
+}
+
+function applyTermFilters(termKey) {
+  selectedGender = "";
+  selectedStore = "";
+  selectedPriceMin = 1;
+  selectedPriceMax = 400;
+  currentSort = "";
+
+  if (termKey === "trail") selectedShoeType = "trail";
+  else if (termKey === "road") selectedShoeType = "road";
+  else if (termKey === "track") selectedShoeType = "track";
+  else if (termKey === "xc") selectedShoeType = "xc";
+  else selectedShoeType = "";
+}
+
+async function runApiSearch(displayQuery) {
+  const res = await fetch("api/search?" + new URLSearchParams({ query: displayQuery }));
+  return res.json();
+}
+
+async function handleSearch() {
+  const rawQuery = (qInput?.value || "").trim();
+  const command = getCommandAction(rawQuery);
+
+  updateFetchReady();
+
+   if (command) {
+    if (command.type === "mode") {
+      if (command.mode === "all") {
+        renderAllDealsView({ resetPage: true, append: false });
+        return;
+      }
+
+      if (command.mode === "daily") {
+        renderDailyDealsView({ resetPage: true, append: false });
+        return;
+      }
+
+      if (command.mode === "favorites") {
+        renderFavoritesView({ resetPage: true, append: false });
+        return;
+      }
+    }
+
+    if (command.type === "modal") {
+      const priceAlertOpener = document.querySelector("[data-open-alert]");
+      if (priceAlertOpener) {
+        priceAlertOpener.click();
+      }
+      return;
+    }
+
+    if (command.type === "term") {
+      exitFavoritesView();
+      currentSearch = { brand: "", model: "" };
+      lastSearchResults = lastAllDeals.slice();
+
+      applyTermFilters(command.term);
+
+      if (dailyDeals) dailyDeals.style.display = "none";
+      syncPanelControls();
+      renderFilteredResults({ resetPage: true, append: false });
+      return;
+    }
+  }
+
+  const typedRaw = sanitizeInput(qInput.value);
+
+  if (!typedRaw) {
+    setStatusSummary("Please enter a brand and/or a model.");
+    setStatusMeta([]);
+    setStatusSortVisibility(false);
+    return;
+  }
+
+  let { brand, model } = splitBrandModelFromPicked(typedRaw);
+
+  if (!brand && model && dealsSuggest.ready) {
+    const exactBrand = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(model)) || "";
+    const inferred = exactBrand || inferDefinitiveBrandFromPartialModel(model);
+    if (inferred) brand = inferred;
+  }
+
+  if (brand) brand = resolveClosestBrand(brand);
+
+  const displayQuery = [brand, model].filter(Boolean).join(" ").trim();
+
+  if (!displayQuery) {
+    setStatusSummary("Please enter a brand and/or a model.");
+    setStatusMeta([]);
+    setStatusSortVisibility(false);
+    return;
+  }
+
+  currentSearch = { brand, model };
+  setStatusSummary("Searching deals…");
+  setStatusMeta([]);
+  setStatusSortVisibility(true);
+  resultsEl.innerHTML = "";
+
+  const pager = document.querySelector(".pager");
+  if (pager) pager.style.display = "none";
+  if (loadMoreWrap) loadMoreWrap.style.display = "none";
+  if (dailyDeals) dailyDeals.style.display = "none";
+
+  let data;
+  try {
+    data = await runApiSearch(displayQuery);
+  } catch (err) {
+    console.error("Search error:", err);
+    setStatusSummary("Search failed. Please try again.");
+    setStatusMeta([]);
+    setStatusSortVisibility(true);
+    if (dailyDeals) dailyDeals.style.display = "block";
+    return;
+  }
+
+  const results = data && data.results ? data.results : [];
+  lastSearchResults = results;
+  syncPanelControls();
+
+  if (!results.length) {
+    if (brand && model && dealsSuggest.ready) {
+      const modelNorm = normalizeStr(model);
+      let actualBrand = dealsSuggest.modelNormToBrandDisplay.get(modelNorm) || "";
+
+      if (!actualBrand) {
+        for (const [key, val] of dealsSuggest.modelNormToBrandDisplay.entries()) {
+          if (key.includes(modelNorm) && modelNorm.length >= 4) {
+            actualBrand = val;
+            break;
+          }
+        }
+      }
+
+      if (actualBrand && normalizeStr(actualBrand) !== normalizeStr(brand)) {
+        const correctedQuery = `${actualBrand} ${model}`;
+
+        let correctedData;
+        try {
+          correctedData = await runApiSearch(correctedQuery);
+        } catch (err) {
+          console.error("Corrected search error:", err);
+          setStatusSummary(`No results found for ${displayQuery}`);
+          setStatusMeta([]);
+          setStatusSortVisibility(true);
+          if (dailyDeals) dailyDeals.style.display = "block";
+          return;
+        }
+
+        const correctedResults = correctedData && correctedData.results ? correctedData.results : [];
+
+        if (correctedResults.length) {
+          lastSearchResults = correctedResults;
+          currentSearch = { brand: actualBrand, model };
+          syncPanelControls();
+          renderFilteredResults({ resetPage: true, append: false, correctedFrom: displayQuery });
+          return;
+        }
+      }
+    }
+
+    setStatusSummary(`No results found for ${displayQuery}`);
+    setStatusMeta([]);
+    setStatusSortVisibility(true);
+    if (dailyDeals) dailyDeals.style.display = "block";
+    return;
+  }
+
+  renderFilteredResults({ resetPage: true, append: false });
+}
+      
+
       if (qInput) {
         qInput.addEventListener("input", () => {
           const typed = qInput.value.trim();
@@ -2610,7 +2863,7 @@ if (discount.hasDiscount && discount.percent >= 30) {
         });
       }
 
-      form.addEventListener("submit", async (e) => {
+    form.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const rawQuery = (qInput?.value || "").trim().toLowerCase();
