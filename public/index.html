@@ -2450,25 +2450,19 @@ heartBtn.addEventListener("click", (e) => {
   e.stopPropagation();
 
   const isNowFavorite = toggleFavoriteItem(item);
-
-  // Update visual state
   heartBtn.classList.toggle("active", isNowFavorite);
 
-  // 🔥 Heart POP (reliable restart)
-  heartBtn.classList.remove("pop");
-  void heartBtn.offsetWidth; // force reflow
-  heartBtn.classList.add("pop");
-
-  // 🔥 Toast message
-  if (isNowFavorite) {
-    showSaveToast("Saved deal");
-  } else {
-    showSaveToast("Removed saved deal");
+  const heartIcon = heartBtn.querySelector(".card-heart");
+  if (heartIcon) {
+    heartIcon.classList.remove("pop");
+    void heartIcon.offsetWidth; // restart animation
+    heartIcon.classList.add("pop");
   }
 
-  // Re-render if needed
+  showSaveToast(isNowFavorite ? "Saved deal" : "Removed saved deal");
+
   if (isShowingFavorites) {
-    renderFavoritesView({ resetPage: false });
+    renderFavoritesView({ resetPage: false, append: false });
   }
 });
 
