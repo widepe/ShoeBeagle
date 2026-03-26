@@ -250,6 +250,16 @@ html.page-preload body{
 .price-range-filter.filters-disabled .price-range-input::-moz-range-thumb{
   cursor:default;
 }
+
+@keyframes heartPop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+.card-heart-btn.pop{
+  animation: heartPop 0.25s ease;
+}
 /* =========================================================
    BASE LAYOUT
 ========================================================= */
