@@ -1471,6 +1471,36 @@ function normalizeQueryForCommand(value) {
     .toLowerCase()
     .replace(/\s+/g, " ");
 }
+function extractInlineFilters(q) {
+  const tokens = q.split(" ");
+
+  let gender = "";
+  let surface = "";
+
+  tokens.forEach((t) => {
+    // gender
+    if (
+      ["mens", "men", "man's", "mans"].includes(t)
+    ) {
+      gender = "mens";
+    }
+
+    if (
+      ["womens", "women", "woman", "womans"].includes(t)
+    ) {
+      gender = "womens";
+    }
+
+    // surface
+    if (t === "trail") surface = "trail";
+    if (t === "road") surface = "road";
+    if (t === "track") surface = "track";
+    if (t === "xc") surface = "xc";
+  });
+
+  return { gender, surface };
+}
+      
 
 function getCommandAction(rawQuery) {
   const q = normalizeQueryForCommand(rawQuery).replace(/-/g, " ");
@@ -1611,6 +1641,8 @@ async function runApiSearch(displayQuery) {
 
 async function handleSearch() {
   const rawQuery = (qInput?.value || "").trim();
+  const normalizedQuery = normalizeQueryForCommand(rawQuery).replace(/-/g, " ");
+  const inlineFilters = extractInlineFilters(normalizedQuery);
   const command = getCommandAction(rawQuery);
 
   updateFetchReady();
@@ -1655,7 +1687,12 @@ async function handleSearch() {
     }
   }
 
-  const typedRaw = sanitizeInput(qInput.value);
+  let typedRaw = sanitizeInput(qInput.value);
+
+// remove filter words from search string
+typedRaw = typedRaw
+  .replace(/\b(mens|men|mans|womens|women|womans|trail|road|track|xc)\b/g, "")
+  .trim();
 
   if (!typedRaw) {
     setStatusSummary("Please enter a brand and/or a model.");
@@ -1665,8 +1702,14 @@ async function handleSearch() {
   }
 
   let { brand, model } = splitBrandModelFromPicked(typedRaw);
+// 🔥 apply inline filters (mens, trail, etc.)
+if (inlineFilters.gender) {
+  selectedGender = inlineFilters.gender;
+}
 
-  if (!brand && model && dealsSuggest.ready) {
+if (inlineFilters.surface) {
+  selectedShoeType = inlineFilters.surface;
+}  if (!brand && model && dealsSuggest.ready) {
     const exactBrand = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(model)) || "";
     const inferred = exactBrand || inferDefinitiveBrandFromPartialModel(model);
     if (inferred) brand = inferred;
