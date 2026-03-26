@@ -308,8 +308,27 @@ html[data-theme="dark"] body{
   padding:0 0px;   /* 👈 ADD THIS */
   box-sizing:border-box; /* 👈 ensures true centering */
 }
+.filters-heading-row{
+  display:flex;
+  align-items:baseline;
+  width:100%;
+}
 
+.filters-clear-btn{
+  margin-left:auto;
+  font-size:0.78em;
+  font-weight:600;
+  color:var(--sb-blue);
+  background:none;
+  border:0;
+  cursor:pointer;
+  opacity:0.85;
+}
 
+.filters-clear-btn:hover{
+  opacity:1;
+  text-decoration:underline;
+}
 #mainContent{
   width:100%;
   flex:1 0 auto;
