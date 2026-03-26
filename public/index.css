@@ -317,7 +317,7 @@ html[data-theme="dark"] body{
 .filters-clear-btn{
   margin-left:auto;
   font-size:0.78em;
-  font-weight:600;
+  font-weight:400;
   color:var(--sb-blue);
   background:none;
   border:0;
