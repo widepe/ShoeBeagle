@@ -85,7 +85,7 @@ html[data-theme="dark"]{
   --sb-done-bg:#0b0b0b;
 
   --topbar-nav-idle:var(--sb-blue);
-  --topbar-nav-active:#var(--sb-orange);
+  --topbar-nav-active:var(--sb-orange);
 }
 
 html[data-theme="dark"] body{
@@ -772,7 +772,7 @@ button{
 }
 
 .topbar-link--alert:hover{
-  opacity:0.88;
+  color:#4f8dff;
 }
 
 /* Daily / All / Favs page nav */
