@@ -257,9 +257,29 @@ html.page-preload body{
   100% { transform: scale(1); }
 }
 
-.card-heart-btn.pop{
-  animation: heartPop 0.25s ease;
+.card-heart.pop { animation: heartPop 0.25s ease; }
+.save-toast{
+  position:fixed;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  background:rgba(0,0,0,0.85);
+  color:#fff;
+  padding:8px 14px;
+  border-radius:999px;
+  font-size:0.8rem;
+  font-weight:600;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 160ms ease, transform 160ms ease;
+  z-index:9999;
 }
+
+.save-toast.show{
+  opacity:1;
+  transform:translateX(-50%) translateY(-4px);
+}
+
 /* =========================================================
    BASE LAYOUT
 ========================================================= */
