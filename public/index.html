@@ -1964,7 +1964,9 @@ function applyFilters(items) {
     const storeOk = !storeSel || normalizeStoreName(item?.store) === storeSel;
 
     const type = (item.shoeType || "").toLowerCase();
-    const typeOk = !selectedShoeType || type === selectedShoeType;
+const typeOk =
+  !selectedShoeType ||
+  type === String(selectedShoeType).toLowerCase();
 
     const price = Number(item?.salePrice);
     const hasPrice = Number.isFinite(price);
@@ -2210,7 +2212,10 @@ panelShoeTypeOptions.forEach((option) => {
     if (isShowingFavorites || (dailyDeals && dailyDeals.style.display !== "none")) return;
 
     const value = option.getAttribute("data-panel-shoetype") || "";
-    selectedShoeType = selectedShoeType === value ? "" : value;
+    selectedShoeType =
+  selectedShoeType === value.toLowerCase()
+    ? ""
+    : value.toLowerCase();
     pageIndex = 0;
     syncPanelControls();
     rerenderCurrentView({ resetPage: true, append: false });
