@@ -1901,10 +1901,10 @@ function syncFavoritesFilterLockUI() {
   const showingDailyDeals = !!(dailyDeals && dailyDeals.style.display !== "none");
   const locked = isShowingFavorites || showingDailyDeals;
 
-  if (filtersHeadingEl) {
-    filtersHeadingEl.textContent = locked ? "FILTERS (disabled)" : "FILTERS";
-    filtersHeadingEl.classList.toggle("filters-disabled", locked);
-  }
+ if (filtersHeadingEl) {
+  filtersHeadingEl.textContent = "FILTERS";
+  filtersHeadingEl.classList.toggle("filters-disabled", locked);
+}
 
   filtersSectionEls.forEach((el) => {
     el.classList.toggle("filters-disabled", locked);
