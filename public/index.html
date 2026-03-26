@@ -1633,6 +1633,25 @@ function toggleFavoriteItem(item) {
   addFavoriteItem(item);
   return true;
 }
+function showSaveToast(message) {
+  const el = document.getElementById("saveToast");
+  if (!el) return;
+
+  el.textContent = message;
+  el.hidden = false;
+
+  requestAnimationFrame(() => {
+    el.classList.add("show");
+  });
+
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => {
+    el.classList.remove("show");
+    setTimeout(() => {
+      el.hidden = true;
+    }, 160);
+  }, 1200);
+}      
 
 function getFavoriteItemsForDisplay() {
   return getFilteredAndSorted(favoriteItems || [], { skipFilters: true });
@@ -2431,19 +2450,25 @@ heartBtn.addEventListener("click", (e) => {
   e.stopPropagation();
 
   const isNowFavorite = toggleFavoriteItem(item);
+
+  // Update visual state
   heartBtn.classList.toggle("active", isNowFavorite);
 
-  // ✅ ADD THIS BLOCK
-  if (isNowFavorite) {
-    heartBtn.classList.add("pop");
+  // 🔥 Heart POP (reliable restart)
+  heartBtn.classList.remove("pop");
+  void heartBtn.offsetWidth; // force reflow
+  heartBtn.classList.add("pop");
 
-    setTimeout(() => {
-      heartBtn.classList.remove("pop");
-    }, 250);
+  // 🔥 Toast message
+  if (isNowFavorite) {
+    showSaveToast("Saved deal");
+  } else {
+    showSaveToast("Removed saved deal");
   }
 
+  // Re-render if needed
   if (isShowingFavorites) {
-    renderFavoritesView({ resetPage: false, append: false });
+    renderFavoritesView({ resetPage: false });
   }
 });
 
@@ -3592,6 +3617,5 @@ return;
       }
     })();
   </script>
-
-</body>
+<div id="saveToast" class="save-toast" hidden></div></body>
 </html>
