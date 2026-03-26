@@ -1508,6 +1508,38 @@ function getCommandAction(rawQuery) {
   }
 
   if (
+    q === "mens" ||
+    q === "men's" ||
+    q === "men" ||
+    q === "mens shoes" ||
+    q === "men's shoes" ||
+    q === "men shoes" ||
+    q === "man" ||
+    q === "man's" ||
+    q === "mans" ||
+    q === "man's shoes" ||
+    q === "mans shoes"
+  ) {
+    return { type: "term", term: "mens" };
+  }
+
+  if (
+    q === "womens" ||
+    q === "women's" ||
+    q === "women" ||
+    q === "womens shoes" ||
+    q === "women's shoes" ||
+    q === "women shoes" ||
+    q === "woman" ||
+    q === "woman's" ||
+    q === "womans" ||
+    q === "woman's shoes" ||
+    q === "womans shoes"
+  ) {
+    return { type: "term", term: "womens" };
+  }
+
+  if (
     q === "trail" ||
     q === "trail shoes" ||
     q === "trail running" ||
@@ -1553,11 +1585,23 @@ function applyTermFilters(termKey) {
   selectedPriceMax = 400;
   currentSort = "";
 
-  if (termKey === "trail") selectedShoeType = "trail";
-  else if (termKey === "road") selectedShoeType = "road";
-  else if (termKey === "track") selectedShoeType = "track";
-  else if (termKey === "xc") selectedShoeType = "xc";
-  else selectedShoeType = "";
+  if (termKey === "mens") {
+    selectedGender = "mens";
+    selectedShoeType = "";
+  } else if (termKey === "womens") {
+    selectedGender = "womens";
+    selectedShoeType = "";
+  } else if (termKey === "trail") {
+    selectedShoeType = "trail";
+  } else if (termKey === "road") {
+    selectedShoeType = "road";
+  } else if (termKey === "track") {
+    selectedShoeType = "track";
+  } else if (termKey === "xc") {
+    selectedShoeType = "xc";
+  } else {
+    selectedShoeType = "";
+  }
 }
 
 async function runApiSearch(displayQuery) {
