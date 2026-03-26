@@ -93,7 +93,7 @@
               <input
                 id="q"
                 type="text"
-                placeholder="Search shoes, brands or models"
+                placeholder="Search shoes, brands, or models"
                 autocomplete="off"
               />
               <button type="button" class="input-clear" aria-label="Clear search">
@@ -181,7 +181,18 @@
         <hr class="slide-divider" />
 
     <div class="slide-panel-section">
-  <div class="slide-panel-heading">FILTERS:</div>
+  <div class="content-heading filters-heading-row">
+  <span id="filtersHeading">FILTERS</span>
+<button
+  type="button"
+  id="clearFiltersBtn2"
+  class="filters-clear-btn"
+  aria-label="Clear all filters"
+  hidden
+>
+  Clear
+</button>
+</div>
 
   <div class="gender-row">
   <button type="button" class="slide-check-option gender-half" data-panel-gender="womens">
@@ -257,8 +268,17 @@
     <div id="mainContent">
 <div class="content-header-grid">
   <div class="content-header-left">
-<div class="content-heading" id="filtersHeading">
-  FILTERS
+<div class="content-heading filters-heading-row">
+  <span id="filtersHeading">FILTERS</span>
+  <button
+    type="button"
+    id="clearFiltersBtn"
+    class="filters-clear-btn"
+    aria-label="Clear all filters"
+    hidden
+  >
+    Clear
+  </button>
 </div>
   </div>
 
@@ -448,7 +468,10 @@
 const statusAppliedFiltersEl = document.getElementById("statusAppliedFilters");
 const statusSortWrapEl = document.getElementById("statusSortWrap");
 const statusSortSelect = document.getElementById("statusSortSelect");
-   const panelShoeTypeGroups = [
+const clearFiltersBtn = document.getElementById("clearFiltersBtn");
+const clearFiltersBtn2 = document.getElementById("clearFiltersBtn2");
+const clearFiltersBtns = [clearFiltersBtn, clearFiltersBtn2].filter(Boolean);
+      const panelShoeTypeGroups = [
   document.getElementById("panelShoeTypeSelect"),
   document.getElementById("sidebarShoeTypeSelect"),
 ].filter(Boolean);
@@ -853,6 +876,22 @@ if (priceMinRange && priceMaxRange) {
     rerenderCurrentView({ resetPage: true, append: false });
   });
 }
+
+clearFiltersBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    if (isShowingFavorites) return;
+
+    selectedGender = "";
+    selectedStore = "";
+    selectedShoeType = "";
+    selectedPriceMin = 1;
+    selectedPriceMax = 400;
+    pageIndex = 0;
+
+    syncPanelControls();
+    rerenderCurrentView({ resetPage: true, append: false });
+  });
+});   
       
 
       // --- Helpers ---
@@ -1530,6 +1569,7 @@ panelShoeTypeOptions.forEach((option) => {
   });
 
   syncPriceRangeUI();
+  syncClearFiltersButton();
 }
 
 const STORAGE_FAVORITES = "sb-favorites-v1";
@@ -1713,6 +1753,23 @@ function getAppliedFilterLabels() {
 
   return labels;
 }
+
+function hasActiveFilters() {
+  return !!(
+    selectedGender ||
+    selectedStore ||
+    selectedShoeType ||
+    selectedPriceMin > 1 ||
+    selectedPriceMax < 400
+  );
+}
+
+function syncClearFiltersButton() {
+  const shouldHide = !hasActiveFilters();
+  clearFiltersBtns.forEach((btn) => {
+    btn.hidden = shouldHide;
+  });
+}     
 
 function getSortLabel(value) {
   if (value === "discount-desc") return "Largest Discount";
