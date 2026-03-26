@@ -27,7 +27,7 @@ html{ -webkit-text-size-adjust:100%; }
   --sidebar-w: minmax(165px, 180px);   /* sidebar width range */
 
   --maxw:1440px;
-  --pad:12px;
+  --pad:24px;
 
   --top-scale:0.75;
   --gap:calc(16px * var(--top-scale));
