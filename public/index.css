@@ -1235,7 +1235,7 @@ html[data-theme="dark"] .slide-check-box{
   align-items:center; 
    width:100%;
   min-width:0;
-  font-size:1.2rem;
+  font-size:1.5rem;
   font-weight:600;
   color:var(--sb-blue);
   line-height:1.15;
