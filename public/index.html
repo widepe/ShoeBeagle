@@ -2367,6 +2367,15 @@ heartBtn.addEventListener("click", (e) => {
   const isNowFavorite = toggleFavoriteItem(item);
   heartBtn.classList.toggle("active", isNowFavorite);
 
+  // ✅ ADD THIS BLOCK
+  if (isNowFavorite) {
+    heartBtn.classList.add("pop");
+
+    setTimeout(() => {
+      heartBtn.classList.remove("pop");
+    }, 250);
+  }
+
   if (isShowingFavorites) {
     renderFavoritesView({ resetPage: false, append: false });
   }
