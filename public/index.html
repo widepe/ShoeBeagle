@@ -1737,6 +1737,10 @@ function setStatusMeta(extraParts = [], { includeFilters = true } = {}) {
     text = leadingParts.length
       ? `${leadingParts.join(" • ")} • ${filterText}`
       : filterText;
+  } else if (includeFilters) {
+    text = leadingParts.length
+      ? `${leadingParts.join(" • ")} • Filters off`
+      : "Filters off";
   } else {
     text = leadingParts.join(" • ");
   }
@@ -1809,13 +1813,15 @@ function updateStatusBar({
   let summary = "";
   if (hasSearch) {
     const displayQuery = getSearchDisplayQuery();
-    if (totalBeforeFilters > 0) {
-      summary = `Displaying ${displayedCount} of ${totalBeforeFilters} deals on ${displayQuery}`;
+    if (filteredTotal > 0) {
+      summary = `Displaying ${displayedCount} of ${filteredTotal} deals on ${displayQuery}`;
     } else {
       summary = `No results found for ${displayQuery}`;
     }
   } else if (showingDailyDeals) {
     summary = `Displaying ${displayedCount} of ${totalBeforeFilters} daily deals`;
+  } else if (hasActiveFiltersOrSort) {
+    summary = `Displaying ${displayedCount} of ${filteredTotal} deals`;
   } else {
     summary = `Displaying ${displayedCount} of ${totalBeforeFilters} deals`;
   }
