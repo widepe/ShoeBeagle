@@ -1939,14 +1939,20 @@ function syncFavoritesFilterLockUI() {
     selectEl.setAttribute("aria-disabled", locked ? "true" : "false");
   });
 
+  const priceRangeFilterEl = document.getElementById("priceRangeFilter");
+
+  if (priceRangeFilterEl) {
+    priceRangeFilterEl.classList.toggle("filters-disabled", locked);
+    priceRangeFilterEl.classList.toggle("controls", locked);
+    priceRangeFilterEl.setAttribute("aria-disabled", locked ? "true" : "false");
+  }
+
   if (priceMinRange) {
-    priceMinRange.classList.toggle("filters-disabled", locked);
     priceMinRange.disabled = locked;
     priceMinRange.setAttribute("aria-disabled", locked ? "true" : "false");
   }
 
   if (priceMaxRange) {
-    priceMaxRange.classList.toggle("filters-disabled", locked);
     priceMaxRange.disabled = locked;
     priceMaxRange.setAttribute("aria-disabled", locked ? "true" : "false");
   }
