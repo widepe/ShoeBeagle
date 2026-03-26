@@ -66,6 +66,10 @@ html{ -webkit-text-size-adjust:100%; }
 
   --theme-fade-ms:180ms;
   --theme-wash-ms:160ms;
+
+  --topbar-nav-idle:var(--sb-blue);
+  --topbar-nav-active:#4f8dff;
+  --topbar-nav-glow:rgba(79,141,255,0.45);
 }
 
 html[data-theme="dark"]{
@@ -80,6 +84,10 @@ html[data-theme="dark"]{
   --sb-focus-border:#313131;
   --sb-focus-ring:0 0 0 3px rgba(159,193,243,0.10);
   --sb-done-bg:#0b0b0b;
+
+  --topbar-nav-idle:var(--sb-blue);
+  --topbar-nav-active:#f4f8ff;
+  --topbar-nav-glow:rgba(255,255,255,0.42);
 }
 
 html[data-theme="dark"] body{
@@ -511,7 +519,7 @@ html[data-theme="dark"] .sidebar-placeholder{
 .topbar-heart{
   width:1em;
   height:1em;
-  fill:#d96b6b;
+  fill:currentColor;
   stroke:none;
   display:block;
 }
@@ -728,10 +736,9 @@ button{
 }
 
 .topbar-link{
-  display:inline-flex;
+  display:none;
   border:none;
   background:transparent;
-  color:var(--sb-blue);
   height:var(--btn-h);
   min-height:var(--btn-h);
   padding:0;
@@ -746,15 +753,40 @@ button{
   flex-direction:column;
   gap:calc(var(--gap) * 0.2);
   text-decoration:none;
-  opacity:0.56;
 }
 
-.topbar-link:hover{
-  opacity:0.82;
-}
-
-.topbar-link.active{
+/* Price Alert: never dim, never glow-switch with page state */
+.topbar-link--alert{
+  color:var(--sb-blue);
   opacity:1;
+  text-shadow:none;
+}
+
+.topbar-link--alert:hover{
+  opacity:0.88;
+}
+
+/* Daily / All / Favs page nav */
+.topbar-link--nav{
+  display:inline-flex;
+  color:var(--topbar-nav-idle);
+  opacity:1;
+  text-shadow:none;
+}
+
+.topbar-link--nav:hover{
+  color:var(--topbar-nav-active);
+  text-shadow:
+    0 0 8px var(--topbar-nav-glow),
+    0 0 16px var(--topbar-nav-glow);
+}
+
+.topbar-link--nav.active,
+.topbar-link--nav[aria-current="page"]{
+  color:var(--topbar-nav-active);
+  text-shadow:
+    0 0 8px var(--topbar-nav-glow),
+    0 0 16px var(--topbar-nav-glow);
 }
 
 .topbar-link[aria-current="page"]{
