@@ -112,7 +112,7 @@ module.exports = async function handler(req, res) {
   if (ENABLED.footprintusa_running) TARGETS.push("/api/scrapers/footprintusa");
 
   // Super Runners Shop sale footwear via Shopify products.json.
-  if (ENABLED.super_runners_shop) TARGETS.push("/api/scrapers/super-runner-shop");
+  if (ENABLED.super_runners_shop) TARGETS.push("/api/scrapers/super-runners-shop");
 
   // PR Run & Walk clearance footwear via Shopify products.json.
   if (ENABLED.prrunandwalk) TARGETS.push("/api/scrapers/prrunandwalk");
