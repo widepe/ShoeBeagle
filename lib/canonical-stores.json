@@ -1071,7 +1071,7 @@
 
 
 {
-  "id": "super-runner-shop",
+  "id": "super-runners-shop",
   "displayName": "Super Runners Shop",
   "addedAt": "2026-03-22",
   "lastUpdated": "2026-03-22",
@@ -1081,7 +1081,7 @@
     "https://superrunnersshop.com/collections/footear-sale-shoes/products.json?limit=250&page=1"
   ],
   "expectedBlob": [
-    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/super-runner-shop.json"
+    "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/super-runners-shop.json"
   ],
   "aliases": ["super runners shop", "superrunnersshop", "super-runner-shop"],
   "enabled": true,
