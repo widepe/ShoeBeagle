@@ -787,7 +787,7 @@
     "addedAt": "2026-02-09",
     "lastUpdated": "2026-02-09",
     "scrapedUrls": ["https://www.roadrunnersports.com/rrs/mens/shoes/sale/_/N-u5Z1z141i0"],
-    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/apify-roadrunner_blob.json"],
+    "expectedBlob": ["https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/roadrunnersports.json"],
     "aliases": ["road runner sports", "roadrunner sports", "road runner"],
     "enabled": true,
     "scraperType": "apify",
