@@ -23,7 +23,7 @@
 //   listingURL
 //   imageURL
 //   gender
-//   shoeType
+//   surface
 //
 // HONESTY RULES:
 // - A deal is included if it has sale pricing.
@@ -336,7 +336,7 @@ function normalizeGender(raw) {
   return "unknown";
 }
 
-function normalizeShoeType(raw) {
+function normalizeSurface(raw) {
   const s = String(raw || "").trim().toLowerCase();
   if (s === "road") return "road";
   if (s === "trail") return "trail";
@@ -369,7 +369,7 @@ function sanitizeDeal(raw) {
   }
 
   const gender = normalizeGender(raw.gender);
-  const shoeType = normalizeShoeType(raw.shoeType);
+  const surface = normalizeSurface(raw.surface ?? raw.shoeType);
 
   const priceShape = normalizePriceShapes(raw);
 
@@ -400,7 +400,7 @@ function sanitizeDeal(raw) {
     listingURL: listingURL || "",
     imageURL: imageURL || null,
     gender,
-    shoeType,
+    surface,
   };
 
   const anySaleRange =
@@ -693,7 +693,7 @@ function normalizeDeal(d) {
     listingURL: typeof c.listingURL === "string" ? c.listingURL.trim() : "",
     imageURL: typeof c.imageURL === "string" ? c.imageURL.trim() : c.imageURL ?? null,
     gender: normalizeGender(c.gender),
-    shoeType: normalizeShoeType(c.shoeType),
+    surface: normalizeSurface(c.surface),
   };
 }
 
@@ -853,8 +853,7 @@ function dealSummary(deal) {
 
     dollarSavings: computeDollarSavings(deal),
     gender: deal.gender || "unknown",
-    shoeType: deal.shoeType || "unknown",
-  };
+    surface: deal.surface || deal.shoeType || "unknown",  };
 }
 
 function computeStats(deals, storeMetadata, mergeExclusions) {
@@ -1221,7 +1220,7 @@ function toDailyDealShape(deal) {
     listingURL: deal.listingURL || "#",
     imageURL: deal.imageURL || "",
     gender: normalizeGender(deal.gender),
-    shoeType: normalizeShoeType(deal.shoeType),
+    surface: normalizeSurface(deal.surface ?? deal.shoeType),
   };
 }
 function computeTwelveDailyDeals(allDeals, seedStr) {
