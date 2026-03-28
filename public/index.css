@@ -899,10 +899,10 @@ button{
   display:block;
   margin:0;
   padding:0;
-  height:calc(var(--btn-h) * 0.7225);
-  width:calc(var(--btn-h) * 0.7225);
-  min-width:calc(var(--btn-h) * 0.7225);
-  max-width:calc(var(--btn-h) * 0.7225);
+  height:calc(var(--btn-h) * 0.7225 * 0.95);
+  width:calc(var(--btn-h) * 0.7225 * 0.95);
+  min-width:calc(var(--btn-h) * 0.7225 * 0.95);
+  max-width:calc(var(--btn-h) * 0.7225 * 0.95);
   transform:none;
   transform-origin:unset;
   cursor:pointer;
@@ -1913,7 +1913,15 @@ html[data-theme="dark"] .footer{
     line-height:1;
   }
 
-#menuBtn,
+#menuBtn{
+  flex:0 0 calc(var(--btn-h) * 0.75 * 0.95);
+  width:calc(var(--btn-h) * 0.75 * 0.95);
+  min-width:calc(var(--btn-h) * 0.75 * 0.95);
+  height:calc(var(--btn-h) * 0.75 * 0.95);
+  max-width:calc(var(--btn-h) * 0.75 * 0.95);
+  transform:none;
+}
+
 #fetchBtn{
   flex:0 0 calc(var(--btn-h) * 0.75);
   width:calc(var(--btn-h) * 0.75);
