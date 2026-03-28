@@ -1896,8 +1896,8 @@ html[data-theme="dark"] .footer{
   }
 
   .input-icon{
-    width:calc(32px * var(--top-scale));
-    height:calc(32px * var(--top-scale));
+    width:calc(33.6px * var(--top-scale));
+    height:calc(33.6px * var(--top-scale));
   }
 
   .input-clear{
