@@ -5,6 +5,7 @@ module.exports = async (req, res) => {
     const result = await db.query('SELECT * FROM sb_shoe_database LIMIT 5');
     res.status(200).json({ success: true, rows: result.rows });
   } catch (err) {
+    console.error("DB ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 };
