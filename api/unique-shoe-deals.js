@@ -1,3 +1,6 @@
+// This counts number of unique brand + model + gender deals.  Adding later version, these will need to be in database.
+
+
 import { put } from '@vercel/blob';
 
 export default async function handler(req, res) {
