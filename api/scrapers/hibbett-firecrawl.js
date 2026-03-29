@@ -30,8 +30,8 @@ const SCHEMA_VERSION = 1;
 const VIA = "firecrawl-raw-html";
 
 const START_URLS = [
-  "https://www.hibbett.com/men/mens-shoes/running-shoes/?prefn1=sale&prefv1=Sale",
   "https://www.hibbett.com/women/womens-shoes/running-shoes/?prefn1=sale&prefv1=Sale",
+  "https://www.hibbett.com/men/mens-shoes/running-shoes/?prefn1=sale&prefv1=Sale",
 ];
 
 const BASE_URL = "https://www.hibbett.com";
