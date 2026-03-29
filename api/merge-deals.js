@@ -38,6 +38,7 @@
 const axios = require("axios");
 const { put } = require("@vercel/blob");
 const { assertDealSchema } = require("../lib/dealSchema");
+const { cleanModelName } = require("../lib/modelNameCleaner");
 
 // ✅ Canonical Brand + Models dictionary (single source of truth)
 const { canonicalBrandModelHelper } = require("../lib/canonical-brand-models");
@@ -350,14 +351,22 @@ function sanitizeDeal(raw) {
   const store = raw.store || raw.retailer || raw.site || "Unknown";
   const base = storeBaseUrl(store);
 
-  const listingNameRaw = raw.listingName ?? raw.listing ?? raw.title ?? raw.name ?? "";
-  const brandRaw = raw.brand ?? raw.vendor ?? "";
-  const modelRaw = raw.model ?? "";
+const listingNameRaw = raw.listingName ?? raw.listing ?? raw.title ?? raw.name ?? "";
+const brandRaw = raw.brand ?? raw.vendor ?? "";
+const modelRaw = raw.model ?? "";
 
-  const listingName = cleanTitleText(listingNameRaw);
+const listingName = cleanTitleText(listingNameRaw);
+const brand = normalizeBrand(cleanLooseText(brandRaw));
 
-  const brand = normalizeBrand(cleanLooseText(brandRaw));
-  const model = cleanLooseText(modelRaw) || "";
+const brandEntry = canonicalBrandModelHelper.data?.[brand] || null;
+const brandAliases = Array.isArray(brandEntry?.aliases) ? brandEntry.aliases : [];
+
+const cleanedModel = cleanModelName(modelRaw || listingNameRaw, {
+  brand,
+  brandAliases,
+});
+
+const model = cleanedModel.modelBase || "";
 
   let listingURL = String(raw.listingURL ?? raw.listingUrl ?? raw.url ?? raw.href ?? "").trim();
   if (listingURL) listingURL = absolutizeUrl(listingURL, base);
