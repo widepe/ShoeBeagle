@@ -1,16 +1,14 @@
 // /api/scrapers/holabird-sports.js
 //
-// Holabird Sports shoe deals scraper (single-file version; no shared dependency)
+// Holabird Sports shoe deals scraper
 //
-// ✅ Scrapes 6 segments (road + trail; mens/womens/unisex)
+// ✅ Scrapes 6 segments (road + trail; mens/womens/unisex) SEQUENTIALLY (no concurrency)
+// ✅ Each segment is isolated — one failure does NOT kill the whole run
 // ✅ Does NOT force gender (gender derived from title only; unknown allowed)
 // ✅ Forces shoeType from segment URL
-// ✅ Top-level structure matches your Zappos-style schema
+// ✅ Top-level structure matches Zappos-style schema
 // ✅ pageNotes included
 // ✅ CRON secret commented out for testing
-//
-// NOTE: This version scrapes HTML (cheerio). If you later want the Searchanise API-first
-// version, we can switch the fetch layer, but this is the safest “works like before” merge.
 
 const { put } = require("@vercel/blob");
 const axios = require("axios");
@@ -23,6 +21,7 @@ const SCHEMA_VERSION = 1;
 /*
 Segments define shoeType by URL.
 Gender is NOT forced — parser determines it from title; unknown allowed.
+Segments run sequentially (no concurrency) to avoid rate limiting / bot detection.
 */
 const SEGMENTS = [
   // ROAD
@@ -54,13 +53,9 @@ const SEGMENTS = [
   },
 ];
 
-// Tune this to reduce time without hammering Holabird too hard.
-// 2–3 is a good place to start.
-const CONCURRENCY = 3;
-
-// You can lower delays to speed up; keep non-zero to be polite.
-const DELAY_MIN_MS = 120;
-const DELAY_MAX_MS = 350;
+// Slightly longer delays now that we're sequential — be polite to Holabird.
+const DELAY_MIN_MS = 300;
+const DELAY_MAX_MS = 700;
 
 // Safety caps
 const MAX_PAGES_PER_SEGMENT = 80;
@@ -163,7 +158,6 @@ function findBestImageURL($tile) {
 /** -------------------- title / gender / brand / model -------------------- **/
 
 function extractHolabirdTitleText($tile) {
-  // IMPORTANT: .text() returns text (decodes entities, ignores tags like <br>)
   const t =
     $tile.find("a.product-item__title").first().text() ||
     $tile.find("img.product-item__primary-image").first().attr("alt") ||
@@ -251,7 +245,12 @@ function cleanModelFromTitle(title, brand) {
   t = t.replace(/\b(Men'?s|Mens|Women'?s|Womens|Unisex)\b.*$/i, "").trim();
 
   // Remove trailing generic words if present
-  t = t.replace(/\b(Running Shoe|Trail Running Shoe|Running Shoes|Trail Running Shoes|Shoe|Shoes)\b\s*$/i, "").trim();
+  t = t
+    .replace(
+      /\b(Running Shoe|Trail Running Shoe|Running Shoes|Trail Running Shoes|Shoe|Shoes)\b\s*$/i,
+      ""
+    )
+    .trim();
 
   return normalizeText(t);
 }
@@ -282,25 +281,6 @@ function randomDelay(min = DELAY_MIN_MS, max = DELAY_MAX_MS) {
   return new Promise((r) => setTimeout(r, wait));
 }
 
-/** -------------------- concurrency helper -------------------- **/
-
-async function mapWithConcurrency(items, concurrency, fn) {
-  const results = new Array(items.length);
-  let idx = 0;
-
-  async function worker() {
-    while (idx < items.length) {
-      const i = idx++;
-      results[i] = await fn(items[i], i);
-    }
-  }
-
-  const workers = [];
-  for (let i = 0; i < Math.max(1, concurrency); i++) workers.push(worker());
-  await Promise.all(workers);
-  return results;
-}
-
 /** -------------------- core segment scraper -------------------- **/
 
 async function scrapeHolabirdCollection({
@@ -328,39 +308,42 @@ async function scrapeHolabirdCollection({
       : `${collectionUrl}?page=${page}`;
 
     const startedAt = Date.now();
-    const resp = await axios.get(pageUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-        Accept: "text/html",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-      timeout: 20000,
-      validateStatus: () => true,
-    });
-    const durationMs = Date.now() - startedAt;
+    let resp;
 
-    const note = {
-      page: `html page=${page}`,
-      success: resp.status >= 200 && resp.status < 400,
-      count: 0,
-      error: null,
-      url: pageUrl,
-      duration: `${durationMs}ms`,
-      status: resp.status,
-    };
-
-    if (resp.status < 200 || resp.status >= 400) {
-      note.error = `HTTP ${resp.status}`;
-      pageNotes.push(note);
-      throw new Error(`Holabird HTTP ${resp.status} on ${pageUrl}`);
+    try {
+      resp = await axios.get(pageUrl, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+          Accept: "text/html",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+        timeout: 20000,
+        // Do NOT use validateStatus: () => true — let axios throw on non-2xx
+        // so the catch block handles it consistently.
+      });
+    } catch (axiosErr) {
+      const status = axiosErr?.response?.status ?? null;
+      const durationMs = Date.now() - startedAt;
+      pageNotes.push({
+        page: `html page=${page}`,
+        success: false,
+        count: 0,
+        error: axiosErr.message,
+        url: pageUrl,
+        duration: `${durationMs}ms`,
+        status,
+      });
+      // Re-throw so the segment-level try/catch records the failure.
+      throw axiosErr;
     }
 
+    const durationMs = Date.now() - startedAt;
     pagesFetched++;
+
     if (visitedForSourceUrls.length < 2) visitedForSourceUrls.push(pageUrl);
 
     const $ = cheerio.load(resp.data);
-
     let foundThisPage = 0;
 
     $(".product-item").each((_, el) => {
@@ -377,7 +360,7 @@ async function scrapeHolabirdCollection({
       const listingName = extractHolabirdTitleText($tile);
       if (!listingName) return;
 
-      // Count tiles found (even if later filtered out)
+      // Count every tile found, even ones we'll filter out
       foundThisPage++;
       dealsFound++;
 
@@ -390,17 +373,16 @@ async function scrapeHolabirdCollection({
       const prices = extractPricesStructured($tile);
       if (!prices.valid) return;
 
-      const salePrice = prices.salePrice;
-      const originalPrice = prices.originalPrice;
+      const { salePrice, originalPrice } = prices;
 
-      // strict deal logic
+      // Strict deal guards
       if (!Number.isFinite(salePrice) || salePrice <= 0) return;
       if (!Number.isFinite(originalPrice) || originalPrice <= 0) return;
       if (!(salePrice < originalPrice)) return;
 
       const brand = extractBrand(listingName);
       const model = cleanModelFromTitle(listingName, brand);
-      const gender = detectGenderFromTitle(listingName); // NOT forced
+      const gender = detectGenderFromTitle(listingName); // NOT forced from segment
 
       deals.push({
         listingName,
@@ -413,14 +395,21 @@ async function scrapeHolabirdCollection({
         listingURL,
         imageURL: findBestImageURL($tile),
         gender,
-        shoeType, // from segment
+        shoeType, // always from segment, overwritten again after return for safety
       });
 
       seen.add(listingURL);
     });
 
-    note.count = foundThisPage;
-    pageNotes.push(note);
+    pageNotes.push({
+      page: `html page=${page}`,
+      success: true,
+      count: foundThisPage,
+      error: null,
+      url: pageUrl,
+      duration: `${durationMs}ms`,
+      status: resp.status,
+    });
 
     if (foundThisPage === 0) {
       emptyPages++;
@@ -442,6 +431,8 @@ async function scrapeHolabirdCollection({
   };
 }
 
+/** -------------------- dedupe -------------------- **/
+
 function dedupeByUrl(deals) {
   const out = [];
   const seen = new Set();
@@ -452,6 +443,8 @@ function dedupeByUrl(deals) {
   }
   return out;
 }
+
+/** -------------------- top-level shape -------------------- **/
 
 function buildTopLevel({
   via,
@@ -510,101 +503,103 @@ module.exports = async (req, res) => {
 
   const start = Date.now();
 
-  try {
-    // Run segments with limited concurrency to reduce wall time
-    const segmentResults = await mapWithConcurrency(SEGMENTS, CONCURRENCY, async (segment) => {
+  let allDeals = [];
+  let pagesFetched = 0;
+  let dealsFound = 0;
+  const sourceUrls = [];
+  const pageNotes = [];
+  const segmentErrors = [];
+
+  // ── Run segments SEQUENTIALLY ──────────────────────────────────────────────
+  // No concurrency: avoids hammering Holabird and eliminates any shared-state
+  // race conditions. Each segment is wrapped in its own try/catch so a single
+  // failure (bot block, 429, timeout) does NOT abort the remaining segments.
+  for (const segment of SEGMENTS) {
+    sourceUrls.push(segment.url); // always record the segment URL
+
+    try {
       const r = await scrapeHolabirdCollection({
         collectionUrl: segment.url,
         shoeType: segment.shoeType,
       });
 
-      // Force shoeType from segment URL (belt-and-suspenders)
+      pagesFetched += r.pagesFetched || 0;
+      dealsFound += r.dealsFound || 0;
+
+      if (r.pageNotes?.length) pageNotes.push(...r.pageNotes);
+
+      // Belt-and-suspenders: enforce shoeType from segment regardless of what
+      // the parser may have stored on each deal.
       const normalizedDeals = (r.deals || []).map((d) => ({
         ...d,
         shoeType: segment.shoeType,
       }));
 
-      return {
-        segmentUrl: segment.url,
-        shoeType: segment.shoeType,
-        pagesFetched: r.pagesFetched || 0,
-        dealsFound: r.dealsFound || 0,
-        deals: normalizedDeals,
-        pageNotes: Array.isArray(r.pageNotes) ? r.pageNotes : [],
-        sourceUrls: Array.isArray(r.sourceUrls) ? r.sourceUrls : [segment.url],
-      };
-    });
+      allDeals.push(...normalizedDeals);
 
-    // Aggregate
-    let allDeals = [];
-    let pagesFetched = 0;
-    let dealsFound = 0;
-    let sourceUrls = [];
-    let pageNotes = [];
-
-    for (const s of segmentResults) {
-      pagesFetched += s.pagesFetched;
-      dealsFound += s.dealsFound;
-
-      // keep the 6 segment URLs as sourceUrls (human-readable)
-      sourceUrls.push(s.segmentUrl);
-
-      if (s.pageNotes.length) pageNotes.push(...s.pageNotes);
-      if (s.deals.length) allDeals.push(...s.deals);
+      console.log(
+        `[holabird] segment OK  shoeType=${segment.shoeType} ` +
+          `pages=${r.pagesFetched} deals=${normalizedDeals.length} ` +
+          `url=${segment.url}`
+      );
+    } catch (err) {
+      const msg = err?.message || String(err);
+      segmentErrors.push({ url: segment.url, shoeType: segment.shoeType, error: msg });
+      console.error(`[holabird] segment FAIL url=${segment.url} error=${msg}`);
+      // Continue to the next segment — do NOT rethrow.
     }
+  }
 
-    const deduped = dedupeByUrl(allDeals);
-    const durationMs = Date.now() - start;
+  const deduped = dedupeByUrl(allDeals);
+  const durationMs = Date.now() - start;
 
-    const output = buildTopLevel({
-      via: "cheerio",
-      sourceUrls,
-      pagesFetched,
-      dealsFound,
-      dealsExtracted: deduped.length,
-      scrapeDurationMs: durationMs,
-      ok: true,
-      error: null,
-      deals: deduped,
-      pageNotes,
-    });
+  // Overall run is "ok" as long as at least one segment succeeded.
+  const overallOk = deduped.length > 0 || segmentErrors.length < SEGMENTS.length;
+  const overallError =
+    segmentErrors.length > 0
+      ? `${segmentErrors.length} segment(s) failed: ${segmentErrors
+          .map((e) => `${e.url} — ${e.error}`)
+          .join(" | ")}`
+      : null;
 
+  const output = buildTopLevel({
+    via: "cheerio",
+    sourceUrls,
+    pagesFetched,
+    dealsFound,
+    dealsExtracted: deduped.length,
+    scrapeDurationMs: durationMs,
+    ok: overallOk,
+    error: overallError,
+    deals: deduped,
+    pageNotes,
+  });
+
+  try {
     const blob = await put("holabird-shoe-deals.json", JSON.stringify(output, null, 2), {
       access: "public",
       addRandomSuffix: false,
     });
 
     return res.status(200).json({
-      ok: true,
+      ok: overallOk,
       store: output.store,
       dealsExtracted: output.dealsExtracted,
       pagesFetched: output.pagesFetched,
       dealsFound: output.dealsFound,
       scrapeDurationMs: output.scrapeDurationMs,
+      segmentErrors: segmentErrors.length ? segmentErrors : undefined,
       blobUrl: blob.url,
       lastUpdated: output.lastUpdated,
     });
-  } catch (err) {
-    const durationMs = Date.now() - start;
-
-    const output = buildTopLevel({
-      via: "cheerio",
-      sourceUrls: SEGMENTS.map((s) => s.url),
-      pagesFetched: 0,
-      dealsFound: 0,
-      dealsExtracted: 0,
-      scrapeDurationMs: durationMs,
+  } catch (blobErr) {
+    // Blob write failure — still return what we scraped so the caller knows.
+    console.error("[holabird] blob write failed:", blobErr.message);
+    return res.status(500).json({
       ok: false,
-      error: err?.message || String(err),
-      deals: [],
-      pageNotes: [],
+      error: `Blob write failed: ${blobErr.message}`,
+      dealsExtracted: deduped.length,
+      segmentErrors: segmentErrors.length ? segmentErrors : undefined,
     });
-
-    await put("holabird-shoe-deals.json", JSON.stringify(output, null, 2), {
-      access: "public",
-      addRandomSuffix: false,
-    });
-
-    return res.status(500).json({ ok: false, error: output.error });
   }
 };
