@@ -33,7 +33,8 @@ const TIMEOUT_MS = 25_000;
 // Safety guards (not the primary stopping logic; primary is UI "Load more" disappearing)
 const MAX_GRID_PAGES_PER_COLLECTION = 50;
 const MAX_PRODUCTS_TO_DETAIL_FETCH = 2000; // huge safety
-const MAX_CONCURRENT_PRODUCT_JSON_FETCHES = 8;
+const MAX_CONCURRENT_PRODUCT_JSON_FETCHES = 1; // sequential — one at a time to avoid Cloudflare 429
+const PRODUCT_FETCH_DELAY_MS = 400; // ms to wait between sequential product .json fetches
 
 // ---------------------------
 // Collections (same three)
@@ -139,8 +140,8 @@ function deriveModelFromTitle(title, vendor) {
   const v = cleanInvisible(vendor || "");
 
   t = t
-    .replace(/^Men['’]?s\s+/i, "")
-    .replace(/^Women['’]?s\s+/i, "")
+    .replace(/^Men['']?s\s+/i, "")
+    .replace(/^Women['']?s\s+/i, "")
     .replace(/^Unisex\s+/i, "");
 
   if (v) {
@@ -157,6 +158,10 @@ function makeAbsoluteUrl(href) {
   if (href.startsWith("//")) return "https:" + href;
   if (href.startsWith("/")) return BASE + href;
   return BASE + "/" + href;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function fetchText(url, timeoutMs) {
@@ -295,21 +300,17 @@ function buildDealFromProductJson(product, fallbackGender) {
   };
 }
 
-async function mapWithConcurrency(items, limit, worker) {
-  const out = new Array(items.length);
-  let i = 0;
-
-  async function runOne() {
-    while (true) {
-      const idx = i++;
-      if (idx >= items.length) return;
-      out[idx] = await worker(items[idx], idx);
+// Sequential fetch with delay between each request
+async function fetchProductsSequentially(items) {
+  const out = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const p = await fetchProductJsonByProductUrl(item.url);
+    out.push({ product: p, fallbackGender: item.fallbackGender });
+    if (i < items.length - 1) {
+      await sleep(PRODUCT_FETCH_DELAY_MS);
     }
   }
-
-  const workers = [];
-  for (let k = 0; k < Math.max(1, limit); k++) workers.push(runOne());
-  await Promise.all(workers);
   return out;
 }
 
@@ -406,15 +407,8 @@ module.exports = async function handler(req, res) {
       );
     }
 
-    // 2) Fetch product JSON details (concurrent) and build deals
-    const products = await mapWithConcurrency(
-      dedupedProductUrls,
-      MAX_CONCURRENT_PRODUCT_JSON_FETCHES,
-      async (item) => {
-        const p = await fetchProductJsonByProductUrl(item.url);
-        return { product: p, fallbackGender: item.fallbackGender };
-      }
-    );
+    // 2) Fetch product JSON details sequentially (one at a time) and build deals
+    const products = await fetchProductsSequentially(dedupedProductUrls);
 
     const deals = [];
     const seenListingUrl = new Set();
