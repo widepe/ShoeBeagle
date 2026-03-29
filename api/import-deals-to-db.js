@@ -1,11 +1,13 @@
 // /api/import-deals-to-db.js
 
 const { Pool } = require("pg");
-const { get } = require("@vercel/blob");
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
+
+const PUBLIC_DEALS_URL =
+  "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json";
 
 function toNumber(value) {
   if (value === null || value === undefined || value === "") return null;
@@ -36,6 +38,7 @@ function normalizeSurface(value) {
   if (s === "road") return "road";
   if (s === "trail") return "trail";
   if (s === "track") return "track";
+  if (s === "xc" || s === "cross country" || s === "cross-country") return "xc";
   return "unknown";
 }
 
@@ -48,37 +51,56 @@ function stripLeadingBrand(listingName, brand) {
   return name.replace(new RegExp(`^${escaped}\\s+`, "i"), "").trim();
 }
 
-function buildCandidateKeys(deal) {
-  const brand = normalizeText(deal.brand);
-  const model = normalizeText(deal.model);
+function buildSlugParts(deal) {
+  const brand = normalizeText(deal.brand).replace(/\s+/g, "-");
+  const model = normalizeText(deal.model).replace(/\s+/g, "-");
+  const version = normalizeText(deal.version).replace(/\s+/g, "-");
   const gender = normalizeGender(deal.gender);
-  const listingName = normalizeText(deal.listing_name || deal.listingName);
-  const listingWithoutBrand = normalizeText(
-    stripLeadingBrand(deal.listing_name || deal.listingName, deal.brand)
-  );
 
-  const candidates = new Set();
-
-  if (brand && model) candidates.add([brand, model, gender].filter(Boolean).join(" "));
-  if (brand && listingWithoutBrand) candidates.add([brand, listingWithoutBrand, gender].filter(Boolean).join(" "));
-  if (listingName) candidates.add([listingName, gender].filter(Boolean).join(" "));
-
-  return Array.from(candidates).filter(Boolean);
+  return {
+    brand,
+    model,
+    version,
+    gender,
+  };
 }
 
-function buildCandidateSlugs(candidateKeys) {
-  return candidateKeys.map((x) => x.replace(/\s+/g, "-"));
-}
+function buildCandidateSlugs(deal) {
+  const { brand, model, version, gender } = buildSlugParts(deal);
+  const slugs = new Set();
 
-async function fetchPrivateDealsJson(pathname = "deals.json") {
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token) {
-    throw new Error("Missing BLOB_READ_WRITE_TOKEN");
+  if (brand && model && version && gender !== "unknown") {
+    slugs.add(`${brand}-${model}-${version}-${gender}`);
   }
 
-  const blob = await get(pathname, { token });
-  const text = await blob.text();
-  return JSON.parse(text);
+  if (brand && model && version) {
+    slugs.add(`${brand}-${model}-${version}`);
+  }
+
+  if (brand && model && gender !== "unknown") {
+    slugs.add(`${brand}-${model}-${gender}`);
+  }
+
+  if (brand && model) {
+    slugs.add(`${brand}-${model}`);
+  }
+
+  return Array.from(slugs);
+}
+
+async function fetchDealsJson(url) {
+  const resp = await fetch(url, {
+    headers: {
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
+  });
+
+  if (!resp.ok) {
+    throw new Error(`Failed to fetch deals JSON: ${resp.status} ${resp.statusText}`);
+  }
+
+  return resp.json();
 }
 
 function extractDeals(payload) {
@@ -88,21 +110,38 @@ function extractDeals(payload) {
 }
 
 async function findMatchingShoeId(client, deal) {
-  const candidateKeys = buildCandidateKeys(deal);
-  const candidateSlugs = buildCandidateSlugs(candidateKeys);
+  const brand = String(deal.brand || "").trim();
+  const model = String(deal.model || "").trim();
+  const gender = normalizeGender(deal.gender);
+  const candidateSlugs = buildCandidateSlugs(deal);
 
-  if (!candidateKeys.length && !candidateSlugs.length) return null;
+  if (candidateSlugs.length) {
+    const bySlug = await client.query(
+      `
+      SELECT id
+      FROM sb_shoe_database
+      WHERE slug = ANY($1::text[])
+      LIMIT 1
+      `,
+      [candidateSlugs]
+    );
+    if (bySlug.rows.length) return bySlug.rows[0].id;
+  }
 
-  const sql = `
-    SELECT id
-    FROM sb_shoe_database
-    WHERE normalized_key = ANY($1::text[])
-       OR slug = ANY($2::text[])
-    LIMIT 1
-  `;
-
-  const result = await client.query(sql, [candidateKeys, candidateSlugs]);
-  if (result.rows.length) return result.rows[0].id;
+  if (brand && model) {
+    const byFields = await client.query(
+      `
+      SELECT id
+      FROM sb_shoe_database
+      WHERE lower(brand) = lower($1)
+        AND lower(model) = lower($2)
+        AND (gender = $3 OR gender = 'unisex' OR $3 = 'unknown')
+      LIMIT 1
+      `,
+      [brand, model, gender]
+    );
+    if (byFields.rows.length) return byFields.rows[0].id;
+  }
 
   return null;
 }
@@ -151,12 +190,12 @@ module.exports = async (req, res) => {
   }
 
   const dryRun = String(req.query.dryRun || "").toLowerCase() === "true";
-  const blobPathname = String(req.query.pathname || "deals.json").trim() || "deals.json";
+  const dealsUrl = String(req.query.url || PUBLIC_DEALS_URL).trim();
 
   let client;
 
   try {
-    const payload = await fetchPrivateDealsJson(blobPathname);
+    const payload = await fetchDealsJson(dealsUrl);
     const deals = extractDeals(payload);
 
     client = await pool.connect();
@@ -312,8 +351,10 @@ module.exports = async (req, res) => {
       return res.status(200).json({
         success: true,
         dryRun: true,
-        blobPathname,
+        dealsUrl,
         totalDealsInJson: deals.length,
+        inserted,
+        updated,
         matched,
         unmatched,
         preview: preview.slice(0, 25),
@@ -324,7 +365,7 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      blobPathname,
+      dealsUrl,
       totalDealsInJson: deals.length,
       inserted,
       updated,
