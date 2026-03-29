@@ -44,7 +44,7 @@ const SEARCH_ROOTS = [
   },
 ];
 
-const MAX_PAGES_PER_ROOT = 12;
+const MAX_PAGES_PER_ROOT = 2;
 const MAX_DROPPED_SAMPLE = 75;
 
 function nowIso() {
