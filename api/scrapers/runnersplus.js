@@ -176,6 +176,18 @@ function chooseImageUrl(product) {
   return null;
 }
 
+function resizeShopifyImage(url, width = 300) {
+  if (!url) return null;
+
+  if (url.includes("cdn.shopify.com")) {
+    return url.includes("?")
+      ? `${url}&width=${width}`
+      : `${url}?width=${width}`;
+  }
+
+  return url;
+}
+
 async function fetchJson(url, timeoutMs) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -263,8 +275,8 @@ function buildDealFromProduct(product, fallbackGender, dropCounts) {
   const listingName = cleanInvisible(product.title || "");
   const brand = normalizeBrand(product.vendor || "");
   const listingURL = makeProductUrl(product.handle);
-  const imageURL = chooseImageUrl(product);
-
+const imageURL = resizeShopifyImage(chooseImageUrl(product), 300);
+  
   if (!listingName) {
     dropCounts.missingTitle++;
     return null;
