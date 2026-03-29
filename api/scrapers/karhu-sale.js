@@ -84,21 +84,17 @@ function extractPricesFromCard($card, $) {
     if (cleaned) candidateTexts.push(cleaned);
   };
 
-  // Prefer likely price containers first
   $card.find('[class*="price"], [class*="Price"], [data-price], s, del').each((_, el) => {
     pushText($(el).text());
   });
 
-  // Also scan common text nodes that may contain dollar values
   $card.find("p, span, div").each((_, el) => {
     const txt = cleanText($(el).text());
     if (txt && txt.includes("$")) candidateTexts.push(txt);
   });
 
-  // Fallback: entire card text
   pushText($card.text());
 
-  // Deduplicate while preserving order
   const uniqueTexts = [...new Set(candidateTexts)];
 
   for (const txt of uniqueTexts) {
@@ -119,7 +115,6 @@ function extractPricesFromCard($card, $) {
     }
   }
 
-  // If only one price is found, keep it for debugging / drop logic
   for (const txt of uniqueTexts) {
     const moneyMatches = txt.match(/\$[0-9]+(?:\.[0-9]{2})?/g) || [];
     if (moneyMatches.length === 1) {
@@ -311,7 +306,6 @@ function buildResponsePayload({
 export default async function handler(req, res) {
   const startedAt = Date.now();
 
-  // CRON auth (temporarily commented out for testing)
   /*
   const auth = req.headers.authorization;
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -353,8 +347,13 @@ export default async function handler(req, res) {
     }
   }
 
+  let partialError = null;
+  let hitRateLimit = false;
+
   try {
     for (const root of SEARCH_ROOTS) {
+      if (hitRateLimit) break;
+
       let priorUniqueCount = seenListingUrls.size;
 
       for (let page = 1; page <= MAX_PAGES_PER_ROOT; page += 1) {
@@ -368,6 +367,12 @@ export default async function handler(req, res) {
             accept: "text/html,application/xhtml+xml",
           },
         });
+
+        if (resp.status === 429) {
+          partialError = `HTTP 429 for ${pageUrl}`;
+          hitRateLimit = true;
+          break;
+        }
 
         if (!resp.ok) {
           throw new Error(`HTTP ${resp.status} for ${pageUrl}`);
@@ -626,6 +631,9 @@ export default async function handler(req, res) {
     const finishedAt = nowIso();
     const scrapeDurationMs = Date.now() - startedAt;
 
+    const finalOk = deals.length > 0 || !partialError;
+    const finalError = partialError;
+
     const blobPayload = buildBlobPayload({
       store: STORE,
       schemaVersion: SCHEMA_VERSION,
@@ -636,8 +644,8 @@ export default async function handler(req, res) {
       dealsFound: dropCounts.totalCards,
       dealsExtracted: deals.length,
       scrapeDurationMs,
-      ok: true,
-      error: null,
+      ok: finalOk,
+      error: finalError,
       deals,
     });
 
@@ -657,8 +665,8 @@ export default async function handler(req, res) {
       dealsFound: dropCounts.totalCards,
       dealsExtracted: deals.length,
       scrapeDurationMs,
-      ok: true,
-      error: null,
+      ok: finalOk,
+      error: finalError,
       dropCounts,
       droppedDeals,
       pageSummaries,
