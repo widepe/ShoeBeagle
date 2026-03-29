@@ -76,6 +76,70 @@ function parseMoney(text) {
   return Number.isFinite(n) ? n : null;
 }
 
+function extractPricesFromCard($card, $) {
+  const candidateTexts = [];
+
+  const pushText = (text) => {
+    const cleaned = cleanText(text);
+    if (cleaned) candidateTexts.push(cleaned);
+  };
+
+  // Prefer likely price containers first
+  $card.find('[class*="price"], [class*="Price"], [data-price], s, del').each((_, el) => {
+    pushText($(el).text());
+  });
+
+  // Also scan common text nodes that may contain dollar values
+  $card.find("p, span, div").each((_, el) => {
+    const txt = cleanText($(el).text());
+    if (txt && txt.includes("$")) candidateTexts.push(txt);
+  });
+
+  // Fallback: entire card text
+  pushText($card.text());
+
+  // Deduplicate while preserving order
+  const uniqueTexts = [...new Set(candidateTexts)];
+
+  for (const txt of uniqueTexts) {
+    const moneyMatches = txt.match(/\$[0-9]+(?:\.[0-9]{2})?/g) || [];
+    if (moneyMatches.length >= 2) {
+      const nums = moneyMatches
+        .map((m) => parseMoney(m))
+        .filter((n) => Number.isFinite(n));
+
+      if (nums.length >= 2) {
+        return {
+          priceText: txt,
+          salePrice: nums[0],
+          originalPrice: nums[1],
+          moneyMatches,
+        };
+      }
+    }
+  }
+
+  // If only one price is found, keep it for debugging / drop logic
+  for (const txt of uniqueTexts) {
+    const moneyMatches = txt.match(/\$[0-9]+(?:\.[0-9]{2})?/g) || [];
+    if (moneyMatches.length === 1) {
+      return {
+        priceText: txt,
+        salePrice: parseMoney(moneyMatches[0]),
+        originalPrice: null,
+        moneyMatches,
+      };
+    }
+  }
+
+  return {
+    priceText: "",
+    salePrice: null,
+    originalPrice: null,
+    moneyMatches: [],
+  };
+}
+
 function computeDiscountPercent(salePrice, originalPrice) {
   if (
     !Number.isFinite(salePrice) ||
@@ -119,7 +183,9 @@ function isGiftCard(text) {
 
 function isClearlyApparelOrAccessory(text) {
   const s = cleanText(text).toLowerCase();
-  return /\blong sleeve\b|\bshort sleeve\b|\bsinglet\b|\bhalf tight\b|\btight\b|\btights\b|\bshirt\b|\bt-shirt\b|\btee\b|\bhoodie\b|\bjacket\b|\bshorts\b|\bshort\b|\bpants\b|\bsocks\b|\bcap\b|\bhat\b/.test(s);
+  return /\blong sleeve\b|\bshort sleeve\b|\bsinglet\b|\bhalf tight\b|\btight\b|\btights\b|\bshirt\b|\bt-shirt\b|\btee\b|\bhoodie\b|\bjacket\b|\bshorts\b|\bshort\b|\bpants\b|\bsocks\b|\bcap\b|\bhat\b/.test(
+    s
+  );
 }
 
 function isLikelyShoe(text) {
@@ -129,7 +195,9 @@ function isLikelyShoe(text) {
   if (isGiftCard(s)) return false;
 
   if (
-    /\brunning shoe\b|\brunning shoes\b|\btrail shoe\b|\btrail shoes\b|\btrack shoe\b|\btrack shoes\b|\bspike\b|\bspikes\b/.test(s)
+    /\brunning shoe\b|\brunning shoes\b|\btrail shoe\b|\btrail shoes\b|\btrack shoe\b|\btrack shoes\b|\bspike\b|\bspikes\b/.test(
+      s
+    )
   ) {
     return true;
   }
@@ -351,10 +419,12 @@ export default async function handler(req, res) {
             absUrl($card.find("img").first().attr("src")) ||
             absUrl($a.find("img").first().attr("src"));
 
-          const priceText = cleanText($card.find("p").first().text());
-          const moneyMatches = priceText.match(/\$[0-9]+(?:\.[0-9]{2})?/g) || [];
-          const salePrice = moneyMatches[0] ? parseMoney(moneyMatches[0]) : null;
-          const originalPrice = moneyMatches[1] ? parseMoney(moneyMatches[1]) : null;
+          const {
+            priceText,
+            salePrice,
+            originalPrice,
+            moneyMatches,
+          } = extractPricesFromCard($card, $);
 
           const combinedText = cleanText(
             [
@@ -514,27 +584,20 @@ export default async function handler(req, res) {
 
           deals.push({
             schemaVersion: SCHEMA_VERSION,
-
             listingName,
-
             brand,
             model,
-
             salePrice,
             originalPrice,
             discountPercent,
-
             salePriceLow: null,
             salePriceHigh: null,
             originalPriceLow: null,
             originalPriceHigh: null,
             discountPercentUpTo: null,
-
             store: STORE,
-
             listingURL,
             imageURL,
-
             gender,
             shoeType: "unknown",
           });
