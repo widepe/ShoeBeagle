@@ -42,6 +42,13 @@ const FIRECRAWL_RETRY_LIMIT = 2;
 const DEFAULT_PAGE_SIZE = 24;
 const MAX_DROPPED_LOGS = 200;
 
+// Delay between fetching each root URL to reduce bot-detection risk.
+// Applied before fetching the first page of every root URL after the first.
+const INTER_ROOT_SLEEP_MS = 4000;
+
+// Delay between fetching subsequent pages within the same root URL.
+const INTER_PAGE_SLEEP_MS = 1500;
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -357,6 +364,11 @@ function makeDropCounts() {
     dropped_invalidDiscountPercent: 0,
     dropped_seePriceInBagOrCart: 0,
     dropped_duplicateAfterMerge: 0,
+    // Gender breakdown of successfully extracted deals
+    extracted_mens: 0,
+    extracted_womens: 0,
+    extracted_unisex: 0,
+    extracted_unknownGender: 0,
   };
 }
 
@@ -542,6 +554,12 @@ function parseTilesFromPage({
       gender,
       shoeType,
     });
+
+    // Tally gender on every successfully extracted deal
+    if (gender === "mens")        dropCounts.extracted_mens += 1;
+    else if (gender === "womens") dropCounts.extracted_womens += 1;
+    else if (gender === "unisex") dropCounts.extracted_unisex += 1;
+    else                          dropCounts.extracted_unknownGender += 1;
   });
 
   return tilesSeenThisPage;
@@ -557,7 +575,6 @@ export default async function handler(req, res) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
   }
   */
-
 
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return res.status(500).json({
@@ -584,7 +601,14 @@ export default async function handler(req, res) {
   const seenDealKeys = new Set();
 
   try {
-    for (const rootUrl of START_URLS) {
+    for (let rootIndex = 0; rootIndex < START_URLS.length; rootIndex += 1) {
+      const rootUrl = START_URLS[rootIndex];
+
+      // Sleep before every root URL except the first to reduce bot-detection risk
+      if (rootIndex > 0) {
+        await sleep(INTER_ROOT_SLEEP_MS);
+      }
+
       const firstHtml = await fetchFirecrawlHtmlWithRetry(rootUrl);
       const $first = cheerio.load(firstHtml);
 
@@ -606,6 +630,12 @@ export default async function handler(req, res) {
         const currentUrl = pagedUrls[i];
         if (seenPageUrls.has(currentUrl)) continue;
 
+        // Sleep between pages within the same root (not before the first page,
+        // which was already fetched above as firstHtml)
+        if (i > 0) {
+          await sleep(INTER_PAGE_SLEEP_MS);
+        }
+
         seenPageUrls.add(currentUrl);
         sourceUrls.push(currentUrl);
 
@@ -625,6 +655,7 @@ export default async function handler(req, res) {
         pageSummaries.push({
           url: currentUrl,
           tilesSeen: tilesSeenThisPage,
+          htmlBytes: html.length,
         });
       }
     }
