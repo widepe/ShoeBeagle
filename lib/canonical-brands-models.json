@@ -1,255 +1,194 @@
 {
   "361°": {
     "aliases": ["361", "361°", "361 Degrees"],
-    "models": ["Spire", "Fury", "Strata", "Flame", "Meraki", "Nemesis"]
+    "models": ["Spire", "Fury", "Strata", "Flame", "Meraki", "Nemesis", "Sensation", "Fierce"]
   },
   "adidas": {
     "aliases": ["adidas", "Adidas"],
-    "models": ["Adizero Adios", "Adizero Boston", "Adizero Takumi Sen", "Adizero Prime", "Adizero Evo", "Adizero SL", "Supernova", "Ultraboost"]
+    "models": ["Adizero Adios Pro", "Adizero Boston", "Adizero Takumi Sen", "Adizero Prime", "Adizero Evo", "Adizero SL", "Adizero Prime X", "Supernova", "Supernova Rise", "Ultraboost", "Ultraboost Light", "Solar Glide", "Solar Boost", "Terrex Agravic", "Terrex Speed Ultra", "Response Super"]
   },
   "Allbirds": {
     "aliases": ["Allbirds", "All Birds"],
-    "models": ["Tree Dasher", "Tree Flyer", "Trail Runner", "Trail Runner SWT", "Tree Dashers Relay"]
+    "models": ["Tree Dasher", "Tree Flyer", "Trail Runner", "Trail Runner SWT", "Tree Dashers Relay", "Wool Dasher Mizzle", "Natural Run Free", "Tree Mill"]
   },
   "Altra": {
     "aliases": ["Altra"],
-    "models": ["Escalante", "Torin", "Lone Peak", "Paradigm", "Provision", "Rivera", "Olympus", "Mont Blanc", "Vanish Carbon"]
+    "models": ["Escalante", "Torin", "Lone Peak", "Paradigm", "Provision", "Rivera", "Olympus", "Mont Blanc", "Vanish Carbon", "Via Olympus", "Timp", "FWD Experience"]
   },
   "ASICS": {
     "aliases": ["ASICS", "Asics"],
-    "models": [
-      "Novablast",
-      "Superblast",
-      "Gel-Kayano",
-      "Gel-Nimbus",
-      "Gel-Cumulus",
-      "GT-2000",
-      "GT-1000",
-      "Metaspeed Sky",
-      "Metaspeed Edge",
-      "Magic Speed",
-      "Noosa Tri"
-    ]
+    "models": ["Novablast", "Superblast", "Gel-Kayano", "Gel-Nimbus", "Gel-Cumulus", "GT-2000", "GT-1000", "GT-4000", "Metaspeed Sky", "Metaspeed Sky+", "Metaspeed Edge", "Magic Speed", "Noosa Tri", "Gel-DS Trainer", "Gel-Pulse", "Gel-Contend", "Gel-Venture", "Trabuco Max", "Fuji Lite"]
   },
   "Atreyu": {
     "aliases": ["Atreyu"],
-    "models": ["Base Model", "Artist", "Race Model", "Daily Trainer"]
+    "models": ["Base Model", "Artist", "Race Model", "Daily Trainer", "The Racer"]
   },
   "Brooks": {
     "aliases": ["Brooks", "Brooks Running"],
-    "models": [
-      "Ghost",
-      "Glycerin",
-      "Adrenaline GTS",
-      "Launch",
-      "Hyperion",
-      "Catamount",
-      "Levitate",
-      "Beast",
-      "Ariel"
-    ]
+    "models": ["Ghost", "Glycerin", "Glycerin GTS", "Adrenaline GTS", "Launch", "Hyperion", "Hyperion Max", "Catamount", "Levitate", "Beast", "Ariel", "Revel", "Trace", "Caldera", "Cascadia", "Divide"]
+  },
+  "Cole Haan": {
+    "aliases": ["Cole Haan", "cole haan", "Cole", "Haan", "colehaan"],
+    "models": ["ZERØGRAND Outpace", "ZERØGRAND Wingtip", "Grand Crosscourt", "2.ZERØGRAND"]
   },
   "Craft": {
     "aliases": ["Craft"],
-    "models": ["CTM Ultra", "CTM Ultra Carbon", "Pro Endur", "Nordlite", "Pacer"]
+    "models": ["CTM Ultra", "CTM Ultra Carbon", "CTM Ultra 2", "Pro Endur", "Pro Endur Lace", "Nordlite", "Pacer", "Pro Pulse 2"]
   },
-
-"Cole Haan": {
-    "aliases": ["Cole Haan", "cole haan", "Cole", "Haan", "colehaan"],
-    "models": []
-  },
-
   "Decathlon Kiprun": {
     "aliases": ["Decathlon Kiprun", "Kiprun"],
-    "models": ["KD900", "KS900", "Ultralight", "Race Light"]
+    "models": ["KD900", "KD900X", "KS900", "KS900 Light", "Ultralight", "Race Light", "KS500", "KD500"]
   },
   "Diadora": {
     "aliases": ["Diadora"],
-    "models": ["Mythos Blushield", "Equilibrium", "Elite Volo", "Atomo"]
+    "models": ["Mythos Blushield", "Equilibrium", "Elite Volo", "Atomo", "Mythos Blushield Fly 4", "Passo", "Freccia"]
+  },
+  "Dynafit": {
+    "aliases": ["Dynafit"],
+    "models": ["Alpine DNA", "Feline SL", "Ultra 100", "Sky Pro", "Alpine Pro", "Radical Pro", "Feline UP", "Ultra 50"]
   },
   "HOKA": {
     "aliases": ["HOKA", "Hoka", "Hoka One One", "Hoka OneOne"],
-    "models": [
-      "Clifton",
-      "Bondi",
-      "Mach",
-      "Rincon",
-      "Arahi",
-      "Carbon X",
-      "Speedgoat",
-      "Cielo",
-      "Rocket X",
-      "Skyflow",
-      "Kawana",
-      "Transport"
-    ]
+    "models": ["Clifton", "Bondi", "Bondi SR", "Mach", "Rincon", "Arahi", "Carbon X", "Speedgoat", "Cielo", "Rocket X", "Skyflow", "Kawana", "Transport", "Challenger", "Torrent", "Zinal", "Tecton X", "Solimar", "Gaviota", "Skyward X"]
+  },
+  "icebug": {
+    "aliases": ["icebug", "Icebug"],
+    "models": ["Acceleritas OCR", "Acceleritas 8", "Pytho5 Bugrip", "Mist RB9X", "Pytho BUGrip GTX", "Arcus RB9X", "Zeal BUGrip", "Horizon BUGrip"]
   },
   "Inov-8": {
-    "aliases": ["Inov-8", "Inov8"],
-    "models": ["Roadfly", "Trailfly", "Roclite", "Mudtalon", "X-Talon", "Parkclaw"]
+    "aliases": ["Inov-8", "Inov8", "Inovate"],
+    "models": ["Roadfly", "Roadfly 375", "Trailfly", "Trailfly Ultra G 300", "Trailfly G 270", "Roclite", "Roclite G 275", "Mudtalon", "X-Talon", "X-Talon 255", "Parkclaw", "Trailroc", "Rocfly"]
   },
   "Joe Nimble": {
     "aliases": ["Joe Nimble"],
-    "models": ["Addict", "Trail Addict", "Ultreya", "WanderToes"]
+    "models": ["Addict", "Trail Addict", "Ultreya", "WanderToes", "TaoDactyls", "BalanceToes"]
   },
   "Karhu": {
     "aliases": ["Karhu"],
-    "models": ["Fusion", "Ikoni", "Synchron", "Mestari"]
+    "models": ["Fusion", "Ikoni", "Ikoni Evo", "Synchron", "Mestari", "Flow Trail"]
   },
   "La Sportiva": {
     "aliases": ["La Sportiva"],
-    "models": ["Jackal", "Akasha", "Karacal", "Mutant", "Kaptiva", "Bushido"]
+    "models": ["Jackal", "Jackal II", "Akasha", "Akasha II", "Karacal", "Mutant", "Kaptiva", "Bushido", "Lycan", "Cyklon", "Prodigio", "Akyra"]
   },
   "Lems": {
     "aliases": ["Lems"],
-    "models": ["Primal", "Primal 2", "Trailhead", "Mesa"]
+    "models": ["Primal", "Primal 2", "Primal Zen", "Trailhead", "Trailhead V2", "Mesa", "Pursuit"]
   },
   "Lowa": {
     "aliases": ["Lowa", "LOWA"],
-    "models": ["Fortux", "Amplux"]
+    "models": ["Fortux", "Amplux", "Innox Evo GTX", "Renegade GTX", "Aerox GTX"]
+  },
+  "Mammut": {
+    "aliases": ["Mammut"],
+    "models": ["Sertig II Low GTX", "Saentis Pro IS", "Ducan Low GTX", "Convey Low GTX", "Aegility Pro Mid GTX"]
   },
   "Merrell": {
     "aliases": ["Merrell"],
-    "models": ["Vapor Glove", "Trail Glove", "Agility Peak", "Long Sky", "Morphlite", "Nova"]
+    "models": ["Vapor Glove", "Vapor Glove 6", "Trail Glove", "Trail Glove 7", "Agility Peak", "Long Sky", "Long Sky 2", "Morphlite", "Nova", "Fly Strike", "MTL Skyfire", "Antora"]
   },
   "Mizuno": {
     "aliases": ["Mizuno"],
-    "models": ["Wave Rider", "Wave Inspire", "Wave Rebellion", "Wave Sky", "Wave Shadow"]
+    "models": ["Wave Rider", "Wave Inspire", "Wave Rebellion", "Wave Rebellion Pro", "Wave Sky", "Wave Shadow", "Wave Horizon", "Wave Creation", "Wave Equate", "Wave Prophecy", "Wave Aero", "Wave Duel"]
   },
   "New Balance": {
     "aliases": ["New Balance", "NewBalance", "NB"],
-    "models": [
-      "Fresh Foam 1080",
-      "Fresh Foam 880",
-      "Fresh Foam More",
-      "FuelCell Rebel",
-      "FuelCell SC Elite",
-      "FuelCell SuperComp",
-      "860"
-    ]
+    "models": ["Fresh Foam 1080", "Fresh Foam 880", "Fresh Foam More", "Fresh Foam X 860", "Fresh Foam X Vongo", "FuelCell Rebel", "FuelCell SC Elite", "FuelCell SuperComp", "FuelCell SuperComp Elite", "FuelCell SC Trainer", "FuelCell Propel", "FuelCell Tempo", "860", "RC Elite", "Nitrel"]
   },
   "Newton": {
     "aliases": ["Newton"],
-    "models": ["Gravity", "Distance", "Motion", "Fate", "Kismet"]
+    "models": ["Gravity", "Distance", "Distance S", "Motion", "Fate", "Kismet", "Boco AT"]
   },
   "Nike": {
     "aliases": ["Nike"],
-    "models": [
-      "Pegasus",
-      "Pegasus Trail",
-      "ZoomX Vaporfly",
-      "Alphafly",
-      "Infinity Run",
-      "Structure",
-      "Vomero",
-      "Invincible",
-      "Streakfly",
-      "Terra Kiger"
-    ]
-  },
-  "Norda": {
-    "aliases": ["Norda"],
-    "models": ["001", "002", "003"]
+    "models": ["Pegasus", "Pegasus Trail", "ZoomX Vaporfly", "ZoomX Vaporfly Next% 3", "Alphafly", "Alphafly 3", "Infinity Run", "Structure", "Vomero", "Invincible", "Streakfly", "Terra Kiger", "React Infinity Run", "Wildhorse", "Zoom Fly", "Air Zoom Tempo", "Free RN", "Zoomfly"]
   },
   "NNormal": {
     "aliases": ["NNormal", "Nnormal"],
-    "models": ["Kjerag", "Tomir", "Kboix"]
+    "models": ["Kjerag", "Tomir", "Tomir 2", "Kboix", "Kboix 2"]
+  },
+  "Norda": {
+    "aliases": ["Norda"],
+    "models": ["001", "001 G+", "002", "003", "Trail 001"]
   },
   "On": {
     "aliases": ["On", "On Running", "on footwear"],
-    "models": [
-      "Cloudsurfer",
-      "Cloudmonster",
-      "Cloudflow",
-      "Cloudstratus",
-      "Cloudboom",
-      "Cloudrunner",
-      "Cloudvista",
-      "Cloudultra",
-      "Cloudgo"
-    ]
+    "models": ["Cloudsurfer", "Cloudmonster", "Cloudmonster 2", "Cloudflow", "Cloudstratus", "Cloudboom", "Cloudboom Echo", "Cloudboom Strike", "Cloudrunner", "Cloudvista", "Cloudultra", "Cloudultra 2", "Cloudgo", "Cloud 5", "Cloudhorizon", "Cloudventure", "Cloudaway"]
   },
   "Pearl Izumi": {
     "aliases": ["Pearl Izumi", "PearlIzumi"],
-    "models": ["Flow", "Floatride", "Trail N2", "Road N1"]
+    "models": ["Flow", "Fuel Cell", "Trail N2", "Road N1", "Flash", "Project Cloud", "Pursuit"]
   },
   "PUMA": {
     "aliases": ["PUMA", "Puma"],
-    "models": ["Deviate Nitro", "Velocity Nitro", "Magnify Nitro", "Fast-R Nitro"]
+    "models": ["Deviate Nitro", "Deviate Nitro 2", "Deviate Nitro Elite", "Velocity Nitro", "Velocity Nitro 3", "Magnify Nitro", "Magnify Nitro 2", "Fast-R Nitro", "Fast-R Nitro Elite", "Eternity Nitro", "Liberate Nitro", "ForeverRun Nitro"]
   },
   "Reebok": {
     "aliases": ["Reebok"],
-    "models": ["Floatride Energy", "Floatride Run Fast", "Symmetros"]
+    "models": ["Floatride Energy", "Floatride Energy 5", "Floatride Run Fast", "Symmetros", "Forever Floatride Grow", "Floatride Energy Symmetros", "Speed 22 TR"]
   },
-
-"Ryka": {
+  "Ryka": {
     "aliases": ["Ryka", "ryka"],
-    "models": []
+    "models": ["Hydro Sport", "Devotion Plus", "Sky Walk", "Influence", "Intent", "Karizma"]
   },
-  
   "Salomon": {
     "aliases": ["Salomon"],
-    "models": ["S/Lab Pulsar", "Sense Ride", "Ultra Glide", "Speedcross", "Phantasm"]
+    "models": ["S/Lab Pulsar", "S/Lab Pulsar SG", "S/Lab Genesis", "Sense Ride", "Sense Ride 5", "Ultra Glide", "Ultra Glide 2", "Speedcross", "Speedcross 6", "Supercross", "Phantasm", "Pulsar Trail", "Genesis", "Aero Glide"]
   },
   "Saucony": {
     "aliases": ["Saucony"],
-    "models": [
-      "Ride",
-      "Endorphin Speed",
-      "Endorphin Pro",
-      "Kinvara",
-      "Triumph",
-      "Guide",
-      "Hurricane",
-      "Peregrine",
-      "Xodus"
-    ]
+    "models": ["Ride", "Endorphin Speed", "Endorphin Pro", "Endorphin Shift", "Kinvara", "Triumph", "Guide", "Hurricane", "Peregrine", "Peregrine 14", "Xodus", "Xodus Ultra", "Tempus", "Axon", "Cohesion"]
+  },
+  "Scarpa": {
+    "aliases": ["Scarpa"],
+    "models": ["Ribelle Run XT GTX", "Ribelle Run", "Spin Ultra", "Cyclone 2", "Spin RS", "Golden Gate ATR"]
+  },
+  "Scott": {
+    "aliases": ["Scott", "Scott Running"],
+    "models": ["Kinabalu RC", "Kinabalu Power GTX", "Supertrac RC", "Supertrac Ultra RC", "Speed Assault", "Pursuit RC", "Speed Elite"]
   },
   "Skechers": {
     "aliases": ["Skechers", "Skechers Performance"],
-    "models": ["GOrun Ride", "GOrun Razor", "MaxRoad", "Speed Elite"]
+    "models": ["GOrun Ride", "GOrun Razor", "GOrun Razor 4", "MaxRoad", "Speed Elite", "GOrun Speed Elite", "GOrun Pulse", "GOrun Elevate", "GOrun Pure 4", "Arch Fit Road Walker"]
   },
   "Skora": {
     "aliases": ["Skora"],
-    "models": ["Kyori", "Phase", "Fit"]
+    "models": ["Kyori", "Phase", "Fit", "Core", "Form"]
   },
   "The North Face": {
     "aliases": ["The North Face", "North Face"],
-    "models": ["Altamesa", "VECTIV"]
+    "models": ["Altamesa", "VECTIV", "Summit Vectiv Pro", "Vectiv Enduris", "Vectiv Exploris", "Flight Vectiv", "VECTIV Taraval", "Ultra 110 GTX"]
   },
   "Topo Athletic": {
     "aliases": ["Topo", "Topo Athletic"],
-    "models": [
-      "Ultrafly",
-      "Phantom",
-      "Fly Lite",
-      "Cyclone",
-      "Specter",
-      "Magnifly",
-      "MTN Racer",
-      "Terraventure",
-      "Atmos",
-      "Pursuit"
-    ]
+    "models": ["Ultrafly", "Phantom", "Fly Lite", "Cyclone", "Specter", "Magnifly", "MTN Racer", "Terraventure", "Atmos", "Pursuit", "ST-5", "Fli-Lyte", "Runventure"]
+  },
+  "True Motion": {
+    "aliases": ["True Motion", "TrueMotion"],
+    "models": ["U-Tech Nevos", "U-Tech Nevos Element", "O2 Feel", "Kleos"]
   },
   "Under Armour": {
     "aliases": ["Under Armour", "UnderArmour", "UA"],
-    "models": ["HOVR Machina", "HOVR Infinite", "Charged Assert", "Velociti"]
+    "models": ["HOVR Machina", "HOVR Infinite", "HOVR Sonic", "HOVR Apex", "Charged Assert", "Charged Pursuit", "Charged Rogue", "Charged Breeze", "Velociti", "Velociti Wind", "SlipSpeed"]
   },
   "Vibram FiveFingers": {
     "aliases": ["Vibram FiveFingers", "FiveFingers", "Vibram Five Fingers"],
-    "models": ["V-Run", "V-Trail", "V-Alpha", "KSO EVO", "V-Trek"]
+    "models": ["V-Run", "V-Run 2", "V-Trail", "V-Trail 2", "V-Alpha", "KSO EVO", "V-Trek", "V-Neop", "Bikila EVO", "Lontra", "Spyridon MR", "EL-X"]
   },
   "Vivobarefoot": {
     "aliases": ["Vivobarefoot", "Vivo Barefoot"],
-    "models": ["Primus Lite", "Primus Trail", "Geo Racer", "Stealth", "Addis"]
+    "models": ["Primus Lite", "Primus Lite III", "Primus Trail", "Primus Trail III", "Geo Racer", "Stealth", "Addis", "Magna Trail", "Magna FG", "Tracker Forest ESG", "Motus Strength"]
   },
   "VJ": {
     "aliases": ["VJ"],
-    "models": ["Flow", "Ultra", "Lightspeed", "Fuzion Aerofly", "Fuzion Tempo"]
+    "models": ["Flow", "Ultra", "Lightspeed", "Fuzion Aerofly", "Fuzion Tempo", "Spark", "MAXx", "IROCK 3", "Xero"]
+  },
+  "Walsh": {
+    "aliases": ["Walsh"],
+    "models": ["PB Elite", "Fell Challenger", "XTR", "Burner", "Elite"]
   },
   "Xero Shoes": {
     "aliases": ["Xero Shoes", "Xero"],
-    "models": ["HFS", "Prio", "Speed Force", "Mesa Trail", "Zelen"]
+    "models": ["HFS", "HFS II", "Prio", "Prio Neo", "Speed Force", "Mesa Trail", "Mesa Trail II", "Zelen", "Forza Runner", "Xcursion Fusion", "TerraFlex", "Scrambler"]
   }
 }
