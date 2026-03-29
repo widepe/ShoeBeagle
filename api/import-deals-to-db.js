@@ -1,6 +1,7 @@
 // /api/import-deals-to-db.js
 
 const { Pool } = require("pg");
+const { get } = require("@vercel/blob");
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -69,19 +70,15 @@ function buildCandidateSlugs(candidateKeys) {
   return candidateKeys.map((x) => x.replace(/\s+/g, "-"));
 }
 
-async function fetchDealsJson(url) {
-  const resp = await fetch(url, {
-    headers: {
-      "Cache-Control": "no-cache",
-      Pragma: "no-cache",
-    },
-  });
-
-  if (!resp.ok) {
-    throw new Error(`Failed to fetch deals JSON: ${resp.status} ${resp.statusText}`);
+async function fetchPrivateDealsJson(pathname = "deals.json") {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) {
+    throw new Error("Missing BLOB_READ_WRITE_TOKEN");
   }
 
-  return resp.json();
+  const blob = await get(pathname, { token });
+  const text = await blob.text();
+  return JSON.parse(text);
 }
 
 function extractDeals(payload) {
@@ -154,19 +151,12 @@ module.exports = async (req, res) => {
   }
 
   const dryRun = String(req.query.dryRun || "").toLowerCase() === "true";
-  const dealsUrl = req.query.url || process.env.DEALS_JSON_URL;
-
-  if (!dealsUrl) {
-    return res.status(400).json({
-      success: false,
-      error: "Missing deals URL. Pass ?url=... or set DEALS_JSON_URL in environment variables.",
-    });
-  }
+  const blobPathname = String(req.query.pathname || "deals.json").trim() || "deals.json";
 
   let client;
 
   try {
-    const payload = await fetchDealsJson(dealsUrl);
+    const payload = await fetchPrivateDealsJson(blobPathname);
     const deals = extractDeals(payload);
 
     client = await pool.connect();
@@ -322,7 +312,7 @@ module.exports = async (req, res) => {
       return res.status(200).json({
         success: true,
         dryRun: true,
-        dealsUrl,
+        blobPathname,
         totalDealsInJson: deals.length,
         matched,
         unmatched,
@@ -334,7 +324,7 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      dealsUrl,
+      blobPathname,
       totalDealsInJson: deals.length,
       inserted,
       updated,
