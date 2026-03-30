@@ -1,9 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 480" role="img" aria-label="Loading placeholder">
-  <defs>
-    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#eef2f8"/>
-      <stop offset="100%" stop-color="#e3e9f2"/>
-    </linearGradient>
-  </defs>
-  <rect width="600" height="480" rx="28" fill="url(#bg)"/>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="249.99998mm"
+   height="250.00002mm"
+   viewBox="0 0 249.99998 250.00002"
+   version="1.1"
+   id="svg1"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1" />
+  <g
+     id="layer1"
+     transform="translate(59.029851,43.880595)">
+    <path
+       id="rect1"
+       style="stroke-width:7;stroke-linecap:round;paint-order:markers fill stroke"
+       d="M -59.029852,-43.880593 H 190.97014 V 206.11941 H -59.029852 Z" />
+  </g>
 </svg>
