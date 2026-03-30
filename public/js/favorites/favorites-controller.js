@@ -4,7 +4,7 @@
   SB.favorites = SB.favorites || {};
   if (SB.legacyInline) return;
 
-  const STORAGE_FAVORITES = "sb-favorites-v1";
+  const STORAGE_FAVORITES = "sb-favorites";
   let isShowingFavorites = false;
   let favoriteItems = loadFavoriteItems();
 
@@ -12,23 +12,47 @@
     return SB.app || {};
   }
 
-  function favoriteKeyForItem(item) {
-    const listing = String(item?.listingURL || "").trim();
-    if (listing) return listing;
-    return [
-      String(item?.store || "").trim(),
-      String(item?.brand || "").trim(),
-      String(item?.model || "").trim(),
-      String(item?.salePrice ?? "").trim(),
-      String(item?.imageURL || "").trim(),
-    ].join("|");
+  function normalizeText(value) { return String(value || "").trim().toLowerCase(); }
+  function normalizeListingURL(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    try {
+      const url = new URL(raw, window.location.origin);
+      return `${url.origin}${url.pathname}`.toLowerCase();
+    } catch {
+      return raw.split("?")[0].trim().toLowerCase();
+    }
+  }
+  function buildFavoriteMatchKey(item) {
+    return [normalizeText(item?.store), normalizeText(item?.brand), normalizeText(item?.model), normalizeText(item?.gender)].join("|");
+  }
+  function favoriteKeyForItem(item) { return `${buildFavoriteMatchKey(item)}|${normalizeListingURL(item?.listingURL)}`; }
+  function toSavedFavoriteShape(item) {
+    return {
+      brand: item?.brand ?? "",
+      model: item?.model ?? "",
+      salePrice: item?.salePrice ?? null,
+      originalPrice: item?.originalPrice ?? null,
+      discountPercent: item?.discountPercent ?? null,
+      salePriceLow: item?.salePriceLow ?? null,
+      salePriceHigh: item?.salePriceHigh ?? null,
+      originalPriceLow: item?.originalPriceLow ?? null,
+      originalPriceHigh: item?.originalPriceHigh ?? null,
+      discountPercentUpTo: item?.discountPercentUpTo ?? null,
+      store: item?.store ?? "",
+      listingURL: item?.listingURL ?? "",
+      imageURL: item?.imageURL ?? "",
+      gender: item?.gender ?? "",
+      shoeType: item?.shoeType ?? "",
+    };
   }
 
   function loadFavoriteItems() {
     try {
       const raw = localStorage.getItem(STORAGE_FAVORITES);
       const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(Boolean).map(toSavedFavoriteShape);
     } catch {
       return [];
     }
@@ -48,8 +72,10 @@
   }
 
   function addFavoriteItem(item) {
-    if (!item || isFavoriteItem(item)) return;
-    favoriteItems.unshift(item);
+    if (!item) return;
+    const favorite = toSavedFavoriteShape(item);
+    if (isFavoriteItem(favorite)) return;
+    favoriteItems.unshift(favorite);
     saveFavoriteItems();
   }
 
