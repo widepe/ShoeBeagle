@@ -1922,28 +1922,64 @@ panelShoeTypeOptions.forEach((option) => {
   syncClearFiltersButton();
 }
 
-const STORAGE_FAVORITES = "sb-favorites-v1";
+const STORAGE_FAVORITES = "sb-favorites";
 let isShowingFavorites = false;
 let favoriteItems = loadFavoriteItems();
 
-function favoriteKeyForItem(item) {
-  const listing = String(item?.listingURL || "").trim();
-  if (listing) return listing;
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
+}
 
+function normalizeListingURL(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw, window.location.origin);
+    return `${url.origin}${url.pathname}`.toLowerCase();
+  } catch {
+    return raw.split("?")[0].trim().toLowerCase();
+  }
+}
+
+function buildFavoriteMatchKey(item) {
   return [
-    String(item?.store || "").trim(),
-    String(item?.brand || "").trim(),
-    String(item?.model || "").trim(),
-    String(item?.salePrice ?? "").trim(),
-    String(item?.imageURL || "").trim(),
+    normalizeText(item?.store),
+    normalizeText(item?.brand),
+    normalizeText(item?.model),
+    normalizeText(item?.gender),
   ].join("|");
+}
+
+function favoriteKeyForItem(item) {
+  return `${buildFavoriteMatchKey(item)}|${normalizeListingURL(item?.listingURL)}`;
+}
+
+function toSavedFavoriteShape(item) {
+  return {
+    brand: item?.brand ?? "",
+    model: item?.model ?? "",
+    salePrice: item?.salePrice ?? null,
+    originalPrice: item?.originalPrice ?? null,
+    discountPercent: item?.discountPercent ?? null,
+    salePriceLow: item?.salePriceLow ?? null,
+    salePriceHigh: item?.salePriceHigh ?? null,
+    originalPriceLow: item?.originalPriceLow ?? null,
+    originalPriceHigh: item?.originalPriceHigh ?? null,
+    discountPercentUpTo: item?.discountPercentUpTo ?? null,
+    store: item?.store ?? "",
+    listingURL: item?.listingURL ?? "",
+    imageURL: item?.imageURL ?? "",
+    gender: item?.gender ?? "",
+    shoeType: item?.shoeType ?? "",
+  };
 }
 
 function loadFavoriteItems() {
   try {
     const raw = localStorage.getItem(STORAGE_FAVORITES);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(Boolean).map(toSavedFavoriteShape);
   } catch {
     return [];
   }
@@ -1963,16 +1999,22 @@ function isFavoriteItem(item) {
 }
 
 function addFavoriteItem(item) {
-  if (!item) return;
-  if (isFavoriteItem(item)) return;
-  favoriteItems.unshift(item);
+  if (!item) return false;
+  const favorite = toSavedFavoriteShape(item);
+  if (isFavoriteItem(favorite)) return false;
+  favoriteItems.unshift(favorite);
   saveFavoriteItems();
+  return true;
 }
 
 function removeFavoriteItem(item) {
   const key = favoriteKeyForItem(item);
+  const before = favoriteItems.length;
   favoriteItems = favoriteItems.filter((fav) => favoriteKeyForItem(fav) !== key);
+  const changed = favoriteItems.length !== before;
+  if (!changed) return false;
   saveFavoriteItems();
+  return true;
 }
 
 function toggleFavoriteItem(item) {
@@ -2007,22 +2049,127 @@ function getFavoriteItemsForDisplay() {
   return getFilteredAndSorted(favoriteItems || [], { skipFilters: true });
 }
 
+function reconcileFavoritesWithLiveDeals(savedFavorites, liveDeals) {
+  const liveDealMap = new Map();
+  (liveDeals || []).forEach((deal) => {
+    const key = buildFavoriteMatchKey(deal);
+    if (!key || key === "|||") return;
+    const list = liveDealMap.get(key) || [];
+    list.push(deal);
+    liveDealMap.set(key, list);
+  });
+
+  return (savedFavorites || []).map((savedFavorite) => {
+    const key = buildFavoriteMatchKey(savedFavorite);
+    const candidates = liveDealMap.get(key) || [];
+    const savedUrl = normalizeListingURL(savedFavorite?.listingURL);
+    const matchingLiveDeal =
+      candidates.find((deal) => normalizeListingURL(deal?.listingURL) === savedUrl) ||
+      candidates[0] ||
+      null;
+    if (matchingLiveDeal) {
+      return { item: matchingLiveDeal, favoriteStatus: "active", savedFavorite };
+    }
+    return { item: savedFavorite, favoriteStatus: "stale", savedFavorite };
+  });
+}
+
+function buildFavoriteStatusMessage({ favoriteStatus, imageStatus, item }) {
+  const safeLink = isValidRetailerUrl(item?.listingURL) ? item.listingURL : "#";
+  if (favoriteStatus === "active" && imageStatus === "failed") {
+    const row = document.createElement("div");
+    row.className = "favorite-card-note favorite-card-note-image";
+    row.append("Image unavailable. ");
+    const link = document.createElement("a");
+    link.href = safeLink;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "View retailer page";
+    row.appendChild(link);
+    return row;
+  }
+  if (favoriteStatus === "stale") {
+    const row = document.createElement("div");
+    row.className = "favorite-card-note favorite-card-note-stale";
+    const icon = document.createElement("span");
+    icon.className = "favorite-warning-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "⚠️";
+    row.appendChild(icon);
+    row.append(" Price or availability may have changed. ");
+    const link = document.createElement("a");
+    link.href = safeLink;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Verify deal";
+    row.appendChild(link);
+    return row;
+  }
+  return null;
+}
+
+function buildFavoriteSearchMoreAction(item) {
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = "favorite-search-more";
+  row.textContent = "Search for more deals on this shoe";
+  row.addEventListener("click", () => {
+    if (qInput) {
+      qInput.value = [item?.brand || "", item?.model || ""].filter(Boolean).join(" ").trim();
+    }
+    selectedGender = norm(item?.gender);
+    syncFilterUI();
+    syncPanelUI();
+    if (qInput?.value) {
+      form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    }
+  });
+  return row;
+}
+
 function renderFavoritesView({ resetPage = true, append = false } = {}) {
   if (resetPage) pageIndex = 0;
 
-   isShowingFavorites = true;
+  favoriteItems = loadFavoriteItems();
+  isShowingFavorites = true;
   syncDisplayPageLinksUI();
   syncFavoritesFilterLockUI();
 
   if (dailyDeals) dailyDeals.style.display = "none";
 
-  const filtered = getFavoriteItemsForDisplay();
+  const reconciled = reconcileFavoritesWithLiveDeals(favoriteItems, lastAllDeals);
+  const sortableFavorites = (reconciled || []).map((entry) => ({ ...(entry.item || {}), __favoriteEntry: entry }));
+  const filtered = getFilteredAndSorted(sortableFavorites, { skipFilters: true }).map((deal) => deal.__favoriteEntry);
   const pageSize = getPageSize();
   const start = pageIndex * pageSize;
   const slice = filtered.slice(start, start + pageSize);
 
   if (!append) resultsEl.innerHTML = "";
-  slice.forEach((item) => resultsEl.appendChild(createDealCard(item)));
+  slice.forEach((entry) => {
+    const stack = document.createElement("div");
+    stack.className = "favorite-card-stack";
+    const statusMount = document.createElement("div");
+    statusMount.className = "favorite-status-mount";
+    const favoriteCard = createDealCard(entry.item, {
+      favoritesView: true,
+      favoriteStatus: entry.favoriteStatus,
+      onImageStatusChange: (imageStatus) => {
+        statusMount.innerHTML = "";
+        const next = buildFavoriteStatusMessage({ favoriteStatus: entry.favoriteStatus, imageStatus, item: entry.item });
+        if (next) statusMount.appendChild(next);
+      },
+    });
+    stack.appendChild(favoriteCard.card);
+    const initialStatus = buildFavoriteStatusMessage({
+      favoriteStatus: entry.favoriteStatus,
+      imageStatus: favoriteCard.getImageStatus(),
+      item: entry.item,
+    });
+    if (initialStatus) statusMount.appendChild(initialStatus);
+    stack.appendChild(statusMount);
+    stack.appendChild(buildFavoriteSearchMoreAction(entry.item));
+    resultsEl.appendChild(stack);
+  });
 
   updateNavUI(filtered.length);
 
@@ -2752,7 +2899,7 @@ const filtered = showingDailyDeals
         });
       }
 
-      function createDealCard(item) {
+      function createDealCard(item, { favoritesView = false, favoriteStatus = "active", onImageStatusChange = null } = {}) {
         const discount = getDiscountInfo(item);
 
         const card = document.createElement("div");
@@ -2770,15 +2917,55 @@ const filtered = showingDailyDeals
         link.rel = "noopener noreferrer";
 
         const imgWrapper = document.createElement("div");
-        imgWrapper.className = "card-image-wrapper";
+        imgWrapper.className = favoritesView
+          ? "card-image-wrapper favorite-image-wrapper loading"
+          : "card-image-wrapper";
 
         const img = document.createElement("img");
-        img.src = item.imageURL ? item.imageURL : "https://placehold.co/600x400?text=Running+Shoe";
+        img.src = item.imageURL ? item.imageURL : "/images/card-placeholder.svg";
         img.alt = item.brand && item.model
           ? `${item.brand} ${item.model}`
           : (item.model || item.brand || "Running shoe deal");
+        img.loading = "lazy";
 
-        imgWrapper.appendChild(img);
+        let imageStatus = "loading";
+        if (favoritesView) {
+          const loadingOverlay = document.createElement("img");
+          loadingOverlay.className = "favorite-placeholder favorite-placeholder-loading";
+          loadingOverlay.src = "/images/blank-card-placeholder.svg";
+          loadingOverlay.alt = "";
+          loadingOverlay.setAttribute("aria-hidden", "true");
+
+          const failedOverlay = document.createElement("img");
+          failedOverlay.className = "favorite-placeholder favorite-placeholder-failed";
+          failedOverlay.src = "/images/card-placeholder.svg";
+          failedOverlay.alt = "";
+          failedOverlay.setAttribute("aria-hidden", "true");
+
+          img.addEventListener("load", () => {
+            imageStatus = "loaded";
+            imgWrapper.classList.remove("loading", "failed");
+            imgWrapper.classList.add("loaded");
+            if (typeof onImageStatusChange === "function") onImageStatusChange(imageStatus);
+          });
+
+          img.addEventListener("error", () => {
+            imageStatus = "failed";
+            imgWrapper.classList.remove("loading", "loaded");
+            imgWrapper.classList.add("failed");
+            img.style.display = "none";
+            if (typeof onImageStatusChange === "function") onImageStatusChange(imageStatus);
+          });
+
+          imgWrapper.appendChild(img);
+          imgWrapper.appendChild(loadingOverlay);
+          imgWrapper.appendChild(failedOverlay);
+        } else {
+          img.addEventListener("error", () => {
+            img.src = "/images/card-placeholder.svg";
+          }, { once: true });
+          imgWrapper.appendChild(img);
+        }
 
 const heartBtn = document.createElement("button");
 heartBtn.type = "button";
@@ -2897,6 +3084,14 @@ if (discount.hasDiscount && discount.percent >= 30) {
         link.appendChild(contentDiv);
         card.appendChild(link);
 
+        card.dataset.favoriteStatus = favoriteStatus;
+
+        if (favoritesView) {
+          return {
+            card,
+            getImageStatus: () => imageStatus,
+          };
+        }
         return card;
       }
 

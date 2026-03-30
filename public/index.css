@@ -1655,6 +1655,80 @@ html[data-theme="dark"] .card-original-price{
   color:#aab7cf;
 }
 
+.favorite-card-stack{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.favorite-status-mount{
+  min-height:1.1em;
+}
+
+.favorite-card-note{
+  font-size:12px;
+  line-height:1.3;
+  color:#4f5561;
+}
+
+.favorite-card-note a{
+  color:var(--sb-blue);
+  text-decoration:underline;
+}
+
+.favorite-card-note-stale{
+  color:#7a4f0f;
+}
+
+.favorite-warning-icon{
+  margin-right:4px;
+}
+
+.favorite-search-more{
+  border:none;
+  background:transparent;
+  color:var(--sb-blue);
+  font-size:12px;
+  line-height:1.3;
+  text-align:left;
+  padding:0;
+  cursor:pointer;
+  text-decoration:underline;
+}
+
+.favorite-image-wrapper .favorite-placeholder{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  border-radius:var(--img-radius);
+  pointer-events:none;
+  transition:opacity 220ms ease;
+}
+
+.favorite-image-wrapper .favorite-placeholder-loading{
+  opacity:1;
+  z-index:3;
+}
+
+.favorite-image-wrapper.loaded .favorite-placeholder-loading{
+  opacity:0;
+}
+
+.favorite-image-wrapper .favorite-placeholder-failed{
+  opacity:0;
+  z-index:4;
+}
+
+.favorite-image-wrapper.failed .favorite-placeholder-failed{
+  opacity:1;
+}
+
+html[data-theme="dark"] .favorite-card-note{
+  color:#c2cbde;
+}
+
 /* =========================================================
    DISCLAIMER
 ========================================================= */
