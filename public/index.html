@@ -2108,21 +2108,42 @@ function buildFavoriteStatusMessage({ favoriteStatus, imageStatus, item }) {
   return null;
 }
 
+function buildSearchQueryFromDeal(item) {
+  const genderToken = norm(item?.gender);
+  const genderLabel = genderToken === "mens"
+    ? "mens"
+    : genderToken === "womens"
+      ? "womens"
+      : "";
+  return [genderLabel, item?.brand || "", item?.model || ""]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
+function activateSearchableDealsMode() {
+  exitFavoritesView();
+  if (dailyDeals) dailyDeals.style.display = "none";
+  syncDisplayPageLinksUI();
+  syncFavoritesFilterLockUI();
+}
+
 function buildFavoriteSearchMoreAction(item) {
   const row = document.createElement("button");
   row.type = "button";
   row.className = "favorite-search-more";
   row.textContent = "Search for more deals on this shoe";
   row.addEventListener("click", () => {
-    if (qInput) {
-      qInput.value = [item?.brand || "", item?.model || ""].filter(Boolean).join(" ").trim();
-    }
+    const nextQuery = buildSearchQueryFromDeal(item);
+    if (!nextQuery || !qInput || !form) return;
+
+    qInput.value = nextQuery;
     selectedGender = norm(item?.gender);
     syncFilterUI();
     syncPanelUI();
-    if (qInput?.value) {
-      form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
-    }
+    activateSearchableDealsMode();
+    handleSearchSubmit();
   });
   return row;
 }
@@ -2961,10 +2982,21 @@ const filtered = showingDailyDeals
           imgWrapper.appendChild(loadingOverlay);
           imgWrapper.appendChild(failedOverlay);
         } else {
+          const fallbackImg = document.createElement("img");
+          fallbackImg.src = "/images/card-placeholder.svg";
+          fallbackImg.alt = img.alt;
+          fallbackImg.loading = "lazy";
+          fallbackImg.style.display = "none";
+          fallbackImg.setAttribute("aria-hidden", "true");
+
           img.addEventListener("error", () => {
-            img.src = "/images/card-placeholder.svg";
+            img.style.display = "none";
+            fallbackImg.style.display = "";
+            fallbackImg.removeAttribute("aria-hidden");
           }, { once: true });
+
           imgWrapper.appendChild(img);
+          imgWrapper.appendChild(fallbackImg);
         }
 
 const heartBtn = document.createElement("button");
@@ -3155,8 +3187,8 @@ if (discount.hasDiscount && discount.percent >= 30) {
         });
       }
 
-    form.addEventListener("submit", async (e) => {
-  e.preventDefault();
+      async function handleSearchSubmit(e) {
+  if (e) e.preventDefault();
 
   const rawQuery = (qInput?.value || "").trim().toLowerCase();
 
@@ -3287,7 +3319,9 @@ return;
         }
 
         renderFilteredResults({ resetPage: true, append: false });
-      });
+      }
+
+      form.addEventListener("submit", handleSearchSubmit);
 
       syncPanelControls();
       syncColumnsButtons();
