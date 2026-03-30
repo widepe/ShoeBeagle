@@ -2192,18 +2192,29 @@ function buildFavoriteSearchMoreAction(item) {
   row.type = "button";
   row.className = "favorite-search-more";
   row.textContent = "Find more deals on this shoe";
+
   row.addEventListener("click", () => {
     const nextQuery = buildSearchQueryFromDeal(item);
-    if (!nextQuery || !qInput || !form) return;
+    if (!nextQuery || !qInput) return;
 
     qInput.value = nextQuery;
     selectedGender = norm(item?.gender);
-    syncFilterUI();
-    syncPanelUI();
+
     activateSearchableDealsMode();
-    if (typeof form?.requestSubmit === "function") form.requestSubmit();
-    else handleSearchSubmit();
+
+    if (typeof syncPanelControls === "function") {
+      syncPanelControls();
+    }
+
+    updateFetchReady?.();
+
+    if (form && typeof form.requestSubmit === "function") {
+      form.requestSubmit();
+    } else if (typeof handleSearch === "function") {
+      handleSearch();
+    }
   });
+
   return row;
 }
 
