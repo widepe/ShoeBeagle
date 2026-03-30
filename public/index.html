@@ -531,6 +531,7 @@ const priceRangeFill = document.getElementById("priceRangeFill");
       const STORAGE_VISIBLE_COLS = "sb-visible-cols";
       const STORAGE_FILTER_PREFS = "sb-filter-preferences";
       let pageIndex = 0;
+      let currentDesktopPage = 0;
       let visibleCols = 1;
       let userColumnOverride = false;
 
@@ -643,10 +644,10 @@ const priceRangeFill = document.getElementById("priceRangeFill");
 
       function renderCurrentGridForLayoutChange() {
         if (dailyDeals && dailyDeals.style.display !== "none") {
-          renderDailyDealsNow();
+          renderDailyDealsNow({ resetPage: false, append: false });
           return;
         }
-        renderFilteredResults({ resetPage: true, append: false });
+        renderFilteredResults({ resetPage: false, append: false });
       }
 
       function runPagerTransitionThen(fn) {
@@ -715,6 +716,7 @@ const priceRangeFill = document.getElementById("priceRangeFill");
             ? parsed.viewMode
             : "daily";
           pageIndex = 0;
+          currentDesktopPage = 0;
         } catch {}
       }
 
@@ -917,6 +919,7 @@ if (priceMinRange && priceMaxRange) {
     const nextMin = Math.min(Number(priceMinRange.value || 1), selectedPriceMax);
     selectedPriceMin = nextMin;
     pageIndex = 0;
+    currentDesktopPage = 0;
     persistFilterPreferences();
     syncPanelControls();
     rerenderCurrentView({ resetPage: true, append: false });
@@ -928,6 +931,7 @@ if (priceMinRange && priceMaxRange) {
     const nextMax = Math.max(Number(priceMaxRange.value || 400), selectedPriceMin);
     selectedPriceMax = nextMax;
     pageIndex = 0;
+    currentDesktopPage = 0;
     persistFilterPreferences();
     syncPanelControls();
     rerenderCurrentView({ resetPage: true, append: false });
@@ -944,6 +948,7 @@ clearFiltersBtns.forEach((btn) => {
     selectedPriceMin = 1;
     selectedPriceMax = 400;
     pageIndex = 0;
+    currentDesktopPage = 0;
 
     persistFilterPreferences();
     syncPanelControls();
@@ -2196,13 +2201,17 @@ function buildFavoriteSearchMoreAction(item) {
     syncFilterUI();
     syncPanelUI();
     activateSearchableDealsMode();
-    handleSearchSubmit();
+    if (typeof form?.requestSubmit === "function") form.requestSubmit();
+    else handleSearchSubmit();
   });
   return row;
 }
 
 function renderFavoritesView({ resetPage = true, append = false } = {}) {
-  if (resetPage) pageIndex = 0;
+  if (resetPage) {
+    pageIndex = 0;
+    currentDesktopPage = 0;
+  }
 
   favoriteItems = loadFavoriteItems();
   isShowingFavorites = true;
@@ -2215,10 +2224,12 @@ function renderFavoritesView({ resetPage = true, append = false } = {}) {
   const sortableFavorites = (reconciled || []).map((entry) => ({ ...(entry.item || {}), __favoriteEntry: entry }));
   const filtered = getFilteredAndSorted(sortableFavorites, { skipFilters: true }).map((deal) => deal.__favoriteEntry);
   const pageSize = getPageSize();
-  const start = pageIndex * pageSize;
+  const activePage = isMobilePortrait() ? pageIndex : currentDesktopPage;
+  const start = activePage * pageSize;
   const slice = filtered.slice(start, start + pageSize);
 
-  if (!append) resultsEl.innerHTML = "";
+  const shouldAppend = append && isMobilePortrait();
+  if (!shouldAppend) resultsEl.innerHTML = "";
   slice.forEach((entry) => {
     const stack = document.createElement("div");
     stack.className = "favorite-card-stack";
@@ -2306,7 +2317,8 @@ function rerenderCurrentView({ resetPage = true, append = false, correctedFrom =
       function updateNavUI(totalFiltered) {
         const pager = document.querySelector(".pager");
         const pageSize = getPageSize();
-        const hasMore = (pageIndex + 1) * pageSize < (Number(totalFiltered) || 0);
+        const activePage = isMobilePortrait() ? pageIndex : currentDesktopPage;
+        const hasMore = (activePage + 1) * pageSize < (Number(totalFiltered) || 0);
         if (isMobilePortrait()) {
           if (pager) pager.style.display = "none";
           if (loadMoreWrap) loadMoreWrap.style.display = hasMore ? "flex" : "none";
@@ -2316,10 +2328,10 @@ function rerenderCurrentView({ resetPage = true, append = false, correctedFrom =
         }
 
         const pages = totalPagesCount(totalFiltered);
-        const current = Math.min(pageIndex + 1, pages);
+        const current = Math.min(activePage + 1, pages);
         if (pageLabelEl) pageLabelEl.textContent = `${current} of ${pages}`;
-        if (prevPageBtn) prevPageBtn.disabled = pageIndex <= 0;
-        if (nextPageBtn) nextPageBtn.disabled = pageIndex + 1 >= pages;
+        if (prevPageBtn) prevPageBtn.disabled = activePage <= 0;
+        if (nextPageBtn) nextPageBtn.disabled = activePage + 1 >= pages;
         syncColumnsButtons();
       }
 function getRenderedCardCount(gridEl) {
@@ -2737,13 +2749,18 @@ function renderFilteredResults({ resetPage = true, append = false, correctedFrom
   exitFavoritesView();
   const filtered = getFilteredAndSorted(lastSearchResults);
 
-  if (resetPage) pageIndex = 0;
+  if (resetPage) {
+    pageIndex = 0;
+    currentDesktopPage = 0;
+  }
 
   const pageSize = getPageSize();
-  const start = pageIndex * pageSize;
+  const activePage = isMobilePortrait() ? pageIndex : currentDesktopPage;
+  const start = activePage * pageSize;
   const slice = filtered.slice(start, start + pageSize);
 
-  if (!append) resultsEl.innerHTML = "";
+  const shouldAppend = append && isMobilePortrait();
+  if (!shouldAppend) resultsEl.innerHTML = "";
   slice.forEach((item) => resultsEl.appendChild(createDealCard(item)));
 
   updateNavUI(filtered.length);
@@ -2764,13 +2781,18 @@ function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
   if (!sourceDeals || !sourceDeals.length) return;
 
   const filtered = getFilteredAndSorted(sourceDeals, { skipFilters: true });
-  if (resetPage) pageIndex = 0;
+  if (resetPage) {
+    pageIndex = 0;
+    currentDesktopPage = 0;
+  }
 
   const pageSize = getPageSize();
-  const start = pageIndex * pageSize;
+  const activePage = isMobilePortrait() ? pageIndex : currentDesktopPage;
+  const start = activePage * pageSize;
   const slice = filtered.slice(start, start + pageSize);
 
-  if (!append) dailyDealsGrid.innerHTML = "";
+  const shouldAppend = append && isMobilePortrait();
+  if (!shouldAppend) dailyDealsGrid.innerHTML = "";
   slice.forEach((item) => dailyDealsGrid.appendChild(createDealCard(item)));
 
   if (dailyDeals) dailyDeals.style.display = filtered.length ? "block" : "none";
@@ -2793,6 +2815,7 @@ panelGenderOptions.forEach((option) => {
     const value = option.getAttribute("data-panel-gender") || "";
     selectedGender = selectedGender === value ? "" : value;
     pageIndex = 0;
+    currentDesktopPage = 0;
     persistFilterPreferences();
     syncPanelControls();
     rerenderCurrentView({ resetPage: true, append: false });
@@ -2804,6 +2827,7 @@ panelSortOptions.forEach((option) => {
     const value = option.getAttribute("data-panel-sort") || "";
     currentSort = currentSort === value ? "" : value;
     pageIndex = 0;
+    currentDesktopPage = 0;
     persistFilterPreferences();
     syncPanelControls();
 
@@ -2817,6 +2841,7 @@ if (statusSortSelect) {
   statusSortSelect.addEventListener("change", () => {
     currentSort = statusSortSelect.value || "";
     pageIndex = 0;
+    currentDesktopPage = 0;
     persistFilterPreferences();
     syncPanelControls();
     rerenderCurrentView({ resetPage: true, append: false });
@@ -2846,6 +2871,7 @@ panelStoreSelects.forEach((storeSelectEl) => {
 
     selectedStore = storeSelectEl.value || "";
     pageIndex = 0;
+    currentDesktopPage = 0;
     persistFilterPreferences();
 
     panelStoreSelects.forEach((otherSelect) => {
@@ -2878,6 +2904,7 @@ panelShoeTypeOptions.forEach((option) => {
     ? ""
     : value.toLowerCase();
     pageIndex = 0;
+    currentDesktopPage = 0;
     persistFilterPreferences();
     syncPanelControls();
     rerenderCurrentView({ resetPage: true, append: false });
@@ -2918,10 +2945,12 @@ const filtered = showingDailyDeals
 
 if (prevPageBtn) {
   prevPageBtn.addEventListener("click", () => {
-    if (pageIndex <= 0) return;
+    const activePage = isMobilePortrait() ? pageIndex : currentDesktopPage;
+    if (activePage <= 0) return;
 
     runPagerTransitionThen(() => {
-      pageIndex--;
+      if (isMobilePortrait()) pageIndex--;
+      else currentDesktopPage--;
       if (isShowingFavorites) {
         renderFavoritesView({ resetPage: false, append: false });
       } else {
@@ -2937,10 +2966,12 @@ if (prevPageBtn) {
     if (isShowingFavorites) {
       const filtered = getFavoriteItemsForDisplay();
       const pages = totalPagesCount(filtered.length);
-      if (pageIndex >= pages - 1) return;
+      const activePage = isMobilePortrait() ? pageIndex : currentDesktopPage;
+      if (activePage >= pages - 1) return;
 
       runPagerTransitionThen(() => {
-        pageIndex++;
+        if (isMobilePortrait()) pageIndex++;
+        else currentDesktopPage++;
         renderFavoritesView({ resetPage: false, append: false });
         resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
       });
@@ -2957,10 +2988,12 @@ const filtered = showingDailyDeals
   ? getFilteredAndSorted(sourceItems || [], { skipFilters: true })
   : getFilteredAndSorted(sourceItems || []);
     const pages = totalPagesCount(filtered.length);
-    if (pageIndex >= pages - 1) return;
+    const activePage = isMobilePortrait() ? pageIndex : currentDesktopPage;
+    if (activePage >= pages - 1) return;
 
     runPagerTransitionThen(() => {
-      pageIndex++;
+      if (isMobilePortrait()) pageIndex++;
+      else currentDesktopPage++;
       renderCurrentGridForLayoutChange();
       resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -2974,6 +3007,7 @@ const filtered = showingDailyDeals
           if (visibleCols <= bounds.min) return;
           setVisibleCols(visibleCols - 1, { persist: true });
           pageIndex = 0;
+          currentDesktopPage = 0;
           renderCurrentGridForLayoutChange();
         });
       }
@@ -2985,6 +3019,7 @@ const filtered = showingDailyDeals
           if (visibleCols >= bounds.max) return;
           setVisibleCols(visibleCols + 1, { persist: true });
           pageIndex = 0;
+          currentDesktopPage = 0;
           renderCurrentGridForLayoutChange();
         });
       }

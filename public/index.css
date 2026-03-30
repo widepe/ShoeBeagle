@@ -1688,7 +1688,7 @@ html[data-theme="dark"] .card-original-price{
   border:none;
   background:transparent;
   color:var(--sb-blue);
-  font-size:var(--card-title-size);
+  font-size:calc(var(--card-title-size) * 0.72);
   line-height:1.25;
   text-align:left;
   padding:0;
