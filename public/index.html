@@ -1098,7 +1098,7 @@ clearFiltersBtns.forEach((btn) => {
 
           if (initialViewMode === "favorites") {
             renderFavoritesView({ resetPage: true, append: false });
-          } else if (initialViewMode === "all" || hasActiveFilters()) {
+          } else if (initialViewMode === "all") {
             renderAllDealsView({ resetPage: true, append: false });
           } else {
             renderDailyDealsView({ resetPage: true, append: false });
