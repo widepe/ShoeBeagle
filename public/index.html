@@ -299,6 +299,7 @@
         <option value="price-asc">Price: low to high</option>
         <option value="price-desc">Price: high to low</option>
       </select>
+      <button type="button" id="statusSpecsBtn" class="status-specs-btn" aria-pressed="false">Specs</button>
     </div>
   </div>
 </div>
@@ -452,6 +453,14 @@
     <button class="to-top" id="toTopBtn" type="button" aria-label="Back to top">↑</button>
   </div>
 
+  <div id="specsOverlayBackdrop" class="specs-overlay-backdrop" aria-hidden="true">
+    <div class="specs-overlay-modal" role="dialog" aria-modal="true" aria-labelledby="specsOverlayTitle">
+      <button type="button" class="specs-overlay-close" id="specsOverlayClose" aria-label="Close details">×</button>
+      <h3 id="specsOverlayTitle" class="specs-overlay-title">Shoe details</h3>
+      <p class="specs-overlay-body">Specs detail view placeholder for this shoe.</p>
+    </div>
+  </div>
+
   <!-- Load canonical brand/models for Price Alert modal (replaces /brandModels.js) -->
   <script>
     // Expose canonical brand-model map to the modal script.
@@ -478,6 +487,7 @@
 const statusAppliedFiltersEl = document.getElementById("statusAppliedFilters");
 const statusSortWrapEl = document.getElementById("statusSortWrap");
 const statusSortSelect = document.getElementById("statusSortSelect");
+const statusSpecsBtn = document.getElementById("statusSpecsBtn");
 const clearFiltersBtn = document.getElementById("clearFiltersBtn");
 const clearFiltersBtn2 = document.getElementById("clearFiltersBtn2");
 const clearFiltersBtns = [clearFiltersBtn, clearFiltersBtn2].filter(Boolean);
@@ -504,6 +514,8 @@ const searchShoeIcon = document.getElementById("searchShoeIcon");
 const footerYear = document.getElementById("footerYear");
 const modeToggleBtn = document.getElementById("modeToggleBtn");
 const modeToggleIcon = document.getElementById("modeToggleIcon");
+const specsOverlayBackdrop = document.getElementById("specsOverlayBackdrop");
+const specsOverlayClose = document.getElementById("specsOverlayClose");
 
 
       // Slide panel controls
@@ -530,10 +542,12 @@ const priceRangeFill = document.getElementById("priceRangeFill");
 
       const STORAGE_VISIBLE_COLS = "sb-visible-cols";
       const STORAGE_FILTER_PREFS = "sb-filter-preferences";
+      const STORAGE_SHOW_SPECS = "sb-show-specs";
       let pageIndex = 0;
       let currentDesktopPage = 0;
       let visibleCols = 1;
       let userColumnOverride = false;
+      let showSpecs = false;
 
       const prevPageBtn = document.getElementById("prevPage");
       const nextPageBtn = document.getElementById("nextPage");
@@ -551,7 +565,8 @@ const priceRangeFill = document.getElementById("priceRangeFill");
       function updateBodyScrollLock() {
         const alertBackdrop = document.getElementById("sbAlertBackdrop");
         const alertOpen = !!alertBackdrop?.classList.contains("open");
-        if (isPanelOpen() || alertOpen) document.body.style.overflow = "hidden";
+        const specsOpen = !!specsOverlayBackdrop?.classList.contains("open");
+        if (isPanelOpen() || alertOpen || specsOpen) document.body.style.overflow = "hidden";
         else document.body.style.overflow = "";
       }
 
@@ -720,6 +735,20 @@ const priceRangeFill = document.getElementById("priceRangeFill");
         } catch {}
       }
 
+      function loadShowSpecsPreference() {
+        try {
+          showSpecs = localStorage.getItem(STORAGE_SHOW_SPECS) === "1";
+        } catch {
+          showSpecs = false;
+        }
+      }
+
+      function persistShowSpecsPreference() {
+        try {
+          localStorage.setItem(STORAGE_SHOW_SPECS, showSpecs ? "1" : "0");
+        } catch {}
+      }
+
       if (footerYear) footerYear.textContent = new Date().getFullYear();
       if (logoLink) logoLink.addEventListener("click", () => location.reload());
 
@@ -771,6 +800,7 @@ function runThemeSwitch(nextDarkTheme) {
 
 applyTheme();
 loadFilterPreferences();
+loadShowSpecsPreference();
 
 if (modeToggleBtn) {
   modeToggleBtn.addEventListener("click", () => {
@@ -778,6 +808,29 @@ if (modeToggleBtn) {
     syncPanelControls();
   });
 }
+
+if (statusSpecsBtn) {
+  statusSpecsBtn.addEventListener("click", () => {
+    showSpecs = !showSpecs;
+    persistShowSpecsPreference();
+    syncPanelControls();
+    rerenderCurrentView({ resetPage: false, append: false });
+  });
+}
+
+if (specsOverlayClose) {
+  specsOverlayClose.addEventListener("click", closeSpecsOverlay);
+}
+
+if (specsOverlayBackdrop) {
+  specsOverlayBackdrop.addEventListener("click", (event) => {
+    if (event.target === specsOverlayBackdrop) closeSpecsOverlay();
+  });
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeSpecsOverlay();
+});
 
 
       // --- Slide panel toggle ---
@@ -1943,7 +1996,7 @@ function syncPriceRangeUI() {
 
 
       
- function syncPanelControls() {
+function syncPanelControls() {
   panelStoreSelects.forEach((selectEl) => {
     selectEl.value = selectedStore || "";
   });
@@ -1967,6 +2020,12 @@ panelShoeTypeOptions.forEach((option) => {
 
   if (statusSortSelect) {
     statusSortSelect.value = currentSort || "";
+    statusSortSelect.classList.toggle("status-control-active", !!currentSort);
+  }
+
+  if (statusSpecsBtn) {
+    statusSpecsBtn.classList.toggle("status-control-active", !!showSpecs);
+    statusSpecsBtn.setAttribute("aria-pressed", showSpecs ? "true" : "false");
   }
 
   panelThemeOptions.forEach((option) => {
@@ -3230,6 +3289,11 @@ if (discount.hasDiscount && discount.percent >= 30) {
 
         link.appendChild(contentDiv);
         card.appendChild(link);
+        card.classList.toggle("with-specs", !!showSpecs);
+
+        if (showSpecs) {
+          card.appendChild(createSpecsBlock(item));
+        }
 
         card.dataset.favoriteStatus = favoriteStatus;
 
@@ -3240,6 +3304,86 @@ if (discount.hasDiscount && discount.percent >= 30) {
           };
         }
         return card;
+      }
+
+      function getSpecDisplayValue(value, formatter = null) {
+        if (value === null || value === undefined || value === "") return "—";
+        if (typeof formatter === "function") return formatter(value);
+        return String(value);
+      }
+
+      function getStackValue(item) {
+        const heel = item?.heel_stack_mm;
+        const forefoot = item?.forefoot_stack_mm;
+        if (heel === null || heel === undefined || heel === "" || forefoot === null || forefoot === undefined || forefoot === "") {
+          return "—";
+        }
+        return `${heel}/${forefoot}mm`;
+      }
+
+      function getPlatedValue(item) {
+        if (item?.plated === true) return "Yes";
+        if (item?.plated === false) return "No";
+        return "—";
+      }
+
+      function openSpecsOverlay(item) {
+        const title = document.getElementById("specsOverlayTitle");
+        if (!specsOverlayBackdrop || !title) return;
+
+        const brand = String(item?.brand || "").trim();
+        const model = String(item?.model || "").trim();
+        title.textContent = [brand, model].filter(Boolean).join(" ") || "Shoe details";
+
+        specsOverlayBackdrop.classList.add("open");
+        specsOverlayBackdrop.setAttribute("aria-hidden", "false");
+        updateBodyScrollLock();
+      }
+
+      function closeSpecsOverlay() {
+        if (!specsOverlayBackdrop) return;
+        specsOverlayBackdrop.classList.remove("open");
+        specsOverlayBackdrop.setAttribute("aria-hidden", "true");
+        updateBodyScrollLock();
+      }
+
+      function createSpecsBlock(item) {
+        const specs = document.createElement("div");
+        specs.className = "card-specs-grid";
+
+        const rows = [
+          ["Year", getSpecDisplayValue(item?.release_year), "Weight", getSpecDisplayValue(item?.weight_oz_mens_9, (value) => `${value}oz`)],
+          ["Stack", getStackValue(item), "Drop", getSpecDisplayValue(item?.offset_mm, (value) => `${value}mm`)],
+          ["Support", getSpecDisplayValue(item?.support), "Cushion", getSpecDisplayValue(item?.cushioning)],
+          ["Plated", getPlatedValue(item), "More", ""],
+        ];
+
+        rows.forEach(([labelA, valueA, labelB, valueB]) => {
+          const left = document.createElement("div");
+          left.className = "card-spec-cell";
+          left.innerHTML = `<span class="card-spec-label">${labelA}:</span> <span class="card-spec-value">${valueA}</span>`;
+          specs.appendChild(left);
+
+          const right = document.createElement("div");
+          right.className = "card-spec-cell";
+          if (labelB === "More") {
+            const moreBtn = document.createElement("button");
+            moreBtn.type = "button";
+            moreBtn.className = "card-spec-more-link";
+            moreBtn.textContent = "More >";
+            moreBtn.addEventListener("click", (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              openSpecsOverlay(item);
+            });
+            right.appendChild(moreBtn);
+          } else {
+            right.innerHTML = `<span class="card-spec-label">${labelB}:</span> <span class="card-spec-value">${valueB}</span>`;
+          }
+          specs.appendChild(right);
+        });
+
+        return specs;
       }
 
       async function loadDailyDeals() {

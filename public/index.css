@@ -1347,6 +1347,23 @@ html[data-theme="dark"] .slide-check-box{
   font-size:0.90rem;
 }
 
+.status-specs-btn{
+  height:28px;
+  border:1px solid rgba(0, 0, 0, 0.1);
+  border-radius:8px;
+  background-color:#eee7e3;
+  color:#2d2d2d;
+  padding:0 10px;
+  font-size:0.90rem;
+  font-family:inherit;
+  cursor:pointer;
+}
+
+.status-control-active{
+  border-color:#7ca77a !important;
+  box-shadow:0 0 0 1px rgba(124, 167, 122, 0.45), 0 0 9px rgba(124, 167, 122, 0.35);
+}
+
 html[data-theme="dark"] .status-summary,
 html[data-theme="dark"] .status-applied,
 html[data-theme="dark"] .status-sort-label{
@@ -1354,6 +1371,12 @@ html[data-theme="dark"] .status-sort-label{
 }
 
 html[data-theme="dark"] .status-sort-select{
+  background:var(--card-bg);
+  color:#f1f1f1;
+  border-color:#4a4a4a;
+}
+
+html[data-theme="dark"] .status-specs-btn{
   background:var(--card-bg);
   color:#f1f1f1;
   border-color:#4a4a4a;
@@ -1503,6 +1526,9 @@ margin-top:0;
    min-width:0;
 }
 
+.card.with-specs{
+  aspect-ratio:auto;
+}
 
 .card-link{
   display:flex;
@@ -1512,6 +1538,97 @@ margin-top:0;
   color:var(--card-brand-color);
   height:100%;
   min-width:0;
+}
+
+.card-specs-grid{
+  margin-top:8px;
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:4px 10px;
+  font-size:11px;
+  color:var(--card-brand-color);
+}
+
+.card-spec-cell{
+  min-width:0;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  line-height:1.25;
+}
+
+.card-spec-label{
+  font-weight:700;
+}
+
+.card-spec-value{
+  font-weight:500;
+}
+
+.card-spec-more-link{
+  border:none;
+  background:transparent;
+  padding:0;
+  margin:0;
+  color:var(--sb-blue);
+  font-size:11px;
+  line-height:1.25;
+  text-decoration:underline;
+  cursor:pointer;
+  font-family:inherit;
+}
+
+.specs-overlay-backdrop{
+  position:fixed;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0, 0, 0, 0.35);
+  z-index:1200;
+}
+
+.specs-overlay-backdrop.open{
+  display:flex;
+}
+
+.specs-overlay-modal{
+  width:min(420px, calc(100vw - 28px));
+  background:#fff;
+  border-radius:14px;
+  border:1px solid rgba(0, 0, 0, 0.12);
+  box-shadow:0 22px 50px rgba(0, 0, 0, 0.24);
+  padding:16px 18px;
+  position:relative;
+}
+
+.specs-overlay-close{
+  position:absolute;
+  top:8px;
+  right:10px;
+  border:none;
+  background:transparent;
+  font-size:20px;
+  line-height:1;
+  cursor:pointer;
+  color:#576579;
+}
+
+.specs-overlay-title{
+  margin:0 24px 8px 0;
+  font-size:1rem;
+  color:var(--sb-blue);
+}
+
+.specs-overlay-body{
+  margin:0;
+  color:#49543a;
+  font-size:0.9rem;
+}
+
+html[data-theme="dark"] .specs-overlay-modal{
+  background:#29313e;
+  border-color:#46556d;
 }
 
 .card-image-wrapper{
