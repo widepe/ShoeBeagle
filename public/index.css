@@ -1198,7 +1198,7 @@ html[data-theme="dark"] .slide-check-box{
   display:none;
   font-size:14px;
   line-height:1;
-  color:#1f6a2a;
+  color:#00ad19;
   font-weight:900;
 }
 .slide-check-option.active .slide-check-mark{ display:block; }
@@ -1344,7 +1344,7 @@ html[data-theme="dark"] .slide-check-box{
   border-radius:8px;
   background-color:#eee7e3;
   color:#2d2d2d;
-  padding:0 10px;
+  padding:0 6px;
   font-size:0.90rem;
 }
 
@@ -1354,7 +1354,7 @@ html[data-theme="dark"] .slide-check-box{
   border-radius:8px;
   background-color:#eee7e3;
   color:#2d2d2d;
-  padding:0 10px;
+  padding:0 6px;
   font-size:0.90rem;
   font-family:inherit;
   cursor:pointer;
