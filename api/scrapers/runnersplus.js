@@ -7,12 +7,11 @@
 // Writes FULL payload (including deals[]) to Vercel Blob at /runnersplus.json
 // but returns ONLY top-level structure + blobUrl.
 //
-// Notes:
-// - Uses /collections/<handle>/products.json?limit=250&page=N
-// - Stops when a page returns no products
-// - Keeps only discounted items with real compare_at_price > price
-// - Dedupe by listingURL
-// - Includes basic dropCounts + pageSummaries
+// Filters:
+// - must have tag "sale"
+// - must have product_type that includes "Shoes"
+// - must have product_type that includes "Running" or "Trail"
+// - must also have real discounted variant pricing: compare_at_price > price
 //
 // CRON auth included but commented out for testing.
 
@@ -120,7 +119,6 @@ function deriveShoeType(productType, tags, title) {
   const ttl = cleanInvisible(title || "").toLowerCase();
   const hay = `${p} ${joinedTags} ${ttl}`;
 
-  // XC must stay separate
   if (/\bx[\s-]?country\b|\bxc\b/.test(hay)) return "XC";
 
   if (/\btrack\b|\bspike\b|\bmid-distance\b|\bdistance\b|\bsprint\b|\bfield\b/.test(hay)) {
@@ -180,9 +178,7 @@ function resizeShopifyImage(url, width = 300) {
   if (!url) return null;
 
   if (url.includes("cdn.shopify.com")) {
-    return url.includes("?")
-      ? `${url}&width=${width}`
-      : `${url}?width=${width}`;
+    return url.includes("?") ? `${url}&width=${width}` : `${url}?width=${width}`;
   }
 
   return url;
@@ -229,6 +225,9 @@ function initDropCounts() {
     noDiscountedVariants: 0,
     duplicateListingURL: 0,
     invalidProductShape: 0,
+    missingSaleTag: 0,
+    productTypeNotShoes: 0,
+    productTypeNotRunningOrTrail: 0,
   };
 }
 
@@ -266,17 +265,67 @@ function summarizeShoeTypeCounts(deals) {
   return { dealsRoad, dealsTrail, dealsTrack, dealsXC, dealsUnknownType };
 }
 
+function getNormalizedTags(product) {
+  const tags = Array.isArray(product?.tags) ? product.tags : [];
+  return tags
+    .map((t) => cleanInvisible(String(t || "")).toLowerCase())
+    .filter(Boolean);
+}
+
+function hasSaleTag(product) {
+  return getNormalizedTags(product).includes("sale");
+}
+
+function getProductTypeParts(product) {
+  return cleanInvisible(product?.product_type || "")
+    .split(">")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function productTypeHasShoes(product) {
+  return getProductTypeParts(product).includes("shoes");
+}
+
+function productTypeHasRunningOrTrail(product) {
+  const parts = getProductTypeParts(product);
+  return parts.includes("running") || parts.includes("trail");
+}
+
+function passesSourceCategoryFilter(product, dropCounts) {
+  if (!hasSaleTag(product)) {
+    dropCounts.missingSaleTag++;
+    return false;
+  }
+
+  if (!productTypeHasShoes(product)) {
+    dropCounts.productTypeNotShoes++;
+    return false;
+  }
+
+  if (!productTypeHasRunningOrTrail(product)) {
+    dropCounts.productTypeNotRunningOrTrail++;
+    return false;
+  }
+
+  return true;
+}
+
 function buildDealFromProduct(product, fallbackGender, dropCounts) {
   if (!product || typeof product !== "object") {
     dropCounts.invalidProductShape++;
     return null;
   }
 
+  if (!passesSourceCategoryFilter(product, dropCounts)) {
+    return null;
+  }
+
   const listingName = cleanInvisible(product.title || "");
   const brand = normalizeBrand(product.vendor || "");
   const listingURL = makeProductUrl(product.handle);
-const imageURL = resizeShopifyImage(chooseImageUrl(product), 300);
-  
+  const imageURL = resizeShopifyImage(chooseImageUrl(product), 300);
+
   if (!listingName) {
     dropCounts.missingTitle++;
     return null;
@@ -373,9 +422,7 @@ async function fetchCollectionPages(collection, pageSummaries) {
   let pagesFetched = 0;
 
   for (let page = 1; page <= MAX_PAGES_PER_COLLECTION; page++) {
-    const url =
-      `${BASE}/collections/${collection.handle}/products.json` +
-      `?limit=250&page=${page}`;
+    const url = `${BASE}/collections/${collection.handle}/products.json?limit=250&page=${page}`;
 
     const data = await fetchJson(url, TIMEOUT_MS);
     const pageProducts = Array.isArray(data?.products) ? data.products : [];
