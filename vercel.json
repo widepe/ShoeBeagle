@@ -1,21 +1,21 @@
 {
   "crons": [
-    { "path": "/api/scrapers/cheerio_scrapers", "schedule": "0 9 * * *" },
+    { "path": "/api/scrapers/cheerio_scrapers", "schedule": "15 1 * * *" },
 
-    { "path": "/api/scrapers/apify_scrapers", "schedule": "10 9 * * *" },
+    { "path": "/api/scrapers/apify_scrapers", "schedule": "25 1 * * *" },
 
-    { "path": "/api/scrapers/firecrawl_scrapers_1", "schedule": "20 9 * * *" },
+    { "path": "/api/scrapers/firecrawl_scrapers_1", "schedule": "35 1 * * *" },
 
-    { "path": "/api/scrapers/firecrawl_scrapers_2", "schedule": "35 9 * * *" },
+    { "path": "/api/scrapers/firecrawl_scrapers_2", "schedule": "50 1 * * *" },
 
-    { "path": "/api/scrapers/cheerio_scrapers_2", "schedule": "50 9 * * *" },
+    { "path": "/api/scrapers/cheerio_scrapers_2", "schedule": "5 2 * * *" },
 
-    { "path": "/api/scrapers/cheerio_scrapers_3", "schedule": "0 10 * * *" },
+    { "path": "/api/scrapers/cheerio_scrapers_3", "schedule": "15 2 * * *" },
 
-    { "path": "/api/scrapers/cheerio_scrapers_4", "schedule": "5 10 * * *" },
+    { "path": "/api/scrapers/cheerio_scrapers_4", "schedule": "20 2 * * *" },
 
-    { "path": "/api/merge-deals", "schedule": "10 10 * * *" },
+    { "path": "/api/merge-deals", "schedule": "25 2 * * *" },
 
-    { "path": "/api/cron/check-alerts", "schedule": "15 10 * * *" }
+    { "path": "/api/cron/check-alerts", "schedule": "30 2 * * *" }
   ]
 }
