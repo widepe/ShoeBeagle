@@ -325,7 +325,10 @@ async function handler(req, res) {
     }
 
     const lastUpdated = nowIso();
-    const blobPath = process.env[BLOB_ENV_KEY] || "super-runners-shop.json";
+    const configuredBlobValue = cleanText(process.env[BLOB_ENV_KEY]);
+const blobPath = configuredBlobValue
+  ? configuredBlobValue.replace(/^https?:\/\/[^/]+\//i, "")
+  : "super-runner-shop.json";
 
     const blobData = {
       store: STORE,
