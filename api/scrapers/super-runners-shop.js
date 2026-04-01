@@ -22,7 +22,8 @@
 
 const { put } = require("@vercel/blob");
 
-export const config = { maxDuration: 60 };
+const config = { maxDuration: 60 };
+module.exports.config = config;
 
 const STORE = "Super Runners Shop";
 const BASE = "https://superrunnersshop.com";
@@ -78,8 +79,8 @@ function increment(obj, key, by = 1) {
 function stripGenderPrefix(title) {
   return cleanText(
     String(title || "")
-      .replace(/^(men['']s|mens|men)\s+/i, "")
-      .replace(/^(women['']s|womens|women)\s+/i, "")
+      .replace(/^(men'?s|mens|men)\s+/i, "")
+      .replace(/^(women'?s|womens|women)\s+/i, "")
       .replace(/^(unisex)\s+/i, "")
   );
 }
@@ -105,12 +106,16 @@ function inferGenderFromText(...parts) {
 }
 
 function inferShoeType(product) {
-  const hay = cleanText([
-    product?.product_type,
-    Array.isArray(product?.tags) ? product.tags.join(" ") : "",
-    product?.title,
-    product?.body_html,
-  ]).toLowerCase();
+  const hay = cleanText(
+    [
+      product && product.product_type,
+      Array.isArray(product && product.tags) ? product.tags.join(" ") : "",
+      product && product.title,
+      product && product.body_html,
+    ]
+      .filter(Boolean)
+      .join(" ")
+  ).toLowerCase();
 
   if (/\btrail\b/.test(hay)) return "trail";
   if (/\btrack\b/.test(hay)) return "track";
@@ -130,7 +135,11 @@ async function fetchJson(url) {
       accept: "application/json",
     },
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} for ${url}`);
+  }
+
   return res.json();
 }
 
@@ -141,7 +150,7 @@ async function fetchAllProductsJson() {
   for (let page = 1; page <= 40; page += 1) {
     const url = `${PRODUCTS_JSON_BASE}?limit=250&page=${page}`;
     const json = await fetchJson(url);
-    const batch = Array.isArray(json?.products) ? json.products : [];
+    const batch = Array.isArray(json && json.products) ? json.products : [];
 
     if (!batch.length) break;
 
@@ -159,24 +168,25 @@ async function fetchAllProductsJson() {
 // ---------------------------------------------------------------------------
 
 function extractDealFromProduct(product, dropCounts, genderCounts) {
-  const handle = cleanText(product?.handle);
+  const handle = cleanText(product && product.handle);
 
   if (!handle) {
     increment(dropCounts, "missing_handle");
     return null;
   }
 
-  const listingName = cleanText(product?.title);
+  const listingName = cleanText(product && product.title);
   if (!listingName) {
     increment(dropCounts, "missing_title");
     return null;
   }
 
-  // Find variants that are genuinely discounted
-  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const variants = Array.isArray(product && product.variants) ? product.variants : [];
+
   const discountedVariants = variants.filter((v) => {
-    const sale = moneyToNumber(v.price);
-    const original = moneyToNumber(v.compare_at_price);
+    const sale = moneyToNumber(v && v.price);
+    const original = moneyToNumber(v && v.compare_at_price);
+
     return (
       Number.isFinite(sale) &&
       Number.isFinite(original) &&
@@ -190,39 +200,35 @@ function extractDealFromProduct(product, dropCounts, genderCounts) {
     return null;
   }
 
-  // Use the lowest sale price and the highest compare_at as the headline numbers
-  const salePrice = Math.min(
-    ...discountedVariants.map((v) => moneyToNumber(v.price))
-  );
-  const originalPrice = Math.max(
-    ...discountedVariants.map((v) => moneyToNumber(v.compare_at_price))
-  );
+  const allSalePrices = discountedVariants
+    .map((v) => moneyToNumber(v && v.price))
+    .filter(Number.isFinite);
 
-  if (!Number.isFinite(salePrice)) {
+  const allOriginalPrices = discountedVariants
+    .map((v) => moneyToNumber(v && v.compare_at_price))
+    .filter(Number.isFinite);
+
+  if (!allSalePrices.length) {
     increment(dropCounts, "missing_sale_price");
     return null;
   }
 
-  if (!Number.isFinite(originalPrice)) {
+  if (!allOriginalPrices.length) {
     increment(dropCounts, "missing_original_price");
     return null;
   }
 
-  // Price range fields (useful when variants span a range)
-  const allSalePrices = discountedVariants.map((v) => moneyToNumber(v.price));
-  const allOriginalPrices = discountedVariants.map((v) =>
-    moneyToNumber(v.compare_at_price)
-  );
+  const salePrice = Math.min(...allSalePrices);
+  const originalPrice = Math.max(...allOriginalPrices);
 
   const salePriceLow = Math.min(...allSalePrices);
   const salePriceHigh = Math.max(...allSalePrices);
   const originalPriceLow = Math.min(...allOriginalPrices);
   const originalPriceHigh = Math.max(...allOriginalPrices);
 
-  // Image — use first product image
   const imageURL = toAbsUrl(
-    Array.isArray(product.images) && product.images.length
-      ? product.images[0].src
+    Array.isArray(product && product.images) && product.images.length
+      ? product.images[0] && product.images[0].src
       : null
   );
 
@@ -231,13 +237,12 @@ function extractDealFromProduct(product, dropCounts, genderCounts) {
     return null;
   }
 
-  const brand =
-    cleanText(product.vendor) || "Unknown";
+  const brand = cleanText(product && product.vendor) || "Unknown";
 
   const gender = inferGenderFromText(
     listingName,
     handle,
-    Array.isArray(product.tags) ? product.tags.join(" ") : ""
+    Array.isArray(product && product.tags) ? product.tags.join(" ") : ""
   );
 
   const shoeType = inferShoeType(product);
@@ -258,10 +263,8 @@ function extractDealFromProduct(product, dropCounts, genderCounts) {
 
     salePriceLow: salePriceLow !== salePriceHigh ? salePriceLow : null,
     salePriceHigh: salePriceLow !== salePriceHigh ? salePriceHigh : null,
-    originalPriceLow:
-      originalPriceLow !== originalPriceHigh ? originalPriceLow : null,
-    originalPriceHigh:
-      originalPriceLow !== originalPriceHigh ? originalPriceHigh : null,
+    originalPriceLow: originalPriceLow !== originalPriceHigh ? originalPriceLow : null,
+    originalPriceHigh: originalPriceLow !== originalPriceHigh ? originalPriceHigh : null,
     discountPercentUpTo:
       salePriceLow !== salePriceHigh
         ? calcDiscountPercent(salePriceLow, originalPriceHigh)
@@ -292,7 +295,7 @@ function prettyDropCounts(dropCounts) {
 // Handler
 // ---------------------------------------------------------------------------
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const started = Date.now();
 
   // TEMPORARILY COMMENTED OUT FOR TESTING
@@ -322,8 +325,7 @@ export default async function handler(req, res) {
     }
 
     const lastUpdated = nowIso();
-    const blobPath =
-      process.env[BLOB_ENV_KEY] || "super-runners-shop.json";
+    const blobPath = process.env[BLOB_ENV_KEY] || "super-runners-shop.json";
 
     const blobData = {
       store: STORE,
@@ -412,9 +414,12 @@ export default async function handler(req, res) {
       scrapeDurationMs: Date.now() - started,
 
       ok: false,
-      error: err?.message || "Unknown error",
+      error: err && err.message ? err.message : "Unknown error",
 
       dropCounts: prettyDropCounts(dropCounts),
     });
   }
 }
+
+module.exports = handler;
+module.exports.config = config;
