@@ -357,11 +357,12 @@ const blobPath = configuredBlobValue
       deals,
     };
 
-    await put(blobPath, JSON.stringify(blobData, null, 2), {
-      access: "public",
-      addRandomSuffix: false,
-      contentType: "application/json",
-    });
+return res.status(200).json({
+  success: false,
+  debugEnvRaw: process.env[BLOB_ENV_KEY] || null,
+  debugBlobPath: blobPath,
+  debugHasDoubleSlash: String(blobPath).includes("//"),
+});
 
     return res.status(200).json({
       success: true,
