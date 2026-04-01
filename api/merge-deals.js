@@ -563,6 +563,7 @@ const TITLE_MODEL_EXCLUDE_PATTERNS = [
   "recovery",
   "sandals",
   "shirt",
+  "short",
   "shorts",
   "singlet",
   "sleeve",
