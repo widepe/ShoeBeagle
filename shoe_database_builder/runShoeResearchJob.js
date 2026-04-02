@@ -79,15 +79,3 @@ export async function runShoeResearchJob(limit = 2) {
     await db.end();
   }
 }
-
-if (process.argv[1] && process.argv[1].includes("runShoeResearchJob.js")) {
-  runShoeResearchJob(2)
-    .then((result) => {
-      console.log(JSON.stringify(result, null, 2));
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error(error);
-      process.exit(1);
-    });
-}
