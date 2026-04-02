@@ -70,7 +70,16 @@ function postProcess(candidate, parsed) {
     offset_mm: safeNumber(parsed.offset_mm),
     surface,
     support,
-    best_use: normalizeBestUse(parsed.best_use),
+   best_use: normalizeBestUse(
+  Array.isArray(parsed.best_use)
+    ? parsed.best_use
+    : typeof parsed.best_use === "string"
+    ? parsed.best_use
+        .replace(/[{}"]/g, "")
+        .split(",")
+        .map((s) => s.trim())
+    : []
+),
     plated,
     plate_type: plateType,
     foam: parsed.foam ? String(parsed.foam).trim() : null,
@@ -152,11 +161,13 @@ Examples:
 - If sources disagree, choose the most consistent value and lower confidence_score
 
 4. Notes rules
-- notes must be an original 1-3 sentence database summary
+- notes must be 40 words or less
+- notes must highlight only key performance features (ride, cushioning, purpose)
+- do NOT include filler or generic descriptions
 - do NOT write marketing copy
 - do NOT plagiarize
-- do NOT write vague notes like "retailer listing describes..."
-- summarize ride, intended use, and defining traits in plain language
+- do NOT mention sources or retailer descriptions
+- write like a clean product summary for runners
 
 5. Evidence rules
 For each confidently selected field, include an evidence object:
