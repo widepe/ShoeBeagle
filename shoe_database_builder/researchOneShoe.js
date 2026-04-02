@@ -1,9 +1,11 @@
+import { searchRunRepeat } from "./sources/searchRunRepeat.js";
 import { fetchPageText } from "./fetchPageText.js";
 import { extractStructuredShoeData } from "./extractStructuredShoeData.js";
 import { insertShoeRecord } from "./insertShoeRecord.js";
 import { insertEvidenceRows } from "./insertEvidenceRows.js";
 import { attachDealsToShoe } from "./attachDealsToShoe.js";
 import { normalizeGender, normalizeSurface, toDisplayName } from "./normalize.js";
+
 
 function buildSeedEvidence(candidate) {
   const sourceName = candidate.sample_store || "Shoe Beagle Deal Row";
@@ -97,8 +99,15 @@ export async function researchOneShoe({ db, openai, candidate }) {
   const pageResult = await fetchPageText(candidate.sample_listing_url);
 
   const snippets = buildSnippets(candidate, pageResult);
+const rr = await searchRunRepeat({
+  brand: candidate.brand,
+  raw_model_text: candidate.model,
+});
 
- let extracted = await extractStructuredShoeData(openai, {
+if (rr && rr.text) {
+  snippets.push(rr);
+}
+  let extracted = await extractStructuredShoeData(openai, {
   candidate: {
     ...candidate,
     raw_model_text: candidate.model,
