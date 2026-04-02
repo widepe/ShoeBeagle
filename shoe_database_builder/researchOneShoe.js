@@ -14,7 +14,7 @@ function buildSeedEvidence(candidate) {
       field_name: "brand",
       raw_value: candidate.brand,
       normalized_value: candidate.brand,
-      source_type: "sb_shoe_deals",
+      source_type: "retailer",
       source_name: sourceName,
       source_url: sourceUrl,
       confidence_score: 0.95,
@@ -25,7 +25,7 @@ function buildSeedEvidence(candidate) {
       field_name: "model",
       raw_value: candidate.model,
       normalized_value: candidate.model,
-      source_type: "sb_shoe_deals",
+      source_type: "retailer",
       source_name: sourceName,
       source_url: sourceUrl,
       confidence_score: 0.95,
@@ -36,7 +36,7 @@ function buildSeedEvidence(candidate) {
       field_name: "gender",
       raw_value: candidate.gender,
       normalized_value: normalizeGender(candidate.gender),
-      source_type: "sb_shoe_deals",
+      source_type: "retailer",
       source_name: sourceName,
       source_url: sourceUrl,
       confidence_score: 0.9,
@@ -47,7 +47,7 @@ function buildSeedEvidence(candidate) {
       field_name: "surface",
       raw_value: candidate.surface,
       normalized_value: normalizeSurface(candidate.surface),
-      source_type: "sb_shoe_deals",
+      source_type: "retailer",
       source_name: sourceName,
       source_url: sourceUrl,
       confidence_score: 0.75,
@@ -62,7 +62,7 @@ function buildSnippets(candidate, pageResult) {
 
   snippets.push({
     source_name: candidate.sample_store || "Shoe Beagle Deal Row",
-    source_type: "sb_shoe_deals",
+    source_type: "retailer",
     source_url: candidate.sample_listing_url || null,
     text: [
       `Brand: ${candidate.brand}`,
@@ -79,7 +79,7 @@ function buildSnippets(candidate, pageResult) {
   if (pageResult?.ok) {
     snippets.push({
       source_name: candidate.sample_store || "Retailer Listing Page",
-      source_type: "retailer_listing_page",
+      source_type: "retailer",
       source_url: candidate.sample_listing_url || null,
       text: pageResult.text,
     });
