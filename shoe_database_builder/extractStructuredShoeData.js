@@ -46,11 +46,20 @@ function postProcess(candidate, parsed) {
     );
   }
 
+  const bestUseRaw = Array.isArray(parsed.best_use)
+    ? parsed.best_use
+    : typeof parsed.best_use === "string"
+    ? parsed.best_use
+        .replace(/[{}"]/g, "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
+
   const result = {
-display_name:
-  (version
-    ? `${brand} ${model}${/^v/i.test(version) ? version : ` ${version}`}`
-    : `${brand} ${model}`),
+    display_name: version
+      ? `${brand} ${model}${/^v/i.test(version) ? version : ` ${version}`}`
+      : `${brand} ${model}`,
     brand,
     model,
     version,
@@ -69,21 +78,7 @@ display_name:
     offset_mm: safeNumber(parsed.offset_mm),
     surface,
     support,
-   best_use: normalizeBestUse(
-  (() => {
-    if (Array.isArray(parsed.best_use)) return parsed.best_use;
-
-    if (typeof parsed.best_use === "string") {
-      return parsed.best_use
-        .replace(/[{}"]/g, "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-    }
-
-    return [];
-  })()
-),
+    best_use: normalizeBestUse(bestUseRaw),
     plated,
     plate_type: plateType,
     foam: parsed.foam ? String(parsed.foam).trim() : null,
@@ -105,21 +100,38 @@ export async function extractStructuredShoeData(openai, { candidate, snippets })
   const prompt = `
 You are an expert running shoe researcher building a high-quality database.
 
-You may use web search, but you must prioritize ONLY these trusted sources:
-- RunRepeat
-- The Running Clinic
-- Running Warehouse
-- Doctors of Running
-- RoadTrailRun
-- Believe in the Run
-- OutdoorGearLab
-- Road Runner Sports
-- Running Shoes Guru
-- RTINGS
+Use web search, and ONLY the following sources to find data. Do NOT use sources other than the official manufacturer of the shoe and those on this list.
 
-Do not rely on other sources unless one of the approved sources is unavailable for a specific field.
-Do not guess.
-If data is not supported, return null.
+Manufacturer source examples:
+- ASICS
+- Saucony
+- Brooks
+- Nike
+- New Balance
+- Adidas
+
+Approved source order after manufacturer:
+1. RunRepeat
+2. Running Warehouse
+3. RoadTrailRun
+4. Doctors of Running
+5. Running Shoes Guru
+6. OutdoorGearLab
+7. RTINGS
+8. Road Runner Sports
+9. Believe in the Run
+10. Sole Review
+11. Runner's World
+12. The Running Clinic
+
+IMPORTANT:
+- Start with the manufacturer as the highest priority.
+- Fill in as many schema variables as possible.
+- Whatever variables are not found from the manufacturer, move down the approved list from top to bottom, filling in missing variables as you go.
+- Sources must be used strictly in the order listed.
+- Do not skip ahead.
+- Do not guess.
+- Prefer null over weak or uncertain data.
 
 INPUT CANDIDATE:
 ${JSON.stringify(candidate, null, 2)}
@@ -127,9 +139,9 @@ ${JSON.stringify(candidate, null, 2)}
 OPTIONAL LOCAL SNIPPETS:
 ${JSON.stringify(snippets || [], null, 2)}
 
-REQUIREMENTS:
+REQUIREMENTS
 
-1. Resolve shoe identity
+1. Resolve shoe identity first
 - brand
 - model (base model only)
 - version (if identifiable)
@@ -142,131 +154,61 @@ Examples:
 - "1080 v14" => model: "1080", version: "v14"
 - "Kinvara" => model: "Kinvara", version: null
 
-2. Research and fill these fields when supported:
-- release_year
+2. Search order and source priority
+
+STEP 1 — Manufacturer (required first, highest priority)
+Use the official manufacturer page first for all variables if available.
+Manufacturer overrides all other sources when there is conflict.
+
+Manufacturer is especially authoritative for:
+- brand
+- model
+- version
+- manufacturer_model_id
 - msrp_usd
-- weight_oz
-- heel_stack_mm
-- forefoot_stack_mm
-- offset_mm
-- foam
-- cushioning
-- support
-- plated
-- plate_type
-- best_use
+- release_year
 - upper
-- surface
+- foam (if explicitly stated)
+- cushioning (if explicitly described)
+- notes should preferably be based on manufacturer description, but rewritten in neutral language
 
-3. Source priority and data extraction rules
+STEP 2 — Approved sources in strict order
+For any missing fields, continue down this exact list in order:
+1. RunRepeat
+2. Running Warehouse
+3. RoadTrailRun
+4. Doctors of Running
+5. Running Shoes Guru
+6. OutdoorGearLab
+7. RTINGS
+8. Road Runner Sports
+9. Believe in the Run
+10. Sole Review
+11. Runner's World
+12. The Running Clinic
 
-You must follow this exact order of sources:
+Do not stop after one source.
+Continue moving down the list until:
+- all reasonably supported schema variables are filled, OR
+- the list is exhausted
 
-STEP 1 — Manufacturer (highest priority, required first)
-- First, search for the official manufacturer page for this exact shoe
-- Use manufacturer as the primary source for:
-  - model
-  - version
-  - manufacturer_model_id
-  - msrp_usd
-  - release_year
-  - upper
-  - foam (if explicitly stated)
-  - cushioning (if explicitly described)
+3. Conflict resolution
+- Manufacturer overrides all fields if explicit
+- Otherwise prefer agreement across strong approved sources
+- If disagreement exists, choose the most consistent value
+- Lower confidence_score when disagreement exists
 
-- Manufacturer ALWAYS overrides other sources when there is conflict for these fields
-- Notes should be primarily based on manufacturer description, but rewritten (not copied)
-
-STEP 2 — Trusted review sources (fill remaining fields)
-Then use ONLY these sources to complete missing or weak fields:
-- RunRepeat
-- The Running Clinic
-- Running Warehouse
-- Doctors of Running
-- RoadTrailRun
-- Believe in the Run
-- OutdoorGearLab
-- Road Runner Sports
-- Running Shoes Guru
-- RTINGS
-
-Use these sources especially for:
-- weight_oz
-- heel_stack_mm
-- forefoot_stack_mm
-- offset_mm
-- foam (if not clear from manufacturer)
-- cushioning (performance characterization)
-- support
-- plated
-- plate_type
-- best_use
-- ride characteristics
-
-STEP 3 — Coverage requirement
-- You must attempt to fill as many schema fields as possible
-- Do not stop after finding one source
-- Continue searching down the approved list until:
-  - all major fields are filled, OR
-  - no reliable data can be found
-
-STEP 4 — Conflict resolution
-- Manufacturer overrides for identity + MSRP fields
-- For performance fields:
-  - prefer agreement across multiple trusted sources
-  - if disagreement exists, choose the most consistent value
-  - lower confidence_score accordingly
-
-STEP 5 — Strict rules
+4. Strict rules
 - Do NOT guess
 - Do NOT fabricate values
-- Do NOT use random sources outside the approved list unless absolutely necessary
-4. Notes rules
-- notes must be 40 words or less
-- notes should primarily reflect the manufacturer’s description, rewritten in original language
-- enhance with insights from trusted review sources when helpful
-- focus on ride, cushioning, purpose, and defining traits
-- do NOT copy text
-- do NOT include marketing fluff
-- do NOT mention sources
-
-5. Evidence rules
-For each confidently selected field, include an evidence object:
-{
-  "field_name": string,
-  "raw_value": string|null,
-  "normalized_value": string|number|boolean|array|null,
-  "source_type": "review" | "lab" | "retailer" | "other",
-  "source_name": string,
-  "source_url": string|null,
-  "confidence_score": number,
-  "is_selected": true,
-  "notes": string|null
-}
-
-6. Confidence guidance
-- 0.9+ = multiple strong approved sources agree
-- 0.7-0.89 = one strong approved source or near agreement
-- 0.5-0.69 = weaker support
-- below 0.5 should usually mean null instead
-
-7. Normalized allowed values
-- gender: mens | womens | unisex | unknown
-- surface: road | trail | track | xc | other | unknown
-- support: neutral | stability | motion_control | other | unknown
-- plate_type: carbon | nylon | pebax | tpu | other | none | unknown
-- cushioning: minimal | low | low/mod | moderate | mod/high | high | unknown
-- best_use items: daily training | recovery | long runs | performance training | racing | trail running | hybrid | other
-
-
+- Do NOT use random sources outside the approved list
+- Every non-null field must have exactly one selected evidence object
+- If a value is null, omit evidence for that field from your reasoning and only include non-null fields in the evidence array
 
 FIELD DEFINITIONS
 
-You must follow these definitions exactly when constructing output:
-
 display_name
-- Clean public-facing name of the shoe
-- Format: "Brand Model Version"
+- Format: brand + model + version with spaces
 - Do NOT include gender
 - Example: "Brooks Ghost 17"
 
@@ -288,20 +230,19 @@ version
   - "Next% 3"
   - "Pro 2"
   - "Edge+"
-- If the model includes a version, you must separate it from the base model
+- If the model includes a version, separate it from the base model
 - If no version exists, return null
 
 gender
 - One of: mens | womens | unisex | unknown
-- Based on the specific product being researched
 
 manufacturer_model_id
 - Official manufacturer style or product ID
-- Must come from manufacturer source only
+- Must come from manufacturer only
 - If not clearly found, return null
 
 aliases
-- Array of alternate legitimate names for the same shoe
+- Array of alternate legitimate names for the same shoe if any
 - Include variations like:
   - "Nike ZoomX Vaporfly Next% 3"
   - "Vaporfly 3"
@@ -314,12 +255,19 @@ release_year
 
 msrp_usd
 - Standard retail price in USD (not sale price)
-- Prefer manufacturer or major retailer
-- Return number only (no currency symbols)
+- Return number only
 
 weight_oz
-- Weight in ounces for the specific gender/version when possible
-- Prefer trusted review or lab sources
+- Weight in ounces for the specific gender/version
+- If found in grams, convert to ounces
+- Weight must be for mens 9 if shoe is mens, womens 7 if shoe is womens, and mens 9 if shoe is unisex
+- If weight is given in another size, calculate using 2.6% compounding per half size
+- If size is not specified, return null
+- If multiple weights exist, prefer:
+  1. manufacturer
+  2. RunRepeat
+  3. Running Warehouse
+  4. otherwise average two sources within 0.5 oz after size correction
 
 heel_stack_mm
 - Heel stack height in millimeters
@@ -333,14 +281,12 @@ offset_mm
 
 surface
 - One of: road | trail | track | xc | other | unknown
-- Based on intended running surface
 
 support
 - One of: neutral | stability | motion_control | other | unknown
 
 best_use
-- Array of primary use cases
-- Allowed values:
+- Array of:
   - daily training
   - recovery
   - long runs
@@ -348,51 +294,132 @@ best_use
   - racing
   - trail running
   - hybrid
+  - treadmill
   - other
+- If "other", it must be 1-3 lowercase words only
 
 plated
-- true if the shoe contains any plate, otherwise false or null if unknown
+- true | false | null
 
 plate_type
 - One of: carbon | nylon | pebax | tpu | other | none | unknown
 
 foam
 - Primary midsole foam name
-- Example: "DNA LOFT v3", "ZoomX", "Fresh Foam X"
+- Example: "DNA LOFT v3", "ZoomX"
 
 cushioning
-- One of:
-  minimal | low | low/mod | moderate | mod/high | high | unknown
+- One of: minimal | low | low/mod | moderate | mod/high | high | unknown
+
+Cushioning mapping rules:
+- "max", "plush", "very soft" => high
+- "soft", "well-cushioned" => mod/high
+- "balanced", "medium" => moderate
+- "firm but cushioned" => low/mod
+- "firm", "ground feel" => low
+- "barefoot", "minimal" => minimal
 
 upper
 - Main upper material or construction
-- Example: "engineered mesh", "double jacquard mesh"
 
 notes
-- Maximum 40 words
-- Short, original runner-focused summary
-- Highlight ride, cushioning, stability, and intended use
-- Do NOT include marketing language
-- Do NOT mention sources
+- 40 words or less
+- Must describe the shoe’s defining ride characteristics and key construction features
+- Prioritize what makes the shoe distinct within its category
+- Rewrite manufacturer description in neutral, non-marketing language
+- Positive attributes only, no negative statements
 - Do NOT copy text
+- Do NOT include fluff
+- Do NOT mention sources
 
 confidence_score
 - Number between 0 and 1
 - Based on source agreement and reliability
 
+REQUIRED VS OPTIONAL FIELDS
+
+TIER 1 — REQUIRED
+These must be correct or the output is not acceptable:
+- brand
+- model
+- gender
+- version if the shoe has a version
+
+Rules:
+- Never guess these fields
+- Use manufacturer naming first
+- If the shoe is clearly first-generation, version = null is acceptable
+
+TIER 2 — HIGH PRIORITY
+Make a strong effort to fill these by continuing through the full source list:
+- surface
+- weight_oz
+- offset_mm
+- release_year
+- msrp_usd
+- support
+
+TIER 3 — DESIRABLE
+Fill when reasonably supported:
+- heel_stack_mm
+- forefoot_stack_mm
+- foam
+- cushioning
+- plated
+- plate_type
+- best_use
+- upper
+- manufacturer_model_id
+- aliases
+
+TIER 4 — OUTPUT QUALITY
+These must always be present:
+- notes
+- confidence_score
+
+EVIDENCE RULES
+
+For every non-null selected field, include one evidence object in the evidence array with:
+- field_name
+- raw_value
+- normalized_value
+- source_type
+- source_name
+- source_url
+- confidence_score
+- is_selected
+- notes
+
+Also include:
+- date_accessed in YYYY-MM-DD format
+
+Only one evidence object per selected field.
+Evidence must directly support the selected value.
+
+Normalized allowed values:
+- gender: mens | womens | unisex | unknown
+- surface: road | trail | track | xc | other | unknown
+- support: neutral | stability | motion_control | other | unknown
+- plate_type: carbon | nylon | pebax | tpu | other | none | unknown
+- cushioning: minimal | low | low/mod | moderate | mod/high | high | unknown
+- best_use items:
+  - daily training
+  - recovery
+  - long runs
+  - performance training
+  - racing
+  - trail running
+  - hybrid
+  - treadmill
+  - other
+
 SYSTEM FIELDS (DO NOT GENERATE)
-
-slug
-- Generated by system
-- Format: brand-model-version-gender (lowercase, hyphen-separated)
-
-normalized_key
-- Generated by system
-- Format: "brand model version gender" (lowercase, space-separated)
-
-id, created_at, updated_at, review_status
-- System-managed fields
-- Do NOT include or modify
+- slug
+- normalized_key
+- id
+- created_at
+- updated_at
+- review_status
 
 Return valid JSON only.
 Do not include markdown fences.
@@ -435,21 +462,22 @@ Required JSON shape:
     input: prompt,
   });
 
-  const webSources =
-  response.output?.[0]?.web_search_call?.action?.sources || [];
+  const webSources = response.output?.[0]?.web_search_call?.action?.sources || [];
+  console.log("WEB SOURCES:", JSON.stringify(webSources, null, 2));
 
-console.log("WEB SOURCES:", JSON.stringify(webSources, null, 2));
   const text =
     response.output_text ||
     response.output?.[0]?.content?.[0]?.text ||
     "";
 
   const parsed = parseJsonLoose(text);
+
   if (parsed.notes) {
-  parsed.notes = parsed.notes
-    .split(" ")
-    .slice(0, 40)
-    .join(" ");
-}
+    parsed.notes = parsed.notes
+      .split(/\s+/)
+      .slice(0, 40)
+      .join(" ");
+  }
+
   return postProcess(candidate, parsed);
 }
