@@ -7,12 +7,11 @@ const client = new OpenAI({
 
 async function test() {
   try {
-    const res = await client.responses.create({
-      model: "gpt-5.3",
-      input: "Say hello",
+    const res = await client.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: "Say hello" }],
     });
-
-    console.log("SUCCESS:", res.output[0].content[0].text);
+    console.log("SUCCESS:", res.choices[0].message.content);
   } catch (err) {
     console.error("ERROR:", err.message);
   }
