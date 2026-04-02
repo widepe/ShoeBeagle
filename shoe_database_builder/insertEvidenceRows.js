@@ -1,3 +1,9 @@
+function toJsonbValue(value) {
+  if (value === undefined) return null;
+  if (value === null) return null;
+  return JSON.stringify(value);
+}
+
 export async function insertEvidenceRows(db, shoeId, evidenceList) {
   if (!Array.isArray(evidenceList) || evidenceList.length === 0) return;
 
@@ -16,13 +22,13 @@ export async function insertEvidenceRows(db, shoeId, evidenceList) {
         is_selected,
         notes
       )
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      values ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10)
       `,
       [
         shoeId,
         ev.field_name || null,
         ev.raw_value ?? null,
-        ev.normalized_value ?? null,
+        toJsonbValue(ev.normalized_value),
         ev.source_type || "parsed_page",
         ev.source_name || "Unknown Source",
         ev.source_url ?? null,
