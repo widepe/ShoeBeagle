@@ -1,30 +1,43 @@
 export async function getResearchCandidates(db, limit = 2) {
   const sql = `
-    with candidate_deals as (
+    with base as (
       select
         d.brand,
         d.model,
-        coalesce(nullif(lower(d.gender), ''), 'unknown') as gender,
-        coalesce(nullif(lower(d.surface), ''), 'unknown') as surface,
-        min(d.listing_name) as sample_listing_name,
-        min(d.listing_url) as sample_listing_url,
-        min(d.image_url) as sample_image_url,
-        min(d.store) as sample_store,
-        max(d.scraped_at) as latest_seen_at,
-        count(*) as deal_count,
-        (
-          lower(trim(coalesce(d.brand, ''))) || '|' ||
-          lower(trim(coalesce(d.model, ''))) || '|' ||
-          lower(trim(coalesce(nullif(d.gender, ''), 'unknown')))
-        ) as normalized_key
+        lower(trim(coalesce(nullif(d.gender, ''), 'unknown'))) as gender,
+        lower(trim(coalesce(nullif(d.surface, ''), 'unknown'))) as surface,
+        d.listing_name,
+        d.listing_url,
+        d.image_url,
+        d.store,
+        d.scraped_at
       from sb_shoe_deals d
       where coalesce(trim(d.brand), '') <> ''
         and coalesce(trim(d.model), '') <> ''
+    ),
+    candidate_deals as (
+      select
+        b.brand,
+        b.model,
+        b.gender,
+        b.surface,
+        min(b.listing_name) as sample_listing_name,
+        min(b.listing_url) as sample_listing_url,
+        min(b.image_url) as sample_image_url,
+        min(b.store) as sample_store,
+        max(b.scraped_at) as latest_seen_at,
+        count(*) as deal_count,
+        (
+          lower(trim(coalesce(b.brand, ''))) || '|' ||
+          lower(trim(coalesce(b.model, ''))) || '|' ||
+          b.gender
+        ) as normalized_key
+      from base b
       group by
-        d.brand,
-        d.model,
-        coalesce(nullif(lower(d.gender), ''), 'unknown'),
-        coalesce(nullif(lower(d.surface), ''), 'unknown')
+        b.brand,
+        b.model,
+        b.gender,
+        b.surface
     ),
     missing as (
       select c.*
