@@ -27,10 +27,16 @@ function parseJsonLoose(text) {
 }
 
 function postProcess(candidate, parsed) {
-  const brand = String(parsed.brand || candidate.brand || "").trim();
-  const model = String(parsed.model || candidate.model || "").trim();
-  const gender = normalizeGender(parsed.gender || candidate.gender);
-  const surface = normalizeSurface(parsed.surface || candidate.surface);
+const brand = String(parsed.brand || candidate.brand || "").trim();
+const rawModelText = String(candidate.raw_model_text || candidate.model || "").trim();
+const model = String(parsed.model || "").trim();
+const version = parsed.version ? String(parsed.version).trim() : null;
+const gender = normalizeGender(parsed.gender || candidate.gender);
+const surface = normalizeSurface(parsed.surface || candidate.surface);
+
+if (!model) {
+  throw new Error(`Extraction did not return a canonical model for raw_model_text="${rawModelText}"`);
+}
   const support = normalizeSupport(parsed.support);
   const cushioning = normalizeCushioning(parsed.cushioning);
   const plated =
@@ -39,12 +45,14 @@ function postProcess(candidate, parsed) {
 
   const result = {
     display_name:
-      String(parsed.display_name || "").trim() ||
-      toDisplayName({ brand, model, gender }),
-    brand,
-    model,
-    version: parsed.version ? String(parsed.version).trim() : null,
-    gender,
+  String(parsed.display_name || "").trim() ||
+  (version
+    ? `${brand} ${model}${/^v/i.test(version) ? version : ` ${version}`}`
+    : `${brand} ${model}`),
+brand,
+model,
+version,
+gender,
     manufacturer_model_id: parsed.manufacturer_model_id
       ? String(parsed.manufacturer_model_id).trim()
       : null,
@@ -97,6 +105,28 @@ Allowed normalized values:
 
 Prefer explicit facts from the snippets over guessing.
 If a field is not clearly supported, use null or unknown.
+
+IMPORTANT MODEL RULE:
+The candidate's raw_model_text may already include a version.
+You must determine whether a version exists and split it correctly.
+
+Treat candidate.raw_model_text as marketed shoe name text, not as a guaranteed canonical model.
+
+Examples:
+- "Ghost 17" => model: "Ghost", version: "17"
+- "Pegasus 41" => model: "Pegasus", version: "41"
+- "1080v14" => model: "1080", version: "v14"
+- "1080 v14" => model: "1080", version: "v14"
+- "Kinvara" => model: "Kinvara", version: null
+
+Rules:
+- Preserve branded version styling where appropriate, especially forms like "v14"
+- Do not leave the version attached to model if the version is identifiable
+- Do not invent a version if it is not supported
+- display_name should be the marketed combined form, such as:
+  - "Brooks Ghost 17"
+  - "New Balance 1080v14"
+
 Include evidence rows for every field you selected confidently.
 Each evidence row should include:
 field_name, raw_value, normalized_value, source_type, source_name, source_url, confidence_score, is_selected, notes
@@ -106,6 +136,9 @@ ${JSON.stringify(candidate, null, 2)}
 
 Snippets:
 ${JSON.stringify(snippets, null, 2)}
+
+model must be the base model only, without the version when the version is identifiable.
+
 
 Required JSON shape:
 {
