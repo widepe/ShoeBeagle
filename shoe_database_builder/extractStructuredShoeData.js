@@ -244,5 +244,11 @@ Required JSON shape:
     "";
 
   const parsed = parseJsonLoose(text);
+  if (parsed.notes) {
+  parsed.notes = parsed.notes
+    .split(" ")
+    .slice(0, 40)
+    .join(" ");
+}
   return postProcess(candidate, parsed);
 }
