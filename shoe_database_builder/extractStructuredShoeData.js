@@ -279,8 +279,16 @@ model
 - Example: "Ghost", "Pegasus", "1080"
 
 version
-- Version identifier only
-- Examples: "17", "v14"
+- Version identifier of the shoe
+- May be numeric, alphanumeric, or named
+- Examples:
+  - "17"
+  - "v14"
+  - "3"
+  - "Next% 3"
+  - "Pro 2"
+  - "Edge+"
+- If the model includes a version, you must separate it from the base model
 - If no version exists, return null
 
 gender
