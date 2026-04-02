@@ -52,14 +52,15 @@ export async function runShoeResearchJob(limit = 2) {
 
         summary.processed += 1;
         summary.inserted += 1;
-        summary.results.push({
-          ok: true,
-          brand: candidate.brand,
-          model: candidate.model,
-          gender: candidate.gender,
-          shoeId: result.shoeId,
-          listingUrl: candidate.sample_listing_url || null,
-        });
+       summary.results.push({
+  ok: true,
+  brand: result.extracted.brand,
+  model: result.extracted.model,
+  version: result.extracted.version,
+  gender: result.extracted.gender,
+  shoeId: result.shoeId,
+  listingUrl: candidate.sample_listing_url || null,
+});
       } catch (error) {
         summary.ok = false;
         summary.processed += 1;
