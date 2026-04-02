@@ -4,7 +4,7 @@
   "description": "Shoe Beagle – Running Shoe Deal Finder with Alerts",
   "type": "module",
   "engines": {
-    "node": "18.x"
+    "node": "24.x"
   },
   "dependencies": {
     "axios": "^1.6.0",
