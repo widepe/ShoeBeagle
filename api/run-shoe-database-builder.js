@@ -1,5 +1,3 @@
-import { runShoeResearchJob } from "../shoe_database_builder/runShoeResearchJob.js";
-
 export default async function handler(req, res) {
   try {
     const limitRaw = req.query?.limit;
