@@ -1,7 +1,7 @@
 // /api/scrapers/super-runner-shop.js
 // CommonJS Vercel function
 //
-// Store: Super Runners Shop
+// Store: Super Runners Shop 
 // Collection: https://superrunnersshop.com/collections/footear-sale-shoes
 //
 // Blob env var:
