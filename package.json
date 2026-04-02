@@ -7,7 +7,8 @@
     "node": "24.x"
   },
   "dependencies": {
-    "openai": "^4.0.0",
+    "openai": "^4.56.0",
+    "dotenv": "^16.4.5",
     "axios": "^1.6.0",
     "cheerio": "^1.0.0-rc.12",
     "apify-client": "^2.3.0",
