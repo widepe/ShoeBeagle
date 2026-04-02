@@ -1,24 +1,5 @@
 {
-  /*
-    VERCEL CRON TIMEZONE NOTE (VERY IMPORTANT)
 
-    Vercel cron runs in UTC (NOT California time).
-
-    California time conversion:
-    - PDT (Daylight Saving, ~March–Nov): UTC = Local + 7 hours
-    - PST (Standard Time, ~Nov–March):   UTC = Local + 8 hours
-
-    FORMULA:
-    UTC time = California time + offset
-
-    Examples:
-    - 1:15 AM California (PDT) → 08:15 UTC  → "15 8 * * *"
-    - 1:15 AM California (PST) → 09:15 UTC  → "15 9 * * *"
-
-    ⚠️ IMPORTANT:
-    - These cron times are currently set for PDT (UTC−7)
-    - When DST ends, jobs will run 1 hour EARLIER unless adjusted
-  */
 
   "crons": [
     { "path": "/api/scrapers/cheerio_scrapers", "schedule": "15 8 * * *" },
