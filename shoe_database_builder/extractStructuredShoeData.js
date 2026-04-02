@@ -158,23 +158,77 @@ Examples:
 - upper
 - surface
 
-3. Source quality rules
-- First check the official manufacturer site to confirm model identity, version, MSRP, and release year when available
-- Use manufacturer primarily for: model, version, manufacturer_model_id, msrp_usd, release_year
-- Do not rely on manufacturer alone for weight, stack heights, foam details, cushioning character, or best_use
-- For weight, stack, foam, upper, and ride details, prioritize review/lab-style sources from the approved list
-- Prefer agreement across approved sources
-- If sources disagree, choose the most consistent value and lower confidence_score
+3. Source priority and data extraction rules
 
+You must follow this exact order of sources:
+
+STEP 1 — Manufacturer (highest priority, required first)
+- First, search for the official manufacturer page for this exact shoe
+- Use manufacturer as the primary source for:
+  - model
+  - version
+  - manufacturer_model_id
+  - msrp_usd
+  - release_year
+  - upper
+  - foam (if explicitly stated)
+  - cushioning (if explicitly described)
+
+- Manufacturer ALWAYS overrides other sources when there is conflict for these fields
+- Notes should be primarily based on manufacturer description, but rewritten (not copied)
+
+STEP 2 — Trusted review sources (fill remaining fields)
+Then use ONLY these sources to complete missing or weak fields:
+- RunRepeat
+- The Running Clinic
+- Running Warehouse
+- Doctors of Running
+- RoadTrailRun
+- Believe in the Run
+- OutdoorGearLab
+- Road Runner Sports
+- Running Shoes Guru
+- RTINGS
+
+Use these sources especially for:
+- weight_oz
+- heel_stack_mm
+- forefoot_stack_mm
+- offset_mm
+- foam (if not clear from manufacturer)
+- cushioning (performance characterization)
+- support
+- plated
+- plate_type
+- best_use
+- ride characteristics
+
+STEP 3 — Coverage requirement
+- You must attempt to fill as many schema fields as possible
+- Do not stop after finding one source
+- Continue searching down the approved list until:
+  - all major fields are filled, OR
+  - no reliable data can be found
+
+STEP 4 — Conflict resolution
+- Manufacturer overrides for identity + MSRP fields
+- For performance fields:
+  - prefer agreement across multiple trusted sources
+  - if disagreement exists, choose the most consistent value
+  - lower confidence_score accordingly
+
+STEP 5 — Strict rules
+- Do NOT guess
+- Do NOT fabricate values
+- Do NOT use random sources outside the approved list unless absolutely necessary
 4. Notes rules
 - notes must be 40 words or less
-- notes must mention only the shoe’s key performance traits
-- focus on cushioning, ride feel, stability/support, and best use
-- do NOT include filler
-- do NOT include retailer-style descriptions
+- notes should primarily reflect the manufacturer’s description, rewritten in original language
+- enhance with insights from trusted review sources when helpful
+- focus on ride, cushioning, purpose, and defining traits
+- do NOT copy text
+- do NOT include marketing fluff
 - do NOT mention sources
-- do NOT plagiarize
-- write like a short database blurb for runners
 
 5. Evidence rules
 For each confidently selected field, include an evidence object:
