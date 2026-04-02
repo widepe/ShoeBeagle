@@ -47,11 +47,10 @@ function postProcess(candidate, parsed) {
   }
 
   const result = {
-    display_name:
-      String(parsed.display_name || "").trim() ||
-      (version
-        ? `${brand} ${model}${/^v/i.test(version) ? version : ` ${version}`}`
-        : `${brand} ${model}`),
+display_name:
+  (version
+    ? `${brand} ${model}${/^v/i.test(version) ? version : ` ${version}`}`
+    : `${brand} ${model}`),
     brand,
     model,
     version,
@@ -71,14 +70,19 @@ function postProcess(candidate, parsed) {
     surface,
     support,
    best_use: normalizeBestUse(
-  Array.isArray(parsed.best_use)
-    ? parsed.best_use
-    : typeof parsed.best_use === "string"
-    ? parsed.best_use
+  (() => {
+    if (Array.isArray(parsed.best_use)) return parsed.best_use;
+
+    if (typeof parsed.best_use === "string") {
+      return parsed.best_use
         .replace(/[{}"]/g, "")
         .split(",")
         .map((s) => s.trim())
-    : []
+        .filter(Boolean);
+    }
+
+    return [];
+  })()
 ),
     plated,
     plate_type: plateType,
