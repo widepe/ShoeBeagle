@@ -47,6 +47,9 @@ export async function insertShoeRecord(db, shoe) {
       $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
       $21, $22, $23, $24, $25, $26
     )
+    on conflict (normalized_key)
+    do update set
+      updated_at = now()
     returning id;
   `;
 
