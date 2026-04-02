@@ -1,20 +1,36 @@
-import "dotenv/config";
 import OpenAI from "openai";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-async function test() {
+export default async function handler(req, res) {
   try {
-    const res = await client.chat.completions.create({
-      model: "gpt-4o",
-      messages: [{ role: "user", content: "Say hello" }],
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({
+        ok: false,
+        error: "Missing OPENAI_API_KEY in Vercel environment variables",
+      });
+    }
+
+    const client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
     });
-    console.log("SUCCESS:", res.choices[0].message.content);
-  } catch (err) {
-    console.error("ERROR:", err.message);
+
+    const response = await client.responses.create({
+      model: "gpt-5.4",
+      input: "Say hello in 3 words.",
+    });
+
+    return res.status(200).json({
+      ok: true,
+      output_text: response.output_text ?? null,
+      response_id: response.id ?? null,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: error?.message || "Unknown error",
+      name: error?.name || null,
+      status: error?.status || null,
+      code: error?.code || null,
+      type: error?.type || null,
+    });
   }
 }
-
-test();
