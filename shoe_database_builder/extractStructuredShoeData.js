@@ -159,19 +159,22 @@ Examples:
 - surface
 
 3. Source quality rules
+- First check the official manufacturer site to confirm model identity, version, MSRP, and release year when available
+- Use manufacturer primarily for: model, version, manufacturer_model_id, msrp_usd, release_year
+- Do not rely on manufacturer alone for weight, stack heights, foam details, cushioning character, or best_use
+- For weight, stack, foam, upper, and ride details, prioritize review/lab-style sources from the approved list
 - Prefer agreement across approved sources
-- For retailer facts like MSRP, Running Warehouse and Road Runner Sports can be strong
-- For stack, weight, foam, and ride details, prioritize review/lab-style sources
 - If sources disagree, choose the most consistent value and lower confidence_score
 
 4. Notes rules
 - notes must be 40 words or less
-- notes must highlight only key performance features (ride, cushioning, purpose)
-- do NOT include filler or generic descriptions
-- do NOT write marketing copy
+- notes must mention only the shoe’s key performance traits
+- focus on cushioning, ride feel, stability/support, and best use
+- do NOT include filler
+- do NOT include retailer-style descriptions
+- do NOT mention sources
 - do NOT plagiarize
-- do NOT mention sources or retailer descriptions
-- write like a clean product summary for runners
+- write like a short database blurb for runners
 
 5. Evidence rules
 For each confidently selected field, include an evidence object:
@@ -242,6 +245,10 @@ Required JSON shape:
     input: prompt,
   });
 
+  const webSources =
+  response.output?.[0]?.web_search_call?.action?.sources || [];
+
+console.log("WEB SOURCES:", JSON.stringify(webSources, null, 2));
   const text =
     response.output_text ||
     response.output?.[0]?.content?.[0]?.text ||
