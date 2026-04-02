@@ -66,7 +66,7 @@ function buildSnippets(candidate, pageResult) {
     source_url: candidate.sample_listing_url || null,
     text: [
       `Brand: ${candidate.brand}`,
-      `Model: ${candidate.model}`,
+      `Raw model text: ${candidate.model}`,
       `Gender: ${candidate.gender}`,
       `Surface: ${candidate.surface}`,
       `Listing name: ${candidate.sample_listing_name || ""}`,
@@ -98,18 +98,22 @@ export async function researchOneShoe({ db, openai, candidate }) {
 
   const snippets = buildSnippets(candidate, pageResult);
 
-  let extracted = await extractStructuredShoeData(openai, {
-    candidate,
-    snippets,
-  });
+ let extracted = await extractStructuredShoeData(openai, {
+  candidate: {
+    ...candidate,
+    raw_model_text: candidate.model,
+  },
+  snippets,
+});
 
-  extracted.display_name =
-    extracted.display_name ||
-    toDisplayName({
-      brand: extracted.brand || candidate.brand,
-      model: extracted.model || candidate.model,
-      gender: extracted.gender || candidate.gender,
-    });
+extracted.display_name =
+  extracted.display_name ||
+  toDisplayName({
+    brand: extracted.brand || candidate.brand,
+    model: extracted.model || candidate.model,
+    version: extracted.version ?? null,
+    gender: extracted.gender || candidate.gender,
+  });
 
   extracted.evidence = mergeSeedEvidence(extracted, buildSeedEvidence(candidate));
 
@@ -122,12 +126,12 @@ export async function researchOneShoe({ db, openai, candidate }) {
 
     await insertEvidenceRows(client, shoeId, extracted.evidence);
 
-    await attachDealsToShoe(client, {
-      shoeId,
-      brand: extracted.brand || candidate.brand,
-      model: extracted.model || candidate.model,
-      gender: extracted.gender || candidate.gender,
-    });
+await attachDealsToShoe(client, {
+  shoeId,
+  brand: extracted.brand || candidate.brand,
+  model: extracted.model || candidate.model,
+  gender: extracted.gender || candidate.gender,
+});
 
     await client.query("commit");
 
