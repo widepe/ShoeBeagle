@@ -158,8 +158,23 @@ function postProcess(candidate, parsed) {
   const rawModelText = String(
     candidate.raw_model_text || candidate.model || ""
   ).trim();
-  const model = String(parsed.model || "").trim();
-  const version = parsed.version ? String(parsed.version).trim() : null;
+
+  const fallbackModel =
+    candidate.verified_model ||
+    candidate.model ||
+    "";
+
+  const fallbackVersion = candidate.verified_version || null;
+
+  const model = String(parsed.model || fallbackModel || "").trim();
+
+  const version =
+    parsed.version !== undefined &&
+    parsed.version !== null &&
+    String(parsed.version).trim() !== ""
+      ? String(parsed.version).trim()
+      : fallbackVersion;
+
   const gender = normalizeGender(parsed.gender || candidate.gender);
   const surface = normalizeSurface(parsed.surface || candidate.surface);
   const support = normalizeSupport(parsed.support);
@@ -170,11 +185,7 @@ function postProcess(candidate, parsed) {
     parsed.plated === true ? true : parsed.plated === false ? false : null;
   const plateType = normalizePlateType(parsed.plate_type, plated);
 
-  if (!model) {
-    throw new Error(
-      `Extraction did not return a canonical model for raw_model_text="${rawModelText}"`
-    );
-  }
+  // note: no throw here anymore
 
   const bestUseRaw = Array.isArray(parsed.best_use)
     ? parsed.best_use
@@ -231,7 +242,6 @@ function postProcess(candidate, parsed) {
     evidence: dedupeEvidence(parsed.evidence),
   };
 }
-
 function buildResearchPrompt({ candidate, snippets }) {
   return `
 You are an expert running shoe researcher building a structured database record.
