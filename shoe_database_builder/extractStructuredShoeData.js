@@ -176,9 +176,7 @@ function postProcess(candidate, parsed) {
       : fallbackVersion;
 
   const gender = normalizeGender(parsed.gender || candidate.gender);
-
   const surface = normalizeSurface(parsed.surface || candidate.surface);
-
   const support = normalizeSupport(parsed.support);
 
   const cushioning =
@@ -213,7 +211,7 @@ function postProcess(candidate, parsed) {
   const hasApprovedEvidence = evidenceList.some((ev) =>
     APPROVED_SOURCES.map((s) => s.toLowerCase()).includes(
       String(ev.source_name || "").toLowerCase()
-    )
+    ) || String(ev.source_type || "").toLowerCase() === "brand"
   );
 
   const baseConfidence =
@@ -264,21 +262,19 @@ function buildResearchPrompt({ candidate, snippets }) {
   return `
 You are an expert running shoe researcher building a structured database record.
 
-Your job is to research this shoe on the web and return a single JSON object.
+Your job is to use the provided source snippets and return a single JSON object.
 
 Research rules:
-- If an official manufacturer page is available in the snippets, use it first for identity, style code, MSRP, upper, foam, and any explicitly stated specs.
-- If no manufacturer page is available or accessible, you MUST still continue using ONLY these approved sources to fill as many fields as possible:
+- Manufacturer pages are highest priority and should be used first when available.
+- After manufacturer pages, use only these approved non-manufacturer sources:
   ${APPROVED_SOURCES.map((s, i) => `${i + 1}. ${s}`).join("\\n  ")}
-- Do not use unapproved sources.
+- Do not use retailer pages as sources for technical specs.
 - Do not guess; prefer null over speculation.
-- However, DO fill fields that are clearly supported by one or more approved sources, even when the manufacturer page is missing.
-- Manufacturer overrides identity + MSRP when present. Approved review/lab sources override retailer for performance specs (stack, weight, cushioning, use, ride).
+- Fill as many fields as possible from the provided snippets.
 - Include evidence rows for every non-trivial populated field.
 - Evidence must name the source and include the URL when available.
 
 Identity rules:
-- The candidate identity is already verified.
 - Canonicalize model and version cleanly.
 - Keep gender normalized to one of: mens, womens, unisex, unknown.
 
@@ -346,7 +342,7 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
       {
         role: "system",
         content:
-          "You are a precise data extraction system. Use any manufacturer snippets if present, then rely on ONLY the approved sources listed in the user message. Fill all fields that are clearly supported; return null only when data truly is unavailable. Always return valid JSON.",
+          "You are a precise data extraction system. Use manufacturer snippets first, then approved non-retailer sources. Do not use retailer sources for technical specs. Fill all clearly supported fields and return valid JSON only.",
       },
       {
         role: "user",
