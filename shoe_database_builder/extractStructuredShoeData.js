@@ -80,8 +80,19 @@ function convertWeightToTargetSize({
 
   return Number(corrected.toFixed(2));
 }
+function mapManufacturerCushioning(label) {
+  const s = String(label || "").trim().toLowerCase();
+  if (!s) return null;
 
+  if (s === "balanced") return "moderate";
+  if (s === "soft") return "mod/high";
+  if (s === "plush" || s === "max") return "high";
+  if (s === "firm but cushioned") return "low/mod";
+  if (s === "firm") return "low";
+  if (s === "minimal") return "minimal";
 
+  return null;
+}
 function postProcess(candidate, parsed) {
   const brand = String(parsed.brand || candidate.brand || "").trim();
   const rawModelText = String(
@@ -92,7 +103,9 @@ function postProcess(candidate, parsed) {
   const gender = normalizeGender(parsed.gender || candidate.gender);
   const surface = normalizeSurface(parsed.surface || candidate.surface);
   const support = normalizeSupport(parsed.support);
-  const cushioning = normalizeCushioning(parsed.cushioning);
+  const cushioning =
+  mapManufacturerCushioning(parsed.manufacturer_cushioning_label) ||
+  normalizeCushioning(parsed.cushioning);
   const plated =
     parsed.plated === true ? true : parsed.plated === false ? false : null;
   const plateType = normalizePlateType(parsed.plate_type, plated);
@@ -257,10 +270,24 @@ Continue moving down the list until:
 
 3. Conflict resolution
 - Manufacturer overrides all fields if explicit
+
 CUSHIONING OVERRIDE RULE
 - If the manufacturer explicitly provides a cushioning label or cushion variable, you MUST use it.
 - Do NOT override manufacturer cushioning with review language.
 - If men's and women's manufacturer pages use the same cushioning description, assign the same cushioning value unless the manufacturer explicitly states a difference.
+
+Manufacturer cushioning mapping:
+- "Balanced" => moderate
+- "Soft" => mod/high
+- "Plush" => high
+- "Max" => high
+- "Firm but cushioned" => low/mod
+- "Firm" => low
+- "Minimal" => minimal
+
+- If the manufacturer does not explicitly provide cushioning language, then prefer agreement across strong approved sources.
+- If disagreement exists, choose the most consistent value.
+- Lower confidence_score when disagreement exists.
 
 Manufacturer cushioning mapping:
 - "Balanced" => moderate
@@ -544,6 +571,7 @@ Required JSON shape:
   "plated": boolean|null,
   "plate_type": string,
   "foam": string|null,
+  "manufacturer_cushioning_label": string|null,
   "cushioning": string,
   "upper": string|null,
   "notes": string|null,
