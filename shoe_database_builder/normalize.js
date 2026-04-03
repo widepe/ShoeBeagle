@@ -104,17 +104,18 @@ export function toDisplayName({ brand, model, gender }) {
     .join(" ");
 }
 
-export function toSlug({ brand, model, gender }) {
-  const parts = [brand, model, gender].map(slugifyPart).filter(Boolean);
+export function toSlug({ brand, model, version, gender }) {
+  const parts = [brand, model, version, gender].map(slugifyPart).filter(Boolean);
   return parts.join("-");
 }
 
-export function toNormalizedKey({ brand, model, gender }) {
+export function toNormalizedKey({ brand, model, version, gender }) {
   return [
     slugifyPart(brand),
     slugifyPart(model),
+    slugifyPart(version),
     slugifyPart(normalizeGender(gender)),
-  ].join("|");
+  ].join(" ");
 }
 
 export function cleanAliases(aliases) {
