@@ -293,7 +293,7 @@ html[data-theme="dark"] .save-toast{
   color:#111;
 }
 
-@media (max-width:900px){
+@media (max-width:700px){
   .save-toast{
     bottom:110px;
     font-size:0.85rem;
@@ -2284,7 +2284,7 @@ html[data-theme="dark"] .footer{
   }
 }
 
-@media (min-width:901px){
+@media (min-width:701px){
   .top-left{
     max-width:none;
   }
