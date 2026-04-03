@@ -85,7 +85,7 @@ Required JSON shape:
 `.trim();
 
   const response = await aiClient.chat.completions.create({
-    model: "sonar-pro",
+    model: "sonar",
     temperature: 0,
     messages: [
       {
