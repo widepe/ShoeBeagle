@@ -82,7 +82,7 @@ Do not include explanations.
 `.trim();
 
   const response = await aiClient.chat.completions.create({
-    model: "sonar-pro",        // Perplexity model
+    model: "sonar",        // Perplexity model
     temperature: 0,
     messages: [
       {
