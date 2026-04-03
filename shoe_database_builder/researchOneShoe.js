@@ -94,6 +94,18 @@ function mergeSeedEvidence(extracted, seedEvidence) {
   return [...seedEvidence, ...existing];
 }
 
+function hasRealEnrichmentEvidence(evidence) {
+  const list = Array.isArray(evidence) ? evidence : [];
+  return list.some(
+    (ev) =>
+      ev &&
+      ev.notes !== "Seeded from sb_shoe_deals candidate row" &&
+      ["brand", "review", "lab", "retailer", "ai", "other"].includes(
+        String(ev.source_type || "").toLowerCase()
+      )
+  );
+}
+
 export async function researchOneShoe({ db, aiClient, candidate }) {
   const pageResult = await fetchPageText(candidate.sample_listing_url);
 
@@ -115,7 +127,6 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
     error.store = candidate.sample_store || null;
     error.listingUrl = candidate.sample_listing_url || null;
     error.verification = verified;
-
     throw error;
   }
 
@@ -154,10 +165,21 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
       gender: extracted.gender,
     }).replace(/\s+\((mens|womens|unisex|unknown)\)$/i, "");
 
-  extracted.evidence = mergeSeedEvidence(
-    extracted,
-    buildSeedEvidence(verifiedCandidate)
-  );
+  const seedEvidence = buildSeedEvidence(verifiedCandidate);
+  extracted.evidence = mergeSeedEvidence(extracted, seedEvidence);
+
+  if (!hasRealEnrichmentEvidence(extracted.evidence)) {
+    const error = new Error(
+      `Extraction returned no enrichment evidence for ${extracted.brand} ${extracted.model} ${extracted.version || ""}`.trim()
+    );
+    error.stage = "extract_structured_data";
+    error.brand = candidate.brand;
+    error.model = candidate.model;
+    error.gender = candidate.gender;
+    error.store = candidate.sample_store || null;
+    error.listingUrl = candidate.sample_listing_url || null;
+    throw error;
+  }
 
   const client = await db.connect();
 
@@ -171,7 +193,10 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
     await attachDealsToShoe(client, {
       shoeId,
       brand: extracted.brand,
-      model: extracted.model,
+      model: extracted.version
+        ? `${extracted.model}${/^v/i.test(extracted.version) ? extracted.version : ` ${extracted.version}`}`
+        : extracted.model,
+      version: extracted.version,
       gender: extracted.gender,
     });
 
