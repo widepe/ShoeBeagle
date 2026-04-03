@@ -14,7 +14,7 @@ function parseJsonLoose(text) {
   }
 }
 
-export async function verifyShoeIdentity(openai, { candidate, pageResult }) {
+export async function verifyShoeIdentity(aiClient, { candidate, pageResult }) {
   const prompt = `
 You are verifying the identity of a running shoe from its retailer sales page before any broader research begins.
 
@@ -22,6 +22,10 @@ Use ONLY:
 - the seed candidate data
 - the retailer listing page text
 - the retailer listing URL
+
+Do NOT use outside knowledge.
+Do NOT do web research.
+Do NOT infer details that are not supported by the retailer page text.
 
 Your job:
 1. Verify or correct:
@@ -54,6 +58,8 @@ Examples:
 7. If verified=false, explain exactly why in mismatch_reason.
 
 Return valid JSON only.
+No markdown.
+No code fences.
 
 Seed candidate:
 ${JSON.stringify(candidate, null, 2)}
@@ -78,16 +84,23 @@ Required JSON shape:
 }
 `.trim();
 
-  const response = await openai.responses.create({
-    model: "gpt-5.4",
-    input: prompt,
+  const response = await aiClient.chat.completions.create({
+    model: "sonar-pro",
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are a precise data extraction system. Return valid JSON only.",
+      },
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
   });
 
-  const text =
-    response.output_text ||
-    response.output?.[0]?.content?.[0]?.text ||
-    "";
-
+  const text = response.choices?.[0]?.message?.content || "";
   const parsed = parseJsonLoose(text);
 
   return {
