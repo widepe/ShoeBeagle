@@ -1,3 +1,14 @@
+import {
+  cleanAliases,
+  normalizeBestUse,
+  normalizeCushioning,
+  normalizeGender,
+  normalizePlateType,
+  normalizeSupport,
+  normalizeSurface,
+  safeNumber,
+} from "./normalize.js";
+
 function parseJsonLoose(text) {
   const raw = String(text || "").trim();
   if (!raw) throw new Error("Empty model response");
@@ -12,6 +23,154 @@ function parseJsonLoose(text) {
     }
     throw new Error("Could not parse model JSON");
   }
+}
+
+function toOunces(weightValue, weightUnit) {
+  const value = safeNumber(weightValue);
+  const unit = String(weightUnit || "").trim().toLowerCase();
+
+  if (value === null) return null;
+  if (!unit) return null;
+
+  if (["oz", "ounce", "ounces"].includes(unit)) return value;
+  if (["g", "gram", "grams"].includes(unit)) return value / 28.3495;
+
+  return null;
+}
+
+function toUsSize(foundSize, sizeSystem, gender) {
+  const size = safeNumber(foundSize);
+  const system = String(sizeSystem || "").trim().toLowerCase();
+  const g = normalizeGender(gender);
+
+  if (size === null || !system) return null;
+
+  if (system === "us") return size;
+
+  if (g === "womens") {
+    if (system === "uk") return size + 2;
+    if (system === "eu") return size - 31;
+    return null;
+  }
+
+  // mens + unisex both normalize to men's US sizing
+  if (system === "uk") return size + 1;
+  if (system === "eu") return size - 33;
+
+  return null;
+}
+
+function convertWeightToTargetSize({
+  weightValue,
+  weightUnit,
+  foundSize,
+  foundSizeSystem,
+  gender,
+}) {
+  const ounces = toOunces(weightValue, weightUnit);
+  const usSize = toUsSize(foundSize, foundSizeSystem, gender);
+  const g = normalizeGender(gender);
+
+  if (ounces === null || usSize === null) return null;
+
+  const targetSize = g === "womens" ? 7 : 9;
+  const halfSizeSteps = (targetSize - usSize) * 2;
+  const corrected = ounces * Math.pow(1.026, halfSizeSteps);
+
+  return Number(corrected.toFixed(2));
+}
+
+function mapManufacturerCushioning(label) {
+  const s = String(label || "").trim().toLowerCase();
+  if (!s) return null;
+
+  if (s === "balanced") return "moderate";
+  if (s === "soft") return "mod/high";
+  if (s === "plush" || s === "max") return "high";
+  if (s === "firm but cushioned") return "low/mod";
+  if (s === "firm") return "low";
+  if (s === "minimal") return "minimal";
+
+  return null;
+}
+
+function postProcess(candidate, parsed) {
+  const brand = String(parsed.brand || candidate.brand || "").trim();
+  const rawModelText = String(
+    candidate.raw_model_text || candidate.model || ""
+  ).trim();
+  const model = String(parsed.model || "").trim();
+  const version = parsed.version ? String(parsed.version).trim() : null;
+  const gender = normalizeGender(parsed.gender || candidate.gender);
+  const surface = normalizeSurface(parsed.surface || candidate.surface);
+  const support = normalizeSupport(parsed.support);
+  const cushioning =
+    mapManufacturerCushioning(parsed.manufacturer_cushioning_label) ||
+    normalizeCushioning(parsed.cushioning);
+  const plated =
+    parsed.plated === true ? true : parsed.plated === false ? false : null;
+  const plateType = normalizePlateType(parsed.plate_type, plated);
+
+  if (!model) {
+    throw new Error(
+      `Extraction did not return a canonical model for raw_model_text="${rawModelText}"`
+    );
+  }
+
+  const bestUseRaw = Array.isArray(parsed.best_use)
+    ? parsed.best_use
+    : typeof parsed.best_use === "string"
+    ? parsed.best_use
+        .replace(/[{}"]/g, "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
+
+  const result = {
+    display_name: version
+      ? `${brand} ${model}${/^v/i.test(version) ? version : ` ${version}`}`
+      : `${brand} ${model}`,
+    brand,
+    model,
+    version,
+    gender,
+    manufacturer_model_id: parsed.manufacturer_model_id
+      ? String(parsed.manufacturer_model_id).trim()
+      : null,
+    aliases: cleanAliases(parsed.aliases),
+    release_year: Number.isInteger(parsed.release_year)
+      ? parsed.release_year
+      : null,
+    msrp_usd: safeNumber(parsed.msrp_usd),
+    weight_oz: convertWeightToTargetSize({
+      weightValue: parsed.weight_value,
+      weightUnit: parsed.weight_unit,
+      foundSize: parsed.weight_found_size,
+      foundSizeSystem: parsed.weight_found_size_system,
+      gender,
+    }),
+    heel_stack_mm: safeNumber(parsed.heel_stack_mm),
+    forefoot_stack_mm: safeNumber(parsed.forefoot_stack_mm),
+    offset_mm: safeNumber(parsed.offset_mm),
+    surface,
+    support,
+    best_use: normalizeBestUse(bestUseRaw),
+    plated,
+    plate_type: plateType,
+    foam: parsed.foam ? String(parsed.foam).trim() : null,
+    cushioning,
+    upper: parsed.upper ? String(parsed.upper).trim() : null,
+    notes: parsed.notes ? String(parsed.notes).trim() : null,
+    confidence_score:
+      typeof parsed.confidence_score === "number"
+        ? parsed.confidence_score
+        : 0.5,
+    review_status: "unreviewed",
+    evidence: Array.isArray(parsed.evidence) ? parsed.evidence : [],
+  };
+
+  return result;
 }
 
 export async function extractStructuredShoeData(aiClient, { candidate, snippets }) {
