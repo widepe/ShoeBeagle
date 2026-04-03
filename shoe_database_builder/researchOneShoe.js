@@ -5,36 +5,10 @@ import { insertShoeRecord } from "./insertShoeRecord.js";
 import { insertEvidenceRows } from "./insertEvidenceRows.js";
 import { attachDealsToShoe } from "./attachDealsToShoe.js";
 import { verifyShoeIdentity } from "./verifyShoeIdentity.js";
-import { normalizeGender, normalizeSurface, toDisplayName, splitModelAndVersion } from "./normalize.js";
+import { toDisplayName, splitModelAndVersion } from "./normalize.js";
 
-
-function buildSnippets(candidate, pageResult, extraPages = []) {
+function buildSnippets(candidate, _pageResult, extraPages = []) {
   const snippets = [];
-
-  snippets.push({
-    source_name: candidate.sample_store || "Shoe Beagle Deal Row",
-    source_type: "retailer",
-    source_url: candidate.sample_listing_url || null,
-    text: [
-      `Brand: ${candidate.brand}`,
-      `Raw model text: ${candidate.model}`,
-      `Gender: ${candidate.gender}`,
-      `Surface: ${candidate.surface}`,
-      `Listing name: ${candidate.sample_listing_name || ""}`,
-      `Store: ${candidate.sample_store || ""}`,
-    ]
-      .filter(Boolean)
-      .join("\n"),
-  });
-
-  if (pageResult?.ok) {
-    snippets.push({
-      source_name: candidate.sample_store || "Retailer Listing Page",
-      source_type: "retailer",
-      source_url: candidate.sample_listing_url || null,
-      text: pageResult.text,
-    });
-  }
 
   for (const page of extraPages) {
     if (!page?.ok || !page.text || !page.url) continue;
@@ -49,28 +23,6 @@ function buildSnippets(candidate, pageResult, extraPages = []) {
 
   return snippets;
 }
-
-function mergeSeedEvidence(extracted, seedEvidence) {
-  const existing = Array.isArray(extracted.evidence) ? extracted.evidence : [];
-  return [...seedEvidence, ...existing];
-}
-
-function hasRealEnrichmentEvidence(evidence) {
-  const list = Array.isArray(evidence) ? evidence : [];
-  return list.some(
-    (ev) =>
-      ev &&
-      ev.notes !== "Seeded from sb_shoe_deals candidate row" &&
-      ["brand", "review", "lab", "retailer", "ai", "other"].includes(
-        String(ev.source_type || "").toLowerCase()
-      )
-  );
-}
-
-
-
-
-
 
 export async function researchOneShoe({ db, aiClient, candidate }) {
   const pageResult = await fetchPageText(candidate.sample_listing_url);
@@ -110,9 +62,8 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
     gender: verified.gender || candidate.gender,
   };
 
-const approvedPages = await fetchApprovedSourcePages(verifiedCandidate);
-
-const snippets = buildSnippets(verifiedCandidate, pageResult, approvedPages);
+  const approvedPages = await fetchApprovedSourcePages(verifiedCandidate);
+  const snippets = buildSnippets(verifiedCandidate, null, approvedPages);
 
   let extracted = await extractStructuredShoeData(aiClient, {
     candidate: verifiedCandidate,
@@ -137,26 +88,6 @@ const snippets = buildSnippets(verifiedCandidate, pageResult, approvedPages);
       gender: extracted.gender,
     }).replace(/\s+\((mens|womens|unisex|unknown)\)$/i, "");
 
-  const seedEvidence = buildSeedEvidence(verifiedCandidate);
-  extracted.evidence = mergeSeedEvidence(extracted, seedEvidence);
-
-  if (!hasRealEnrichmentEvidence(extracted.evidence)) {
-    console.warn(
-      "NO ENRICHMENT EVIDENCE",
-      JSON.stringify(
-        {
-          brand: extracted.brand,
-          model: extracted.model,
-          version: extracted.version,
-          gender: extracted.gender,
-          listingUrl: candidate.sample_listing_url || null,
-        },
-        null,
-        2
-      )
-    );
-  }
-
   const client = await db.connect();
 
   try {
@@ -166,13 +97,13 @@ const snippets = buildSnippets(verifiedCandidate, pageResult, approvedPages);
 
     await insertEvidenceRows(client, shoeId, extracted.evidence);
 
-await attachDealsToShoe(client, {
-  shoeId,
-  brand: extracted.brand,
-  model: extracted.model,
-  version: extracted.version,
-  gender: extracted.gender,
-});
+    await attachDealsToShoe(client, {
+      shoeId,
+      brand: extracted.brand,
+      model: extracted.model,
+      version: extracted.version,
+      gender: extracted.gender,
+    });
 
     await client.query("commit");
 
