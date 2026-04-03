@@ -1,12 +1,10 @@
-import { verifyShoeIdentity } from "./verifyShoeIdentity.js";
-import { searchRunRepeat } from "./sources/searchRunRepeat.js";
 import { fetchPageText } from "./fetchPageText.js";
 import { extractStructuredShoeData } from "./extractStructuredShoeData.js";
 import { insertShoeRecord } from "./insertShoeRecord.js";
 import { insertEvidenceRows } from "./insertEvidenceRows.js";
 import { attachDealsToShoe } from "./attachDealsToShoe.js";
+import { verifyShoeIdentity } from "./verifyShoeIdentity.js";
 import { normalizeGender, normalizeSurface, toDisplayName } from "./normalize.js";
-
 
 function buildSeedEvidence(candidate) {
   const sourceName = candidate.sample_store || "Shoe Beagle Deal Row";
@@ -99,33 +97,54 @@ function mergeSeedEvidence(extracted, seedEvidence) {
 export async function researchOneShoe({ db, openai, candidate }) {
   const pageResult = await fetchPageText(candidate.sample_listing_url);
 
-  const snippets = buildSnippets(candidate, pageResult);
-const rr = await searchRunRepeat({
-  brand: candidate.brand,
-  raw_model_text: candidate.model,
-});
-
-if (rr && rr.text) {
-  snippets.push(rr);
-}
-  let extracted = await extractStructuredShoeData(openai, {
-  candidate: {
-    ...candidate,
-    raw_model_text: candidate.model,
-  },
-  snippets,
-});
-
-extracted.display_name =
-  extracted.display_name ||
-  toDisplayName({
-    brand: extracted.brand || candidate.brand,
-    model: extracted.model || candidate.model,
-    version: extracted.version ?? null,
-    gender: extracted.gender || candidate.gender,
+  const verified = await verifyShoeIdentity(openai, {
+    candidate,
+    pageResult,
   });
 
-  extracted.evidence = mergeSeedEvidence(extracted, buildSeedEvidence(candidate));
+  if (!verified.verified) {
+    throw new Error(
+      `Listing page identity could not be verified for ${candidate.brand} ${candidate.model} (${candidate.gender})`
+    );
+  }
+
+  const verifiedCandidate = {
+    ...candidate,
+    brand: verified.brand || candidate.brand,
+    model: verified.display_name || candidate.model,
+    raw_model_text: verified.display_name || candidate.model,
+    verified_model: verified.model || null,
+    verified_version: verified.version || null,
+    gender: verified.gender || candidate.gender,
+  };
+
+  const snippets = buildSnippets(verifiedCandidate, pageResult);
+
+  let extracted = await extractStructuredShoeData(openai, {
+    candidate: verifiedCandidate,
+    snippets,
+  });
+
+  extracted.brand = extracted.brand || verified.brand || candidate.brand;
+  extracted.model = extracted.model || verified.model || candidate.model;
+  extracted.version =
+    extracted.version !== undefined && extracted.version !== null
+      ? extracted.version
+      : verified.version || null;
+  extracted.gender = extracted.gender || verified.gender || candidate.gender;
+
+  extracted.display_name =
+    extracted.display_name ||
+    toDisplayName({
+      brand: extracted.brand,
+      model:
+        extracted.version
+          ? `${extracted.model}${/^v/i.test(extracted.version) ? extracted.version : ` ${extracted.version}`}`
+          : extracted.model,
+      gender: extracted.gender,
+    }).replace(/\s+\((mens|womens|unisex|unknown)\)$/i, "");
+
+  extracted.evidence = mergeSeedEvidence(extracted, buildSeedEvidence(verifiedCandidate));
 
   const client = await db.connect();
 
@@ -136,12 +155,12 @@ extracted.display_name =
 
     await insertEvidenceRows(client, shoeId, extracted.evidence);
 
-await attachDealsToShoe(client, {
-  shoeId,
-  brand: extracted.brand || candidate.brand,
-  model: extracted.model || candidate.model,
-  gender: extracted.gender || candidate.gender,
-});
+    await attachDealsToShoe(client, {
+      shoeId,
+      brand: extracted.brand,
+      model: extracted.model,
+      gender: extracted.gender,
+    });
 
     await client.query("commit");
 
@@ -149,6 +168,7 @@ await attachDealsToShoe(client, {
       shoeId,
       extracted,
       pageResult,
+      verified,
     };
   } catch (error) {
     await client.query("rollback");
