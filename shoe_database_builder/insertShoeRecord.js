@@ -1,17 +1,19 @@
 import { toNormalizedKey, toSlug } from "./normalize.js";
 
 export async function insertShoeRecord(db, shoe) {
-  const slug = toSlug({
-    brand: shoe.brand,
-    model: shoe.model,
-    gender: shoe.gender,
-  });
+const slug = toSlug({
+  brand: shoe.brand,
+  model: shoe.model,
+  version: shoe.version,
+  gender: shoe.gender,
+});
 
-  const normalizedKey = toNormalizedKey({
-    brand: shoe.brand,
-    model: shoe.model,
-    gender: shoe.gender,
-  });
+const normalizedKey = toNormalizedKey({
+  brand: shoe.brand,
+  model: shoe.model,
+  version: shoe.version,
+  gender: shoe.gender,
+});
 
   const sql = `
     insert into sb_shoe_database (
