@@ -9,6 +9,21 @@ import {
   safeNumber,
 } from "./normalize.js";
 
+const APPROVED_SOURCES = [
+  "RunRepeat",
+  "Running Warehouse",
+  "RoadTrailRun",
+  "Doctors of Running",
+  "Running Shoes Guru",
+  "OutdoorGearLab",
+  "RTINGS",
+  "Road Runner Sports",
+  "Believe in the Run",
+  "Sole Review",
+  "Runner's World",
+  "The Running Clinic",
+];
+
 function parseJsonLoose(text) {
   const raw = String(text || "").trim();
   if (!raw) throw new Error("Empty model response");
@@ -44,7 +59,6 @@ function toUsSize(foundSize, sizeSystem, gender) {
   const g = normalizeGender(gender);
 
   if (size === null || !system) return null;
-
   if (system === "us") return size;
 
   if (g === "womens") {
@@ -53,7 +67,6 @@ function toUsSize(foundSize, sizeSystem, gender) {
     return null;
   }
 
-  // mens + unisex both normalize to men's US sizing
   if (system === "uk") return size + 1;
   if (system === "eu") return size - 33;
 
@@ -94,6 +107,52 @@ function mapManufacturerCushioning(label) {
   return null;
 }
 
+function truncateNotes(value) {
+  if (!value) return null;
+  return String(value).trim().split(/\s+/).slice(0, 40).join(" ");
+}
+
+function normalizeEvidence(ev) {
+  if (!ev || !ev.field_name) return null;
+
+  return {
+    field_name: String(ev.field_name).trim(),
+    raw_value: ev.raw_value ?? null,
+    normalized_value: ev.normalized_value ?? null,
+    source_type: ev.source_type ?? "other",
+    source_name: ev.source_name ?? "Unknown Source",
+    source_url: ev.source_url ?? null,
+    confidence_score:
+      typeof ev.confidence_score === "number" ? ev.confidence_score : 0.7,
+    is_selected: ev.is_selected === true,
+    notes: ev.notes ?? null,
+  };
+}
+
+function dedupeEvidence(evidence) {
+  const seen = new Set();
+  const out = [];
+
+  for (const ev of Array.isArray(evidence) ? evidence : []) {
+    const n = normalizeEvidence(ev);
+    if (!n) continue;
+
+    const key = [
+      n.field_name,
+      String(n.source_name || "").toLowerCase(),
+      String(n.source_url || "").toLowerCase(),
+      JSON.stringify(n.normalized_value),
+      String(n.raw_value || ""),
+    ].join("|");
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(n);
+  }
+
+  return out;
+}
+
 function postProcess(candidate, parsed) {
   const brand = String(parsed.brand || candidate.brand || "").trim();
   const rawModelText = String(
@@ -120,14 +179,22 @@ function postProcess(candidate, parsed) {
   const bestUseRaw = Array.isArray(parsed.best_use)
     ? parsed.best_use
     : typeof parsed.best_use === "string"
-    ? parsed.best_use
-        .replace(/[{}"]/g, "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
+      ? parsed.best_use
+          .replace(/[{}"]/g, "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
 
-  const result = {
+  const convertedWeight = convertWeightToTargetSize({
+    weightValue: parsed.weight_value,
+    weightUnit: parsed.weight_unit,
+    foundSize: parsed.weight_found_size,
+    foundSizeSystem: parsed.weight_found_size_system,
+    gender,
+  });
+
+  return {
     display_name: version
       ? `${brand} ${model}${/^v/i.test(version) ? version : ` ${version}`}`
       : `${brand} ${model}`,
@@ -143,13 +210,7 @@ function postProcess(candidate, parsed) {
       ? parsed.release_year
       : null,
     msrp_usd: safeNumber(parsed.msrp_usd),
-    weight_oz: convertWeightToTargetSize({
-      weightValue: parsed.weight_value,
-      weightUnit: parsed.weight_unit,
-      foundSize: parsed.weight_found_size,
-      foundSizeSystem: parsed.weight_found_size_system,
-      gender,
-    }),
+    weight_oz: convertedWeight ?? safeNumber(parsed.weight_oz),
     heel_stack_mm: safeNumber(parsed.heel_stack_mm),
     forefoot_stack_mm: safeNumber(parsed.forefoot_stack_mm),
     offset_mm: safeNumber(parsed.offset_mm),
@@ -161,64 +222,46 @@ function postProcess(candidate, parsed) {
     foam: parsed.foam ? String(parsed.foam).trim() : null,
     cushioning,
     upper: parsed.upper ? String(parsed.upper).trim() : null,
-    notes: parsed.notes ? String(parsed.notes).trim() : null,
+    notes: truncateNotes(parsed.notes),
     confidence_score:
       typeof parsed.confidence_score === "number"
         ? parsed.confidence_score
-        : 0.5,
+        : 0.75,
     review_status: "unreviewed",
-    evidence: Array.isArray(parsed.evidence) ? parsed.evidence : [],
+    evidence: dedupeEvidence(parsed.evidence),
   };
-
-  return result;
 }
 
-export async function extractStructuredShoeData(aiClient, { candidate, snippets }) {
-  const prompt = `
-You are an expert running shoe researcher building a high-quality database.
+function buildResearchPrompt({ candidate, snippets }) {
+  return `
+You are an expert running shoe researcher building a structured database record.
 
-Use web search, and ONLY the following sources to find data. Do NOT use sources other than the official manufacturer of the shoe and those on this list.
+Your job is to research this shoe on the web and return a single JSON object.
 
-Manufacturer source examples:
-- ASICS
-- Saucony
-- Brooks
-- Nike
-- New Balance
-- Adidas
-
-Approved source order after manufacturer:
-1. RunRepeat
-2. Running Warehouse
-3. RoadTrailRun
-4. Doctors of Running
-5. Running Shoes Guru
-6. OutdoorGearLab
-7. RTINGS
-8. Road Runner Sports
-9. Believe in the Run
-10. Sole Review
-11. Runner's World
-12. The Running Clinic
-
-IMPORTANT:
-- Start with the manufacturer as the highest priority.
-- Fill in as many schema variables as possible.
-- Whatever variables are not found from the manufacturer, move down the approved list from top to bottom, filling in missing variables as you go.
-- Sources must be used strictly in the order listed.
-- Do not skip ahead.
+Research rules:
+- Start with the official manufacturer page first.
+- After that, use ONLY these approved sources when needed to fill missing fields:
+  ${APPROVED_SOURCES.map((s, i) => `${i + 1}. ${s}`).join("\n  ")}
+- Do not use unapproved sources.
 - Do not guess.
-- Prefer null over weak or uncertain data.
+- Prefer null over uncertainty.
+- If a field is found on the manufacturer site, prefer that value.
+- Use approved review/lab/retailer sources only to fill fields missing from the manufacturer source.
+- Include evidence rows for every non-trivial populated field.
+- Evidence must name the source and include the URL when available.
 
-INPUT CANDIDATE:
+Identity rules:
+- The candidate identity is already verified.
+- Canonicalize model and version cleanly.
+- Keep gender normalized to one of: mens, womens, unisex, unknown.
+
+Candidate:
 ${JSON.stringify(candidate, null, 2)}
 
-OPTIONAL LOCAL SNIPPETS:
+Local snippets:
 ${JSON.stringify(snippets || [], null, 2)}
 
-[keep your full REQUIREMENTS + FIELD DEFINITIONS + EVIDENCE RULES block exactly as you have it]
-
-Required JSON shape:
+Return valid JSON only with this exact shape:
 {
   "display_name": string,
   "brand": string,
@@ -248,13 +291,25 @@ Required JSON shape:
   "upper": string|null,
   "notes": string|null,
   "confidence_score": number,
-  "evidence": array
+  "evidence": [
+    {
+      "field_name": string,
+      "raw_value": string|null,
+      "normalized_value": any,
+      "source_type": "brand"|"review"|"lab"|"retailer"|"ai"|"other",
+      "source_name": string,
+      "source_url": string|null,
+      "confidence_score": number,
+      "is_selected": boolean,
+      "notes": string|null
+    }
+  ]
+}
+`.trim();
 }
 
-Return valid JSON only.
-Do not include markdown fences.
-Do not include explanations.
-`.trim();
+export async function extractStructuredShoeData(aiClient, { candidate, snippets }) {
+  const prompt = buildResearchPrompt({ candidate, snippets });
 
   const response = await aiClient.chat.completions.create({
     model: "sonar",
@@ -263,24 +318,25 @@ Do not include explanations.
       {
         role: "system",
         content:
-          "You are a precise data-extraction system. You must obey source order and return strictly valid JSON only.",
+          "You are a precise data extraction system. Research the web, prefer official manufacturer data first, use only approved sources after that, and return valid JSON only.",
       },
       {
         role: "user",
         content: prompt,
       },
     ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        schema: {
+          type: "object",
+          additionalProperties: true,
+        },
+      },
+    },
   });
 
   const text = response.choices?.[0]?.message?.content || "";
   const parsed = parseJsonLoose(text);
-
-  if (parsed.notes) {
-    parsed.notes = parsed.notes
-      .split(/\s+/)
-      .slice(0, 40)
-      .join(" ");
-  }
-
   return postProcess(candidate, parsed);
 }
