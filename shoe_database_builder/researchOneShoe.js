@@ -222,6 +222,12 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
 
   const manufacturerPage = await fetchManufacturerPage(aiClient, verifiedCandidate);
 
+console.log("MANUFACTURER_PAGE", {
+  ok: manufacturerPage?.ok,
+  url: manufacturerPage?.url,
+  error: manufacturerPage?.error || null,
+});
+  
   const snippets = buildSnippets(verifiedCandidate, pageResult, [
     manufacturerPage,
   ]);
