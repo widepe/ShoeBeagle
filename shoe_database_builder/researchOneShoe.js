@@ -106,6 +106,68 @@ function hasRealEnrichmentEvidence(evidence) {
   );
 }
 
+async function fetchManufacturerPage(aiClient, verifiedCandidate) {
+  const { brand, verified_model, verified_version } = verifiedCandidate;
+
+  const nameParts = [brand, verified_model, verified_version]
+    .filter(Boolean)
+    .join(" ");
+
+  const prompt = `
+You are helping locate the official manufacturer product page for a running shoe.
+
+Goal:
+- Given the shoe name and brand, identify ONE official manufacturer URL for the specific shoe (not a generic brand page, not a retailer, not a review site).
+
+Rules:
+- Return a single URL string only.
+- It must be an official brand domain for the shoe:
+  - Brooks: brooksrunning.com
+  - Saucony: saucony.com
+  - HOKA: hoka.com
+  - On: on-running.com
+  - New Balance: newbalance.com
+  - Nike: nike.com
+  - Adidas: adidas.com
+- Do NOT return retailer URLs (e.g. Backcountry, Running Warehouse, Amazon).
+- Do NOT return review URLs (RunRepeat, Doctors of Running, etc.).
+- If no clear official product page exists, return "null".
+
+Shoe:
+- Brand: ${brand}
+- Name: ${nameParts}
+`.trim();
+
+  const response = await aiClient.chat.completions.create({
+    model: "sonar",
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You return only an official manufacturer product URL or the string null.",
+      },
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+  });
+
+  const text = (response.choices?.[0]?.message?.content || "").trim();
+
+  if (!text || text.toLowerCase() === "null") {
+    return { ok: false, url: null, title: null, text: "", error: "no_url" };
+  }
+
+  const url = text.split(/\s+/)[0].trim().replace(/^"|"$/g, "");
+  if (!url.startsWith("http")) {
+    return { ok: false, url: null, title: null, text: "", error: "bad_url" };
+  }
+
+  return await fetchPageText(url);
+}
+
 export async function researchOneShoe({ db, aiClient, candidate }) {
   const pageResult = await fetchPageText(candidate.sample_listing_url);
 
