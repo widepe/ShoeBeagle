@@ -8,6 +8,89 @@ function slugifyPart(value) {
     .replace(/-+/g, "-");
 }
 
+export function splitModelAndVersion(rawModel, brand = null) {
+  const input = String(rawModel || "").trim();
+  if (!input) {
+    return {
+      raw_model_text: "",
+      model: null,
+      version: null,
+    };
+  }
+
+  let text = input
+    .replace(/\s+/g, " ")
+    .replace(/[–—]/g, "-")
+    .trim();
+
+  if (brand) {
+    const brandEscaped = String(brand)
+      .trim()
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    text = text.replace(new RegExp(`^${brandEscaped}\\s+`, "i"), "").trim();
+  }
+
+  text = text
+    .replace(/\b(mens|men's|mens'|women's|womens|women|unisex)\b/gi, "")
+    .replace(/\b(running shoe|running shoes|shoe|shoes)\b/gi, "")
+    .replace(/\b(wide|extra wide|narrow|regular)\b/gi, "")
+    .replace(/\((.*?)\)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!text) {
+    return {
+      raw_model_text: input,
+      model: null,
+      version: null,
+    };
+  }
+
+  let match;
+
+  match = text.match(/^(.+?)\s+(v\d+)$/i);
+  if (match) {
+    return {
+      raw_model_text: input,
+      model: match[1].trim(),
+      version: match[2].trim(),
+    };
+  }
+
+  match = text.match(/^(.+?)(v\d+)$/i);
+  if (match) {
+    return {
+      raw_model_text: input,
+      model: match[1].trim(),
+      version: match[2].trim(),
+    };
+  }
+
+  match = text.match(/^(.+?)\s+(\d+)$/);
+  if (match) {
+    return {
+      raw_model_text: input,
+      model: match[1].trim(),
+      version: match[2].trim(),
+    };
+  }
+
+  match = text.match(/^(.+?)-(\d+)$/);
+  if (match) {
+    return {
+      raw_model_text: input,
+      model: match[1].trim(),
+      version: match[2].trim(),
+    };
+  }
+
+  return {
+    raw_model_text: input,
+    model: text,
+    version: null,
+  };
+}
+
 export function normalizeGender(gender) {
   const g = String(gender || "").trim().toLowerCase();
 
