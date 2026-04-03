@@ -37,7 +37,15 @@ export async function getResearchCandidates(db, limit = 2) {
       select 1
       from sb_shoe_database s
       where lower(trim(s.brand)) = lower(trim(c.brand))
-        and lower(trim(s.model)) = lower(trim(c.model))
+        and lower(
+          trim(
+            case
+              when s.version is null or trim(s.version) = '' then s.model
+              when lower(trim(s.version)) like 'v%' then trim(s.model) || trim(s.version)
+              else trim(s.model) || ' ' || trim(s.version)
+            end
+          )
+        ) = lower(trim(c.model))
         and lower(trim(coalesce(nullif(s.gender, ''), 'unknown'))) = lower(trim(c.gender))
     )
     order by c.latest_seen_at desc nulls last, c.deal_count desc, c.brand asc, c.model asc
