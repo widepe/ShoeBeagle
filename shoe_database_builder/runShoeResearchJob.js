@@ -24,8 +24,12 @@ export async function runShoeResearchJob(limit = 2) {
     apiKey: process.env.OPENAI_API_KEY,
   });
 
+  const targetSuccesses = Number.isFinite(Number(limit)) ? Number(limit) : 2;
+  const fetchCount = Math.max(targetSuccesses * 5, 10);
+
   const summary = {
     ok: true,
+    requested: targetSuccesses,
     processed: 0,
     inserted: 0,
     failed: 0,
@@ -33,11 +37,12 @@ export async function runShoeResearchJob(limit = 2) {
   };
 
   try {
-    const candidates = await getResearchCandidates(db, limit);
+    const candidates = await getResearchCandidates(db, fetchCount);
 
     if (!candidates.length) {
       return {
         ok: true,
+        requested: targetSuccesses,
         processed: 0,
         inserted: 0,
         failed: 0,
@@ -47,32 +52,50 @@ export async function runShoeResearchJob(limit = 2) {
     }
 
     for (const candidate of candidates) {
+      if (summary.inserted >= targetSuccesses) break;
+
       try {
         const result = await researchOneShoe({ db, openai, candidate });
 
         summary.processed += 1;
         summary.inserted += 1;
-       summary.results.push({
-  ok: true,
-  brand: result.extracted.brand,
-  model: result.extracted.model,
-  version: result.extracted.version,
-  gender: result.extracted.gender,
-  shoeId: result.shoeId,
-  listingUrl: candidate.sample_listing_url || null,
-});
+
+        summary.results.push({
+          ok: true,
+          stage: "inserted",
+          brand: result.extracted.brand,
+          model: result.extracted.model,
+          version: result.extracted.version,
+          gender: result.extracted.gender,
+          shoeId: result.shoeId,
+          listingUrl: candidate.sample_listing_url || null,
+          store: candidate.sample_store || null,
+          verified: result.verified || null,
+        });
       } catch (error) {
         summary.ok = false;
         summary.processed += 1;
         summary.failed += 1;
-        summary.results.push({
+
+        const failure = {
           ok: false,
-          brand: candidate.brand,
-          model: candidate.model,
-          gender: candidate.gender,
+          stage: error?.stage || "research_one_shoe",
+          brand: error?.brand || candidate.brand,
+          model: error?.model || candidate.model,
+          gender: error?.gender || candidate.gender,
+          listingUrl: error?.listingUrl || candidate.sample_listing_url || null,
+          store: error?.store || candidate.sample_store || null,
           error: error?.message || "Unknown error",
-        });
+          verification: error?.verification || null,
+        };
+
+        console.error("SHOE RESEARCH FAILURE:", JSON.stringify(failure, null, 2));
+        summary.results.push(failure);
       }
+    }
+
+    if (summary.inserted < targetSuccesses) {
+      summary.message = `Requested ${targetSuccesses} successful inserts, but only inserted ${summary.inserted}.`;
     }
 
     return summary;
