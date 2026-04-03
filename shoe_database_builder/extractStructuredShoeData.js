@@ -25,6 +25,63 @@ function parseJsonLoose(text) {
   }
 }
 
+
+function toOunces(weightValue, weightUnit) {
+  const value = safeNumber(weightValue);
+  const unit = String(weightUnit || "").trim().toLowerCase();
+
+  if (value === null) return null;
+  if (!unit) return null;
+
+  if (["oz", "ounce", "ounces"].includes(unit)) return value;
+  if (["g", "gram", "grams"].includes(unit)) return value / 28.3495;
+
+  return null;
+}
+
+function toUsSize(foundSize, sizeSystem, gender) {
+  const size = safeNumber(foundSize);
+  const system = String(sizeSystem || "").trim().toLowerCase();
+  const g = normalizeGender(gender);
+
+  if (size === null || !system) return null;
+
+  if (system === "us") return size;
+
+  if (g === "womens") {
+    if (system === "uk") return size + 2;
+    if (system === "eu") return size - 31;
+    return null;
+  }
+
+  // mens + unisex both normalize to men's US sizing
+  if (system === "uk") return size + 1;
+  if (system === "eu") return size - 33;
+
+  return null;
+}
+
+function convertWeightToTargetSize({
+  weightValue,
+  weightUnit,
+  foundSize,
+  foundSizeSystem,
+  gender,
+}) {
+  const ounces = toOunces(weightValue, weightUnit);
+  const usSize = toUsSize(foundSize, foundSizeSystem, gender);
+  const g = normalizeGender(gender);
+
+  if (ounces === null || usSize === null) return null;
+
+  const targetSize = g === "womens" ? 7 : 9;
+  const halfSizeSteps = (targetSize - usSize) * 2;
+  const corrected = ounces * Math.pow(1.026, halfSizeSteps);
+
+  return Number(corrected.toFixed(2));
+}
+
+
 function postProcess(candidate, parsed) {
   const brand = String(parsed.brand || candidate.brand || "").trim();
   const rawModelText = String(
@@ -72,7 +129,13 @@ function postProcess(candidate, parsed) {
       ? parsed.release_year
       : null,
     msrp_usd: safeNumber(parsed.msrp_usd),
-    weight_oz: safeNumber(parsed.weight_oz),
+    weight_oz: convertWeightToTargetSize({
+  weightValue: parsed.weight_value,
+  weightUnit: parsed.weight_unit,
+  foundSize: parsed.weight_found_size,
+  foundSizeSystem: parsed.weight_found_size_system,
+  gender,
+}),
     heel_stack_mm: safeNumber(parsed.heel_stack_mm),
     forefoot_stack_mm: safeNumber(parsed.forefoot_stack_mm),
     offset_mm: safeNumber(parsed.offset_mm),
@@ -194,7 +257,18 @@ Continue moving down the list until:
 
 3. Conflict resolution
 - Manufacturer overrides all fields if explicit
-- Otherwise prefer agreement across strong approved sources
+CUSHIONING OVERRIDE RULE
+- If the manufacturer explicitly provides a cushioning label or cushion variable, you MUST use it.
+- Do NOT override manufacturer cushioning with review language.
+- If men's and women's manufacturer pages use the same cushioning description, assign the same cushioning value unless the manufacturer explicitly states a difference.
+
+Manufacturer cushioning mapping:
+- "Balanced" => moderate
+- "Soft" => mod/high
+- "Plush" => high
+- "Max" => high
+- "Firm" => low/mod or low depending on wording
+- "Minimal" => minimal- Otherwise prefer agreement across strong approved sources
 - If disagreement exists, choose the most consistent value
 - Lower confidence_score when disagreement exists
 
@@ -258,16 +332,35 @@ msrp_usd
 - Return number only
 
 weight_oz
-- Weight in ounces for the specific gender/version
-- If found in grams, convert to ounces
-- Weight must be for mens 9 if shoe is mens, womens 7 if shoe is womens, and mens 9 if shoe is unisex
-- If weight is given in another size, calculate using 2.6% compounding per half size
-- If size is not specified, return null
-- If multiple weights exist, prefer:
-  1. manufacturer
-  2. RunRepeat
-  3. Running Warehouse
-  4. otherwise average two sources within 0.5 oz after size correction
+- Weight must ONLY be used if the source explicitly states:
+  - the weight value
+  - the shoe size for that weight
+  - the size system (US, UK, or EU)
+
+- If weight is given in grams, convert it to ounces
+  - oz = g / 28.3495
+
+- Convert found size to US size first:
+  - mens or unisex:
+    - US = UK + 1
+    - US = EU - 33
+  - womens:
+    - US = UK + 2
+    - US = EU - 31
+
+- After converting to US size, normalize to target size using 2.6% compounding per half size:
+  - mens or unisex target = US men's 9
+  - womens target = US women's 7
+
+- Formulas:
+  - men_size_9 = found_weight * (1.026)^((9 - found_size) * 2)
+  - women_size_7 = found_weight * (1.026)^((7 - found_size) * 2)
+
+- If the source does not explicitly state the size, return null
+- If the source does not explicitly state the size system, return null
+- If the source does not explicitly state the unit, return null
+- Do NOT assume standard sizes
+- Do NOT infer size from context
 
 heel_stack_mm
 - Heel stack height in millimeters
@@ -438,6 +531,10 @@ Required JSON shape:
   "release_year": number|null,
   "msrp_usd": number|null,
   "weight_oz": number|null,
+  "weight_value": number|null,
+  "weight_unit": string|null,
+  "weight_found_size": number|null,
+  "weight_found_size_system": string|null,  
   "heel_stack_mm": number|null,
   "forefoot_stack_mm": number|null,
   "offset_mm": number|null,
