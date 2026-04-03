@@ -58,7 +58,7 @@ function buildSeedEvidence(candidate) {
   ];
 }
 
-function buildSnippets(candidate, pageResult) {
+function buildSnippets(candidate, pageResult, extraPages = []) {
   const snippets = [];
 
   snippets.push({
@@ -83,6 +83,17 @@ function buildSnippets(candidate, pageResult) {
       source_type: "retailer",
       source_url: candidate.sample_listing_url || null,
       text: pageResult.text,
+    });
+  }
+
+  for (const page of extraPages) {
+    if (!page?.ok || !page.text || !page.url) continue;
+
+    snippets.push({
+      source_name: "Manufacturer",
+      source_type: "brand",
+      source_url: page.url,
+      text: page.text,
     });
   }
 
