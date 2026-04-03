@@ -25,6 +25,13 @@ export async function insertEvidenceRows(db, shoeId, evidenceList) {
   if (!Array.isArray(evidenceList) || evidenceList.length === 0) return;
 
   for (const ev of evidenceList) {
+    const fieldName =
+      ev && ev.field_name ? String(ev.field_name).trim() : null;
+    if (!fieldName) {
+      // Skip malformed evidence; it would violate NOT NULL on field_name
+      continue;
+    }
+
     const normalizedJson = toJsonbValue(ev.normalized_value);
     const sourceType = normalizeEvidenceSourceType(ev.source_type);
 
@@ -46,7 +53,7 @@ export async function insertEvidenceRows(db, shoeId, evidenceList) {
       `,
       [
         shoeId,
-        ev.field_name || null,
+        fieldName,
         ev.raw_value ?? null,
         normalizedJson,
         sourceType,
