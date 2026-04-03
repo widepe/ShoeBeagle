@@ -4,7 +4,7 @@ import { insertShoeRecord } from "./insertShoeRecord.js";
 import { insertEvidenceRows } from "./insertEvidenceRows.js";
 import { attachDealsToShoe } from "./attachDealsToShoe.js";
 import { verifyShoeIdentity } from "./verifyShoeIdentity.js";
-import { normalizeGender, normalizeSurface, toDisplayName } from "./normalize.js";
+import { normalizeGender, normalizeSurface, toDisplayName, splitModelAndVersion } from "./normalize.js";
 
 function buildSeedEvidence(candidate) {
   const sourceName = candidate.sample_store || "Shoe Beagle Deal Row";
@@ -130,13 +130,17 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
     throw error;
   }
 
+  const baseBrand = verified.brand || candidate.brand;
+  const baseName = verified.display_name || candidate.model;
+  const split = splitModelAndVersion(baseName, baseBrand);
+
   const verifiedCandidate = {
     ...candidate,
-    brand: verified.brand || candidate.brand,
-    model: verified.display_name || candidate.model,
-    raw_model_text: verified.display_name || candidate.model,
-    verified_model: verified.model || null,
-    verified_version: verified.version || null,
+    brand: baseBrand,
+    model: split.raw_model_text,
+    raw_model_text: split.raw_model_text,
+    verified_model: verified.model || split.model,
+    verified_version: verified.version || split.version,
     gender: verified.gender || candidate.gender,
   };
 
