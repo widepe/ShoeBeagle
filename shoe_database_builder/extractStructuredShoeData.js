@@ -335,15 +335,7 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
         content: prompt,
       },
     ],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        schema: {
-          type: "object",
-          additionalProperties: true,
-        },
-      },
-    },
+
   });
 
   const text = response.choices?.[0]?.message?.content || "";
