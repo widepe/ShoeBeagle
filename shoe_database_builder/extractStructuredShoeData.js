@@ -348,5 +348,20 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
 
   const text = response.choices?.[0]?.message?.content || "";
   const parsed = parseJsonLoose(text);
+    console.log(
+    "EXTRACTED_RAW",
+    JSON.stringify(
+      {
+        candidate: {
+          brand: candidate.brand,
+          model: candidate.model,
+          gender: candidate.gender,
+        },
+        parsed,
+      },
+      null,
+      2
+    )
+  );
   return postProcess(candidate, parsed);
 }
