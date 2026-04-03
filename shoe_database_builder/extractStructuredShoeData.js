@@ -1,3 +1,19 @@
+function parseJsonLoose(text) {
+  const raw = String(text || "").trim();
+  if (!raw) throw new Error("Empty model response");
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) {
+      return JSON.parse(raw.slice(start, end + 1));
+    }
+    throw new Error("Could not parse model JSON");
+  }
+}
+
 export async function extractStructuredShoeData(aiClient, { candidate, snippets }) {
   const prompt = `
 You are an expert running shoe researcher building a high-quality database.
@@ -58,7 +74,7 @@ Required JSON shape:
   "weight_value": number|null,
   "weight_unit": string|null,
   "weight_found_size": number|null,
-  "weight_found_size_system": string|null,  
+  "weight_found_size_system": string|null,
   "heel_stack_mm": number|null,
   "forefoot_stack_mm": number|null,
   "offset_mm": number|null,
@@ -82,7 +98,7 @@ Do not include explanations.
 `.trim();
 
   const response = await aiClient.chat.completions.create({
-    model: "sonar",        // Perplexity model
+    model: "sonar",
     temperature: 0,
     messages: [
       {
@@ -90,12 +106,14 @@ Do not include explanations.
         content:
           "You are a precise data-extraction system. You must obey source order and return strictly valid JSON only.",
       },
-      { role: "user", content: prompt },
+      {
+        role: "user",
+        content: prompt,
+      },
     ],
   });
 
   const text = response.choices?.[0]?.message?.content || "";
-
   const parsed = parseJsonLoose(text);
 
   if (parsed.notes) {
