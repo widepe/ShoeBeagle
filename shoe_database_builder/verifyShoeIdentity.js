@@ -16,7 +16,7 @@ function parseJsonLoose(text) {
 
 export async function verifyShoeIdentity(aiClient, { candidate, pageResult }) {
   const prompt = `
-You are verifying the identity of a running shoe from its retailer sales page before any broader research begins.
+You are verifying the identity of a running shoe from its retailer sales page before broader research begins.
 
 Use ONLY:
 - the seed candidate data
@@ -25,7 +25,21 @@ Use ONLY:
 
 Do NOT use outside knowledge.
 Do NOT do web research.
-Do NOT infer details that are not supported by the retailer page text.
+
+Goal:
+Determine whether the retailer page is clearly for the same shoe as the seed candidate.
+
+Important verification rules:
+- Prioritize identity signals in this order:
+  1. retailer listing URL
+  2. page title / product title
+  3. repeated product-name text on the page
+  4. descriptive body copy
+- Retailer pages sometimes contain copy-paste mistakes in descriptive paragraphs.
+- If URL/title/product-name strongly match the candidate, do NOT fail verification only because one sentence in the body mentions the wrong gender or has obvious stray copy.
+- Only mark verified=false when the page overall appears to be a different shoe, different version, different brand, or materially different gender with no strong contrary signals.
+- If gender is slightly ambiguous but the page clearly matches the shoe otherwise, keep verified=true and return the best supported gender.
+- Prefer the page URL and title over a single contradictory sentence in the description.
 
 Your job:
 1. Verify or correct:
@@ -39,23 +53,18 @@ Examples:
 - "Ghost 17" => model: "Ghost", version: "17"
 - "1080v14" => model: "1080", version: "v14"
 - "Kinvara" => model: "Kinvara", version: null
+- "Adrenaline GTS 24" => model: "Adrenaline GTS", version: "24"
+- "Cloudrunner 2" => model: "Cloudrunner", version: "2"
 
-3. The retailer listing page is the source of truth for identity if clear.
+3. verified=true if the listing page is clearly the same shoe overall, even if minor copy errors exist.
+4. verified=false only if there is a material identity mismatch that makes the page likely a different shoe.
 
-4. verified=true ONLY if the listing page clearly supports the shoe identity.
-5. verified=false if:
-- the page is unclear
-- the page appears to be a different shoe
-- gender conflicts materially
-- version conflicts materially
-- brand/model cannot be confirmed
-
-6. Compare against the seed candidate:
+5. Compare against the seed candidate:
 - candidate.brand
-- candidate.model (this often already includes version)
+- candidate.model
 - candidate.gender
 
-7. If verified=false, explain exactly why in mismatch_reason.
+6. mismatch_reason should be brief and only used if verified=false.
 
 Return valid JSON only.
 No markdown.
@@ -68,6 +77,7 @@ Retailer listing page text:
 ${JSON.stringify({
   ok: pageResult?.ok || false,
   url: candidate.sample_listing_url || null,
+  title: pageResult?.title || null,
   text: pageResult?.text || null,
 }, null, 2)}
 
@@ -91,7 +101,7 @@ Required JSON shape:
       {
         role: "system",
         content:
-          "You are a precise data extraction system. Return valid JSON only.",
+          "You are a precise retail product identity verification system. Be strict about actual identity mismatches, but tolerate obvious retailer copy errors. Return valid JSON only.",
       },
       {
         role: "user",
