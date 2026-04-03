@@ -14,14 +14,15 @@ function requiredEnv(name) {
 
 export async function runShoeResearchJob(limit = 2) {
   requiredEnv("DATABASE_URL");
-  requiredEnv("OPENAI_API_KEY");
+  requiredEnv("PERPLEXITY_API_KEY"); // changed from OPENAI_API_KEY
 
   const db = new Pool({
     connectionString: process.env.DATABASE_URL,
   });
 
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+  const aiClient = new OpenAI({
+    apiKey: process.env.PERPLEXITY_API_KEY,
+    baseURL: "https://api.perplexity.ai",
   });
 
   const targetSuccesses = Number.isFinite(Number(limit)) ? Number(limit) : 2;
@@ -55,7 +56,7 @@ export async function runShoeResearchJob(limit = 2) {
       if (summary.inserted >= targetSuccesses) break;
 
       try {
-        const result = await researchOneShoe({ db, openai, candidate });
+        const result = await researchOneShoe({ db, aiClient, candidate });
 
         summary.processed += 1;
         summary.inserted += 1;
@@ -89,7 +90,10 @@ export async function runShoeResearchJob(limit = 2) {
           verification: error?.verification || null,
         };
 
-        console.error("SHOE RESEARCH FAILURE:", JSON.stringify(failure, null, 2));
+        console.error(
+          "SHOE RESEARCH FAILURE:",
+          JSON.stringify(failure, null, 2),
+        );
         summary.results.push(failure);
       }
     }
