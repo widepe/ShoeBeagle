@@ -113,18 +113,21 @@ function truncateNotes(value) {
 }
 
 function normalizeEvidence(ev) {
-  if (!ev || !ev.field_name) return null;
+  if (!ev) return null;
+
+  const field_name = ev.field_name || ev.field;
+  if (!field_name) return null;
 
   return {
-    field_name: String(ev.field_name).trim(),
-    raw_value: ev.raw_value ?? null,
+    field_name: String(field_name).trim(),
+    raw_value: ev.raw_value ?? ev.value ?? null,
     normalized_value: ev.normalized_value ?? null,
     source_type: ev.source_type ?? "other",
-    source_name: ev.source_name ?? "Unknown Source",
-    source_url: ev.source_url ?? null,
+    source_name: ev.source_name ?? ev.source ?? "Unknown Source",
+    source_url: ev.source_url ?? ev.url ?? null,
     confidence_score:
       typeof ev.confidence_score === "number" ? ev.confidence_score : 0.7,
-    is_selected: ev.is_selected === true,
+    is_selected: ev.is_selected === true || ev.is_selected === undefined,
     notes: ev.notes ?? null,
   };
 }
@@ -155,9 +158,6 @@ function dedupeEvidence(evidence) {
 
 function postProcess(candidate, parsed) {
   const brand = String(parsed.brand || candidate.brand || "").trim();
-  const rawModelText = String(
-    candidate.raw_model_text || candidate.model || ""
-  ).trim();
 
   const fallbackModel =
     candidate.verified_model ||
@@ -176,16 +176,19 @@ function postProcess(candidate, parsed) {
       : fallbackVersion;
 
   const gender = normalizeGender(parsed.gender || candidate.gender);
+
   const surface = normalizeSurface(parsed.surface || candidate.surface);
+
   const support = normalizeSupport(parsed.support);
+
   const cushioning =
     mapManufacturerCushioning(parsed.manufacturer_cushioning_label) ||
     normalizeCushioning(parsed.cushioning);
+
   const plated =
     parsed.plated === true ? true : parsed.plated === false ? false : null;
-  const plateType = normalizePlateType(parsed.plate_type, plated);
 
-  // note: no throw here anymore
+  const plateType = normalizePlateType(parsed.plate_type, plated);
 
   const bestUseRaw = Array.isArray(parsed.best_use)
     ? parsed.best_use
@@ -204,6 +207,23 @@ function postProcess(candidate, parsed) {
     foundSizeSystem: parsed.weight_found_size_system,
     gender,
   });
+
+  const evidenceList = dedupeEvidence(parsed.evidence);
+
+  const hasApprovedEvidence = evidenceList.some((ev) =>
+    APPROVED_SOURCES.map((s) => s.toLowerCase()).includes(
+      String(ev.source_name || "").toLowerCase()
+    )
+  );
+
+  const baseConfidence =
+    typeof parsed.confidence_score === "number"
+      ? parsed.confidence_score
+      : 0.75;
+
+  const confidence_score = hasApprovedEvidence
+    ? Math.max(baseConfidence, 0.85)
+    : baseConfidence;
 
   return {
     display_name: version
@@ -234,14 +254,12 @@ function postProcess(candidate, parsed) {
     cushioning,
     upper: parsed.upper ? String(parsed.upper).trim() : null,
     notes: truncateNotes(parsed.notes),
-    confidence_score:
-      typeof parsed.confidence_score === "number"
-        ? parsed.confidence_score
-        : 0.75,
+    confidence_score,
     review_status: "unreviewed",
-    evidence: dedupeEvidence(parsed.evidence),
+    evidence: evidenceList,
   };
 }
+
 function buildResearchPrompt({ candidate, snippets }) {
   return `
 You are an expert running shoe researcher building a structured database record.
@@ -316,4 +334,45 @@ Return valid JSON only with this exact shape and field names (no extra fields, n
   ]
 }
 `.trim();
+}
+
+export async function extractStructuredShoeData(aiClient, { candidate, snippets }) {
+  const prompt = buildResearchPrompt({ candidate, snippets });
+
+  const response = await aiClient.chat.completions.create({
+    model: "sonar",
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are a precise data extraction system. Use any manufacturer snippets if present, then rely on ONLY the approved sources listed in the user message. Fill all fields that are clearly supported; return null only when data truly is unavailable. Always return valid JSON.",
+      },
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+  });
+
+  const text = response.choices?.[0]?.message?.content || "";
+  const parsed = parseJsonLoose(text);
+
+  console.log(
+    "EXTRACTED_RAW",
+    JSON.stringify(
+      {
+        candidate: {
+          brand: candidate.brand,
+          model: candidate.model,
+          gender: candidate.gender,
+        },
+        parsed,
+      },
+      null,
+      2
+    )
+  );
+
+  return postProcess(candidate, parsed);
 }
