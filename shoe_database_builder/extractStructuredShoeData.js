@@ -249,14 +249,13 @@ You are an expert running shoe researcher building a structured database record.
 Your job is to research this shoe on the web and return a single JSON object.
 
 Research rules:
-- Start with the official manufacturer page first.
-- After that, use ONLY these approved sources when needed to fill missing fields:
-  ${APPROVED_SOURCES.map((s, i) => `${i + 1}. ${s}`).join("\n  ")}
+- If an official manufacturer page is available in the snippets, use it first for identity, style code, MSRP, upper, foam, and any explicitly stated specs.
+- If no manufacturer page is available or accessible, you MUST still continue using ONLY these approved sources to fill as many fields as possible:
+  ${APPROVED_SOURCES.map((s, i) => `${i + 1}. ${s}`).join("\\n  ")}
 - Do not use unapproved sources.
-- Do not guess.
-- Prefer null over uncertainty.
-- If a field is found on the manufacturer site, prefer that value.
-- Use approved review/lab/retailer sources only to fill fields missing from the manufacturer source.
+- Do not guess; prefer null over speculation.
+- However, DO fill fields that are clearly supported by one or more approved sources, even when the manufacturer page is missing.
+- Manufacturer overrides identity + MSRP when present. Approved review/lab sources override retailer for performance specs (stack, weight, cushioning, use, ride).
 - Include evidence rows for every non-trivial populated field.
 - Evidence must name the source and include the URL when available.
 
@@ -272,49 +271,7 @@ Local snippets:
 ${JSON.stringify(snippets || [], null, 2)}
 
 Return valid JSON only with this exact shape:
-{
-  "display_name": string,
-  "brand": string,
-  "model": string,
-  "version": string|null,
-  "gender": string,
-  "manufacturer_model_id": string|null,
-  "aliases": string[],
-  "release_year": number|null,
-  "msrp_usd": number|null,
-  "weight_oz": number|null,
-  "weight_value": number|null,
-  "weight_unit": string|null,
-  "weight_found_size": number|null,
-  "weight_found_size_system": string|null,
-  "heel_stack_mm": number|null,
-  "forefoot_stack_mm": number|null,
-  "offset_mm": number|null,
-  "surface": string,
-  "support": string,
-  "best_use": string[],
-  "plated": boolean|null,
-  "plate_type": string,
-  "foam": string|null,
-  "manufacturer_cushioning_label": string|null,
-  "cushioning": string,
-  "upper": string|null,
-  "notes": string|null,
-  "confidence_score": number,
-  "evidence": [
-    {
-      "field_name": string,
-      "raw_value": string|null,
-      "normalized_value": any,
-      "source_type": "brand"|"review"|"lab"|"retailer"|"ai"|"other",
-      "source_name": string,
-      "source_url": string|null,
-      "confidence_score": number,
-      "is_selected": boolean,
-      "notes": string|null
-    }
-  ]
-}
+...
 `.trim();
 }
 
