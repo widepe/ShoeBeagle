@@ -1,3 +1,4 @@
+import { verifyShoeIdentity } from "./verifyShoeIdentity.js";
 import { searchRunRepeat } from "./sources/searchRunRepeat.js";
 import { fetchPageText } from "./fetchPageText.js";
 import { extractStructuredShoeData } from "./extractStructuredShoeData.js";
