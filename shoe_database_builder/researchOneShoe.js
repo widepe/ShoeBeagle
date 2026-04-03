@@ -173,16 +173,20 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
   extracted.evidence = mergeSeedEvidence(extracted, seedEvidence);
 
   if (!hasRealEnrichmentEvidence(extracted.evidence)) {
-    const error = new Error(
-      `Extraction returned no enrichment evidence for ${extracted.brand} ${extracted.model} ${extracted.version || ""}`.trim()
+    console.warn(
+      "NO ENRICHMENT EVIDENCE",
+      JSON.stringify(
+        {
+          brand: extracted.brand,
+          model: extracted.model,
+          version: extracted.version,
+          gender: extracted.gender,
+          listingUrl: candidate.sample_listing_url || null,
+        },
+        null,
+        2
+      )
     );
-    error.stage = "extract_structured_data";
-    error.brand = candidate.brand;
-    error.model = candidate.model;
-    error.gender = candidate.gender;
-    error.store = candidate.sample_store || null;
-    error.listingUrl = candidate.sample_listing_url || null;
-    throw error;
   }
 
   const client = await db.connect();
