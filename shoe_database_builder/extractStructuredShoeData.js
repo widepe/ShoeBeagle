@@ -270,48 +270,50 @@ ${JSON.stringify(candidate, null, 2)}
 Local snippets:
 ${JSON.stringify(snippets || [], null, 2)}
 
-Return valid JSON only with this exact shape:
-...
-`.trim();
+Return valid JSON only with this exact shape and field names (no extra fields, no different names):
+
+{
+  "display_name": string,
+  "brand": string,
+  "model": string,
+  "version": string|null,
+  "gender": string,
+  "manufacturer_model_id": string|null,
+  "aliases": string[],
+  "release_year": number|null,
+  "msrp_usd": number|null,
+  "weight_oz": number|null,
+  "weight_value": number|null,
+  "weight_unit": string|null,
+  "weight_found_size": number|null,
+  "weight_found_size_system": string|null,
+  "heel_stack_mm": number|null,
+  "forefoot_stack_mm": number|null,
+  "offset_mm": number|null,
+  "surface": string,
+  "support": string,
+  "best_use": string[],
+  "plated": boolean|null,
+  "plate_type": string,
+  "foam": string|null,
+  "manufacturer_cushioning_label": string|null,
+  "cushioning": string,
+  "upper": string|null,
+  "notes": string|null,
+  "confidence_score": number,
+  "evidence": [
+    {
+      "field_name": string,
+      "raw_value": string|null,
+      "normalized_value": any,
+      "source_type": "brand"|"review"|"lab"|"retailer"|"ai"|"other",
+      "source_name": string,
+      "source_url": string|null,
+      "confidence_score": number,
+      "is_selected": boolean,
+      "notes": string|null
+    }
+  ]
 }
-
-export async function extractStructuredShoeData(aiClient, { candidate, snippets }) {
-  const prompt = buildResearchPrompt({ candidate, snippets });
-
-  const response = await aiClient.chat.completions.create({
-    model: "sonar",
-    temperature: 0,
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a precise data extraction system. Use any manufacturer snippets if present, then rely on ONLY the approved sources listed in the user message. Fill all fields that are clearly supported; return null only when data truly is unavailable. Always return valid JSON.",
-      },
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
-  });
-
-  const text = response.choices?.[0]?.message?.content || "";
-  const parsed = parseJsonLoose(text);
-
-  console.log(
-    "EXTRACTED_RAW",
-    JSON.stringify(
-      {
-        candidate: {
-          brand: candidate.brand,
-          model: candidate.model,
-          gender: candidate.gender,
-        },
-        parsed,
-      },
-      null,
-      2
-    )
-  );
-
-  return postProcess(candidate, parsed);
+`.trim();
 }
