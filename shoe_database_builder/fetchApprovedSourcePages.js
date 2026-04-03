@@ -8,6 +8,7 @@ function isUsablePage(page) {
 export async function fetchApprovedSourcePages(candidate) {
   const candidates = getApprovedSourceCandidates(candidate);
   const pages = [];
+  const seenUrls = new Set();
 
   for (const source of candidates) {
     try {
@@ -23,9 +24,18 @@ export async function fetchApprovedSourcePages(candidate) {
         continue;
       }
 
+      const finalUrl = result.url || source.source_url;
+      const dedupeKey = String(finalUrl).toLowerCase();
+
+      if (seenUrls.has(dedupeKey)) {
+        continue;
+      }
+
+      seenUrls.add(dedupeKey);
+
       pages.push({
         ok: true,
-        url: result.url || source.source_url,
+        url: finalUrl,
         title: result.title || null,
         text: result.text,
         source_name: source.source_name,
@@ -35,7 +45,7 @@ export async function fetchApprovedSourcePages(candidate) {
 
       console.log("SOURCE_FETCH_OK", {
         source_name: source.source_name,
-        source_url: result.url || source.source_url,
+        source_url: finalUrl,
         text_length: result.text.length,
       });
     } catch (error) {
