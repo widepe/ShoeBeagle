@@ -94,30 +94,30 @@ function mergeSeedEvidence(extracted, seedEvidence) {
   return [...seedEvidence, ...existing];
 }
 
-export async function researchOneShoe({ db, openai, candidate }) {
+export async function researchOneShoe({ db, aiClient, candidate }) {
   const pageResult = await fetchPageText(candidate.sample_listing_url);
 
-  const verified = await verifyShoeIdentity(openai, {
+  const verified = await verifyShoeIdentity(aiClient, {
     candidate,
     pageResult,
   });
 
-if (!verified.verified) {
-  const error = new Error(
-    verified.mismatch_reason ||
-      `Listing page identity could not be verified for ${candidate.brand} ${candidate.model} (${candidate.gender})`
-  );
+  if (!verified.verified) {
+    const error = new Error(
+      verified.mismatch_reason ||
+        `Listing page identity could not be verified for ${candidate.brand} ${candidate.model} (${candidate.gender})`
+    );
 
-  error.stage = "verify_identity";
-  error.brand = candidate.brand;
-  error.model = candidate.model;
-  error.gender = candidate.gender;
-  error.store = candidate.sample_store || null;
-  error.listingUrl = candidate.sample_listing_url || null;
-  error.verification = verified;
+    error.stage = "verify_identity";
+    error.brand = candidate.brand;
+    error.model = candidate.model;
+    error.gender = candidate.gender;
+    error.store = candidate.sample_store || null;
+    error.listingUrl = candidate.sample_listing_url || null;
+    error.verification = verified;
 
-  throw error;
-}
+    throw error;
+  }
 
   const verifiedCandidate = {
     ...candidate,
@@ -131,7 +131,7 @@ if (!verified.verified) {
 
   const snippets = buildSnippets(verifiedCandidate, pageResult);
 
-  let extracted = await extractStructuredShoeData(openai, {
+  let extracted = await extractStructuredShoeData(aiClient, {
     candidate: verifiedCandidate,
     snippets,
   });
@@ -148,14 +148,16 @@ if (!verified.verified) {
     extracted.display_name ||
     toDisplayName({
       brand: extracted.brand,
-      model:
-        extracted.version
-          ? `${extracted.model}${/^v/i.test(extracted.version) ? extracted.version : ` ${extracted.version}`}`
-          : extracted.model,
+      model: extracted.version
+        ? `${extracted.model}${/^v/i.test(extracted.version) ? extracted.version : ` ${extracted.version}`}`
+        : extracted.model,
       gender: extracted.gender,
     }).replace(/\s+\((mens|womens|unisex|unknown)\)$/i, "");
 
-  extracted.evidence = mergeSeedEvidence(extracted, buildSeedEvidence(verifiedCandidate));
+  extracted.evidence = mergeSeedEvidence(
+    extracted,
+    buildSeedEvidence(verifiedCandidate)
+  );
 
   const client = await db.connect();
 
