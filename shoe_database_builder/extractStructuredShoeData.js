@@ -283,22 +283,21 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
     temperature: 0,
     messages: [
       {
-  {
-  role: "system",
-  content:
-    "You are a precise data extraction system. Use any manufacturer snippets if present, then rely on ONLY the approved sources listed in the user message. Fill all fields that are clearly supported; return null only when data truly is unavailable. Always return valid JSON.",
-},
+        role: "system",
+        content:
+          "You are a precise data extraction system. Use any manufacturer snippets if present, then rely on ONLY the approved sources listed in the user message. Fill all fields that are clearly supported; return null only when data truly is unavailable. Always return valid JSON.",
+      },
       {
         role: "user",
         content: prompt,
       },
     ],
-
   });
 
   const text = response.choices?.[0]?.message?.content || "";
   const parsed = parseJsonLoose(text);
-    console.log(
+
+  console.log(
     "EXTRACTED_RAW",
     JSON.stringify(
       {
@@ -313,5 +312,6 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
       2
     )
   );
+
   return postProcess(candidate, parsed);
 }
