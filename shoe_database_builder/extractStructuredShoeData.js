@@ -273,6 +273,7 @@ Continue moving down the list until:
 
 CUSHIONING OVERRIDE RULE
 - If the manufacturer explicitly provides a cushioning label or cushion variable, you MUST use it.
+- If the manufacturer explicitly provides a cushioning label, you must return that mapped value even if review sources describe the ride differently.
 - Do NOT override manufacturer cushioning with review language.
 - If men's and women's manufacturer pages use the same cushioning description, assign the same cushioning value unless the manufacturer explicitly states a difference.
 
@@ -288,16 +289,6 @@ Manufacturer cushioning mapping:
 - If the manufacturer does not explicitly provide cushioning language, then prefer agreement across strong approved sources.
 - If disagreement exists, choose the most consistent value.
 - Lower confidence_score when disagreement exists.
-
-Manufacturer cushioning mapping:
-- "Balanced" => moderate
-- "Soft" => mod/high
-- "Plush" => high
-- "Max" => high
-- "Firm" => low/mod or low depending on wording
-- "Minimal" => minimal- Otherwise prefer agreement across strong approved sources
-- If disagreement exists, choose the most consistent value
-- Lower confidence_score when disagreement exists
 
 4. Strict rules
 - Do NOT guess
