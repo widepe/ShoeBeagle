@@ -217,15 +217,13 @@ const snippets = buildSnippets(verifiedCandidate, pageResult, approvedPages);
 
     await insertEvidenceRows(client, shoeId, extracted.evidence);
 
-    await attachDealsToShoe(client, {
-      shoeId,
-      brand: extracted.brand,
-      model: extracted.version
-        ? `${extracted.model}${/^v/i.test(extracted.version) ? extracted.version : ` ${extracted.version}`}`
-        : extracted.model,
-      version: extracted.version,
-      gender: extracted.gender,
-    });
+await attachDealsToShoe(client, {
+  shoeId,
+  brand: extracted.brand,
+  model: extracted.model,
+  version: extracted.version,
+  gender: extracted.gender,
+});
 
     await client.query("commit");
 
