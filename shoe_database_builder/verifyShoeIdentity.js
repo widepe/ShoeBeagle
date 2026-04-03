@@ -16,7 +16,7 @@ function parseJsonLoose(text) {
 
 export async function verifyShoeIdentity(openai, { candidate, pageResult }) {
   const prompt = `
-You are verifying the identity of a running shoe from its actual retailer sales/listing page before broader research begins.
+You are verifying the identity of a running shoe from its retailer sales page before any broader research begins.
 
 Use ONLY:
 - the seed candidate data
@@ -36,9 +36,24 @@ Examples:
 - "1080v14" => model: "1080", version: "v14"
 - "Kinvara" => model: "Kinvara", version: null
 
-3. Use the listing page as the source of truth for identity if it is clear.
-4. If the listing page does NOT clearly support the shoe identity, mark verified=false.
-5. Do NOT do broad research here. This is identity verification only.
+3. The retailer listing page is the source of truth for identity if clear.
+
+4. verified=true ONLY if the listing page clearly supports the shoe identity.
+5. verified=false if:
+- the page is unclear
+- the page appears to be a different shoe
+- gender conflicts materially
+- version conflicts materially
+- brand/model cannot be confirmed
+
+6. Compare against the seed candidate:
+- candidate.brand
+- candidate.model (this often already includes version)
+- candidate.gender
+
+7. If verified=false, explain exactly why in mismatch_reason.
+
+Return valid JSON only.
 
 Seed candidate:
 ${JSON.stringify(candidate, null, 2)}
@@ -50,8 +65,6 @@ ${JSON.stringify({
   text: pageResult?.text || null,
 }, null, 2)}
 
-Return valid JSON only.
-
 Required JSON shape:
 {
   "verified": boolean,
@@ -60,7 +73,8 @@ Required JSON shape:
   "version": string|null,
   "gender": string|null,
   "display_name": string|null,
-  "verification_notes": string|null
+  "verification_notes": string|null,
+  "mismatch_reason": string|null
 }
 `.trim();
 
@@ -85,6 +99,9 @@ Required JSON shape:
     display_name: parsed.display_name ? String(parsed.display_name).trim() : null,
     verification_notes: parsed.verification_notes
       ? String(parsed.verification_notes).trim()
+      : null,
+    mismatch_reason: parsed.mismatch_reason
+      ? String(parsed.mismatch_reason).trim()
       : null,
   };
 }
