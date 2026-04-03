@@ -1,13 +1,11 @@
 import { fetchApprovedSourcePages } from "./fetchApprovedSourcePages.js";
-import { fetchPageText } from "./fetchPageText.js";
 import { extractStructuredShoeData } from "./extractStructuredShoeData.js";
 import { insertShoeRecord } from "./insertShoeRecord.js";
 import { insertEvidenceRows } from "./insertEvidenceRows.js";
 import { attachDealsToShoe } from "./attachDealsToShoe.js";
-import { verifyShoeIdentity } from "./verifyShoeIdentity.js";
 import { toDisplayName, splitModelAndVersion } from "./normalize.js";
 
-function buildSnippets(candidate, _pageResult, extraPages = []) {
+function buildSnippets(extraPages = []) {
   const snippets = [];
 
   for (const page of extraPages) {
@@ -25,58 +23,33 @@ function buildSnippets(candidate, _pageResult, extraPages = []) {
 }
 
 export async function researchOneShoe({ db, aiClient, candidate }) {
-  const pageResult = await fetchPageText(candidate.sample_listing_url);
+  const split = splitModelAndVersion(candidate.model, candidate.brand);
 
-  const verified = await verifyShoeIdentity(aiClient, {
-    candidate,
-    pageResult,
-  });
-
-  if (!verified.verified) {
-    const error = new Error(
-      verified.mismatch_reason ||
-        `Listing page identity could not be verified for ${candidate.brand} ${candidate.model} (${candidate.gender})`
-    );
-
-    error.stage = "verify_identity";
-    error.brand = candidate.brand;
-    error.model = candidate.model;
-    error.gender = candidate.gender;
-    error.store = candidate.sample_store || null;
-    error.listingUrl = candidate.sample_listing_url || null;
-    error.verification = verified;
-    throw error;
-  }
-
-  const baseBrand = verified.brand || candidate.brand;
-  const baseName = verified.display_name || candidate.model;
-  const split = splitModelAndVersion(baseName, baseBrand);
-
-  const verifiedCandidate = {
+  const researchCandidate = {
     ...candidate,
-    brand: baseBrand,
+    brand: candidate.brand,
     model: split.raw_model_text,
     raw_model_text: split.raw_model_text,
-    verified_model: verified.model || split.model,
-    verified_version: verified.version || split.version,
-    gender: verified.gender || candidate.gender,
+    verified_model: split.model,
+    verified_version: split.version,
+    gender: candidate.gender,
   };
 
-  const approvedPages = await fetchApprovedSourcePages(verifiedCandidate);
-  const snippets = buildSnippets(verifiedCandidate, null, approvedPages);
+  const approvedPages = await fetchApprovedSourcePages(researchCandidate);
+  const snippets = buildSnippets(approvedPages);
 
   let extracted = await extractStructuredShoeData(aiClient, {
-    candidate: verifiedCandidate,
+    candidate: researchCandidate,
     snippets,
   });
 
-  extracted.brand = extracted.brand || verified.brand || candidate.brand;
-  extracted.model = extracted.model || verified.model || candidate.model;
+  extracted.brand = extracted.brand || researchCandidate.brand;
+  extracted.model = extracted.model || researchCandidate.verified_model || researchCandidate.model;
   extracted.version =
     extracted.version !== undefined && extracted.version !== null
       ? extracted.version
-      : verified.version || null;
-  extracted.gender = extracted.gender || verified.gender || candidate.gender;
+      : researchCandidate.verified_version || null;
+  extracted.gender = extracted.gender || researchCandidate.gender;
 
   extracted.display_name =
     extracted.display_name ||
@@ -110,8 +83,7 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
     return {
       shoeId,
       extracted,
-      pageResult,
-      verified,
+      approvedPages,
     };
   } catch (error) {
     await client.query("rollback");
