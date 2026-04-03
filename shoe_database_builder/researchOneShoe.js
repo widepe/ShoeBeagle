@@ -102,11 +102,22 @@ export async function researchOneShoe({ db, openai, candidate }) {
     pageResult,
   });
 
-  if (!verified.verified) {
-    throw new Error(
+if (!verified.verified) {
+  const error = new Error(
+    verified.mismatch_reason ||
       `Listing page identity could not be verified for ${candidate.brand} ${candidate.model} (${candidate.gender})`
-    );
-  }
+  );
+
+  error.stage = "verify_identity";
+  error.brand = candidate.brand;
+  error.model = candidate.model;
+  error.gender = candidate.gender;
+  error.store = candidate.sample_store || null;
+  error.listingUrl = candidate.sample_listing_url || null;
+  error.verification = verified;
+
+  throw error;
+}
 
   const verifiedCandidate = {
     ...candidate,
