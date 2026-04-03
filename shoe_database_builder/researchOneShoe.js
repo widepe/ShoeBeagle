@@ -7,57 +7,6 @@ import { attachDealsToShoe } from "./attachDealsToShoe.js";
 import { verifyShoeIdentity } from "./verifyShoeIdentity.js";
 import { normalizeGender, normalizeSurface, toDisplayName, splitModelAndVersion } from "./normalize.js";
 
-function buildSeedEvidence(candidate) {
-  const sourceName = candidate.sample_store || "Shoe Beagle Deal Row";
-  const sourceUrl = candidate.sample_listing_url || null;
-
-  return [
-    {
-      field_name: "brand",
-      raw_value: candidate.brand,
-      normalized_value: candidate.brand,
-      source_type: "retailer",
-      source_name: sourceName,
-      source_url: sourceUrl,
-      confidence_score: 0.95,
-      is_selected: true,
-      notes: "Seeded from sb_shoe_deals candidate row",
-    },
-    {
-      field_name: "model",
-      raw_value: candidate.model,
-      normalized_value: candidate.model,
-      source_type: "retailer",
-      source_name: sourceName,
-      source_url: sourceUrl,
-      confidence_score: 0.95,
-      is_selected: true,
-      notes: "Seeded from sb_shoe_deals candidate row",
-    },
-    {
-      field_name: "gender",
-      raw_value: candidate.gender,
-      normalized_value: normalizeGender(candidate.gender),
-      source_type: "retailer",
-      source_name: sourceName,
-      source_url: sourceUrl,
-      confidence_score: 0.9,
-      is_selected: true,
-      notes: "Seeded from sb_shoe_deals candidate row",
-    },
-    {
-      field_name: "surface",
-      raw_value: candidate.surface,
-      normalized_value: normalizeSurface(candidate.surface),
-      source_type: "retailer",
-      source_name: sourceName,
-      source_url: sourceUrl,
-      confidence_score: 0.75,
-      is_selected: true,
-      notes: "Seeded from sb_shoe_deals candidate row",
-    },
-  ];
-}
 
 function buildSnippets(candidate, pageResult, extraPages = []) {
   const snippets = [];
