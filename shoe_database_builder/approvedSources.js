@@ -1,194 +1,117 @@
+const APPROVED_SOURCE_ORDER = [
+  "RunRepeat",
+  "Running Warehouse",
+  "RoadTrailRun",
+  "Doctors of Running",
+  "Running Shoes Guru",
+  "OutdoorGearLab",
+  "RTINGS",
+  "Road Runner Sports",
+  "Believe in the Run",
+  "Sole Review",
+  "Runner's World",
+  "The Running Clinic",
+];
+
 function slugify(value) {
   return String(value || "")
     .toLowerCase()
+    .normalize("NFKD")
+    .replace(/['’]/g, "")
     .replace(/&/g, " and ")
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/^-+|-+$/g, "")
+    .replace(/-+/g, "-");
 }
 
 function compact(parts) {
   return parts.map((x) => String(x || "").trim()).filter(Boolean);
 }
 
-function normalizeBrandDomainPart(brand) {
-  return String(brand || "")
+function normalizeSourceKey(name) {
+  return String(name || "")
     .toLowerCase()
     .replace(/&/g, "and")
-    .replace(/[^a-z0-9]/g, "");
+    .replace(/[^a-z0-9]+/g, "");
 }
 
-function buildNames(candidate) {
+function buildIdentity(candidate) {
   const brand = String(candidate?.brand || "").trim();
   const model = String(candidate?.verified_model || candidate?.model || "").trim();
   const version = String(candidate?.verified_version || "").trim();
   const gender = String(candidate?.gender || "").trim().toLowerCase();
 
+  const modelWithVersion = compact([model, version]).join(" ").trim();
   const fullName = compact([brand, model, version]).join(" ").trim();
-  const fullSlug = slugify(fullName);
-  const modelSlug = slugify(compact([model, version]).join(" "));
-  const brandDomain = normalizeBrandDomainPart(brand);
-
-  const genderSlug =
-    gender === "mens" ? "mens" :
-    gender === "womens" ? "womens" :
-    gender === "unisex" ? "unisex" :
-    "";
 
   return {
     brand,
     model,
     version,
     gender,
+    modelWithVersion,
     fullName,
-    fullSlug,
-    modelSlug,
-    brandDomain,
-    genderSlug,
+    fullSlug: slugify(fullName),
+    modelSlug: slugify(modelWithVersion),
   };
 }
 
-function manufacturerCandidates(info) {
-  const { brand, fullName, modelSlug, brandDomain, genderSlug } = info;
-
-  if (!brandDomain || !fullName) return [];
-
-  const list = [
-    {
-      source_name: brand,
-      source_type: "brand",
-      source_url: `https://www.${brandDomain}.com/search?q=${encodeURIComponent(fullName)}`,
-      priority: 1,
+function buildManufacturerTarget(identity) {
+  return {
+    source_name: identity.brand || "Manufacturer",
+    source_type: "brand",
+    source_url: null,
+    priority: 1,
+    discovery_queries: [
+      compact([identity.brand, identity.model, identity.version, "running shoe"]).join(" "),
+      compact([identity.brand, identity.model, identity.version, "official"]).join(" "),
+      compact([identity.brand, identity.model, identity.version, "manufacturer"]).join(" "),
+    ].filter(Boolean),
+    candidate_hints: {
+      brand: identity.brand,
+      model: identity.model,
+      version: identity.version,
+      gender: identity.gender,
+      full_name: identity.fullName,
+      full_slug: identity.fullSlug,
+      model_slug: identity.modelSlug,
     },
-    {
-      source_name: brand,
-      source_type: "brand",
-      source_url: `https://www.${brandDomain}.com/search?query=${encodeURIComponent(fullName)}`,
-      priority: 2,
-    },
-    {
-      source_name: brand,
-      source_type: "brand",
-      source_url: `https://www.${brandDomain}.com/search?keyword=${encodeURIComponent(fullName)}`,
-      priority: 3,
-    },
-    {
-      source_name: brand,
-      source_type: "brand",
-      source_url: `https://www.${brandDomain}.com/?s=${encodeURIComponent(fullName)}`,
-      priority: 4,
-    },
-  ];
-
-  if (modelSlug) {
-    list.push({
-      source_name: brand,
-      source_type: "brand",
-      source_url: `https://www.${brandDomain}.com/${modelSlug}/`,
-      priority: 5,
-    });
-  }
-
-  if (genderSlug && modelSlug) {
-    list.push(
-      {
-        source_name: brand,
-        source_type: "brand",
-        source_url: `https://www.${brandDomain}.com/${genderSlug}/${modelSlug}/`,
-        priority: 6,
-      },
-      {
-        source_name: brand,
-        source_type: "brand",
-        source_url: `https://www.${brandDomain}.com/${genderSlug}/shoes/${modelSlug}/`,
-        priority: 7,
-      }
-    );
-  }
-
-  return list;
+  };
 }
 
-function approvedReviewCandidates(info, startPriority = 20) {
-  const { fullSlug, fullName } = info;
-
-  if (!fullName) return [];
-
-  return [
-    {
-      source_name: "RunRepeat",
-      source_type: "review",
-      source_url: `https://runrepeat.com/${fullSlug}`,
-      priority: startPriority,
+function buildSourceTarget(sourceName, priority, identity) {
+  return {
+    source_name: sourceName,
+    source_type: "review",
+    source_url: null,
+    priority,
+    discovery_queries: [
+      compact([sourceName, identity.brand, identity.model, identity.version]).join(" "),
+      compact([sourceName, identity.fullName]).join(" "),
+      compact([sourceName, identity.brand, identity.model]).join(" "),
+    ].filter(Boolean),
+    candidate_hints: {
+      brand: identity.brand,
+      model: identity.model,
+      version: identity.version,
+      gender: identity.gender,
+      full_name: identity.fullName,
+      full_slug: identity.fullSlug,
+      model_slug: identity.modelSlug,
+      source_key: normalizeSourceKey(sourceName),
     },
-    {
-      source_name: "Doctors of Running",
-      source_type: "review",
-      source_url: `https://www.doctorsofrunning.com/search?q=${encodeURIComponent(fullName)}`,
-      priority: startPriority + 1,
-    },
-    {
-      source_name: "RoadTrailRun",
-      source_type: "review",
-      source_url: `https://www.roadtrailrun.com/search?q=${encodeURIComponent(fullName)}`,
-      priority: startPriority + 2,
-    },
-    {
-      source_name: "Believe in the Run",
-      source_type: "review",
-      source_url: `https://believeintherun.com/?s=${encodeURIComponent(fullName)}`,
-      priority: startPriority + 3,
-    },
-    {
-      source_name: "Running Shoes Guru",
-      source_type: "review",
-      source_url: `https://www.runningshoesguru.com/?s=${encodeURIComponent(fullName)}`,
-      priority: startPriority + 4,
-    },
-    {
-      source_name: "OutdoorGearLab",
-      source_type: "review",
-      source_url: `https://www.outdoorgearlab.com/search?ftr=${encodeURIComponent(fullName)}`,
-      priority: startPriority + 5,
-    },
-    {
-      source_name: "RTINGS",
-      source_type: "review",
-      source_url: `https://www.rtings.com/search?q=${encodeURIComponent(fullName)}`,
-      priority: startPriority + 6,
-    },
-    {
-      source_name: "The Running Clinic",
-      source_type: "review",
-      source_url: `https://www.therunningclinic.com/?s=${encodeURIComponent(fullName)}`,
-      priority: startPriority + 7,
-    },
-  ];
-}
-
-function dedupeSources(sources) {
-  const seen = new Set();
-  const out = [];
-
-  for (const item of sources) {
-    if (!item?.source_url) continue;
-
-    const key = `${item.source_name}|${item.source_url}`.toLowerCase();
-    if (seen.has(key)) continue;
-
-    seen.add(key);
-    out.push(item);
-  }
-
-  return out;
+  };
 }
 
 export function getApprovedSourceCandidates(candidate) {
-  const info = buildNames(candidate);
+  const identity = buildIdentity(candidate);
 
-  const sources = [
-    ...manufacturerCandidates(info),
-    ...approvedReviewCandidates(info, 20),
+  const targets = [
+    buildManufacturerTarget(identity),
+    ...APPROVED_SOURCE_ORDER.map((name, index) =>
+      buildSourceTarget(name, index + 2, identity)
+    ),
   ];
 
-  return dedupeSources(sources).sort((a, b) => a.priority - b.priority);
+  return targets.sort((a, b) => a.priority - b.priority);
 }
