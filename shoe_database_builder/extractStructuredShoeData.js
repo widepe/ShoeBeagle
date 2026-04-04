@@ -10,6 +10,10 @@ import {
 } from "./normalize.js";
 import { APPROVED_SOURCES } from "./approvedSources.js";
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function parseJsonLoose(text) {
   const raw = String(text || "").trim();
   if (!raw) throw new Error("Empty model response");
@@ -29,13 +33,10 @@ function parseJsonLoose(text) {
 function toOunces(weightValue, weightUnit) {
   const value = safeNumber(weightValue);
   const unit = String(weightUnit || "").trim().toLowerCase();
-
   if (value === null) return null;
   if (!unit) return null;
-
   if (["oz", "ounce", "ounces"].includes(unit)) return value;
   if (["g", "gram", "grams"].includes(unit)) return value / 28.3495;
-
   return null;
 }
 
@@ -43,71 +44,50 @@ function toUsSize(foundSize, sizeSystem, gender) {
   const size = safeNumber(foundSize);
   const system = String(sizeSystem || "").trim().toLowerCase();
   const g = normalizeGender(gender);
-
   if (size === null || !system) return null;
   if (system === "us") return size;
-
   if (g === "womens") {
     if (system === "uk") return size + 2;
     if (system === "eu") return size - 31;
     return null;
   }
-
   if (system === "uk") return size + 1;
   if (system === "eu") return size - 33;
-
   return null;
 }
 
-function convertWeightToTargetSize({
-  weightValue,
-  weightUnit,
-  foundSize,
-  foundSizeSystem,
-  gender,
-}) {
+function convertWeightToTargetSize({ weightValue, weightUnit, foundSize, foundSizeSystem, gender }) {
   const ounces = toOunces(weightValue, weightUnit);
   const usSize = toUsSize(foundSize, foundSizeSystem, gender);
   const g = normalizeGender(gender);
-
   if (ounces === null || usSize === null) return null;
-
   const targetSize = g === "womens" ? 7 : 9;
   const halfSizeSteps = (targetSize - usSize) * 2;
-  const corrected = ounces * Math.pow(1.026, halfSizeSteps);
-
-  return Number(corrected.toFixed(2));
+  return Number((ounces * Math.pow(1.026, halfSizeSteps)).toFixed(2));
 }
 
 function mapManufacturerCushioning(label) {
   const s = String(label || "").trim().toLowerCase();
   if (!s) return null;
-
   if (s === "balanced") return "moderate";
   if (s === "soft") return "mod/high";
   if (s === "plush" || s === "max") return "high";
   if (s === "firm but cushioned") return "low/mod";
   if (s === "firm") return "low";
   if (s === "minimal") return "minimal";
-
   return null;
 }
 
 function truncateNotes(value) {
   if (!value) return null;
-
   const words = String(value).trim().split(/\s+/).filter(Boolean).slice(0, 40);
-  const text = words.join(" ").trim();
-
-  return text || null;
+  return words.join(" ").trim() || null;
 }
 
 function normalizeEvidence(ev) {
   if (!ev) return null;
-
   const field_name = ev.field_name || ev.field;
   if (!field_name) return null;
-
   return {
     field_name: String(field_name).trim(),
     raw_value: ev.raw_value ?? ev.value ?? null,
@@ -115,8 +95,7 @@ function normalizeEvidence(ev) {
     source_type: ev.source_type ?? "other",
     source_name: ev.source_name ?? ev.source ?? "Unknown Source",
     source_url: ev.source_url ?? ev.url ?? null,
-    confidence_score:
-      typeof ev.confidence_score === "number" ? ev.confidence_score : 0.7,
+    confidence_score: typeof ev.confidence_score === "number" ? ev.confidence_score : 0.7,
     is_selected: ev.is_selected === true || ev.is_selected === undefined,
     notes: ev.notes ?? null,
   };
@@ -125,11 +104,9 @@ function normalizeEvidence(ev) {
 function dedupeEvidence(evidence) {
   const seen = new Set();
   const out = [];
-
   for (const ev of Array.isArray(evidence) ? evidence : []) {
     const n = normalizeEvidence(ev);
     if (!n) continue;
-
     const key = [
       n.field_name,
       String(n.source_name || "").toLowerCase(),
@@ -137,166 +114,46 @@ function dedupeEvidence(evidence) {
       JSON.stringify(n.normalized_value),
       String(n.raw_value || ""),
     ].join("|");
-
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(n);
   }
-
   return out;
 }
 
-function postProcess(candidate, parsed) {
-  const brand = String(parsed.brand || candidate.brand || "").trim();
+// ---------------------------------------------------------------------------
+// Manufacturer domain discovery
+// ---------------------------------------------------------------------------
 
-  const fallbackModel =
-    candidate.verified_model ||
-    candidate.model ||
-    "";
+// Derives candidate domains from the brand name without hardcoding.
+// e.g. "Brooks" → ["brooksrunning.com", "brooks.com"]
+// e.g. "New Balance" → ["newbalance.com", "new-balance.com"]
+function candidateManufacturerDomains(brand) {
+  const raw = String(brand || "").trim().toLowerCase();
+  if (!raw) return [];
 
-  const fallbackVersion = candidate.verified_version || null;
+  // Remove spaces/hyphens to get a compact token (e.g. "newbalance")
+  const compact = raw.replace(/[\s\-]+/g, "");
+  // Hyphenated version (e.g. "new-balance")
+  const hyphenated = raw.replace(/\s+/g, "-").replace(/-+/g, "-");
 
-  const model = String(parsed.model || fallbackModel || "").trim();
+  const candidates = new Set();
 
-  const version =
-    parsed.version !== undefined &&
-    parsed.version !== null &&
-    String(parsed.version).trim() !== ""
-      ? String(parsed.version).trim()
-      : fallbackVersion;
+  // Common patterns: brand + running, brand alone, hyphenated brand
+  candidates.add(`${compact}running.com`);
+  candidates.add(`${compact}.com`);
+  if (hyphenated !== compact) {
+    candidates.add(`${hyphenated}.com`);
+  }
 
-  const gender = normalizeGender(parsed.gender || candidate.gender);
-  const surface = normalizeSurface(parsed.surface || candidate.surface);
-  const support = normalizeSupport(parsed.support);
-
-  const cushioning =
-    mapManufacturerCushioning(parsed.manufacturer_cushioning_label) ||
-    normalizeCushioning(parsed.cushioning);
-
-  const plated =
-    parsed.plated === true ? true : parsed.plated === false ? false : null;
-
-  const plateType = normalizePlateType(parsed.plate_type, plated);
-
-  const bestUseRaw = Array.isArray(parsed.best_use)
-    ? parsed.best_use
-    : typeof parsed.best_use === "string"
-      ? parsed.best_use
-          .replace(/[{}"]/g, "")
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [];
-
-  const convertedWeight = convertWeightToTargetSize({
-    weightValue: parsed.weight_value,
-    weightUnit: parsed.weight_unit,
-    foundSize: parsed.weight_found_size,
-    foundSizeSystem: parsed.weight_found_size_system,
-    gender,
-  });
-
-  const evidenceList = dedupeEvidence(parsed.evidence);
-
-  const approvedLower = APPROVED_SOURCES.map((s) => s.toLowerCase());
-  const hasApprovedEvidence = evidenceList.some(
-    (ev) =>
-      approvedLower.includes(String(ev.source_name || "").toLowerCase()) ||
-      String(ev.source_type || "").toLowerCase() === "brand"
-  );
-
-  const baseConfidence =
-    typeof parsed.confidence_score === "number"
-      ? parsed.confidence_score
-      : 0.75;
-
-  const confidence_score = hasApprovedEvidence
-    ? Math.max(baseConfidence, 0.85)
-    : baseConfidence;
-
-  return {
-    display_name: version
-      ? `${brand} ${model}${/^v/i.test(version) ? version : ` ${version}`}`
-      : `${brand} ${model}`,
-    brand,
-    model,
-    version,
-    gender,
-    manufacturer_model_id: parsed.manufacturer_model_id
-      ? String(parsed.manufacturer_model_id).trim()
-      : null,
-    aliases: cleanAliases(parsed.aliases),
-    release_year: Number.isInteger(parsed.release_year)
-      ? parsed.release_year
-      : null,
-    msrp_usd: safeNumber(parsed.msrp_usd),
-    weight_oz: convertedWeight ?? safeNumber(parsed.weight_oz),
-    heel_stack_mm: safeNumber(parsed.heel_stack_mm),
-    forefoot_stack_mm: safeNumber(parsed.forefoot_stack_mm),
-    offset_mm: safeNumber(parsed.offset_mm),
-    surface,
-    support,
-    best_use: normalizeBestUse(bestUseRaw),
-    plated,
-    plate_type: plateType,
-    foam: parsed.foam ? String(parsed.foam).trim() : null,
-    cushioning,
-    upper: parsed.upper ? String(parsed.upper).trim() : null,
-    notes: truncateNotes(parsed.notes),
-    confidence_score,
-    review_status: "unreviewed",
-    evidence: evidenceList,
-  };
+  return [...candidates];
 }
 
-function hasManufacturerSnippet(snippets) {
-  return Array.isArray(snippets) &&
-    snippets.some((s) => String(s?.source_type || "").toLowerCase() === "brand");
-}
+// ---------------------------------------------------------------------------
+// Prompt builders
+// ---------------------------------------------------------------------------
 
-function buildResearchPrompt({ candidate, snippets }) {
-  const manufacturerPresent = hasManufacturerSnippet(snippets);
-
-  const manufacturerInstruction = manufacturerPresent
-    ? `A manufacturer snippet has been provided. Extract manufacturer data from it first before using any other source.`
-    : `No manufacturer snippet was provided in the local snippets. You MUST search the web for the official ${candidate.brand} product page for the ${candidate.brand} ${candidate.verified_model || candidate.model}${candidate.verified_version ? " " + candidate.verified_version : ""} and extract specs from it. This is your highest-priority task. Do not skip it.`;
-
-  return `
-You are an expert running shoe researcher building a structured database record.
-
-Your job is to return a single JSON object with accurate technical specs for the shoe described below.
-
-SOURCE PRIORITY RULES — follow strictly:
-1. MANUFACTURER (highest priority): The official brand website (e.g. brooksrunning.com for Brooks, saucony.com for Saucony, nike.com for Nike, etc.). ${manufacturerInstruction}
-2. After the manufacturer, use only these approved sources in order:
-   ${APPROVED_SOURCES.map((s, i) => `${i + 1}. ${s}`).join("\n   ")}
-3. Do NOT use retailer pages (Amazon, Running Warehouse, REI, Zappos, etc.) as sources for technical specs.
-4. Do not guess; prefer null over speculation.
-5. Fill as many fields as possible.
-6. Include evidence rows for every non-trivial populated field.
-7. Each evidence row must include the source name and the URL you found the data on.
-8. For the notes field, use manufacturer language first, paraphrased — never copy verbatim.
-9. notes must be 40 words or fewer and focus on positive attributes and special features.
-10. If there is not enough support for a useful note, return null for notes.
-
-WEIGHT RULES:
-- Always record the exact size and size system the weight was found at (weight_found_size + weight_found_size_system).
-- The pipeline will normalize the weight to a standard size automatically — do not pre-convert.
-- Prefer manufacturer weight data over review site weight data.
-
-IDENTITY RULES:
-- Canonicalize model and version cleanly.
-- Gender must be one of: mens, womens, unisex, unknown.
-
-Candidate:
-${JSON.stringify(candidate, null, 2)}
-
-Local snippets (pre-fetched pages — use these plus your own live web search):
-${JSON.stringify(snippets || [], null, 2)}
-
-Return valid JSON only — no commentary, no markdown — with this exact shape:
-
-{
+const JSON_SCHEMA = `{
   "display_name": string,
   "brand": string,
   "model": string,
@@ -338,74 +195,356 @@ Return valid JSON only — no commentary, no markdown — with this exact shape:
       "notes": string|null
     }
   ]
-}
-`.trim();
+}`;
+
+function buildManufacturerPrompt({ candidate }) {
+  const shoeName = [
+    candidate.brand,
+    candidate.verified_model || candidate.model,
+    candidate.verified_version || "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return `You are extracting running shoe specs from the official ${candidate.brand} manufacturer website.
+
+Search the official ${candidate.brand} website for the product page of the ${shoeName} (${candidate.gender}).
+
+Extract every available technical spec directly from the manufacturer page. Include:
+- weight (record exact size and size system it was listed at)
+- heel stack height (mm)
+- forefoot stack height (mm)
+- heel-to-toe drop / offset (mm)
+- foam / midsole material name
+- upper material description
+- support type (neutral, stability, motion control)
+- plate type if any
+- MSRP / price
+- manufacturer model ID / product code
+- release year
+- cushioning label as the manufacturer describes it (e.g. "balanced", "plush", "soft")
+- notes: 40-word max paraphrased synthesis of the shoe's positive attributes and special features from the manufacturer page
+
+Candidate identity:
+${JSON.stringify(
+  {
+    brand: candidate.brand,
+    model: candidate.verified_model || candidate.model,
+    version: candidate.verified_version || null,
+    gender: candidate.gender,
+  },
+  null,
+  2
+)}
+
+Rules:
+- source_type for all evidence must be "brand"
+- source_name must be the brand name (e.g. "${candidate.brand}")
+- source_url must be the exact manufacturer page URL you found the data on
+- Do not use retailer pages
+- Return valid JSON only — no commentary, no markdown
+
+${JSON_SCHEMA}`.trim();
 }
 
-export async function extractStructuredShoeData(aiClient, { candidate, snippets }) {
-  const prompt = buildResearchPrompt({ candidate, snippets });
+function buildReviewPrompt({ candidate, snippets, missingFields }) {
+  const shoeName = [
+    candidate.brand,
+    candidate.verified_model || candidate.model,
+    candidate.verified_version || "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 
-  console.log(
-    "EXTRACTION_INPUT",
-    JSON.stringify(
-      {
-        candidate: {
-          brand: candidate.brand,
-          model: candidate.model,
-          verified_model: candidate.verified_model,
-          verified_version: candidate.verified_version,
-          gender: candidate.gender,
-        },
-        snippet_count: Array.isArray(snippets) ? snippets.length : 0,
-        has_manufacturer_snippet: hasManufacturerSnippet(snippets),
-        snippet_sources: Array.isArray(snippets)
-          ? snippets.map((s) => ({
-              source_name: s.source_name,
-              source_type: s.source_type,
-              source_url: s.source_url,
-              text_length: s.text ? s.text.length : 0,
-            }))
-          : [],
-      },
-      null,
-      2
-    )
+  const fieldList = missingFields.length > 0
+    ? `Focus especially on these fields that are still missing: ${missingFields.join(", ")}`
+    : "Fill as many fields as possible.";
+
+  return `You are extracting running shoe specs from approved running shoe review sources.
+
+Search for the ${shoeName} (${candidate.gender}) on these approved sources in order:
+${APPROVED_SOURCES.map((s, i) => `${i + 1}. ${s}`).join("\n")}
+
+Do NOT use retailer pages (Amazon, Running Warehouse, REI, Zappos, etc.) for technical specs.
+${fieldList}
+
+Local snippets already fetched (use these plus your own live search):
+${JSON.stringify(snippets || [], null, 2)}
+
+Candidate identity:
+${JSON.stringify(
+  {
+    brand: candidate.brand,
+    model: candidate.verified_model || candidate.model,
+    version: candidate.verified_version || null,
+    gender: candidate.gender,
+  },
+  null,
+  2
+)}
+
+Rules:
+- Each evidence row must have the correct source_name and source_url
+- Prefer null over speculation
+- Weight: record exact size and size system it was listed at (weight_found_size + weight_found_size_system)
+- Return valid JSON only — no commentary, no markdown
+
+${JSON_SCHEMA}`.trim();
+}
+
+// ---------------------------------------------------------------------------
+// Merge two parsed results — manufacturer wins on any field it filled
+// ---------------------------------------------------------------------------
+
+const SPEC_FIELDS = [
+  "display_name", "brand", "model", "version", "gender",
+  "manufacturer_model_id", "aliases", "release_year", "msrp_usd",
+  "weight_oz", "weight_value", "weight_unit", "weight_found_size",
+  "weight_found_size_system", "heel_stack_mm", "forefoot_stack_mm",
+  "offset_mm", "surface", "support", "best_use", "plated", "plate_type",
+  "foam", "manufacturer_cushioning_label", "cushioning", "upper", "notes",
+];
+
+function isMissingParsed(field, value) {
+  if (value === undefined || value === null) return true;
+  if (typeof value === "string") {
+    const v = value.trim().toLowerCase();
+    if (!v) return true;
+    if (["surface", "support", "plate_type", "cushioning"].includes(field) && v === "unknown") return true;
+    return false;
+  }
+  if (Array.isArray(value)) return value.length === 0;
+  return false;
+}
+
+function getMissingParsedFields(parsed) {
+  return SPEC_FIELDS.filter((f) => isMissingParsed(f, parsed[f]));
+}
+
+function mergeParsed(manufacturer, review) {
+  // Manufacturer wins on every field it provided.
+  // Review fills in anything manufacturer missed.
+  const merged = { ...review };
+
+  for (const field of SPEC_FIELDS) {
+    if (!isMissingParsed(field, manufacturer[field])) {
+      merged[field] = manufacturer[field];
+    }
+  }
+
+  // Combine evidence from both
+  const mfEvidence = Array.isArray(manufacturer.evidence) ? manufacturer.evidence : [];
+  const rvEvidence = Array.isArray(review.evidence) ? review.evidence : [];
+  merged.evidence = [...mfEvidence, ...rvEvidence];
+
+  // Take higher confidence
+  merged.confidence_score = Math.max(
+    typeof manufacturer.confidence_score === "number" ? manufacturer.confidence_score : 0,
+    typeof review.confidence_score === "number" ? review.confidence_score : 0
   );
 
-  const response = await aiClient.chat.completions.create({
-    model: "sonar",
-    temperature: 0,
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a precise data extraction and web research system. For every shoe, you MUST search the web for the official manufacturer product page and use it as your primary source. Manufacturer data takes priority over all other sources. After the manufacturer, use only approved running shoe review sites — never retailer pages for technical specs. Return valid JSON only.",
-      },
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
+  return merged;
+}
+
+// ---------------------------------------------------------------------------
+// postProcess — unchanged from original
+// ---------------------------------------------------------------------------
+
+function postProcess(candidate, parsed) {
+  const brand = String(parsed.brand || candidate.brand || "").trim();
+  const fallbackModel = candidate.verified_model || candidate.model || "";
+  const fallbackVersion = candidate.verified_version || null;
+  const model = String(parsed.model || fallbackModel || "").trim();
+
+  const version =
+    parsed.version !== undefined && parsed.version !== null && String(parsed.version).trim() !== ""
+      ? String(parsed.version).trim()
+      : fallbackVersion;
+
+  const gender = normalizeGender(parsed.gender || candidate.gender);
+  const surface = normalizeSurface(parsed.surface || candidate.surface);
+  const support = normalizeSupport(parsed.support);
+  const cushioning =
+    mapManufacturerCushioning(parsed.manufacturer_cushioning_label) ||
+    normalizeCushioning(parsed.cushioning);
+
+  const plated = parsed.plated === true ? true : parsed.plated === false ? false : null;
+  const plateType = normalizePlateType(parsed.plate_type, plated);
+
+  const bestUseRaw = Array.isArray(parsed.best_use)
+    ? parsed.best_use
+    : typeof parsed.best_use === "string"
+      ? parsed.best_use.replace(/[{}"]/g, "").split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+
+  const convertedWeight = convertWeightToTargetSize({
+    weightValue: parsed.weight_value,
+    weightUnit: parsed.weight_unit,
+    foundSize: parsed.weight_found_size,
+    foundSizeSystem: parsed.weight_found_size_system,
+    gender,
   });
 
-  const text = response.choices?.[0]?.message?.content || "";
-  const parsed = parseJsonLoose(text);
+  const evidenceList = dedupeEvidence(parsed.evidence);
 
-  console.log(
-    "EXTRACTED_RAW",
-    JSON.stringify(
-      {
-        candidate: {
-          brand: candidate.brand,
-          model: candidate.model,
-          gender: candidate.gender,
-        },
-        parsed,
-      },
-      null,
-      2
-    )
+  const approvedLower = APPROVED_SOURCES.map((s) => s.toLowerCase());
+  const hasApprovedEvidence = evidenceList.some(
+    (ev) =>
+      approvedLower.includes(String(ev.source_name || "").toLowerCase()) ||
+      String(ev.source_type || "").toLowerCase() === "brand"
   );
 
-  return postProcess(candidate, parsed);
+  const baseConfidence = typeof parsed.confidence_score === "number" ? parsed.confidence_score : 0.75;
+  const confidence_score = hasApprovedEvidence ? Math.max(baseConfidence, 0.85) : baseConfidence;
+
+  return {
+    display_name: version
+      ? `${brand} ${model}${/^v/i.test(version) ? version : ` ${version}`}`
+      : `${brand} ${model}`,
+    brand,
+    model,
+    version,
+    gender,
+    manufacturer_model_id: parsed.manufacturer_model_id ? String(parsed.manufacturer_model_id).trim() : null,
+    aliases: cleanAliases(parsed.aliases),
+    release_year: Number.isInteger(parsed.release_year) ? parsed.release_year : null,
+    msrp_usd: safeNumber(parsed.msrp_usd),
+    weight_oz: convertedWeight ?? safeNumber(parsed.weight_oz),
+    heel_stack_mm: safeNumber(parsed.heel_stack_mm),
+    forefoot_stack_mm: safeNumber(parsed.forefoot_stack_mm),
+    offset_mm: safeNumber(parsed.offset_mm),
+    surface,
+    support,
+    best_use: normalizeBestUse(bestUseRaw),
+    plated,
+    plate_type: plateType,
+    foam: parsed.foam ? String(parsed.foam).trim() : null,
+    cushioning,
+    upper: parsed.upper ? String(parsed.upper).trim() : null,
+    notes: truncateNotes(parsed.notes),
+    confidence_score,
+    review_status: "unreviewed",
+    evidence: evidenceList,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Main export — two-call strategy
+// ---------------------------------------------------------------------------
+
+export async function extractStructuredShoeData(aiClient, { candidate, snippets }) {
+  const manufacturerDomains = candidateManufacturerDomains(candidate.brand);
+
+  console.log("EXTRACTION_START", {
+    brand: candidate.brand,
+    model: candidate.verified_model || candidate.model,
+    version: candidate.verified_version || null,
+    gender: candidate.gender,
+    manufacturer_domains: manufacturerDomains,
+    snippet_count: Array.isArray(snippets) ? snippets.length : 0,
+    snippet_sources: Array.isArray(snippets)
+      ? snippets.map((s) => ({ source_name: s.source_name, source_type: s.source_type, source_url: s.source_url }))
+      : [],
+  });
+
+  // ── Call 1: Manufacturer only, domain-filtered ──────────────────────────
+  let manufacturerParsed = null;
+  let manufacturerError = null;
+
+  try {
+    const mfResponse = await aiClient.chat.completions.create({
+      model: "sonar",
+      temperature: 0,
+      web_search_options: {
+        search_domain_filter: manufacturerDomains,
+      },
+      messages: [
+        {
+          role: "system",
+          content: `You are extracting technical specs for a running shoe from the official manufacturer website only. Search only the manufacturer's own website. Return valid JSON only — no commentary, no markdown fences.`,
+        },
+        {
+          role: "user",
+          content: buildManufacturerPrompt({ candidate }),
+        },
+      ],
+    });
+
+    const mfText = mfResponse.choices?.[0]?.message?.content || "";
+    manufacturerParsed = parseJsonLoose(mfText);
+
+    console.log("MANUFACTURER_EXTRACTION_OK", {
+      brand: candidate.brand,
+      citations: mfResponse.citations || [],
+      missing_after: getMissingParsedFields(manufacturerParsed),
+    });
+  } catch (err) {
+    manufacturerError = err?.message || String(err);
+    console.log("MANUFACTURER_EXTRACTION_FAIL", {
+      brand: candidate.brand,
+      error: manufacturerError,
+    });
+  }
+
+  // ── Call 2: Approved review sources ────────────────────────────────────
+  const missingFields = manufacturerParsed ? getMissingParsedFields(manufacturerParsed) : [];
+
+  let reviewParsed = null;
+
+  try {
+    const rvResponse = await aiClient.chat.completions.create({
+      model: "sonar",
+      temperature: 0,
+      messages: [
+        {
+          role: "system",
+          content: `You are extracting running shoe specs from approved running shoe review sites. Do not use retailer pages. Return valid JSON only — no commentary, no markdown fences.`,
+        },
+        {
+          role: "user",
+          content: buildReviewPrompt({ candidate, snippets, missingFields }),
+        },
+      ],
+    });
+
+    const rvText = rvResponse.choices?.[0]?.message?.content || "";
+    reviewParsed = parseJsonLoose(rvText);
+
+    console.log("REVIEW_EXTRACTION_OK", {
+      brand: candidate.brand,
+      citations: rvResponse.citations || [],
+      missing_after: getMissingParsedFields(reviewParsed),
+    });
+  } catch (err) {
+    console.log("REVIEW_EXTRACTION_FAIL", {
+      brand: candidate.brand,
+      error: err?.message || String(err),
+    });
+  }
+
+  // ── Merge: manufacturer wins, review fills gaps ─────────────────────────
+  let merged;
+  if (manufacturerParsed && reviewParsed) {
+    merged = mergeParsed(manufacturerParsed, reviewParsed);
+    console.log("MERGE_STRATEGY", { brand: candidate.brand, strategy: "manufacturer_wins_review_fills" });
+  } else if (manufacturerParsed) {
+    merged = manufacturerParsed;
+    console.log("MERGE_STRATEGY", { brand: candidate.brand, strategy: "manufacturer_only" });
+  } else if (reviewParsed) {
+    merged = reviewParsed;
+    console.log("MERGE_STRATEGY", { brand: candidate.brand, strategy: "review_only_manufacturer_failed", manufacturer_error: manufacturerError });
+  } else {
+    throw new Error("Both manufacturer and review extraction calls failed — no data returned.");
+  }
+
+  console.log("EXTRACTED_FINAL", {
+    brand: candidate.brand,
+    model: candidate.model,
+    gender: candidate.gender,
+    missing_fields: getMissingParsedFields(merged),
+  });
+
+  return postProcess(candidate, merged);
 }
