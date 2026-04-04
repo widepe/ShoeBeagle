@@ -198,8 +198,18 @@ module.exports = async (req, res) => {
     const payload = await fetchDealsJson(dealsUrl);
     const deals = extractDeals(payload);
 
+    if (!Array.isArray(deals) || deals.length === 0) {
+      throw new Error("Deals JSON is empty or invalid.");
+    }
+
     client = await pool.connect();
     await client.query("BEGIN");
+
+    // Wipe the table first, but inside the transaction.
+    // If anything fails later, ROLLBACK restores the old rows.
+    if (!dryRun) {
+      await client.query('DELETE FROM "sb_shoe_deals"');
+    }
 
     let inserted = 0;
     let updated = 0;
@@ -229,9 +239,6 @@ module.exports = async (req, res) => {
         shoe_id: await findMatchingShoeId(client, raw),
       };
 
-      if (row.shoe_id) matched += 1;
-      else unmatched += 1;
-
       preview.push({
         listing_name: row.listing_name,
         brand: row.brand,
@@ -241,6 +248,9 @@ module.exports = async (req, res) => {
         gender: row.gender,
         shoe_id: row.shoe_id,
       });
+
+      if (row.shoe_id) matched += 1;
+      else unmatched += 1;
 
       if (dryRun) continue;
 
@@ -365,6 +375,7 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      dryRun: false,
       dealsUrl,
       totalDealsInJson: deals.length,
       inserted,
