@@ -95,7 +95,11 @@ function mapManufacturerCushioning(label) {
 
 function truncateNotes(value) {
   if (!value) return null;
-  return String(value).trim().split(/\s+/).slice(0, 40).join(" ");
+
+  const words = String(value).trim().split(/\s+/).filter(Boolean).slice(0, 40);
+  const text = words.join(" ").trim();
+
+  return text || null;
 }
 
 function normalizeEvidence(ev) {
@@ -260,6 +264,11 @@ Research rules:
 - Fill as many fields as possible from the provided snippets.
 - Include evidence rows for every non-trivial populated field.
 - Evidence must name the source and include the URL when available.
+- For notes, prefer manufacturer snippets when available.
+- notes should be a short paraphrased synthesis of positive attributes and special features of the shoe.
+- notes must be 40 words or fewer.
+- Do not copy marketing sentences verbatim.
+- If there is not enough support for a useful note, return null for notes.
 
 Identity rules:
 - Canonicalize model and version cleanly.
