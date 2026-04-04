@@ -331,6 +331,35 @@ Return valid JSON only with this exact shape and field names (no extra fields, n
 export async function extractStructuredShoeData(aiClient, { candidate, snippets }) {
   const prompt = buildResearchPrompt({ candidate, snippets });
 
+
+
+console.log(
+  "EXTRACTION_INPUT",
+  JSON.stringify(
+    {
+      candidate: {
+        brand: candidate.brand,
+        model: candidate.model,
+        verified_model: candidate.verified_model,
+        verified_version: candidate.verified_version,
+        gender: candidate.gender,
+      },
+      snippet_count: Array.isArray(snippets) ? snippets.length : 0,
+      snippet_sources: Array.isArray(snippets)
+        ? snippets.map((s) => ({
+            source_name: s.source_name,
+            source_type: s.source_type,
+            source_url: s.source_url,
+            text_length: s.text ? s.text.length : 0,
+          }))
+        : [],
+    },
+    null,
+    2
+  )
+);
+  
+
   const response = await aiClient.chat.completions.create({
     model: "sonar",
     temperature: 0,
