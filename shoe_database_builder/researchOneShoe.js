@@ -52,18 +52,21 @@ function isMissingValue(field, value) {
   if (value === undefined || value === null) return true;
 
   if (typeof value === "string") {
-    const v = value.trim().toLowerCase();
-    if (!v) return true;
-    if (field === "surface" && v === "unknown") return true;
-    if (field === "support" && v === "unknown") return true;
-    if (field === "plate_type" && v === "unknown") return true;
-    if (field === "cushioning" && v === "unknown") return true;
+    const s = value.trim().toLowerCase();
+    if (!s) return true;
+    if (["surface", "support", "plate_type", "cushioning"].includes(field) && s === "unknown") {
+      return true;
+    }
     return false;
   }
 
   if (Array.isArray(value)) return value.length === 0;
 
   return false;
+}
+
+function getMissingFields(obj) {
+  return WATERFALL_FIELDS.filter((field) => isMissingValue(field, obj[field]));
 }
 
 function mergeEvidence(existing = [], incoming = []) {
@@ -101,7 +104,7 @@ function mergeMissingFields(base, incoming) {
   const merged = { ...base };
 
   for (const field of WATERFALL_FIELDS) {
-    if (isMissingValue(merged[field], merged[field]) && !isMissingValue(field, incoming[field])) {
+    if (isMissingValue(field, merged[field]) && !isMissingValue(field, incoming[field])) {
       merged[field] = incoming[field];
     }
   }
@@ -115,11 +118,7 @@ function mergeMissingFields(base, incoming) {
   return merged;
 }
 
-function getMissingFields(data) {
-  return WATERFALL_FIELDS.filter((field) => isMissingValue(field, data[field]));
-}
-
-function seedBaseRecord(candidate) {
+function seedExtracted(candidate) {
   return {
     display_name: null,
     brand: candidate.brand || null,
@@ -149,7 +148,7 @@ function seedBaseRecord(candidate) {
   };
 }
 
-function finalizeRecord(extracted, candidate) {
+function finalizeExtracted(extracted, candidate) {
   const out = { ...extracted };
 
   out.brand = out.brand || candidate.brand;
@@ -186,11 +185,11 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
     gender: candidate.gender,
   };
 
-  const sourceCandidates = getApprovedSourceCandidates(researchCandidate);
+  const sourcePlan = getApprovedSourceCandidates(researchCandidate);
   const fetchedPages = [];
-  let accumulated = seedBaseRecord(researchCandidate);
+  let accumulated = seedExtracted(researchCandidate);
 
-  for (const source of sourceCandidates) {
+  for (const source of sourcePlan) {
     const missingBefore = getMissingFields(accumulated);
     if (missingBefore.length === 0) break;
 
@@ -199,11 +198,9 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
 
     fetchedPages.push(page);
 
-    const snippets = buildSnippets([page]);
-
     const extractedFromSource = await extractStructuredShoeData(aiClient, {
       candidate: researchCandidate,
-      snippets,
+      snippets: buildSnippets([page]),
     });
 
     accumulated = mergeMissingFields(accumulated, extractedFromSource);
@@ -216,7 +213,7 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
     });
   }
 
-  const extracted = finalizeRecord(accumulated, researchCandidate);
+  const extracted = finalizeExtracted(accumulated, researchCandidate);
 
   const client = await db.connect();
 
