@@ -1,97 +1,111 @@
+import { Pool } from "pg";
+import OpenAI from "openai";
+
+import { getResearchCandidates } from "./selectCandidates.js";
 import { researchOneShoe } from "./researchOneShoe.js";
-// IMPORTANT: use your original relative paths here:
-import { getDb } from "../db/getDb.js";
-import { getAiClient } from "../ai/getAiClient.js";
-import { getPendingShoeCandidates } from "./getPendingShoeCandidates.js";
+
+function requiredEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
 
 export async function runShoeResearchJob(limit = 2) {
-  console.log("JOB_START", { limit });
+  requiredEnv("DATABASE_URL");
+  requiredEnv("PERPLEXITY_API_KEY"); // Perplexity API key
 
-  const db = await getDb();
-  const aiClient = await getAiClient();
-
-  // keep your original limit here if it was different
-  const candidates = await getPendingShoeCandidates({ db, limit: 50 });
-
-  console.log("JOB_CANDIDATES_COUNT", {
-    count: candidates.length,
-    items: candidates.map((c) => ({
-      id: c.id,
-      brand: c.brand,
-      model: c.model,
-      gender: c.gender,
-    })),
+  const db = new Pool({
+    connectionString: process.env.DATABASE_URL,
   });
 
-  const ghostOnly = candidates.filter((c) => {
-    const brand = String(c.brand || "").toLowerCase();
-    const model = String(c.model || "").toLowerCase();
-    return brand === "brooks" && model.includes("ghost 17");
+  const aiClient = new OpenAI({
+    apiKey: process.env.PERPLEXITY_API_KEY,
+    // For Sonar (chat completions–style), Perplexity’s docs use this base URL:
+    // https://api.perplexity.ai
+    baseURL: "https://api.perplexity.ai",
   });
 
-  console.log("JOB_GHOST_ONLY_COUNT", {
-    count: ghostOnly.length,
-    items: ghostOnly.map((c) => ({
-      id: c.id,
-      brand: c.brand,
-      model: c.model,
-      gender: c.gender,
-    })),
-  });
+  const targetSuccesses = Number.isFinite(Number(limit)) ? Number(limit) : 2;
+  const fetchCount = Math.max(targetSuccesses * 5, 10);
 
-  let processed = 0;
-  const results = [];
-
-  for (const candidate of ghostOnly) {
-    console.log("JOB_RESEARCHING_CANDIDATE", {
-      id: candidate.id,
-      brand: candidate.brand,
-      model: candidate.model,
-      gender: candidate.gender,
-    });
-
-    try {
-      const result = await researchOneShoe({ db, aiClient, candidate });
-      results.push({
-        ok: true,
-        candidateId: candidate.id,
-        shoeId: result.shoeId,
-      });
-      processed += 1;
-
-      console.log("JOB_CANDIDATE_DONE", {
-        id: candidate.id,
-        shoeId: result.shoeId,
-      });
-    } catch (error) {
-      console.log("JOB_CANDIDATE_ERROR", {
-        id: candidate.id,
-        brand: candidate.brand,
-        model: candidate.model,
-        gender: candidate.gender,
-        error: error?.message || "Unknown error",
-        stack: error?.stack || null,
-      });
-
-      results.push({
-        ok: false,
-        candidateId: candidate.id,
-        error: error?.message || "Unknown error",
-      });
-    }
-  }
-
-  console.log("JOB_END", {
-    processed,
-    candidatesTotal: candidates.length,
-    ghostOnlyTotal: ghostOnly.length,
-  });
-
-  return {
+  const summary = {
     ok: true,
-    processed,
-    totalCandidates: candidates.length,
-    ghostOnlyTotal: ghostOnly.length,
-    results,
+    requested: targetSuccesses,
+    processed: 0,
+    inserted: 0,
+    failed: 0,
+    results: [],
   };
+
+  try {
+    const candidates = await getResearchCandidates(db, fetchCount);
+
+    if (!candidates.length) {
+      return {
+        ok: true,
+        requested: targetSuccesses,
+        processed: 0,
+        inserted: 0,
+        failed: 0,
+        results: [],
+        message: "No missing shoe candidates found.",
+      };
+    }
+
+    for (const candidate of candidates) {
+      if (summary.inserted >= targetSuccesses) break;
+
+      try {
+        const result = await researchOneShoe({ db, aiClient, candidate });
+
+        summary.processed += 1;
+        summary.inserted += 1;
+
+        summary.results.push({
+          ok: true,
+          stage: "inserted",
+          brand: result.extracted.brand,
+          model: result.extracted.model,
+          version: result.extracted.version,
+          gender: result.extracted.gender,
+          shoeId: result.shoeId,
+          listingUrl: candidate.sample_listing_url || null,
+          store: candidate.sample_store || null,
+          verified: result.verified || null,
+        });
+      } catch (error) {
+        summary.ok = false;
+        summary.processed += 1;
+        summary.failed += 1;
+
+        const failure = {
+          ok: false,
+          stage: error?.stage || "research_one_shoe",
+          brand: error?.brand || candidate.brand,
+          model: error?.model || candidate.model,
+          gender: error?.gender || candidate.gender,
+          listingUrl: error?.listingUrl || candidate.sample_listing_url || null,
+          store: error?.store || candidate.sample_store || null,
+          error: error?.message || "Unknown error",
+          verification: error?.verification || null,
+        };
+
+        console.error(
+          "SHOE RESEARCH FAILURE:",
+          JSON.stringify(failure, null, 2),
+        );
+        summary.results.push(failure);
+      }
+    }
+
+    if (summary.inserted < targetSuccesses) {
+      summary.message = `Requested ${targetSuccesses} successful inserts, but only inserted ${summary.inserted}.`;
+    }
+
+    return summary;
+  } finally {
+    await db.end();
+  }
 }
