@@ -5,37 +5,85 @@ function isUsablePage(page) {
   return Boolean(page?.ok && page?.url && page?.text && page.text.trim().length > 200);
 }
 
-async function fetchOneSource(source) {
-  try {
-    const result = await fetchPageText(source.source_url);
+function buildSearchUrl(query) {
+  return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+}
 
-    if (!isUsablePage(result)) {
-      console.log("SOURCE_FETCH_FAIL", {
-        source_name: source.source_name,
-        source_url: source.source_url,
-        ok: result?.ok || false,
-        error: result?.error || "unusable_page",
-      });
-      return null;
-    }
+function looksLikeSearchOrIndexUrl(url) {
+  const value = String(url || "").toLowerCase();
 
-    return {
-      ok: true,
-      url: result.url || source.source_url,
-      title: result.title || null,
-      text: result.text,
-      source_name: source.source_name,
-      source_type: source.source_type,
-      priority: source.priority,
-    };
-  } catch (error) {
-    console.log("SOURCE_FETCH_ERROR", {
-      source_name: source.source_name,
-      source_url: source.source_url,
-      error: error?.message || String(error),
-    });
+  return (
+    value.includes("/search") ||
+    value.includes("?s=") ||
+    value.includes("?q=") ||
+    value.includes("?query=") ||
+    value.includes("/tag/") ||
+    value.includes("/category/") ||
+    value.includes("/reviews") ||
+    value.includes("/best-")
+  );
+}
+
+async function tryFetchCandidate(url, source) {
+  const result = await fetchPageText(url);
+
+  if (!isUsablePage(result)) {
     return null;
   }
+
+  const finalUrl = result.url || url;
+  if (looksLikeSearchOrIndexUrl(finalUrl)) {
+    return null;
+  }
+
+  return {
+    ok: true,
+    url: finalUrl,
+    title: result.title || null,
+    text: result.text,
+    source_name: source.source_name,
+    source_type: source.source_type,
+    priority: source.priority,
+  };
+}
+
+async function resolveSourceToPage(source) {
+  const directCandidates = Array.isArray(source.direct_url_candidates)
+    ? source.direct_url_candidates
+    : [];
+
+  for (const url of directCandidates) {
+    try {
+      const page = await tryFetchCandidate(url, source);
+      if (page) return page;
+    } catch {}
+  }
+
+  const queries = Array.isArray(source.discovery_queries)
+    ? source.discovery_queries
+    : [];
+
+  for (const query of queries) {
+    const searchUrl = buildSearchUrl(query);
+
+    try {
+      const result = await fetchPageText(searchUrl);
+      if (!result?.ok || !result?.text) continue;
+
+      const text = String(result.text || "");
+      const match = text.match(/https?:\/\/[^\s)>"']+/g);
+      if (!match || !match.length) continue;
+
+      for (const discoveredUrl of match) {
+        try {
+          const page = await tryFetchCandidate(discoveredUrl, source);
+          if (page) return page;
+        } catch {}
+      }
+    } catch {}
+  }
+
+  return null;
 }
 
 export async function fetchApprovedSourcePages(candidate) {
@@ -44,17 +92,25 @@ export async function fetchApprovedSourcePages(candidate) {
   const seenUrls = new Set();
 
   for (const source of candidates) {
-    const page = await fetchOneSource(source);
-    if (!page) continue;
+    const page = await resolveSourceToPage(source);
+    if (!page) {
+      console.log("SOURCE_FETCH_FAIL", {
+        source_name: source.source_name,
+        source_type: source.source_type,
+        queries: source.discovery_queries || [],
+      });
+      continue;
+    }
 
-    const dedupeKey = String(page.url || "").toLowerCase();
-    if (!dedupeKey || seenUrls.has(dedupeKey)) continue;
+    const key = String(page.url || "").toLowerCase();
+    if (!key || seenUrls.has(key)) continue;
+    seenUrls.add(key);
 
-    seenUrls.add(dedupeKey);
     pages.push(page);
 
     console.log("SOURCE_FETCH_OK", {
       source_name: page.source_name,
+      source_type: page.source_type,
       source_url: page.url,
       text_length: page.text.length,
     });
@@ -64,5 +120,5 @@ export async function fetchApprovedSourcePages(candidate) {
 }
 
 export async function fetchOneApprovedSourcePage(source) {
-  return fetchOneSource(source);
+  return resolveSourceToPage(source);
 }
