@@ -13,6 +13,10 @@ export const APPROVED_SOURCES = [
   "The Running Clinic",
 ];
 
+function compact(parts) {
+  return parts.map((x) => String(x || "").trim()).filter(Boolean);
+}
+
 function slugify(value) {
   return String(value || "")
     .toLowerCase()
@@ -24,82 +28,24 @@ function slugify(value) {
     .replace(/-+/g, "-");
 }
 
-function compact(parts) {
-  return parts.map((x) => String(x || "").trim()).filter(Boolean);
-}
-
-function normalizeSourceKey(name) {
-  return String(name || "")
-    .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/[^a-z0-9]+/g, "");
-}
-
 function buildIdentity(candidate) {
   const brand = String(candidate?.brand || "").trim();
   const model = String(candidate?.verified_model || candidate?.model || "").trim();
   const version = String(candidate?.verified_version || "").trim();
   const gender = String(candidate?.gender || "").trim().toLowerCase();
 
-  const modelWithVersion = compact([model, version]).join(" ").trim();
   const fullName = compact([brand, model, version]).join(" ").trim();
+  const modelWithVersion = compact([model, version]).join(" ").trim();
 
   return {
     brand,
     model,
     version,
     gender,
-    modelWithVersion,
     fullName,
+    modelWithVersion,
     fullSlug: slugify(fullName),
     modelSlug: slugify(modelWithVersion),
-  };
-}
-
-function buildManufacturerTarget(identity) {
-  return {
-    source_name: identity.brand || "Manufacturer",
-    source_type: "brand",
-    source_url: null,
-    priority: 1,
-    discovery_queries: [
-      compact([identity.brand, identity.model, identity.version, "running shoe"]).join(" "),
-      compact([identity.brand, identity.model, identity.version, "official"]).join(" "),
-      compact([identity.brand, identity.model, identity.version, "manufacturer"]).join(" "),
-    ].filter(Boolean),
-    candidate_hints: {
-      brand: identity.brand,
-      model: identity.model,
-      version: identity.version,
-      gender: identity.gender,
-      full_name: identity.fullName,
-      full_slug: identity.fullSlug,
-      model_slug: identity.modelSlug,
-    },
-  };
-}
-
-function buildSourceTarget(sourceName, priority, identity) {
-  return {
-    source_name: sourceName,
-    source_type: "review",
-    source_url: null,
-    priority,
-    discovery_queries: [
-      compact([sourceName, identity.brand, identity.model, identity.version]).join(" "),
-      compact([sourceName, identity.fullName]).join(" "),
-      compact([sourceName, identity.brand, identity.model]).join(" "),
-    ].filter(Boolean),
-    candidate_hints: {
-      brand: identity.brand,
-      model: identity.model,
-      version: identity.version,
-      gender: identity.gender,
-      full_name: identity.fullName,
-      full_slug: identity.fullSlug,
-      model_slug: identity.modelSlug,
-      source_key: normalizeSourceKey(sourceName),
-    },
   };
 }
 
@@ -110,13 +56,52 @@ export function getSourceRank(name) {
   return i === -1 ? 999 : i;
 }
 
+function buildManufacturerSource(identity) {
+  return {
+    source_name: identity.brand || "Manufacturer",
+    source_type: "brand",
+    priority: 1,
+    source_url: null,
+    discovery_queries: [
+      compact([identity.brand, identity.model, identity.version, "official running shoe"]).join(" "),
+      compact([identity.brand, identity.model, identity.version, "official"]).join(" "),
+      compact([identity.brand, identity.model, identity.version, "manufacturer"]).join(" "),
+    ].filter(Boolean),
+    direct_url_candidates: [
+      identity.fullSlug ? `https://www.${slugify(identity.brand).replace(/-/g, "")}.com/${identity.fullSlug}` : null,
+      identity.modelSlug ? `https://www.${slugify(identity.brand).replace(/-/g, "")}.com/${identity.modelSlug}` : null,
+    ].filter(Boolean),
+  };
+}
+
+function buildApprovedSource(sourceName, priority, identity) {
+  return {
+    source_name: sourceName,
+    source_type: "review",
+    priority,
+    source_url: null,
+    discovery_queries: [
+      compact([sourceName, identity.brand, identity.model, identity.version]).join(" "),
+      compact([sourceName, identity.fullName]).join(" "),
+      compact([sourceName, identity.brand, identity.model]).join(" "),
+    ].filter(Boolean),
+    direct_url_candidates:
+      sourceName === "RunRepeat"
+        ? [
+            identity.fullSlug ? `https://runrepeat.com/${identity.fullSlug}` : null,
+            identity.modelSlug ? `https://runrepeat.com/${identity.modelSlug}` : null,
+          ].filter(Boolean)
+        : [],
+  };
+}
+
 export function getApprovedSourceCandidates(candidate) {
   const identity = buildIdentity(candidate);
 
   return [
-    buildManufacturerTarget(identity),
+    buildManufacturerSource(identity),
     ...APPROVED_SOURCES.map((name, index) =>
-      buildSourceTarget(name, index + 2, identity)
+      buildApprovedSource(name, index + 2, identity)
     ),
   ].sort((a, b) => a.priority - b.priority);
 }
