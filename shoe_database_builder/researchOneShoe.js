@@ -173,6 +173,14 @@ function finalizeExtracted(extracted, candidate) {
 }
 
 export async function researchOneShoe({ db, aiClient, candidate }) {
+
+console.log("RESEARCH_ONE_SHOE_START", {
+  brand: candidate?.brand,
+  model: candidate?.model,
+  gender: candidate?.gender,
+});
+
+  
   const split = splitModelAndVersion(candidate.model, candidate.brand);
 
   const researchCandidate = {
