@@ -1,4 +1,5 @@
 import { researchOneShoe } from "./researchOneShoe.js";
+// IMPORTANT: use your original relative paths here:
 import { getDb } from "../db/getDb.js";
 import { getAiClient } from "../ai/getAiClient.js";
 import { getPendingShoeCandidates } from "./getPendingShoeCandidates.js";
@@ -9,6 +10,7 @@ export async function runShoeResearchJob(limit = 2) {
   const db = await getDb();
   const aiClient = await getAiClient();
 
+  // keep your original limit here if it was different
   const candidates = await getPendingShoeCandidates({ db, limit: 50 });
 
   console.log("JOB_CANDIDATES_COUNT", {
