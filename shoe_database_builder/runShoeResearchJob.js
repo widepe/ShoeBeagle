@@ -1,12 +1,85 @@
 // file: shoe_database_builder/runShoeResearchJob.js
 
-import { researchOneShoe } from "./researchOneShoe.js";
-import { getDb } from "../db/getDb.js";
-import { getAiClient } from "../ai/getAiClient.js";
-import { getPendingShoeCandidates } from "./getPendingShoeCandidates.js";
+let researchOneShoe;
+let getDb;
+let getAiClient;
+let getPendingShoeCandidates;
+
+try {
+  ({ researchOneShoe } = await import("./researchOneShoe.js"));
+  console.log("IMPORT_OK_researchOneShoe");
+} catch (error) {
+  console.log("IMPORT_FAIL_researchOneShoe", {
+    error: error?.message || null,
+    stack: error?.stack || null,
+  });
+  throw error;
+}
+
+try {
+  ({ getDb } = await import("../db/getDb.js"));
+  console.log("IMPORT_OK_getDb_path_1");
+} catch (error) {
+  console.log("IMPORT_FAIL_getDb_path_1", {
+    path: "../db/getDb.js",
+    error: error?.message || null,
+  });
+}
+
+try {
+  ({ getDb } = await import("./db/getDb.js"));
+  console.log("IMPORT_OK_getDb_path_2");
+} catch (error) {
+  console.log("IMPORT_FAIL_getDb_path_2", {
+    path: "./db/getDb.js",
+    error: error?.message || null,
+  });
+}
+
+try {
+  ({ getAiClient } = await import("../ai/getAiClient.js"));
+  console.log("IMPORT_OK_getAiClient_path_1");
+} catch (error) {
+  console.log("IMPORT_FAIL_getAiClient_path_1", {
+    path: "../ai/getAiClient.js",
+    error: error?.message || null,
+  });
+}
+
+try {
+  ({ getAiClient } = await import("./ai/getAiClient.js"));
+  console.log("IMPORT_OK_getAiClient_path_2");
+} catch (error) {
+  console.log("IMPORT_FAIL_getAiClient_path_2", {
+    path: "./ai/getAiClient.js",
+    error: error?.message || null,
+  });
+}
+
+try {
+  ({ getPendingShoeCandidates } = await import("./getPendingShoeCandidates.js"));
+  console.log("IMPORT_OK_getPendingShoeCandidates_path_1");
+} catch (error) {
+  console.log("IMPORT_FAIL_getPendingShoeCandidates_path_1", {
+    path: "./getPendingShoeCandidates.js",
+    error: error?.message || null,
+  });
+}
 
 export async function runShoeResearchJob(limit = 2) {
   console.log("JOB_START", { limit });
+
+  if (typeof getDb !== "function") {
+    throw new Error("getDb import failed");
+  }
+
+  if (typeof getAiClient !== "function") {
+    throw new Error("getAiClient import failed");
+  }
+
+  if (typeof getPendingShoeCandidates !== "function") {
+    throw new Error("getPendingShoeCandidates import failed");
+  }
 
   const db = await getDb();
   const aiClient = await getAiClient();
