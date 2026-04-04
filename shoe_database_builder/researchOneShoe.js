@@ -5,6 +5,8 @@ import { insertShoeRecord } from "./insertShoeRecord.js";
 import { insertEvidenceRows } from "./insertEvidenceRows.js";
 import { attachDealsToShoe } from "./attachDealsToShoe.js";
 import { toDisplayName, splitModelAndVersion } from "./normalize.js";
+import { fetchPageText } from "./fetchPageText.js";
+import { verifyShoeIdentity } from "./verifyShoeIdentity.js";
 
 const WATERFALL_FIELDS = [
   "display_name",
@@ -180,6 +182,7 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
   });
 
   const split = splitModelAndVersion(candidate.model, candidate.brand);
+  let verification = null;
 
   const researchCandidate = {
     ...candidate,
@@ -190,6 +193,56 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
     verified_version: split.version,
     gender: candidate.gender,
   };
+
+  if (candidate?.sample_listing_url) {
+    try {
+      const listingPage = await fetchPageText(candidate.sample_listing_url);
+      verification = await verifyShoeIdentity(aiClient, {
+        candidate: researchCandidate,
+        pageResult: listingPage,
+      });
+
+      if (verification && verification.verified === false) {
+        const mismatchError = new Error(
+          verification.mismatch_reason || "Retailer listing did not match candidate identity."
+        );
+        mismatchError.stage = "identity_verification";
+        mismatchError.brand = researchCandidate.brand;
+        mismatchError.model = researchCandidate.model;
+        mismatchError.gender = researchCandidate.gender;
+        mismatchError.verification = verification;
+        throw mismatchError;
+      }
+
+      if (verification?.verified) {
+        const mergedModelText =
+          verification.model && verification.version
+            ? `${verification.model} ${verification.version}`
+            : verification.model || researchCandidate.model;
+
+        const normalized = splitModelAndVersion(
+          mergedModelText,
+          verification.brand || researchCandidate.brand
+        );
+
+        researchCandidate.brand = verification.brand || researchCandidate.brand;
+        researchCandidate.model = normalized.raw_model_text || researchCandidate.model;
+        researchCandidate.verified_model = normalized.model || researchCandidate.verified_model;
+        researchCandidate.verified_version =
+          normalized.version !== undefined && normalized.version !== null
+            ? normalized.version
+            : researchCandidate.verified_version;
+        researchCandidate.gender = verification.gender || researchCandidate.gender;
+      }
+    } catch (error) {
+      console.log("SHOE_IDENTITY_VERIFICATION_ERROR", {
+        brand: candidate?.brand || null,
+        model: candidate?.model || null,
+        gender: candidate?.gender || null,
+        error: error?.message || String(error),
+      });
+    }
+  }
 
   const sourcePlan = getApprovedSourceCandidates(researchCandidate);
   let accumulated = seedExtracted(researchCandidate);
@@ -275,6 +328,7 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
       shoeId,
       extracted: finalExtracted,
       approvedPages: fetchedPages,
+      verified: verification,
     };
   } catch (error) {
     await client.query("rollback");

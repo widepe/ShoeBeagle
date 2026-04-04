@@ -13,6 +13,21 @@ export const APPROVED_SOURCES = [
   "The Running Clinic",
 ];
 
+export const APPROVED_SOURCE_DOMAINS = {
+  "RunRepeat": ["runrepeat.com"],
+  "Running Warehouse": ["runningwarehouse.com"],
+  "RoadTrailRun": ["roadtrailrun.com"],
+  "Doctors of Running": ["doctorsofrunning.com"],
+  "Running Shoes Guru": ["runningshoesguru.com"],
+  "OutdoorGearLab": ["outdoorgearlab.com"],
+  "RTINGS": ["rtings.com"],
+  "Road Runner Sports": ["roadrunnersports.com"],
+  "Believe in the Run": ["believeintherun.com"],
+  "Sole Review": ["solereview.com"],
+  "Runner's World": ["runnersworld.com"],
+  "The Running Clinic": ["therunningclinic.com"],
+};
+
 function compact(parts) {
   return parts.map((x) => String(x || "").trim()).filter(Boolean);
 }
@@ -57,6 +72,8 @@ export function getSourceRank(name) {
 }
 
 function buildManufacturerSource(identity) {
+  const brandToken = slugify(identity.brand).replace(/-/g, "");
+
   return {
     source_name: identity.brand || "Manufacturer",
     source_type: "brand",
@@ -70,7 +87,11 @@ function buildManufacturerSource(identity) {
     direct_url_candidates: [
       identity.fullSlug ? `https://www.${slugify(identity.brand).replace(/-/g, "")}.com/${identity.fullSlug}` : null,
       identity.modelSlug ? `https://www.${slugify(identity.brand).replace(/-/g, "")}.com/${identity.modelSlug}` : null,
+      identity.fullSlug ? `https://www.${slugify(identity.brand)}.com/${identity.fullSlug}` : null,
+      identity.modelSlug ? `https://www.${slugify(identity.brand)}.com/${identity.modelSlug}` : null,
     ].filter(Boolean),
+    identity,
+    allowed_domains: brandToken ? [brandToken] : [],
   };
 }
 
@@ -92,6 +113,8 @@ function buildApprovedSource(sourceName, priority, identity) {
             identity.modelSlug ? `https://runrepeat.com/${identity.modelSlug}` : null,
           ].filter(Boolean)
         : [],
+    identity,
+    allowed_domains: APPROVED_SOURCE_DOMAINS[sourceName] || [],
   };
 }
 
