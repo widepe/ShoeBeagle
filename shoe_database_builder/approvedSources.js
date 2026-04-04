@@ -1,4 +1,4 @@
-const APPROVED_SOURCE_ORDER = [
+export const APPROVED_SOURCES = [
   "RunRepeat",
   "Running Warehouse",
   "RoadTrailRun",
@@ -103,15 +103,20 @@ function buildSourceTarget(sourceName, priority, identity) {
   };
 }
 
+export function getSourceRank(name) {
+  const i = APPROVED_SOURCES.findIndex(
+    (x) => x.toLowerCase() === String(name || "").toLowerCase()
+  );
+  return i === -1 ? 999 : i;
+}
+
 export function getApprovedSourceCandidates(candidate) {
   const identity = buildIdentity(candidate);
 
-  const targets = [
+  return [
     buildManufacturerTarget(identity),
-    ...APPROVED_SOURCE_ORDER.map((name, index) =>
+    ...APPROVED_SOURCES.map((name, index) =>
       buildSourceTarget(name, index + 2, identity)
     ),
-  ];
-
-  return targets.sort((a, b) => a.priority - b.priority);
+  ].sort((a, b) => a.priority - b.priority);
 }
