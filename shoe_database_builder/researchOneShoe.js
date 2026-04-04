@@ -173,14 +173,12 @@ function finalizeExtracted(extracted, candidate) {
 }
 
 export async function researchOneShoe({ db, aiClient, candidate }) {
+  console.log("RESEARCH_ONE_SHOE_START", {
+    brand: candidate?.brand,
+    model: candidate?.model,
+    gender: candidate?.gender,
+  });
 
-console.log("RESEARCH_ONE_SHOE_START", {
-  brand: candidate?.brand,
-  model: candidate?.model,
-  gender: candidate?.gender,
-});
-
-  
   const split = splitModelAndVersion(candidate.model, candidate.brand);
 
   const researchCandidate = {
@@ -204,41 +202,48 @@ console.log("RESEARCH_ONE_SHOE_START", {
     const page = await fetchApprovedSourcePage(source);
     if (!page) continue;
 
+    console.log("PAGE_FOR_EXTRACTION", {
+      brand: researchCandidate.brand,
+      model: researchCandidate.model,
+      gender: researchCandidate.gender,
+      source_name: source.source_name,
+      source_type: source.source_type,
+      url: page.url,
+      title: page.title,
+      text_length: page.text ? page.text.length : 0,
+      text_preview: page.text ? page.text.slice(0, 500) : null,
+    });
 
-console.log("PAGE_FOR_EXTRACTION", {
-  source_name: source.source_name,
-  source_type: source.source_type,
-  url: page.url,
-  title: page.title,
-  text_length: page.text ? page.text.length : 0,
-  text_preview: page.text ? page.text.slice(0, 500) : null,
-});
-
-    
     fetchedPages.push(page);
 
-const snippets = buildSnippets([page]);
+    const snippets = buildSnippets([page]);
 
-console.log("SNIPPETS_FOR_EXTRACTION", {
-  source_name: source.source_name,
-  snippet_count: snippets.length,
-  snippets: snippets.map((s) => ({
-    source_name: s.source_name,
-    source_type: s.source_type,
-    source_url: s.source_url,
-    text_length: s.text ? s.text.length : 0,
-    text_preview: s.text ? s.text.slice(0, 300) : null,
-  })),
-});
+    console.log("SNIPPETS_FOR_EXTRACTION", {
+      brand: researchCandidate.brand,
+      model: researchCandidate.model,
+      gender: researchCandidate.gender,
+      source_name: source.source_name,
+      snippet_count: snippets.length,
+      snippets: snippets.map((s) => ({
+        source_name: s.source_name,
+        source_type: s.source_type,
+        source_url: s.source_url,
+        text_length: s.text ? s.text.length : 0,
+        text_preview: s.text ? s.text.slice(0, 300) : null,
+      })),
+    });
 
-const extracted = await extractStructuredShoeData(aiClient, {
-  candidate: researchCandidate,
-  snippets,
-});
+    const extracted = await extractStructuredShoeData(aiClient, {
+      candidate: researchCandidate,
+      snippets,
+    });
 
     accumulated = mergeMissingFields(accumulated, extracted);
 
     console.log("WATERFALL_STEP", {
+      brand: researchCandidate.brand,
+      model: researchCandidate.model,
+      gender: researchCandidate.gender,
       source_name: source.source_name,
       source_type: source.source_type,
       missing_before: missingBefore,
