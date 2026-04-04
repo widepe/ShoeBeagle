@@ -25,6 +25,7 @@ export async function getResearchCandidates(db, limit = 2) {
         b.brand,
         b.model,
         b.gender,
+        min(b.model_compact) as model_compact,
         min(b.listing_name) as sample_listing_name,
         min(b.listing_url) as sample_listing_url,
         min(b.image_url) as sample_image_url,
