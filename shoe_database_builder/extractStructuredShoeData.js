@@ -8,21 +8,7 @@ import {
   normalizeSurface,
   safeNumber,
 } from "./normalize.js";
-
-const APPROVED_SOURCES = [
-  "RunRepeat",
-  "Running Warehouse",
-  "RoadTrailRun",
-  "Doctors of Running",
-  "Running Shoes Guru",
-  "OutdoorGearLab",
-  "RTINGS",
-  "Road Runner Sports",
-  "Believe in the Run",
-  "Sole Review",
-  "Runner's World",
-  "The Running Clinic",
-];
+import { APPROVED_SOURCES } from "./approvedSources.js";
 
 function parseJsonLoose(text) {
   const raw = String(text || "").trim();
@@ -208,10 +194,11 @@ function postProcess(candidate, parsed) {
 
   const evidenceList = dedupeEvidence(parsed.evidence);
 
-  const hasApprovedEvidence = evidenceList.some((ev) =>
-    APPROVED_SOURCES.map((s) => s.toLowerCase()).includes(
-      String(ev.source_name || "").toLowerCase()
-    ) || String(ev.source_type || "").toLowerCase() === "brand"
+  const approvedLower = APPROVED_SOURCES.map((s) => s.toLowerCase());
+  const hasApprovedEvidence = evidenceList.some(
+    (ev) =>
+      approvedLower.includes(String(ev.source_name || "").toLowerCase()) ||
+      String(ev.source_type || "").toLowerCase() === "brand"
   );
 
   const baseConfidence =
