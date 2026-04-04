@@ -249,38 +249,52 @@ function postProcess(candidate, parsed) {
   };
 }
 
+function hasManufacturerSnippet(snippets) {
+  return Array.isArray(snippets) &&
+    snippets.some((s) => String(s?.source_type || "").toLowerCase() === "brand");
+}
+
 function buildResearchPrompt({ candidate, snippets }) {
+  const manufacturerPresent = hasManufacturerSnippet(snippets);
+
+  const manufacturerInstruction = manufacturerPresent
+    ? `A manufacturer snippet has been provided. Extract manufacturer data from it first before using any other source.`
+    : `No manufacturer snippet was provided in the local snippets. You MUST search the web for the official ${candidate.brand} product page for the ${candidate.brand} ${candidate.verified_model || candidate.model}${candidate.verified_version ? " " + candidate.verified_version : ""} and extract specs from it. This is your highest-priority task. Do not skip it.`;
+
   return `
 You are an expert running shoe researcher building a structured database record.
 
-Your job is to use the provided source snippets and return a single JSON object.
+Your job is to return a single JSON object with accurate technical specs for the shoe described below.
 
-Research rules:
-- Manufacturer pages are highest priority and should be used first when available.
-- After manufacturer pages, use only these approved non-manufacturer sources:
-  ${APPROVED_SOURCES.map((s, i) => `${i + 1}. ${s}`).join("\\n  ")}
-- Do not use retailer pages as sources for technical specs.
-- Do not guess; prefer null over speculation.
-- Fill as many fields as possible from the provided snippets.
-- Include evidence rows for every non-trivial populated field.
-- Evidence must name the source and include the URL when available.
-- For notes, prefer manufacturer snippets when available.
-- notes should be a short paraphrased synthesis of positive attributes and special features of the shoe.
-- notes must be 40 words or fewer.
-- Do not copy marketing sentences verbatim.
-- If there is not enough support for a useful note, return null for notes.
+SOURCE PRIORITY RULES — follow strictly:
+1. MANUFACTURER (highest priority): The official brand website (e.g. brooksrunning.com for Brooks, saucony.com for Saucony, nike.com for Nike, etc.). ${manufacturerInstruction}
+2. After the manufacturer, use only these approved sources in order:
+   ${APPROVED_SOURCES.map((s, i) => `${i + 1}. ${s}`).join("\n   ")}
+3. Do NOT use retailer pages (Amazon, Running Warehouse, REI, Zappos, etc.) as sources for technical specs.
+4. Do not guess; prefer null over speculation.
+5. Fill as many fields as possible.
+6. Include evidence rows for every non-trivial populated field.
+7. Each evidence row must include the source name and the URL you found the data on.
+8. For the notes field, use manufacturer language first, paraphrased — never copy verbatim.
+9. notes must be 40 words or fewer and focus on positive attributes and special features.
+10. If there is not enough support for a useful note, return null for notes.
 
-Identity rules:
+WEIGHT RULES:
+- Always record the exact size and size system the weight was found at (weight_found_size + weight_found_size_system).
+- The pipeline will normalize the weight to a standard size automatically — do not pre-convert.
+- Prefer manufacturer weight data over review site weight data.
+
+IDENTITY RULES:
 - Canonicalize model and version cleanly.
-- Keep gender normalized to one of: mens, womens, unisex, unknown.
+- Gender must be one of: mens, womens, unisex, unknown.
 
 Candidate:
 ${JSON.stringify(candidate, null, 2)}
 
-Local snippets:
+Local snippets (pre-fetched pages — use these plus your own live web search):
 ${JSON.stringify(snippets || [], null, 2)}
 
-Return valid JSON only with this exact shape and field names (no extra fields, no different names):
+Return valid JSON only — no commentary, no markdown — with this exact shape:
 
 {
   "display_name": string,
@@ -331,34 +345,32 @@ Return valid JSON only with this exact shape and field names (no extra fields, n
 export async function extractStructuredShoeData(aiClient, { candidate, snippets }) {
   const prompt = buildResearchPrompt({ candidate, snippets });
 
-
-
-console.log(
-  "EXTRACTION_INPUT",
-  JSON.stringify(
-    {
-      candidate: {
-        brand: candidate.brand,
-        model: candidate.model,
-        verified_model: candidate.verified_model,
-        verified_version: candidate.verified_version,
-        gender: candidate.gender,
+  console.log(
+    "EXTRACTION_INPUT",
+    JSON.stringify(
+      {
+        candidate: {
+          brand: candidate.brand,
+          model: candidate.model,
+          verified_model: candidate.verified_model,
+          verified_version: candidate.verified_version,
+          gender: candidate.gender,
+        },
+        snippet_count: Array.isArray(snippets) ? snippets.length : 0,
+        has_manufacturer_snippet: hasManufacturerSnippet(snippets),
+        snippet_sources: Array.isArray(snippets)
+          ? snippets.map((s) => ({
+              source_name: s.source_name,
+              source_type: s.source_type,
+              source_url: s.source_url,
+              text_length: s.text ? s.text.length : 0,
+            }))
+          : [],
       },
-      snippet_count: Array.isArray(snippets) ? snippets.length : 0,
-      snippet_sources: Array.isArray(snippets)
-        ? snippets.map((s) => ({
-            source_name: s.source_name,
-            source_type: s.source_type,
-            source_url: s.source_url,
-            text_length: s.text ? s.text.length : 0,
-          }))
-        : [],
-    },
-    null,
-    2
-  )
-);
-  
+      null,
+      2
+    )
+  );
 
   const response = await aiClient.chat.completions.create({
     model: "sonar",
@@ -367,7 +379,7 @@ console.log(
       {
         role: "system",
         content:
-          "You are a precise data extraction system. Use manufacturer snippets first, then approved non-retailer sources. Do not use retailer sources for technical specs. Fill all clearly supported fields and return valid JSON only.",
+          "You are a precise data extraction and web research system. For every shoe, you MUST search the web for the official manufacturer product page and use it as your primary source. Manufacturer data takes priority over all other sources. After the manufacturer, use only approved running shoe review sites — never retailer pages for technical specs. Return valid JSON only.",
       },
       {
         role: "user",
