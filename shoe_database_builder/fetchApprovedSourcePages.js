@@ -5,85 +5,72 @@ function isUsablePage(page) {
   return Boolean(page?.ok && page?.url && page?.text && page.text.trim().length > 200);
 }
 
-function buildSearchUrl(query) {
-  return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-}
-
-function looksLikeSearchOrIndexUrl(url) {
-  const value = String(url || "").toLowerCase();
+function looksLikeNonCanonicalUrl(url) {
+  const u = String(url || "").toLowerCase();
 
   return (
-    value.includes("/search") ||
-    value.includes("?s=") ||
-    value.includes("?q=") ||
-    value.includes("?query=") ||
-    value.includes("/tag/") ||
-    value.includes("/category/") ||
-    value.includes("/reviews") ||
-    value.includes("/best-")
+    u.includes("/search") ||
+    u.includes("?q=") ||
+    u.includes("?s=") ||
+    u.includes("?query=") ||
+    u.includes("/tag/") ||
+    u.includes("/category/")
   );
 }
 
-async function tryFetchCandidate(url, source) {
-  const result = await fetchPageText(url);
-
-  if (!isUsablePage(result)) {
+async function fetchSingleSource(source) {
+  if (!source?.source_url) {
     return null;
   }
 
-  const finalUrl = result.url || url;
-  if (looksLikeSearchOrIndexUrl(finalUrl)) {
+  try {
+    const result = await fetchPageText(source.source_url);
+
+    if (!isUsablePage(result)) {
+      console.log("SOURCE_FETCH_FAIL", {
+        source_name: source.source_name,
+        source_url: source.source_url,
+        ok: result?.ok || false,
+        error: result?.error || "unusable_page",
+      });
+      return null;
+    }
+
+    const finalUrl = result.url || source.source_url;
+
+    if (looksLikeNonCanonicalUrl(finalUrl)) {
+      console.log("SOURCE_FETCH_SKIP_NONCANONICAL", {
+        source_name: source.source_name,
+        source_url: finalUrl,
+      });
+      return null;
+    }
+
+    const page = {
+      ok: true,
+      url: finalUrl,
+      title: result.title || null,
+      text: result.text,
+      source_name: source.source_name,
+      source_type: source.source_type,
+      priority: source.priority,
+    };
+
+    console.log("SOURCE_FETCH_OK", {
+      source_name: page.source_name,
+      source_url: page.url,
+      text_length: page.text.length,
+    });
+
+    return page;
+  } catch (error) {
+    console.log("SOURCE_FETCH_ERROR", {
+      source_name: source.source_name,
+      source_url: source.source_url,
+      error: error?.message || String(error),
+    });
     return null;
   }
-
-  return {
-    ok: true,
-    url: finalUrl,
-    title: result.title || null,
-    text: result.text,
-    source_name: source.source_name,
-    source_type: source.source_type,
-    priority: source.priority,
-  };
-}
-
-async function resolveSourceToPage(source) {
-  const directCandidates = Array.isArray(source.direct_url_candidates)
-    ? source.direct_url_candidates
-    : [];
-
-  for (const url of directCandidates) {
-    try {
-      const page = await tryFetchCandidate(url, source);
-      if (page) return page;
-    } catch {}
-  }
-
-  const queries = Array.isArray(source.discovery_queries)
-    ? source.discovery_queries
-    : [];
-
-  for (const query of queries) {
-    const searchUrl = buildSearchUrl(query);
-
-    try {
-      const result = await fetchPageText(searchUrl);
-      if (!result?.ok || !result?.text) continue;
-
-      const text = String(result.text || "");
-      const match = text.match(/https?:\/\/[^\s)>"']+/g);
-      if (!match || !match.length) continue;
-
-      for (const discoveredUrl of match) {
-        try {
-          const page = await tryFetchCandidate(discoveredUrl, source);
-          if (page) return page;
-        } catch {}
-      }
-    } catch {}
-  }
-
-  return null;
 }
 
 export async function fetchApprovedSourcePages(candidate) {
@@ -92,33 +79,19 @@ export async function fetchApprovedSourcePages(candidate) {
   const seenUrls = new Set();
 
   for (const source of candidates) {
-    const page = await resolveSourceToPage(source);
-    if (!page) {
-      console.log("SOURCE_FETCH_FAIL", {
-        source_name: source.source_name,
-        source_type: source.source_type,
-        queries: source.discovery_queries || [],
-      });
-      continue;
-    }
+    const page = await fetchSingleSource(source);
+    if (!page) continue;
 
     const key = String(page.url || "").toLowerCase();
     if (!key || seenUrls.has(key)) continue;
+
     seenUrls.add(key);
-
     pages.push(page);
-
-    console.log("SOURCE_FETCH_OK", {
-      source_name: page.source_name,
-      source_type: page.source_type,
-      source_url: page.url,
-      text_length: page.text.length,
-    });
   }
 
   return pages.sort((a, b) => a.priority - b.priority);
 }
 
-export async function fetchOneApprovedSourcePage(source) {
-  return resolveSourceToPage(source);
+export async function fetchApprovedSourcePage(source) {
+  return fetchSingleSource(source);
 }
