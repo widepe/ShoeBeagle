@@ -150,7 +150,7 @@ async function searchSourceUrls(source) {
   return results;
 }
 
-async function resolveSourceUrl(source) {
+async function resolveSourceUrls(source) {
   const candidates = [];
 
   if (source?.source_url) candidates.push(source.source_url);
@@ -166,6 +166,8 @@ async function resolveSourceUrl(source) {
 
   const seen = new Set();
 
+  const filteredCandidates = [];
+
   for (const candidateUrl of candidates) {
     const url = String(candidateUrl || "").trim();
     if (!url || seen.has(url)) continue;
@@ -174,78 +176,80 @@ async function resolveSourceUrl(source) {
     if (!isAllowedSourceUrl(url, source)) continue;
     if (looksLikeNonCanonicalUrl(url)) continue;
 
-    return url;
+    filteredCandidates.push(url);
   }
 
-  return null;
+  return filteredCandidates;
 }
 
 async function fetchSingleSource(source) {
-  const resolvedUrl = await resolveSourceUrl(source);
-  if (!resolvedUrl) return null;
+  const resolvedUrls = await resolveSourceUrls(source);
+  if (!resolvedUrls.length) return null;
 
-  try {
-    const result = await fetchPageText(resolvedUrl);
+  for (const resolvedUrl of resolvedUrls) {
+    try {
+      const result = await fetchPageText(resolvedUrl);
 
-    if (!isUsablePage(result)) {
-      console.log("SOURCE_FETCH_FAIL", {
+      if (!isUsablePage(result)) {
+        console.log("SOURCE_FETCH_FAIL", {
+          source_name: source.source_name,
+          source_url: resolvedUrl,
+          ok: result?.ok || false,
+          error: result?.error || "unusable_page",
+        });
+        continue;
+      }
+
+      const finalUrl = result.url || resolvedUrl;
+
+      if (looksLikeNonCanonicalUrl(finalUrl)) {
+        console.log("SOURCE_FETCH_SKIP_NONCANONICAL", {
+          source_name: source.source_name,
+          source_url: finalUrl,
+        });
+        continue;
+      }
+      if (!isAllowedSourceUrl(finalUrl, source)) {
+        console.log("SOURCE_FETCH_SKIP_DOMAIN", {
+          source_name: source.source_name,
+          source_url: finalUrl,
+        });
+        continue;
+      }
+      if (!looksLikeRelevantResult(result, source)) {
+        console.log("SOURCE_FETCH_SKIP_IRRELEVANT", {
+          source_name: source.source_name,
+          source_url: finalUrl,
+        });
+        continue;
+      }
+
+      const page = {
+        ok: true,
+        url: finalUrl,
+        title: result.title || null,
+        text: result.text,
+        source_name: source.source_name,
+        source_type: source.source_type,
+        priority: source.priority,
+      };
+
+      console.log("SOURCE_FETCH_OK", {
+        source_name: page.source_name,
+        source_url: page.url,
+        text_length: page.text.length,
+      });
+      return page;
+    } catch (error) {
+      console.log("SOURCE_FETCH_ERROR", {
         source_name: source.source_name,
         source_url: resolvedUrl,
-        ok: result?.ok || false,
-        error: result?.error || "unusable_page",
+        error: error?.message || String(error),
       });
-      return null;
     }
-
-    const finalUrl = result.url || resolvedUrl;
-
-    if (looksLikeNonCanonicalUrl(finalUrl)) {
-      console.log("SOURCE_FETCH_SKIP_NONCANONICAL", {
-        source_name: source.source_name,
-        source_url: finalUrl,
-      });
-      return null;
-    }
-    if (!isAllowedSourceUrl(finalUrl, source)) {
-      console.log("SOURCE_FETCH_SKIP_DOMAIN", {
-        source_name: source.source_name,
-        source_url: finalUrl,
-      });
-      return null;
-    }
-    if (!looksLikeRelevantResult(result, source)) {
-      console.log("SOURCE_FETCH_SKIP_IRRELEVANT", {
-        source_name: source.source_name,
-        source_url: finalUrl,
-      });
-      return null;
-    }
-
-    const page = {
-      ok: true,
-      url: finalUrl,
-      title: result.title || null,
-      text: result.text,
-      source_name: source.source_name,
-      source_type: source.source_type,
-      priority: source.priority,
-    };
-
-    console.log("SOURCE_FETCH_OK", {
-      source_name: page.source_name,
-      source_url: page.url,
-      text_length: page.text.length,
-    });
-
-    return page;
-  } catch (error) {
-    console.log("SOURCE_FETCH_ERROR", {
-      source_name: source.source_name,
-      source_url: resolvedUrl,
-      error: error?.message || String(error),
-    });
-    return null;
   }
+
+  return null;
 }
 
 export async function fetchApprovedSourcePages(candidate) {
