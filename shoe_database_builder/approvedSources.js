@@ -73,6 +73,7 @@ export function getSourceRank(name) {
 
 function buildManufacturerSource(identity) {
   const brandToken = slugify(identity.brand).replace(/-/g, "");
+  const brandSlug = slugify(identity.brand);
 
   return {
     source_name: identity.brand || "Manufacturer",
@@ -85,10 +86,10 @@ function buildManufacturerSource(identity) {
       compact([identity.brand, identity.model, identity.version, "manufacturer"]).join(" "),
     ].filter(Boolean),
     direct_url_candidates: [
-      identity.fullSlug ? `https://www.${slugify(identity.brand).replace(/-/g, "")}.com/${identity.fullSlug}` : null,
-      identity.modelSlug ? `https://www.${slugify(identity.brand).replace(/-/g, "")}.com/${identity.modelSlug}` : null,
-      identity.fullSlug ? `https://www.${slugify(identity.brand)}.com/${identity.fullSlug}` : null,
-      identity.modelSlug ? `https://www.${slugify(identity.brand)}.com/${identity.modelSlug}` : null,
+      identity.fullSlug ? `https://www.${brandToken}.com/${identity.fullSlug}` : null,
+      identity.modelSlug ? `https://www.${brandToken}.com/${identity.modelSlug}` : null,
+      identity.fullSlug ? `https://www.${brandSlug}.com/${identity.fullSlug}` : null,
+      identity.modelSlug ? `https://www.${brandSlug}.com/${identity.modelSlug}` : null,
     ].filter(Boolean),
     identity,
     allowed_domains: brandToken ? [brandToken] : [],
