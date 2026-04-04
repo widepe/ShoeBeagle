@@ -1,5 +1,5 @@
 import { getApprovedSourceCandidates } from "./approvedSources.js";
-import { fetchOneApprovedSourcePage } from "./fetchApprovedSourcePages.js";
+import { fetchApprovedSourcePage } from "./fetchApprovedSourcePages.js";
 import { extractStructuredShoeData } from "./extractStructuredShoeData.js";
 import { insertShoeRecord } from "./insertShoeRecord.js";
 import { insertEvidenceRows } from "./insertEvidenceRows.js";
@@ -52,9 +52,9 @@ function isMissingValue(field, value) {
   if (value === undefined || value === null) return true;
 
   if (typeof value === "string") {
-    const s = value.trim().toLowerCase();
-    if (!s) return true;
-    if (["surface", "support", "plate_type", "cushioning"].includes(field) && s === "unknown") {
+    const v = value.trim().toLowerCase();
+    if (!v) return true;
+    if (["surface", "support", "plate_type", "cushioning"].includes(field) && v === "unknown") {
       return true;
     }
     return false;
@@ -65,8 +65,8 @@ function isMissingValue(field, value) {
   return false;
 }
 
-function getMissingFields(obj) {
-  return WATERFALL_FIELDS.filter((field) => isMissingValue(field, obj[field]));
+function getMissingFields(record) {
+  return WATERFALL_FIELDS.filter((field) => isMissingValue(field, record[field]));
 }
 
 function mergeEvidence(existing = [], incoming = []) {
@@ -186,24 +186,24 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
   };
 
   const sourcePlan = getApprovedSourceCandidates(researchCandidate);
-  const fetchedPages = [];
   let accumulated = seedExtracted(researchCandidate);
+  const fetchedPages = [];
 
   for (const source of sourcePlan) {
     const missingBefore = getMissingFields(accumulated);
     if (missingBefore.length === 0) break;
 
-    const page = await fetchOneApprovedSourcePage(source);
+    const page = await fetchApprovedSourcePage(source);
     if (!page) continue;
 
     fetchedPages.push(page);
 
-    const extractedFromSource = await extractStructuredShoeData(aiClient, {
+    const extracted = await extractStructuredShoeData(aiClient, {
       candidate: researchCandidate,
       snippets: buildSnippets([page]),
     });
 
-    accumulated = mergeMissingFields(accumulated, extractedFromSource);
+    accumulated = mergeMissingFields(accumulated, extracted);
 
     console.log("WATERFALL_STEP", {
       source_name: source.source_name,
@@ -213,29 +213,29 @@ export async function researchOneShoe({ db, aiClient, candidate }) {
     });
   }
 
-  const extracted = finalizeExtracted(accumulated, researchCandidate);
+  const finalExtracted = finalizeExtracted(accumulated, researchCandidate);
 
   const client = await db.connect();
 
   try {
     await client.query("begin");
 
-    const shoeId = await insertShoeRecord(client, extracted);
+    const shoeId = await insertShoeRecord(client, finalExtracted);
 
-    await insertEvidenceRows(client, shoeId, extracted.evidence);
+    await insertEvidenceRows(client, shoeId, finalExtracted.evidence);
 
     await attachDealsToShoe(client, {
       shoeId,
-      brand: extracted.brand,
-      model: extracted.model,
-      gender: extracted.gender,
+      brand: finalExtracted.brand,
+      model: finalExtracted.model,
+      gender: finalExtracted.gender,
     });
 
     await client.query("commit");
 
     return {
       shoeId,
-      extracted,
+      extracted: finalExtracted,
       approvedPages: fetchedPages,
     };
   } catch (error) {
