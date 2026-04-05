@@ -9,6 +9,8 @@ const pool = new Pool({
 const PUBLIC_DEALS_URL =
   "https://v3gjlrmpc76mymfc.public.blob.vercel-storage.com/deals.json";
 
+const BATCH_SIZE = 500;
+
 function toNumber(value) {
   if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
@@ -19,7 +21,7 @@ function normalizeText(value) {
   return String(value || "")
     .toLowerCase()
     .replace(/[™®©]/g, "")
-    .replace(/['’]/g, "")
+    .replace(/['']/g, "")
     .replace(/[^a-z0-9+.\-\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -42,27 +44,13 @@ function normalizeSurface(value) {
   return "unknown";
 }
 
-function stripLeadingBrand(listingName, brand) {
-  const name = String(listingName || "").trim();
-  const b = String(brand || "").trim();
-  if (!name || !b) return name;
-
-  const escaped = b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return name.replace(new RegExp(`^${escaped}\\s+`, "i"), "").trim();
-}
-
 function buildSlugParts(deal) {
   const brand = normalizeText(deal.brand).replace(/\s+/g, "-");
   const model = normalizeText(deal.model).replace(/\s+/g, "-");
   const version = normalizeText(deal.version).replace(/\s+/g, "-");
   const gender = normalizeGender(deal.gender);
 
-  return {
-    brand,
-    model,
-    version,
-    gender,
-  };
+  return { brand, model, version, gender };
 }
 
 function buildCandidateSlugs(deal) {
@@ -72,15 +60,12 @@ function buildCandidateSlugs(deal) {
   if (brand && model && version && gender !== "unknown") {
     slugs.add(`${brand}-${model}-${version}-${gender}`);
   }
-
   if (brand && model && version) {
     slugs.add(`${brand}-${model}-${version}`);
   }
-
   if (brand && model && gender !== "unknown") {
     slugs.add(`${brand}-${model}-${gender}`);
   }
-
   if (brand && model) {
     slugs.add(`${brand}-${model}`);
   }
@@ -90,10 +75,7 @@ function buildCandidateSlugs(deal) {
 
 async function fetchDealsJson(url) {
   const resp = await fetch(url, {
-    headers: {
-      "Cache-Control": "no-cache",
-      Pragma: "no-cache",
-    },
+    headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
   });
 
   if (!resp.ok) {
@@ -109,86 +91,186 @@ function extractDeals(payload) {
   return [];
 }
 
-async function findMatchingShoeId(client, deal) {
-  const brand = String(deal.brand || "").trim();
-  const model = String(deal.model || "").trim();
-  const gender = normalizeGender(deal.gender);
+// ---------------------------------------------------------------------------
+// Bulk shoe-ID resolution: one query for slugs, one for brand/model/gender
+// ---------------------------------------------------------------------------
+
+async function buildShoeIdLookup(client, deals) {
+  // Collect all candidate slugs across all deals
+  const allSlugs = new Set();
+  for (const deal of deals) {
+    for (const slug of buildCandidateSlugs(deal)) {
+      allSlugs.add(slug);
+    }
+  }
+
+  // slug → shoe id
+  const slugToId = new Map();
+  if (allSlugs.size > 0) {
+    const slugArr = Array.from(allSlugs);
+    const { rows } = await client.query(
+      `SELECT id, slug FROM sb_shoe_database WHERE slug = ANY($1::text[])`,
+      [slugArr]
+    );
+    for (const r of rows) {
+      slugToId.set(r.slug, r.id);
+    }
+  }
+
+  // Collect unique (brand, model, gender) combos for fallback field-match
+  const fieldKeys = new Set();
+  const fieldTuples = [];
+  for (const deal of deals) {
+    const brand = String(deal.brand || "").trim().toLowerCase();
+    const model = String(deal.model || "").trim().toLowerCase();
+    const gender = normalizeGender(deal.gender);
+    if (!brand || !model) continue;
+    const key = `${brand}|${model}|${gender}`;
+    if (!fieldKeys.has(key)) {
+      fieldKeys.add(key);
+      fieldTuples.push({ brand, model, gender });
+    }
+  }
+
+  // "brand|model|gender" → shoe id  (field-based fallback)
+  const fieldToId = new Map();
+  if (fieldTuples.length > 0) {
+    // Build a VALUES list for a single bulk query
+    const params = [];
+    const valuesClauses = [];
+    for (let i = 0; i < fieldTuples.length; i++) {
+      const off = i * 3;
+      valuesClauses.push(`($${off + 1}, $${off + 2}, $${off + 3})`);
+      params.push(fieldTuples[i].brand, fieldTuples[i].model, fieldTuples[i].gender);
+    }
+
+    const { rows } = await client.query(
+      `
+      SELECT DISTINCT ON (v.brand, v.model, v.gender)
+             s.id, v.brand, v.model, v.gender
+      FROM (VALUES ${valuesClauses.join(",")}) AS v(brand, model, gender)
+      JOIN sb_shoe_database s
+        ON lower(s.brand) = v.brand
+       AND lower(s.model) = v.model
+       AND (s.gender = v.gender OR s.gender = 'unisex' OR v.gender = 'unknown')
+      `,
+      params
+    );
+
+    for (const r of rows) {
+      fieldToId.set(`${r.brand}|${r.model}|${r.gender}`, r.id);
+    }
+  }
+
+  return { slugToId, fieldToId };
+}
+
+function resolveShoeId(deal, slugToId, fieldToId) {
+  // Try slug match (most-specific first — buildCandidateSlugs returns them in that order)
   const candidateSlugs = buildCandidateSlugs(deal);
-
-  if (candidateSlugs.length) {
-    const bySlug = await client.query(
-      `
-      SELECT id
-      FROM sb_shoe_database
-      WHERE slug = ANY($1::text[])
-      LIMIT 1
-      `,
-      [candidateSlugs]
-    );
-    if (bySlug.rows.length) return bySlug.rows[0].id;
+  for (const slug of candidateSlugs) {
+    const id = slugToId.get(slug);
+    if (id != null) return id;
   }
 
+  // Fallback: field-based match
+  const brand = String(deal.brand || "").trim().toLowerCase();
+  const model = String(deal.model || "").trim().toLowerCase();
+  const gender = normalizeGender(deal.gender);
   if (brand && model) {
-    const byFields = await client.query(
-      `
-      SELECT id
-      FROM sb_shoe_database
-      WHERE lower(brand) = lower($1)
-        AND lower(model) = lower($2)
-        AND (gender = $3 OR gender = 'unisex' OR $3 = 'unknown')
-      LIMIT 1
-      `,
-      [brand, model, gender]
-    );
-    if (byFields.rows.length) return byFields.rows[0].id;
+    const id = fieldToId.get(`${brand}|${model}|${gender}`);
+    if (id != null) return id;
   }
 
   return null;
 }
 
-async function findExistingDealId(client, deal) {
-  const store = String(deal.store || "").trim();
-  const listingUrl = String(deal.listing_url || deal.listingURL || "").trim();
-  const listingName = String(deal.listing_name || deal.listingName || "").trim();
-  const brand = String(deal.brand || "").trim();
-  const model = String(deal.model || "").trim();
+// ---------------------------------------------------------------------------
+// Bulk INSERT in batches
+// ---------------------------------------------------------------------------
 
-  if (store && listingUrl) {
-    const byUrl = await client.query(
-      `
-      SELECT id
-      FROM sb_shoe_deals
-      WHERE store = $1 AND listing_url = $2
-      LIMIT 1
-      `,
-      [store, listingUrl]
+const COLUMNS = [
+  "listing_name",
+  "brand",
+  "model",
+  "sale_price",
+  "original_price",
+  "discount_percent",
+  "sale_price_low",
+  "sale_price_high",
+  "original_price_low",
+  "original_price_high",
+  "discount_percent_up_to",
+  "store",
+  "listing_url",
+  "image_url",
+  "gender",
+  "surface",
+  "scraped_at",
+  "shoe_id",
+];
+
+function rowValues(row) {
+  return [
+    row.listing_name,
+    row.brand,
+    row.model,
+    row.sale_price,
+    row.original_price,
+    row.discount_percent,
+    row.sale_price_low,
+    row.sale_price_high,
+    row.original_price_low,
+    row.original_price_high,
+    row.discount_percent_up_to,
+    row.store,
+    row.listing_url,
+    row.image_url,
+    row.gender,
+    row.surface,
+    row.scraped_at,
+    row.shoe_id,
+  ];
+}
+
+async function bulkInsert(client, rows) {
+  const colCount = COLUMNS.length; // 18
+  let totalInserted = 0;
+
+  for (let start = 0; start < rows.length; start += BATCH_SIZE) {
+    const batch = rows.slice(start, start + BATCH_SIZE);
+    const params = [];
+    const valuesClauses = [];
+
+    for (let i = 0; i < batch.length; i++) {
+      const off = i * colCount;
+      const placeholders = COLUMNS.map((_, c) => `$${off + c + 1}`).join(",");
+      valuesClauses.push(`(${placeholders})`);
+      params.push(...rowValues(batch[i]));
+    }
+
+    await client.query(
+      `INSERT INTO sb_shoe_deals (${COLUMNS.join(",")})
+       VALUES ${valuesClauses.join(",")}`,
+      params
     );
-    if (byUrl.rows.length) return byUrl.rows[0].id;
+
+    totalInserted += batch.length;
   }
 
-  const byName = await client.query(
-    `
-    SELECT id
-    FROM sb_shoe_deals
-    WHERE store = $1
-      AND listing_name = $2
-      AND brand = $3
-      AND model = $4
-    LIMIT 1
-    `,
-    [store, listingName, brand, model]
-  );
-
-  if (byName.rows.length) return byName.rows[0].id;
-
-  return null;
+  return totalInserted;
 }
+
+// ---------------------------------------------------------------------------
+// Main handler
+// ---------------------------------------------------------------------------
 
 module.exports = async (req, res) => {
   if (req.method !== "POST" && req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
+  const startMs = Date.now();
   const dryRun = String(req.query.dryRun || "").toLowerCase() === "true";
   const dealsUrl = String(req.query.url || PUBLIC_DEALS_URL).trim();
 
@@ -205,19 +287,16 @@ module.exports = async (req, res) => {
     client = await pool.connect();
     await client.query("BEGIN");
 
-    // Wipe the table first, but inside the transaction.
-    // If anything fails later, ROLLBACK restores the old rows.
-    if (!dryRun) {
-      await client.query('DELETE FROM "sb_shoe_deals"');
-    }
+    // --- Bulk shoe-ID resolution (2 queries instead of N×2) ---
+    const { slugToId, fieldToId } = await buildShoeIdLookup(client, deals);
 
-    let inserted = 0;
-    let updated = 0;
-    let matched = 0;
-    let unmatched = 0;
-    const preview = [];
+    // --- Normalize every deal row in memory ---
+    const preparedRows = [];
+    const skippedDeals = [];
 
     for (const raw of deals) {
+      const shoeId = resolveShoeId(raw, slugToId, fieldToId);
+
       const row = {
         listing_name: String(raw.listing_name || raw.listingName || "").trim(),
         brand: String(raw.brand || "").trim(),
@@ -236,140 +315,52 @@ module.exports = async (req, res) => {
         gender: normalizeGender(raw.gender),
         surface: normalizeSurface(raw.surface ?? raw.shoeType),
         scraped_at: raw.scraped_at || raw.scrapedAt || payload.lastUpdated || new Date().toISOString(),
-        shoe_id: await findMatchingShoeId(client, raw),
+        shoe_id: shoeId,
       };
 
-      preview.push({
-        listing_name: row.listing_name,
-        brand: row.brand,
-        model: row.model,
-        store: row.store,
-        surface: row.surface,
-        gender: row.gender,
-        shoe_id: row.shoe_id,
-      });
-
-      if (row.shoe_id) matched += 1;
-      else unmatched += 1;
-
-      if (dryRun) continue;
-
-      const existingId = await findExistingDealId(client, row);
-
-      if (existingId) {
-        await client.query(
-          `
-          UPDATE sb_shoe_deals
-          SET
-            listing_name = $1,
-            brand = $2,
-            model = $3,
-            sale_price = $4,
-            original_price = $5,
-            discount_percent = $6,
-            sale_price_low = $7,
-            sale_price_high = $8,
-            original_price_low = $9,
-            original_price_high = $10,
-            discount_percent_up_to = $11,
-            store = $12,
-            listing_url = $13,
-            image_url = $14,
-            gender = $15,
-            surface = $16,
-            scraped_at = $17,
-            shoe_id = $18
-          WHERE id = $19
-          `,
-          [
-            row.listing_name,
-            row.brand,
-            row.model,
-            row.sale_price,
-            row.original_price,
-            row.discount_percent,
-            row.sale_price_low,
-            row.sale_price_high,
-            row.original_price_low,
-            row.original_price_high,
-            row.discount_percent_up_to,
-            row.store,
-            row.listing_url,
-            row.image_url,
-            row.gender,
-            row.surface,
-            row.scraped_at,
-            row.shoe_id,
-            existingId,
-          ]
-        );
-        updated += 1;
-      } else {
-        await client.query(
-          `
-          INSERT INTO sb_shoe_deals (
-            listing_name,
-            brand,
-            model,
-            sale_price,
-            original_price,
-            discount_percent,
-            sale_price_low,
-            sale_price_high,
-            original_price_low,
-            original_price_high,
-            discount_percent_up_to,
-            store,
-            listing_url,
-            image_url,
-            gender,
-            surface,
-            scraped_at,
-            shoe_id
-          )
-          VALUES (
-            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18
-          )
-          `,
-          [
-            row.listing_name,
-            row.brand,
-            row.model,
-            row.sale_price,
-            row.original_price,
-            row.discount_percent,
-            row.sale_price_low,
-            row.sale_price_high,
-            row.original_price_low,
-            row.original_price_high,
-            row.discount_percent_up_to,
-            row.store,
-            row.listing_url,
-            row.image_url,
-            row.gender,
-            row.surface,
-            row.scraped_at,
-            row.shoe_id,
-          ]
-        );
-        inserted += 1;
+      if (!shoeId) {
+        skippedDeals.push({ brand: row.brand, model: row.model, version: String(raw.version || "").trim() });
       }
+
+      preparedRows.push(row);
     }
+
+    const matched = preparedRows.filter((r) => r.shoe_id != null).length;
+    const unmatched = preparedRows.length - matched;
 
     if (dryRun) {
       await client.query("ROLLBACK");
+
+      const preview = preparedRows.slice(0, 25).map((r) => ({
+        listing_name: r.listing_name,
+        brand: r.brand,
+        model: r.model,
+        store: r.store,
+        surface: r.surface,
+        gender: r.gender,
+        shoe_id: r.shoe_id,
+      }));
+
       return res.status(200).json({
         success: true,
         dryRun: true,
         dealsUrl,
         totalDealsInJson: deals.length,
-        inserted,
-        updated,
+        inserted: 0,
+        updated: 0,
         matched,
         unmatched,
-        preview: preview.slice(0, 25),
+        skipped: unmatched,
+        elapsed_ms: Date.now() - startMs,
+        errors: [],
+        skippedDeals: skippedDeals.slice(0, 50),
+        preview,
       });
     }
+
+    // --- Wipe + bulk insert inside the transaction ---
+    await client.query('DELETE FROM "sb_shoe_deals"');
+    const insertedCount = await bulkInsert(client, preparedRows);
 
     await client.query("COMMIT");
 
@@ -378,11 +369,23 @@ module.exports = async (req, res) => {
       dryRun: false,
       dealsUrl,
       totalDealsInJson: deals.length,
-      inserted,
-      updated,
+      inserted: insertedCount,
+      updated: 0,
       matched,
       unmatched,
-      preview: preview.slice(0, 25),
+      skipped: unmatched,
+      elapsed_ms: Date.now() - startMs,
+      errors: [],
+      skippedDeals: skippedDeals.slice(0, 50),
+      preview: preparedRows.slice(0, 25).map((r) => ({
+        listing_name: r.listing_name,
+        brand: r.brand,
+        model: r.model,
+        store: r.store,
+        surface: r.surface,
+        gender: r.gender,
+        shoe_id: r.shoe_id,
+      })),
     });
   } catch (err) {
     if (client) {
@@ -394,6 +397,7 @@ module.exports = async (req, res) => {
     return res.status(500).json({
       success: false,
       error: err.message,
+      elapsed_ms: Date.now() - startMs,
     });
   } finally {
     if (client) client.release();
