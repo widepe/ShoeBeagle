@@ -7,16 +7,17 @@
     "node": "24.x"
   },
   "dependencies": {
-    "openai": "^4.56.0",
-    "dotenv": "^16.4.5",
+    "@mendable/firecrawl-js": "^1.0.0",
+    "@perplexity-ai/perplexity_ai": "^0.26.5",
+    "@sendgrid/mail": "^8.1.0",
+    "@vercel/blob": "^0.27.0",
+    "apify-client": "^2.3.0",
     "axios": "^1.6.0",
     "cheerio": "^1.0.0-rc.12",
-    "apify-client": "^2.3.0",
-    "@mendable/firecrawl-js": "^1.0.0",
-    "@vercel/blob": "^0.27.0",
-    "@sendgrid/mail": "^8.1.0",
-    "xml2js": "^0.6.2",
+    "dotenv": "^16.4.5",
+    "openai": "^4.56.0",
+    "pg": "^8.11.5",
     "proxy-agent": "^6.5.0",
-    "pg": "^8.11.5"
+    "xml2js": "^0.6.2"
   }
 }

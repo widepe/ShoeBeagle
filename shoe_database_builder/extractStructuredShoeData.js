@@ -8,6 +8,7 @@ import {
   normalizeSurface,
   safeNumber,
 } from "./normalize.js";
+import Perplexity from "@perplexity-ai/perplexity_ai";
 import { APPROVED_SOURCES, APPROVED_SOURCE_DOMAINS } from "./approvedSources.js";
 
 // ---------------------------------------------------------------------------
@@ -436,11 +437,68 @@ function postProcess(candidate, parsed) {
 }
 
 // ---------------------------------------------------------------------------
-// Main export — two-call strategy
+// Search API helpers — guaranteed domain enforcement
+// ---------------------------------------------------------------------------
+
+// One Perplexity Search client per call (reads PERPLEXITY_API_KEY from env)
+function getSearchClient() {
+  return new Perplexity({ apiKey: process.env.PERPLEXITY_API_KEY });
+}
+
+// Run a Search API query against specific domains, return result pages
+async function searchDomains({ query, domains, maxResults = 5, label }) {
+  const searchClient = getSearchClient();
+  try {
+    const result = await searchClient.search.create({
+      query,
+      search_domain_filter: domains,
+      max_results: maxResults,
+      max_tokens_per_page: 2048,
+    });
+    const pages = result.results || [];
+    console.log(`SEARCH_${label}_OK`, {
+      query,
+      domains,
+      pages_returned: pages.length,
+      urls: pages.map((p) => p.url),
+    });
+    return pages;
+  } catch (err) {
+    console.log(`SEARCH_${label}_FAIL`, { query, domains, error: err?.message || String(err) });
+    return [];
+  }
+}
+
+// Format search result pages into a readable block for the extraction prompt
+function formatSearchResults(pages) {
+  if (!pages.length) return "No results found.";
+  return pages
+    .map((p, i) =>
+      [
+        `[${i + 1}] ${p.title}`,
+        `URL: ${p.url}`,
+        `Content: ${(p.snippet || "").trim()}`,
+      ].join("\n")
+    )
+    .join("\n\n");
+}
+
+// ---------------------------------------------------------------------------
+// Main export — Search API for source control, chat completions for extraction
 // ---------------------------------------------------------------------------
 
 export async function extractStructuredShoeData(aiClient, { candidate, snippets }) {
   const manufacturerDomains = candidateManufacturerDomains(candidate.brand);
+  const allReviewDomains = Object.values(APPROVED_SOURCE_DOMAINS).flat(); // all 12 — Search API supports 20
+
+  const shoeName = [
+    candidate.brand,
+    candidate.verified_model || candidate.model,
+    candidate.verified_version || "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 
   console.log("EXTRACTION_START", {
     brand: candidate.brand,
@@ -448,79 +506,67 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
     version: candidate.verified_version || null,
     gender: candidate.gender,
     manufacturer_domains: manufacturerDomains,
-    snippet_count: Array.isArray(snippets) ? snippets.length : 0,
-    snippet_sources: Array.isArray(snippets)
-      ? snippets.map((s) => ({ source_name: s.source_name, source_type: s.source_type, source_url: s.source_url }))
-      : [],
   });
 
-  
-  // ── Both calls fire in parallel ─────────────────────────────────────────
-  // Manufacturer call is domain-filtered to the brand's official site.
-  // Review call searches all approved sources in priority order.
-  // Both run simultaneously — manufacturer wins on merge.
+  // ── Step 1: Search API — domain-enforced, guaranteed source control ─────────
+  // Both searches fire in parallel. Search API hard-filters to specified domains.
+  // The model never searches on its own — it only reads what we give it.
+  const [mfPages, rvPages] = await Promise.all([
+    searchDomains({
+      query: `${shoeName} ${candidate.gender} official specs`,
+      domains: manufacturerDomains,
+      maxResults: 3,
+      label: "MANUFACTURER",
+    }),
+    searchDomains({
+      query: `${shoeName} ${candidate.gender} running shoe specs weight stack drop foam cushioning best use`,
+      domains: allReviewDomains,
+      maxResults: 10,
+      label: "REVIEW",
+    }),
+  ]);
 
-  // NOTE: Perplexity's chat completions API silently ignores domains beyond the first 3
-  // in search_domain_filter. We work around this by batching our 12 approved sources
-  // into groups of 3 and firing them in parallel alongside the manufacturer call.
-  // Groups are ordered by source priority so the best sources are in the first batch.
-  const reviewDomainBatches = [
-    // Batch A — top priority sources
-    ["runrepeat.com", "roadtrailrun.com", "doctorsofrunning.com"],
-    // Batch B — second tier
-    ["runningshoesguru.com", "outdoorgearlab.com", "solereview.com"],
-    // Batch C — third tier
-    ["believeintherun.com", "runnersworld.com", "therunningclinic.com"],
-    // Batch D — remaining
-    ["rtings.com", "roadrunnersports.com"],
-  ];
+  // ── Step 2: Chat completions — extract JSON from pre-filtered search results ─
+  const mfSnippets = formatSearchResults(mfPages);
+  const rvSnippets = formatSearchResults(rvPages);
 
-  // Fire manufacturer call + all review batch calls in parallel
-  const [mfResult, ...rvBatchResults] = await Promise.allSettled([
+  const [mfResult, rvResult] = await Promise.allSettled([
 
-    // Call 1: Manufacturer only, domain-filtered to brand site
+    // Extraction call 1: manufacturer pages only
     aiClient.chat.completions.create({
       model: "sonar",
       temperature: 0,
-      web_search_options: {
-        search_domain_filter: manufacturerDomains,
-      },
       messages: [
         {
           role: "system",
-          content: `You are extracting technical specs for a running shoe from the official manufacturer website only. Search only the manufacturer's own website. Return valid JSON only — no commentary, no markdown fences.`,
+          content: `You are extracting running shoe specs from manufacturer web pages. Extract only from the provided search results below. Do not search the web. Return valid JSON only — no commentary, no markdown fences.`,
         },
         {
           role: "user",
-          content: buildManufacturerPrompt({ candidate }),
+          content: `${buildManufacturerPrompt({ candidate })}\n\nManufacturer search results to extract from:\n${mfSnippets}`,
         },
       ],
     }),
 
-    // Calls 2-5: One call per domain batch — each locked to 3 approved domains
-    ...reviewDomainBatches.map((domains) =>
-      aiClient.chat.completions.create({
-        model: "sonar",
-        temperature: 0,
-        web_search_options: {
-          search_domain_filter: domains,
+    // Extraction call 2: review pages only
+    aiClient.chat.completions.create({
+      model: "sonar",
+      temperature: 0,
+      messages: [
+        {
+          role: "system",
+          content: `You are extracting running shoe specs from running shoe review pages. Extract only from the provided search results below. Do not search the web. Return valid JSON only — no commentary, no markdown fences.`,
         },
-        messages: [
-          {
-            role: "system",
-            content: `You are extracting running shoe specs from approved running shoe review sites only. Do not use retailer pages. Return valid JSON only — no commentary, no markdown fences.`,
-          },
-          {
-            role: "user",
-            content: buildReviewPrompt({ candidate, snippets, missingFields: [] }),
-          },
-        ],
-      })
-    ),
+        {
+          role: "user",
+          content: `${buildReviewPrompt({ candidate, snippets: [], missingFields: [] })}\n\nApproved source search results to extract from:\n${rvSnippets}`,
+        },
+      ],
+    }),
 
   ]);
 
-  // ── Parse results ────────────────────────────────────────────────────────
+  // ── Parse results ─────────────────────────────────────────────────────────
   let manufacturerParsed = null;
   let manufacturerError = null;
 
@@ -530,7 +576,7 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
       manufacturerParsed = parseJsonLoose(mfText);
       console.log("MANUFACTURER_EXTRACTION_OK", {
         brand: candidate.brand,
-        citations: mfResult.value.citations || [],
+        source_urls: mfPages.map((p) => p.url),
         missing_after: getMissingParsedFields(manufacturerParsed),
       });
     } catch (err) {
@@ -542,39 +588,25 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
     console.log("MANUFACTURER_EXTRACTION_FAIL", { brand: candidate.brand, error: manufacturerError });
   }
 
-  // Parse all review batch results and merge them together, batch A winning over B, B over C, etc.
-  // Each batch was locked to 3 domains so the 3-domain limit is respected per call.
   let reviewParsed = null;
 
-  for (let i = 0; i < rvBatchResults.length; i++) {
-    const rvResult = rvBatchResults[i];
-    const batchLabel = ["A", "B", "C", "D"][i] || String(i + 1);
-
-    if (rvResult.status === "fulfilled") {
-      try {
-        const rvText = rvResult.value.choices?.[0]?.message?.content || "";
-        const batchParsed = parseJsonLoose(rvText);
-        console.log(`REVIEW_BATCH_${batchLabel}_OK`, {
-          brand: candidate.brand,
-          domains: reviewDomainBatches[i],
-          citations: rvResult.value.citations || [],
-          missing_after: getMissingParsedFields(batchParsed),
-        });
-        // Merge batches: earlier batches win over later batches
-        reviewParsed = reviewParsed ? mergeParsed(reviewParsed, batchParsed) : batchParsed;
-      } catch (err) {
-        console.log(`REVIEW_BATCH_${batchLabel}_PARSE_FAIL`, { brand: candidate.brand, error: err?.message || String(err) });
-      }
-    } else {
-      console.log(`REVIEW_BATCH_${batchLabel}_FAIL`, {
+  if (rvResult.status === "fulfilled") {
+    try {
+      const rvText = rvResult.value.choices?.[0]?.message?.content || "";
+      reviewParsed = parseJsonLoose(rvText);
+      console.log("REVIEW_EXTRACTION_OK", {
         brand: candidate.brand,
-        domains: reviewDomainBatches[i],
-        error: rvResult.reason?.message || String(rvResult.reason),
+        source_urls: rvPages.map((p) => p.url),
+        missing_after: getMissingParsedFields(reviewParsed),
       });
+    } catch (err) {
+      console.log("REVIEW_PARSE_FAIL", { brand: candidate.brand, error: err?.message || String(err) });
     }
+  } else {
+    console.log("REVIEW_EXTRACTION_FAIL", { brand: candidate.brand, error: rvResult.reason?.message || String(rvResult.reason) });
   }
 
-  // ── Merge: manufacturer wins, review fills gaps ──────────────────────────
+  // ── Merge: manufacturer wins, review fills gaps ───────────────────────────
   let merged;
   if (manufacturerParsed && reviewParsed) {
     const missingBeforeMerge = getMissingParsedFields(manufacturerParsed);
