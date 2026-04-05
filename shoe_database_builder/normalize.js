@@ -146,17 +146,61 @@ export function normalizeCushioning(value) {
 
   if (!s) return "unknown";
 
-  const allowed = [
-    "minimal",
-    "low",
-    "low/mod",
-    "moderate",
-    "mod/high",
-    "high",
-    "unknown",
-  ];
+  const canonical = new Set(["minimal", "low", "low/mod", "moderate", "mod/high", "high"]);
+  if (canonical.has(s)) return s;
 
-  return allowed.includes(s) ? s : "unknown";
+  // Alias map: common AI/manufacturer returned values → canonical
+  const aliases = {
+    // minimal
+    "very low":               "minimal",
+    "barefoot":               "minimal",
+    "zero drop":              "minimal",
+    // low
+    "firm":                   "low",
+    "lean":                   "low",
+    "light":                  "low",
+    "lightweight":            "low",
+    "low cushion":            "low",
+    "low cushioning":         "low",
+    // low/mod
+    "low to moderate":        "low/mod",
+    "low-moderate":           "low/mod",
+    "firm but cushioned":     "low/mod",
+    "moderate-low":           "low/mod",
+    // moderate
+    "medium":                 "moderate",
+    "medium cushion":         "moderate",
+    "medium cushioning":      "moderate",
+    "moderate cushion":       "moderate",
+    "moderate cushioning":    "moderate",
+    "balanced":               "moderate",
+    "neutral cushioning":     "moderate",
+    "everyday cushioning":    "moderate",
+    "standard":               "moderate",
+    // mod/high
+    "moderate to high":       "mod/high",
+    "moderate-high":          "mod/high",
+    "soft":                   "mod/high",
+    "well cushioned":         "mod/high",
+    "well-cushioned":         "mod/high",
+    "high-moderate":          "mod/high",
+    // high
+    "max":                    "high",
+    "max cushion":            "high",
+    "max cushioning":         "high",
+    "maximum":                "high",
+    "maximum cushion":        "high",
+    "maximum cushioning":     "high",
+    "plush":                  "high",
+    "ultra cushioned":        "high",
+    "ultra-cushioned":        "high",
+    "super cushioned":        "high",
+    "heavily cushioned":      "high",
+    "high cushion":           "high",
+    "high cushioning":        "high",
+  };
+
+  return aliases[s] || "unknown";
 }
 
 export function normalizeBestUse(list) {
