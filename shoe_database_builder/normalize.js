@@ -170,6 +170,8 @@ export function normalizeBestUse(list) {
     "trail running",
     "hybrid",
     "treadmill",
+    "track",
+    "cross-country",
     "other",
   ]);
 
@@ -216,6 +218,16 @@ export function normalizeBestUse(list) {
     "road to trail":          "hybrid",
     "road and trail":         "hybrid",
     "road/trail":             "hybrid",
+    // track
+    "track running":          "track",
+    "track spikes":           "track",
+    "spikes":                 "track",
+    // cross-country
+    "cross country":          "cross-country",
+    "xc":                     "cross-country",
+    "xc running":             "cross-country",
+    "cross-country running":  "cross-country",
+    "cross country running":  "cross-country",
     // other
     "unknown":                "other",
   };
