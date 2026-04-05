@@ -460,13 +460,23 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
   // Review call searches all approved sources in priority order.
   // Both run simultaneously — manufacturer wins on merge.
 
-  // Build the domain filter for the review call from the approved source domains map
-  const reviewDomains = Object.values(APPROVED_SOURCE_DOMAINS).flat();
+  // NOTE: Perplexity's chat completions API silently ignores domains beyond the first 3
+  // in search_domain_filter. We work around this by batching our 12 approved sources
+  // into groups of 3 and firing them in parallel alongside the manufacturer call.
+  // Groups are ordered by source priority so the best sources are in the first batch.
+  const reviewDomainBatches = [
+    // Batch A — top priority sources
+    ["runrepeat.com", "roadtrailrun.com", "doctorsofrunning.com"],
+    // Batch B — second tier
+    ["runningshoesguru.com", "outdoorgearlab.com", "solereview.com"],
+    // Batch C — third tier
+    ["believeintherun.com", "runnersworld.com", "therunningclinic.com"],
+    // Batch D — remaining
+    ["rtings.com", "roadrunnersports.com"],
+  ];
 
-  // Fire both calls in parallel — manufacturer wins on merge
-  // Call 1 fires immediately; Call 2 also fires immediately.
-  // After both settle, we compute missing fields from manufacturer and pass to review merge.
-  const [mfResult, rvResult] = await Promise.allSettled([
+  // Fire manufacturer call + all review batch calls in parallel
+  const [mfResult, ...rvBatchResults] = await Promise.allSettled([
 
     // Call 1: Manufacturer only, domain-filtered to brand site
     aiClient.chat.completions.create({
@@ -487,24 +497,26 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
       ],
     }),
 
-    // Call 2: Approved review sources only — domain-filtered to prevent off-list sites
-    aiClient.chat.completions.create({
-      model: "sonar",
-      temperature: 0,
-      web_search_options: {
-        search_domain_filter: reviewDomains,
-      },
-      messages: [
-        {
-          role: "system",
-          content: `You are extracting running shoe specs from approved running shoe review sites only. Do not use retailer pages. Return valid JSON only — no commentary, no markdown fences.`,
+    // Calls 2-5: One call per domain batch — each locked to 3 approved domains
+    ...reviewDomainBatches.map((domains) =>
+      aiClient.chat.completions.create({
+        model: "sonar",
+        temperature: 0,
+        web_search_options: {
+          search_domain_filter: domains,
         },
-        {
-          role: "user",
-          content: buildReviewPrompt({ candidate, snippets, missingFields: [] }),
-        },
-      ],
-    }),
+        messages: [
+          {
+            role: "system",
+            content: `You are extracting running shoe specs from approved running shoe review sites only. Do not use retailer pages. Return valid JSON only — no commentary, no markdown fences.`,
+          },
+          {
+            role: "user",
+            content: buildReviewPrompt({ candidate, snippets, missingFields: [] }),
+          },
+        ],
+      })
+    ),
 
   ]);
 
@@ -530,22 +542,36 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
     console.log("MANUFACTURER_EXTRACTION_FAIL", { brand: candidate.brand, error: manufacturerError });
   }
 
+  // Parse all review batch results and merge them together, batch A winning over B, B over C, etc.
+  // Each batch was locked to 3 domains so the 3-domain limit is respected per call.
   let reviewParsed = null;
 
-  if (rvResult.status === "fulfilled") {
-    try {
-      const rvText = rvResult.value.choices?.[0]?.message?.content || "";
-      reviewParsed = parseJsonLoose(rvText);
-      console.log("REVIEW_EXTRACTION_OK", {
+  for (let i = 0; i < rvBatchResults.length; i++) {
+    const rvResult = rvBatchResults[i];
+    const batchLabel = ["A", "B", "C", "D"][i] || String(i + 1);
+
+    if (rvResult.status === "fulfilled") {
+      try {
+        const rvText = rvResult.value.choices?.[0]?.message?.content || "";
+        const batchParsed = parseJsonLoose(rvText);
+        console.log(`REVIEW_BATCH_${batchLabel}_OK`, {
+          brand: candidate.brand,
+          domains: reviewDomainBatches[i],
+          citations: rvResult.value.citations || [],
+          missing_after: getMissingParsedFields(batchParsed),
+        });
+        // Merge batches: earlier batches win over later batches
+        reviewParsed = reviewParsed ? mergeParsed(reviewParsed, batchParsed) : batchParsed;
+      } catch (err) {
+        console.log(`REVIEW_BATCH_${batchLabel}_PARSE_FAIL`, { brand: candidate.brand, error: err?.message || String(err) });
+      }
+    } else {
+      console.log(`REVIEW_BATCH_${batchLabel}_FAIL`, {
         brand: candidate.brand,
-        citations: rvResult.value.citations || [],
-        missing_after: getMissingParsedFields(reviewParsed),
+        domains: reviewDomainBatches[i],
+        error: rvResult.reason?.message || String(rvResult.reason),
       });
-    } catch (err) {
-      console.log("REVIEW_PARSE_FAIL", { brand: candidate.brand, error: err?.message || String(err) });
     }
-  } else {
-    console.log("REVIEW_EXTRACTION_FAIL", { brand: candidate.brand, error: rvResult.reason?.message || String(rvResult.reason) });
   }
 
   // ── Merge: manufacturer wins, review fills gaps ──────────────────────────
@@ -575,7 +601,7 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
       still_missing_after_merge: getMissingParsedFields(merged),
     });
   } else {
-    throw new Error("Both manufacturer and review extraction calls failed — no data returned.");
+    throw new Error("All extraction calls failed — no data returned.");
   }
 
   console.log("EXTRACTED_FINAL", {

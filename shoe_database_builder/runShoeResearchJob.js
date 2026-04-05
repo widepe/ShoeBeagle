@@ -71,12 +71,19 @@ export async function runShoeResearchJob(limit = 2, concurrency = 3) {
       const batchResults = await Promise.allSettled(
         batch.map((candidate) => {
           const shoeStart = Date.now();
-          return researchOneShoe({ db, aiClient, candidate }).then((result) => ({
-            ok: true,
-            candidate,
-            result,
-            shoeStart,
-          }));
+          return researchOneShoe({ db, aiClient, candidate })
+            .then((result) => ({
+              ok: true,
+              candidate,
+              result,
+              shoeStart,
+            }))
+            .catch((err) => {
+              // Attach candidate to error so failure reporting has brand/model
+              err._candidate = candidate;
+              err._shoeStart = shoeStart;
+              throw err;
+            });
         })
       );
 
@@ -104,20 +111,20 @@ export async function runShoeResearchJob(limit = 2, concurrency = 3) {
           });
         } else {
           const error = settled.reason;
-          const shoeElapsed = Date.now() - jobStart; // approximate
+          const candidate = error?._candidate || null;
+          const shoeElapsed = error?._shoeStart ? Date.now() - error._shoeStart : Date.now() - jobStart;
           summary.ok = false;
           summary.failed += 1;
 
           const failure = {
             ok: false,
             stage: error?.stage || "research_one_shoe",
-            brand: error?.brand || null,
-            model: error?.model || null,
-            gender: error?.gender || null,
-            listingUrl: error?.listingUrl || null,
-            store: error?.store || null,
+            brand: candidate?.brand || error?.brand || null,
+            model: candidate?.model || error?.model || null,
+            gender: candidate?.gender || error?.gender || null,
+            listingUrl: candidate?.sample_listing_url || error?.listingUrl || null,
+            store: candidate?.sample_store || error?.store || null,
             error: error?.message || "Unknown error",
-            verification: error?.verification || null,
             elapsed_ms: shoeElapsed,
             elapsed_sec: (shoeElapsed / 1000).toFixed(1),
           };
