@@ -220,10 +220,11 @@ Extract every available technical spec directly from the manufacturer page. Incl
 - upper material description
 - support type (neutral, stability, motion control)
 - plate type if any
-- MSRP / price
-- manufacturer model ID / product code
-- release year
+- MSRP / retail price in USD
+- manufacturer model ID / product code (SKU or style number)
+- release year (the year this version/edition was released)
 - cushioning label as the manufacturer describes it (e.g. "balanced", "plush", "soft")
+- best_use: what the shoe is designed for — pick all that apply from: daily training, recovery, long runs, performance training, racing, trail running, hybrid, treadmill, track, cross-country. Use the shoe's described purpose, category, and intended use on the manufacturer page.
 - notes: 40-word max paraphrased synthesis of the shoe's positive attributes and special features from the manufacturer page
 
 Candidate identity:
@@ -264,11 +265,15 @@ function buildReviewPrompt({ candidate, snippets, missingFields }) {
 
   return `You are extracting running shoe specs from approved running shoe review sources.
 
-Search for the ${shoeName} (${candidate.gender}) on these approved sources in order:
+Search for the ${shoeName} (${candidate.gender}) across these approved sources:
 ${APPROVED_SOURCES.map((s, i) => `${i + 1}. ${s}`).join("\n")}
 
 Do NOT use retailer pages (Amazon, Running Warehouse, REI, Zappos, etc.) for technical specs.
 ${fieldList}
+
+For best_use, pick all that apply from these exact values only: daily training, recovery, long runs, performance training, racing, trail running, hybrid, treadmill, track, cross-country. Infer from how the review describes the shoe's purpose and intended use.
+For cushioning, use one of: minimal, low, low/mod, moderate, mod/high, high. Base it on reviewer descriptions of the midsole feel and stack.
+For release_year, look for the year this specific version was released or reviewed — not the original model launch year.
 
 Local snippets already fetched (use these plus your own live search):
 ${JSON.stringify(snippets || [], null, 2)}
