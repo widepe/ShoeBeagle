@@ -46,6 +46,9 @@ const { canonicalBrandModelHelper } = require("../lib/canonical-brand-models");
 // ✅ Canonical store list (single source of truth for stores)
 const storeList = require("../lib/canonical-stores.json");
 
+// import-deals-to-db: auto-trigger after merge writes blobs
+const importDealsToDb = require("./import-deals-to-db");
+
 /** ------------ Utilities ------------ **/
 
 function safeArray(x) {
@@ -1738,6 +1741,19 @@ module.exports = async (req, res) => {
       put("scraper-data.json", JSON.stringify(scraperData, null, 2), { access: "public", addRandomSuffix: false }),
     ]);
 
+    // --- Auto-trigger import-deals-to-db after blobs are written ---
+    let importResult;
+    try {
+      const importStart = Date.now();
+      console.log("[MERGE] import-deals-to-db started");
+      importResult = await importDealsToDb.run();
+      const importMs = Date.now() - importStart;
+      console.log(`[MERGE] import-deals-to-db completed in ${importMs}ms — inserted ${importResult.inserted ?? 0} rows`);
+    } catch (importErr) {
+      console.error("[MERGE] import-deals-to-db failed:", importErr);
+      importResult = { success: false, error: importErr.message };
+    }
+
     const durationMs = Date.now() - start;
 
     return res.status(200).json({
@@ -1757,6 +1773,8 @@ module.exports = async (req, res) => {
       statsBlobUrl: statsBlob.url,
       dailyDealsBlobUrl: dailyDealsBlob.url,
       scraperDataBlobUrl: scraperDataBlob.url,
+
+      importResult,
 
       duration: `${durationMs}ms`,
       timestamp: output.lastUpdated,

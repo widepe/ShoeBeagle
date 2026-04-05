@@ -262,18 +262,11 @@ async function bulkInsert(client, rows) {
 }
 
 // ---------------------------------------------------------------------------
-// Main handler
+// Core logic — callable directly (no req/res needed)
 // ---------------------------------------------------------------------------
 
-module.exports = async (req, res) => {
-  if (req.method !== "POST" && req.method !== "GET") {
-    return res.status(405).json({ success: false, error: "Method not allowed" });
-  }
-
+async function run({ dryRun = false, dealsUrl = PUBLIC_DEALS_URL } = {}) {
   const startMs = Date.now();
-  const dryRun = String(req.query.dryRun || "").toLowerCase() === "true";
-  const dealsUrl = String(req.query.url || PUBLIC_DEALS_URL).trim();
-
   let client;
 
   try {
@@ -341,7 +334,7 @@ module.exports = async (req, res) => {
         shoe_id: r.shoe_id,
       }));
 
-      return res.status(200).json({
+      return {
         success: true,
         dryRun: true,
         dealsUrl,
@@ -355,7 +348,7 @@ module.exports = async (req, res) => {
         errors: [],
         skippedDeals: skippedDeals.slice(0, 50),
         preview,
-      });
+      };
     }
 
     // --- Wipe + bulk insert inside the transaction ---
@@ -364,7 +357,7 @@ module.exports = async (req, res) => {
 
     await client.query("COMMIT");
 
-    return res.status(200).json({
+    return {
       success: true,
       dryRun: false,
       dealsUrl,
@@ -386,7 +379,7 @@ module.exports = async (req, res) => {
         gender: r.gender,
         shoe_id: r.shoe_id,
       })),
-    });
+    };
   } catch (err) {
     if (client) {
       try {
@@ -394,12 +387,32 @@ module.exports = async (req, res) => {
       } catch (_) {}
     }
 
-    return res.status(500).json({
+    return {
       success: false,
       error: err.message,
       elapsed_ms: Date.now() - startMs,
-    });
+    };
   } finally {
     if (client) client.release();
   }
+}
+
+// ---------------------------------------------------------------------------
+// API route handler (delegates to run())
+// ---------------------------------------------------------------------------
+
+const handler = async (req, res) => {
+  if (req.method !== "POST" && req.method !== "GET") {
+    return res.status(405).json({ success: false, error: "Method not allowed" });
+  }
+
+  const dryRun = String(req.query.dryRun || "").toLowerCase() === "true";
+  const dealsUrl = String(req.query.url || PUBLIC_DEALS_URL).trim();
+
+  const result = await run({ dryRun, dealsUrl });
+  const status = result.success ? 200 : 500;
+  return res.status(status).json(result);
 };
+
+handler.run = run;
+module.exports = handler;
