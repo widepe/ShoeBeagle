@@ -231,7 +231,18 @@ export function normalizeCushioning(value) {
     "cloud like":             "mod/high",
   };
 
-  return aliases[s] || "unknown";
+  // Exact alias match
+  if (aliases[s]) return aliases[s];
+
+  // Fuzzy fallback — partial keyword match for phrases not in the alias map
+  if (/max|plush|marshmallow|ultra\s*cushion|over\s*cushion|maximalist|maximal/.test(s)) return "high";
+  if (/lush|pillowy|cloud|luxur|very\s*soft|super\s*soft/.test(s)) return "mod/high";
+  if (/medium|moderate|balanced|cushioned|comfortable|protective|everyday|standard/.test(s)) return "moderate";
+  if (/low[- ]mod|low to mod|firm.*cushion|cushion.*firm/.test(s)) return "low/mod";
+  if (/firm|responsive|snappy|springy|energetic|lean/.test(s)) return "low";
+  if (/minimal|barefoot|minimalist|traditional|racing flat|zero[- ]drop/.test(s)) return "minimal";
+
+  return "unknown";
 }
 
 export function normalizeBestUse(list) {
