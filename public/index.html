@@ -1607,7 +1607,7 @@ function extractInlineFilters(q) {
     }
 
     if (
-      ["womens", "women", "woman", "womans"].includes(t)
+      ["womens", "women", "woman's", "womans"].includes(t)
     ) {
       gender = "womens";
     }
@@ -3229,7 +3229,7 @@ if (discount.hasDiscount && discount.percent >= 30) {
         if (g) {
           const genderTag = document.createElement("span");
           genderTag.className = "card-tag";
-          genderTag.textContent = g === "mens" ? "Mens" : g === "womens" ? "Womens" : "Unisex";
+          genderTag.textContent = g === "mens" ? "Men's" : g === "womens" ? "Women's" : "Unisex";
           tagWrap.appendChild(genderTag);
           hasAnyTag = true;
         }
