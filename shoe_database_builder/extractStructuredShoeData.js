@@ -8,7 +8,6 @@ import {
   normalizeSurface,
   safeNumber,
 } from "./normalize.js";
-import Perplexity from "@perplexity-ai/perplexity_ai";
 import { APPROVED_SOURCES, APPROVED_SOURCE_DOMAINS } from "./approvedSources.js";
 
 // ---------------------------------------------------------------------------
@@ -441,13 +440,15 @@ function postProcess(candidate, parsed) {
 // ---------------------------------------------------------------------------
 
 // One Perplexity Search client per call (reads PERPLEXITY_API_KEY from env)
-function getSearchClient() {
+// Dynamic import because @perplexity-ai/perplexity_ai is ESM-only
+async function getSearchClient() {
+  const { default: Perplexity } = await import("@perplexity-ai/perplexity_ai");
   return new Perplexity({ apiKey: process.env.PERPLEXITY_API_KEY });
 }
 
 // Run a Search API query against specific domains, return result pages
 async function searchDomains({ query, domains, maxResults = 5, label }) {
-  const searchClient = getSearchClient();
+  const searchClient = await getSearchClient();
   try {
     const result = await searchClient.search.create({
       query,
