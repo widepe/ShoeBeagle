@@ -8,7 +8,7 @@ import {
   normalizeSurface,
   safeNumber,
 } from "./normalize.js";
-import { APPROVED_SOURCES } from "./approvedSources.js";
+import { APPROVED_SOURCES, APPROVED_SOURCE_DOMAINS } from "./approvedSources.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -455,9 +455,15 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
   // Review call searches all approved sources in priority order.
   // Both run simultaneously — manufacturer wins on merge.
 
+  // Build the domain filter for the review call from the approved source domains map
+  const reviewDomains = Object.values(APPROVED_SOURCE_DOMAINS).flat();
+
+  // Fire both calls in parallel — manufacturer wins on merge
+  // Call 1 fires immediately; Call 2 also fires immediately.
+  // After both settle, we compute missing fields from manufacturer and pass to review merge.
   const [mfResult, rvResult] = await Promise.allSettled([
 
-    // Call 1: Manufacturer only, domain-filtered
+    // Call 1: Manufacturer only, domain-filtered to brand site
     aiClient.chat.completions.create({
       model: "sonar",
       temperature: 0,
@@ -476,14 +482,17 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
       ],
     }),
 
-    // Call 2: Approved review sources
+    // Call 2: Approved review sources only — domain-filtered to prevent off-list sites
     aiClient.chat.completions.create({
       model: "sonar",
       temperature: 0,
+      web_search_options: {
+        search_domain_filter: reviewDomains,
+      },
       messages: [
         {
           role: "system",
-          content: `You are extracting running shoe specs from approved running shoe review sites. Do not use retailer pages. Return valid JSON only — no commentary, no markdown fences.`,
+          content: `You are extracting running shoe specs from approved running shoe review sites only. Do not use retailer pages. Return valid JSON only — no commentary, no markdown fences.`,
         },
         {
           role: "user",
@@ -537,14 +546,29 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
   // ── Merge: manufacturer wins, review fills gaps ──────────────────────────
   let merged;
   if (manufacturerParsed && reviewParsed) {
+    const missingBeforeMerge = getMissingParsedFields(manufacturerParsed);
     merged = mergeParsed(manufacturerParsed, reviewParsed);
-    console.log("MERGE_STRATEGY", { brand: candidate.brand, strategy: "manufacturer_wins_review_fills" });
+    console.log("MERGE_STRATEGY", {
+      brand: candidate.brand,
+      strategy: "manufacturer_wins_review_fills",
+      manufacturer_missing: missingBeforeMerge,
+      still_missing_after_merge: getMissingParsedFields(merged),
+    });
   } else if (manufacturerParsed) {
     merged = manufacturerParsed;
-    console.log("MERGE_STRATEGY", { brand: candidate.brand, strategy: "manufacturer_only" });
+    console.log("MERGE_STRATEGY", {
+      brand: candidate.brand,
+      strategy: "manufacturer_only",
+      still_missing_after_merge: getMissingParsedFields(merged),
+    });
   } else if (reviewParsed) {
     merged = reviewParsed;
-    console.log("MERGE_STRATEGY", { brand: candidate.brand, strategy: "review_only_manufacturer_failed", manufacturer_error: manufacturerError });
+    console.log("MERGE_STRATEGY", {
+      brand: candidate.brand,
+      strategy: "review_only_manufacturer_failed",
+      manufacturer_error: manufacturerError,
+      still_missing_after_merge: getMissingParsedFields(merged),
+    });
   } else {
     throw new Error("Both manufacturer and review extraction calls failed — no data returned.");
   }
