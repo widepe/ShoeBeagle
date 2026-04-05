@@ -208,10 +208,14 @@ export function normalizeBestUse(list) {
     "trails":                 "trail running",
     // treadmill
     "treadmill running":      "treadmill",
-    // hybrid
-    "versatile":              "hybrid",
-    "all-around":             "hybrid",
-    "all around":             "hybrid",
+    // daily training — versatile/all-around road shoes map here, not hybrid
+    "versatile":              "daily training",
+    "all-around":             "daily training",
+    "all around":             "daily training",
+    // hybrid — road/trail or road/off-road crossover shoes only
+    "road to trail":          "hybrid",
+    "road and trail":         "hybrid",
+    "road/trail":             "hybrid",
     // other
     "unknown":                "other",
   };
