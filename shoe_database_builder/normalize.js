@@ -191,6 +191,8 @@ export function normalizeCushioning(value) {
     "maximum":                "high",
     "maximum cushion":        "high",
     "maximum cushioning":     "high",
+    "maximal":                "high",
+    "maximalist":             "high",
     "plush":                  "high",
     "ultra cushioned":        "high",
     "ultra-cushioned":        "high",
@@ -198,6 +200,35 @@ export function normalizeCushioning(value) {
     "heavily cushioned":      "high",
     "high cushion":           "high",
     "high cushioning":        "high",
+    "over cushioned":         "high",
+    "over-cushioned":         "high",
+    "marshmallowy":           "high",
+    "bouncy":                 "high",
+    // minimal
+    "ultra light":            "minimal",
+    "ultra-light":            "minimal",
+    "minimalist":             "minimal",
+    "traditional cushion":    "minimal",
+    "traditional":            "minimal",
+    "racing flat":            "minimal",
+    // low
+    "responsive":             "low",
+    "snappy":                 "low",
+    "springy":                "low",
+    "energetic":              "low",
+    "lean cushion":           "low",
+    "lean cushioning":        "low",
+    // moderate
+    "cushioned":              "moderate",
+    "comfortable":            "moderate",
+    "protective":             "moderate",
+    "everyday":               "moderate",
+    // mod/high
+    "lush":                   "mod/high",
+    "luxurious":              "mod/high",
+    "pillowy":                "mod/high",
+    "cloud-like":             "mod/high",
+    "cloud like":             "mod/high",
   };
 
   return aliases[s] || "unknown";
