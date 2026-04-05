@@ -117,10 +117,63 @@ export function normalizeSupport(support) {
   const s = String(support || "").trim().toLowerCase();
 
   if (!s) return "unknown";
-  if (["neutral"].includes(s)) return "neutral";
-  if (["stability"].includes(s)) return "stability";
-  if (["motion_control", "motion control"].includes(s)) return "motion_control";
-  if (["other"].includes(s)) return "other";
+
+  const canonical = new Set(["neutral", "stability", "motion_control", "none", "other"]);
+  if (canonical.has(s)) return s;
+
+  // Alias map: common AI/manufacturer/review terms → canonical
+  const aliases = {
+    // neutral
+    "neutral cushioning":         "neutral",
+    "neutral support":            "neutral",
+    "no support":                 "neutral",
+    "underpronation":             "neutral",
+    "supination":                 "neutral",
+    "cushioned":                  "neutral",
+    "cushion":                    "neutral",
+    // stability
+    "stability support":          "stability",
+    "mild stability":             "stability",
+    "mild support":               "stability",
+    "moderate support":           "stability",
+    "moderate stability":         "stability",
+    "light stability":            "stability",
+    "light support":              "stability",
+    "structured":                 "stability",
+    "guiding":                    "stability",
+    "guided":                     "stability",
+    "overpronation":              "stability",
+    "overpronation control":      "stability",
+    "pronation control":          "stability",
+    "anti-pronation":             "stability",
+    "antipronation":              "stability",
+    "support":                    "stability",
+    "supportive":                 "stability",
+    // motion control
+    "motion control":             "motion_control",
+    "maximum support":            "motion_control",
+    "maximum stability":          "motion_control",
+    "max support":                "motion_control",
+    "max stability":              "motion_control",
+    "severe overpronation":       "motion_control",
+    "rigid support":              "motion_control",
+    "high support":               "motion_control",
+    "high stability":             "motion_control",
+    // none
+    "barefoot":                   "none",
+    "minimalist":                 "none",
+    "zero support":               "none",
+    "no arch support":            "none",
+  };
+
+  if (aliases[s]) return aliases[s];
+
+  // Fuzzy keyword fallback
+  if (/motion.{0,5}control|maximum.{0,10}support|maximum.{0,10}stability|severe.{0,10}pronat/.test(s)) return "motion_control";
+  if (/stabilit|overpron|pronation|structured|guiding|supportive/.test(s)) return "stability";
+  if (/neutral|supination|underpron|no.{0,5}support/.test(s)) return "neutral";
+  if (/barefoot|minimalist|zero.{0,5}drop/.test(s)) return "none";
+
   return "unknown";
 }
 
