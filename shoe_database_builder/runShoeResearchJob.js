@@ -13,8 +13,10 @@ function requiredEnv(name) {
 }
 
 export async function runShoeResearchJob(limit = 2) {
+  const jobStart = Date.now();
+
   requiredEnv("DATABASE_URL");
-  requiredEnv("PERPLEXITY_API_KEY"); // Perplexity API key
+  requiredEnv("PERPLEXITY_API_KEY");
 
   const db = new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -22,8 +24,6 @@ export async function runShoeResearchJob(limit = 2) {
 
   const aiClient = new OpenAI({
     apiKey: process.env.PERPLEXITY_API_KEY,
-    // For Sonar (chat completions–style), Perplexity’s docs use this base URL:
-    // https://api.perplexity.ai
     baseURL: "https://api.perplexity.ai",
   });
 
@@ -50,6 +50,8 @@ export async function runShoeResearchJob(limit = 2) {
         inserted: 0,
         failed: 0,
         results: [],
+        elapsed_ms: Date.now() - jobStart,
+        elapsed_sec: ((Date.now() - jobStart) / 1000).toFixed(1),
         message: "No missing shoe candidates found.",
       };
     }
@@ -57,9 +59,12 @@ export async function runShoeResearchJob(limit = 2) {
     for (const candidate of candidates) {
       if (summary.inserted >= targetSuccesses) break;
 
+      const shoeStart = Date.now();
+
       try {
         const result = await researchOneShoe({ db, aiClient, candidate });
 
+        const shoeElapsed = Date.now() - shoeStart;
         summary.processed += 1;
         summary.inserted += 1;
 
@@ -74,8 +79,11 @@ export async function runShoeResearchJob(limit = 2) {
           listingUrl: candidate.sample_listing_url || null,
           store: candidate.sample_store || null,
           verified: result.verified || null,
+          elapsed_ms: shoeElapsed,
+          elapsed_sec: (shoeElapsed / 1000).toFixed(1),
         });
       } catch (error) {
+        const shoeElapsed = Date.now() - shoeStart;
         summary.ok = false;
         summary.processed += 1;
         summary.failed += 1;
@@ -90,12 +98,11 @@ export async function runShoeResearchJob(limit = 2) {
           store: error?.store || candidate.sample_store || null,
           error: error?.message || "Unknown error",
           verification: error?.verification || null,
+          elapsed_ms: shoeElapsed,
+          elapsed_sec: (shoeElapsed / 1000).toFixed(1),
         };
 
-        console.error(
-          "SHOE RESEARCH FAILURE:",
-          JSON.stringify(failure, null, 2),
-        );
+        console.error("SHOE RESEARCH FAILURE:", JSON.stringify(failure, null, 2));
         summary.results.push(failure);
       }
     }
@@ -103,6 +110,9 @@ export async function runShoeResearchJob(limit = 2) {
     if (summary.inserted < targetSuccesses) {
       summary.message = `Requested ${targetSuccesses} successful inserts, but only inserted ${summary.inserted}.`;
     }
+
+    summary.elapsed_ms = Date.now() - jobStart;
+    summary.elapsed_sec = ((Date.now() - jobStart) / 1000).toFixed(1);
 
     return summary;
   } finally {
