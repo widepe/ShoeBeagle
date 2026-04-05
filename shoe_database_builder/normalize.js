@@ -396,7 +396,10 @@ export function normalizeBestUse(list) {
 
       return null;
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    // Hard safety filter — strip anything that didn't resolve to a canonical value.
+    // This prevents DB check constraint violations if the AI returns unexpected strings.
+    .filter((v) => canonical.has(v));
 
   return [...new Set(cleaned)];
 }
