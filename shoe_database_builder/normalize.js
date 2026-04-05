@@ -324,8 +324,26 @@ export function normalizeBestUse(list) {
     .map((x) => {
       const raw = String(x || "").trim().toLowerCase();
       if (!raw) return null;
+
+      // Exact canonical match
       if (canonical.has(raw)) return raw;
-      return aliases[raw] || null;
+
+      // Exact alias match
+      if (aliases[raw]) return aliases[raw];
+
+      // Fuzzy keyword fallback — partial match for unrecognized phrases
+      if (/cross.{0,5}country|\bxc\b/.test(raw)) return "cross-country";
+      if (/treadmill/.test(raw)) return "treadmill";
+      if (/\btrack\b/.test(raw)) return "track";
+      if (/trail/.test(raw) && /road/.test(raw)) return "hybrid";
+      if (/trail/.test(raw)) return "trail running";
+      if (/race|racing/.test(raw)) return "racing";
+      if (/tempo|speed|performance|workout|interval/.test(raw)) return "performance training";
+      if (/long/.test(raw)) return "long runs";
+      if (/recover|easy|rest/.test(raw)) return "recovery";
+      if (/daily|everyday|versatile|all.around|all purpose|general/.test(raw)) return "daily training";
+
+      return null;
     })
     .filter(Boolean);
 
