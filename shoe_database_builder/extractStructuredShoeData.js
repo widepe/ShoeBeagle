@@ -449,12 +449,16 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
       : [],
   });
 
-  // ── Call 1: Manufacturer only, domain-filtered ──────────────────────────
-  let manufacturerParsed = null;
-  let manufacturerError = null;
+  
+  // ── Both calls fire in parallel ─────────────────────────────────────────
+  // Manufacturer call is domain-filtered to the brand's official site.
+  // Review call searches all approved sources in priority order.
+  // Both run simultaneously — manufacturer wins on merge.
 
-  try {
-    const mfResponse = await aiClient.chat.completions.create({
+  const [mfResult, rvResult] = await Promise.allSettled([
+
+    // Call 1: Manufacturer only, domain-filtered
+    aiClient.chat.completions.create({
       model: "sonar",
       temperature: 0,
       web_search_options: {
@@ -470,31 +474,10 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
           content: buildManufacturerPrompt({ candidate }),
         },
       ],
-    });
+    }),
 
-    const mfText = mfResponse.choices?.[0]?.message?.content || "";
-    manufacturerParsed = parseJsonLoose(mfText);
-
-    console.log("MANUFACTURER_EXTRACTION_OK", {
-      brand: candidate.brand,
-      citations: mfResponse.citations || [],
-      missing_after: getMissingParsedFields(manufacturerParsed),
-    });
-  } catch (err) {
-    manufacturerError = err?.message || String(err);
-    console.log("MANUFACTURER_EXTRACTION_FAIL", {
-      brand: candidate.brand,
-      error: manufacturerError,
-    });
-  }
-
-  // ── Call 2: Approved review sources ────────────────────────────────────
-  const missingFields = manufacturerParsed ? getMissingParsedFields(manufacturerParsed) : [];
-
-  let reviewParsed = null;
-
-  try {
-    const rvResponse = await aiClient.chat.completions.create({
+    // Call 2: Approved review sources
+    aiClient.chat.completions.create({
       model: "sonar",
       temperature: 0,
       messages: [
@@ -504,27 +487,54 @@ export async function extractStructuredShoeData(aiClient, { candidate, snippets 
         },
         {
           role: "user",
-          content: buildReviewPrompt({ candidate, snippets, missingFields }),
+          content: buildReviewPrompt({ candidate, snippets, missingFields: [] }),
         },
       ],
-    });
+    }),
 
-    const rvText = rvResponse.choices?.[0]?.message?.content || "";
-    reviewParsed = parseJsonLoose(rvText);
+  ]);
 
-    console.log("REVIEW_EXTRACTION_OK", {
-      brand: candidate.brand,
-      citations: rvResponse.citations || [],
-      missing_after: getMissingParsedFields(reviewParsed),
-    });
-  } catch (err) {
-    console.log("REVIEW_EXTRACTION_FAIL", {
-      brand: candidate.brand,
-      error: err?.message || String(err),
-    });
+  // ── Parse results ────────────────────────────────────────────────────────
+  let manufacturerParsed = null;
+  let manufacturerError = null;
+
+  if (mfResult.status === "fulfilled") {
+    try {
+      const mfText = mfResult.value.choices?.[0]?.message?.content || "";
+      manufacturerParsed = parseJsonLoose(mfText);
+      console.log("MANUFACTURER_EXTRACTION_OK", {
+        brand: candidate.brand,
+        citations: mfResult.value.citations || [],
+        missing_after: getMissingParsedFields(manufacturerParsed),
+      });
+    } catch (err) {
+      manufacturerError = err?.message || String(err);
+      console.log("MANUFACTURER_PARSE_FAIL", { brand: candidate.brand, error: manufacturerError });
+    }
+  } else {
+    manufacturerError = mfResult.reason?.message || String(mfResult.reason);
+    console.log("MANUFACTURER_EXTRACTION_FAIL", { brand: candidate.brand, error: manufacturerError });
   }
 
-  // ── Merge: manufacturer wins, review fills gaps ─────────────────────────
+  let reviewParsed = null;
+
+  if (rvResult.status === "fulfilled") {
+    try {
+      const rvText = rvResult.value.choices?.[0]?.message?.content || "";
+      reviewParsed = parseJsonLoose(rvText);
+      console.log("REVIEW_EXTRACTION_OK", {
+        brand: candidate.brand,
+        citations: rvResult.value.citations || [],
+        missing_after: getMissingParsedFields(reviewParsed),
+      });
+    } catch (err) {
+      console.log("REVIEW_PARSE_FAIL", { brand: candidate.brand, error: err?.message || String(err) });
+    }
+  } else {
+    console.log("REVIEW_EXTRACTION_FAIL", { brand: candidate.brand, error: rvResult.reason?.message || String(rvResult.reason) });
+  }
+
+  // ── Merge: manufacturer wins, review fills gaps ──────────────────────────
   let merged;
   if (manufacturerParsed && reviewParsed) {
     merged = mergeParsed(manufacturerParsed, reviewParsed);
