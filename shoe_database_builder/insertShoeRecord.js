@@ -1,19 +1,24 @@
 import { toNormalizedKey, toSlug } from "./normalize.js";
 
 export async function insertShoeRecord(db, shoe) {
-const slug = toSlug({
-  brand: shoe.brand,
-  model: shoe.model,
-  version: shoe.version,
-  gender: shoe.gender,
-});
+  const slug = toSlug({
+    brand: shoe.brand,
+    model: shoe.model,
+    version: shoe.version,
+    gender: shoe.gender,
+  });
 
-const normalizedKey = toNormalizedKey({
-  brand: shoe.brand,
-  model: shoe.model,
-  version: shoe.version,
-  gender: shoe.gender,
-});
+  const normalizedKey = toNormalizedKey({
+    brand: shoe.brand,
+    model: shoe.model,
+    version: shoe.version,
+    gender: shoe.gender,
+  });
+
+  // Postgres requires arrays to be passed as actual JS arrays.
+  // best_use and aliases are stored as text[] columns.
+  const bestUse = Array.isArray(shoe.best_use) ? shoe.best_use : [];
+  const aliases = Array.isArray(shoe.aliases) ? shoe.aliases : [];
 
   const sql = `
     insert into sb_shoe_database (
@@ -51,7 +56,26 @@ const normalizedKey = toNormalizedKey({
     )
     on conflict (normalized_key)
     do update set
-      updated_at = now()
+      display_name        = excluded.display_name,
+      manufacturer_model_id = excluded.manufacturer_model_id,
+      aliases             = excluded.aliases,
+      release_year        = excluded.release_year,
+      msrp_usd            = excluded.msrp_usd,
+      weight_oz           = excluded.weight_oz,
+      heel_stack_mm       = excluded.heel_stack_mm,
+      forefoot_stack_mm   = excluded.forefoot_stack_mm,
+      offset_mm           = excluded.offset_mm,
+      surface             = excluded.surface,
+      support             = excluded.support,
+      best_use            = excluded.best_use,
+      plated              = excluded.plated,
+      plate_type          = excluded.plate_type,
+      foam                = excluded.foam,
+      cushioning          = excluded.cushioning,
+      upper               = excluded.upper,
+      notes               = excluded.notes,
+      confidence_score    = excluded.confidence_score,
+      updated_at          = now()
     returning id;
   `;
 
@@ -63,7 +87,7 @@ const normalizedKey = toNormalizedKey({
     shoe.version,
     shoe.gender,
     shoe.manufacturer_model_id,
-    shoe.aliases,
+    aliases,
     shoe.release_year,
     shoe.msrp_usd,
     shoe.weight_oz,
@@ -72,7 +96,7 @@ const normalizedKey = toNormalizedKey({
     shoe.offset_mm,
     shoe.surface,
     shoe.support,
-    shoe.best_use,
+    bestUse,
     shoe.plated,
     shoe.plate_type,
     shoe.foam,
