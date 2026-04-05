@@ -9,9 +9,14 @@ export default async function handler(req, res) {
     const limitRaw = req.query?.limit;
     const limit = Number.isFinite(Number(limitRaw)) ? Number(limitRaw) : 2;
 
+    const concurrencyRaw = req.query?.concurrency;
+    const concurrency = Number.isFinite(Number(concurrencyRaw)) ? Number(concurrencyRaw) : 3;
+
     console.log("HANDLER_AFTER_LIMIT", {
       limitRaw,
       limit,
+      concurrencyRaw,
+      concurrency,
     });
 
     let runShoeResearchJob;
@@ -41,9 +46,10 @@ export default async function handler(req, res) {
     try {
       console.log("HANDLER_BEFORE_RUN_JOB", {
         limit,
+        concurrency,
       });
 
-      const result = await runShoeResearchJob(limit);
+      const result = await runShoeResearchJob(limit, concurrency);
 
       console.log("HANDLER_AFTER_RUN_JOB", {
         ok: result?.ok ?? null,
