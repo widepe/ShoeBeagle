@@ -265,10 +265,8 @@ export function normalizeCushioning(value) {
     "traditional":            "minimal",
     "racing flat":            "minimal",
     // low
-    "responsive":             "low",
-    "snappy":                 "low",
-    "springy":                "low",
-    "energetic":              "low",
+    // NOTE: "responsive", "snappy", "springy", "energetic" removed — these are ride-feel
+    // descriptors, not cushioning levels. A moderate shoe can be responsive.
     "lean cushion":           "low",
     "lean cushioning":        "low",
     // moderate
@@ -292,7 +290,7 @@ export function normalizeCushioning(value) {
   if (/lush|pillowy|cloud|luxur|very\s*soft|super\s*soft/.test(s)) return "mod/high";
   if (/medium|moderate|balanced|cushioned|comfortable|protective|everyday|standard/.test(s)) return "moderate";
   if (/low[- ]mod|low to mod|firm.*cushion|cushion.*firm/.test(s)) return "low/mod";
-  if (/firm|responsive|snappy|springy|energetic|lean/.test(s)) return "low";
+  if (/firm|lean/.test(s)) return "low";
   if (/minimal|barefoot|minimalist|traditional|racing flat|zero[- ]drop/.test(s)) return "minimal";
 
   return "unknown";
