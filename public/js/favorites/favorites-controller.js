@@ -94,17 +94,43 @@
     return true;
   }
 
-  function showSaveToast(message) {
+  function showSaveToast(message, anchorEl) {
     const el = document.getElementById("saveToast");
     if (!el) return;
     el.textContent = message;
     el.hidden = false;
+
+    if (anchorEl) {
+      const rect = anchorEl.getBoundingClientRect();
+      const toastRect = el.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const aboveY = rect.top - 10;
+      const belowY = rect.bottom + 10;
+      const fitsAbove = aboveY - toastRect.height > 0;
+      el.style.position = "fixed";
+      el.style.left = Math.max(8, Math.min(cx - toastRect.width / 2, window.innerWidth - toastRect.width - 8)) + "px";
+      el.style.top = (fitsAbove ? aboveY - toastRect.height : belowY) + "px";
+      el.style.bottom = "auto";
+      el.style.transform = "none";
+    } else {
+      el.style.position = "";
+      el.style.left = "";
+      el.style.top = "";
+      el.style.bottom = "";
+      el.style.transform = "";
+    }
+
     requestAnimationFrame(() => el.classList.add("show"));
     clearTimeout(el._timer);
     el._timer = setTimeout(() => {
       el.classList.remove("show");
       setTimeout(() => {
         el.hidden = true;
+        el.style.position = "";
+        el.style.left = "";
+        el.style.top = "";
+        el.style.bottom = "";
+        el.style.transform = "";
       }, 160);
     }, 1200);
   }
