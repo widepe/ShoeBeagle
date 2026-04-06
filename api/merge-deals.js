@@ -1229,12 +1229,13 @@ function toDailyDealShape(deal) {
 }
 function computeTwelveDailyDeals(allDeals, seedStr) {
   const dateStr = seedStr || getDateSeedStringUTC();
+  const DAILY_COUNT = 10;
 
   const qualityDeals = (allDeals || []).filter((d) => hasGoodImage(d) && isDiscountedDeal(d));
-  const workingPool = qualityDeals.length >= 12 ? qualityDeals : (allDeals || []).filter(hasGoodImage);
+  const workingPool = qualityDeals.length >= DAILY_COUNT ? qualityDeals : (allDeals || []).filter(hasGoodImage);
   if (!workingPool.length) return [];
 
-  if (workingPool.length < 12) {
+  if (workingPool.length < DAILY_COUNT) {
     const picked = getRandomSample(workingPool, workingPool.length, dateStr);
     return shuffleWithDateSeed(picked, dateStr).map(toDailyDealShape);
   }
@@ -1255,11 +1256,11 @@ function computeTwelveDailyDeals(allDeals, seedStr) {
     .sort((a, b) => computeDollarSavings(b) - computeDollarSavings(a))
     .slice(0, 20);
 
-  const byDollar = getRandomSample(top20ByDollar, Math.min(4, top20ByDollar.length), dateStr);
+  const byDollar = getRandomSample(top20ByDollar, Math.min(3, top20ByDollar.length), dateStr);
   byDollar.forEach((d) => pickedUrls.add(d.listingURL));
 
   const remaining = workingPool.filter((d) => !pickedUrls.has(d.listingURL));
-  const randomPicks = getRandomSample(remaining, Math.min(4, remaining.length), dateStr);
+  const randomPicks = getRandomSample(remaining, Math.min(3, remaining.length), dateStr);
 
   const selectedRaw = [...byPercent, ...byDollar, ...randomPicks];
   const shuffled = shuffleWithDateSeed(selectedRaw, dateStr);

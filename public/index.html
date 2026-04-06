@@ -587,7 +587,7 @@ const priceRangeFill = document.getElementById("priceRangeFill");
 
       function getDefaultVisibleCols() {
         const { availableWidth, gap } = getGridMetrics();
-        if (!availableWidth) return 6;
+        if (!availableWidth) return 5;
         const targetCard = 220;
         return Math.max(1, Math.floor((availableWidth + gap) / (targetCard + gap)));
       }

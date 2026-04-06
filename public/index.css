@@ -53,7 +53,7 @@ html{ -webkit-text-size-adjust:100%; }
      contexts (e.g. the daily-deals heading area).
   ========================================================= */
   --cols:6;
-  --visible-cols:6;
+  --visible-cols:5;
   --card-brand-color:#214478ff;
   --grid-gap:14px;
 
