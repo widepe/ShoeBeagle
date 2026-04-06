@@ -269,7 +269,7 @@ html.page-preload body{
   left:50%;
   bottom:96px;
   transform:translateX(-50%);
-  background:rgba(0,0,0,0.88);
+  background:var(--sb-blue);
   color:#fff;
   padding:10px 16px;
   border-radius:999px;
@@ -288,8 +288,8 @@ html.page-preload body{
 }
 
 html[data-theme="dark"] .save-toast{
-  background:rgba(255,255,255,0.94);
-  color:#111;
+  background:var(--sb-blue);
+  color:#fff;
 }
 
 @media (max-width:700px){
