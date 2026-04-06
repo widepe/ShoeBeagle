@@ -836,6 +836,7 @@ button{
 .topbar-link--alert{
   color:var(--sb-blue);
   opacity:1;
+  font-family:inherit;
 }
 
 .topbar-link--alert:hover{
