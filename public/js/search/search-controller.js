@@ -160,7 +160,7 @@
   qInput.addEventListener("blur", () => setTimeout(() => { if (!pickingSuggestion) closeSuggestions(); }, 140));
   qInput.addEventListener("click", () => qInput.select());
   document.addEventListener("click", (e) => { const inside = (qSuggestions && qSuggestions.contains(e.target)) || qInput.contains(e.target); if (!inside) closeSuggestions(); });
-  form.addEventListener("submit", async (e) => { e.preventDefault(); await handleSearch(); });
+  form.addEventListener("submit", async (e) => { e.preventDefault(); closeSuggestions(); await handleSearch(); });
   qInput.addEventListener("input", updateFetchReady);
   updateFetchReady();
 
