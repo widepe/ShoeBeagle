@@ -2333,6 +2333,7 @@ function renderFavoritesView({ resetPage = true, append = false } = {}) {
     const favoriteCard = createDealCard(entry.item, {
       favoritesView: true,
       favoriteStatus: entry.favoriteStatus,
+      savedFavorite: entry.savedFavorite,
       onImageStatusChange: (imageStatus) => {
         statusMount.innerHTML = "";
         const next = buildFavoriteStatusMessage({ favoriteStatus: entry.favoriteStatus, imageStatus, item: entry.item });
@@ -3119,7 +3120,7 @@ const filtered = showingDailyDeals
         });
       }
 
-      function createDealCard(item, { favoritesView = false, favoriteStatus = "active", onImageStatusChange = null } = {}) {
+      function createDealCard(item, { favoritesView = false, favoriteStatus = "active", onImageStatusChange = null, savedFavorite = null } = {}) {
         const discount = getDiscountInfo(item);
 
         const card = document.createElement("div");
@@ -3209,7 +3210,7 @@ heartBtn.innerHTML = `
   </svg>
 `;
 
-if (isFavoriteItem(item)) {
+if (favoritesView || isFavoriteItem(item)) {
   heartBtn.classList.add("active");
 }
 
@@ -3217,7 +3218,8 @@ heartBtn.addEventListener("click", (e) => {
   e.preventDefault();
   e.stopPropagation();
 
-  const isNowFavorite = toggleFavoriteItem(item);
+  const toggleTarget = (favoritesView && savedFavorite) ? savedFavorite : item;
+  const isNowFavorite = toggleFavoriteItem(toggleTarget);
   heartBtn.classList.toggle("active", isNowFavorite);
 
   const heartIcon = heartBtn.querySelector(".card-heart");
