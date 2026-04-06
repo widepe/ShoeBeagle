@@ -570,6 +570,7 @@ const priceRangeFill = document.getElementById("priceRangeFill");
         else document.body.style.overflow = "";
       }
 
+      /* ── OLD hardcoded breakpoints (kept for easy revert) ──
       function getDefaultVisibleCols() {
         const width = window.innerWidth || document.documentElement.clientWidth || 0;
         const isLandscape = window.matchMedia("(orientation: landscape)").matches;
@@ -581,6 +582,15 @@ const priceRangeFill = document.getElementById("priceRangeFill");
         if (width >= 768 && width <= 819 && !isLandscape) return 4;
         if (width <= 819 && isLandscape) return 3;
         return 6;
+      }
+      ── END OLD */
+
+      function getDefaultVisibleCols() {
+        if (isMobilePortrait()) return 1;
+        const { availableWidth, gap } = getGridMetrics();
+        if (!availableWidth) return 6;
+        const targetCard = 180;
+        return Math.max(2, Math.floor((availableWidth + gap) / (targetCard + gap)));
       }
 
       function getGridMetrics() {
