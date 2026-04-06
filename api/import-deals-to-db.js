@@ -35,15 +35,6 @@ function normalizeGender(value) {
   return "unknown";
 }
 
-function normalizeSurface(value) {
-  const s = normalizeText(value);
-  if (s === "road") return "road";
-  if (s === "trail") return "trail";
-  if (s === "track") return "track";
-  if (s === "xc" || s === "cross country" || s === "cross-country") return "xc";
-  return "unknown";
-}
-
 function buildSlugParts(deal) {
   const brand = normalizeText(deal.brand).replace(/\s+/g, "-");
   const model = normalizeText(deal.model).replace(/\s+/g, "-");
@@ -205,7 +196,6 @@ const COLUMNS = [
   "listing_url",
   "image_url",
   "gender",
-  "surface",
   "scraped_at",
   "shoe_id",
 ];
@@ -227,14 +217,13 @@ function rowValues(row) {
     row.listing_url,
     row.image_url,
     row.gender,
-    row.surface,
     row.scraped_at,
     row.shoe_id,
   ];
 }
 
 async function bulkInsert(client, rows) {
-  const colCount = COLUMNS.length; // 18
+  const colCount = COLUMNS.length; // 17
   let totalInserted = 0;
 
   for (let start = 0; start < rows.length; start += BATCH_SIZE) {
@@ -306,7 +295,6 @@ async function run({ dryRun = false, dealsUrl = PUBLIC_DEALS_URL } = {}) {
         listing_url: String(raw.listing_url || raw.listingURL || "").trim(),
         image_url: String(raw.image_url || raw.imageURL || "").trim() || null,
         gender: normalizeGender(raw.gender),
-        surface: normalizeSurface(raw.surface ?? raw.shoeType),
         scraped_at: raw.scraped_at || raw.scrapedAt || payload.lastUpdated || new Date().toISOString(),
         shoe_id: shoeId,
       };
@@ -329,7 +317,6 @@ async function run({ dryRun = false, dealsUrl = PUBLIC_DEALS_URL } = {}) {
         brand: r.brand,
         model: r.model,
         store: r.store,
-        surface: r.surface,
         gender: r.gender,
         shoe_id: r.shoe_id,
       }));
@@ -375,7 +362,6 @@ async function run({ dryRun = false, dealsUrl = PUBLIC_DEALS_URL } = {}) {
         brand: r.brand,
         model: r.model,
         store: r.store,
-        surface: r.surface,
         gender: r.gender,
         shoe_id: r.shoe_id,
       })),
