@@ -475,7 +475,6 @@ html[data-theme="dark"] body{
 
 html[data-theme="dark"] .sidebar-panel{
   border-color:#353e4d;
-  background:#1a1f28;
 }
 
 html[data-theme="dark"] .sidebar-placeholder{
@@ -1540,7 +1539,7 @@ margin-top:0;
   grid-template-columns:repeat(2, minmax(0, 1fr));
   gap:4px 10px;
   font-size:11px;
-  color:var(--sb-black);
+  color:#49543a;
 }
 
 .card-spec-cell{
@@ -1744,6 +1743,10 @@ html[data-theme="dark"] .card-tag{
 }
 
 html[data-theme="dark"] .card-store{
+  color:#c7d5ee;
+}
+
+html[data-theme="dark"] .card-specs-grid{
   color:#c7d5ee;
 }
 
