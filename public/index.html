@@ -586,11 +586,10 @@ const priceRangeFill = document.getElementById("priceRangeFill");
       ── END OLD */
 
       function getDefaultVisibleCols() {
-        if (isMobilePortrait()) return 1;
         const { availableWidth, gap } = getGridMetrics();
         if (!availableWidth) return 6;
         const targetCard = 220;
-        return Math.max(2, Math.floor((availableWidth + gap) / (targetCard + gap)));
+        return Math.max(1, Math.floor((availableWidth + gap) / (targetCard + gap)));
       }
 
       function getGridMetrics() {
@@ -3471,8 +3470,7 @@ if (discount.hasDiscount && discount.percent >= 30) {
       window.addEventListener("scroll", updateToTopVisibility, { passive: true });
       window.addEventListener("resize", () => {
         updateToTopVisibility();
-        const fallback = userColumnOverride ? visibleCols : getDefaultVisibleCols();
-        setVisibleCols(fallback);
+        setVisibleCols(getDefaultVisibleCols());
         renderCurrentGridForLayoutChange();
       });
       updateToTopVisibility();
