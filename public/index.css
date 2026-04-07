@@ -232,25 +232,7 @@ html.page-preload body{
   opacity:0;
 }
 
-.filters-disabled{
-  opacity:0.55;
-}
 
-.filters-disabled{
-  opacity:0.55;
-}
-
-.filters-disabled.controls{
-  pointer-events:none;
-}
-
-.price-range-filter.filters-disabled .price-range-input::-webkit-slider-thumb{
-  cursor:default;
-}
-
-.price-range-filter.filters-disabled .price-range-input::-moz-range-thumb{
-  cursor:default;
-}
 
 @keyframes heartPop {
   0%   { transform: scale(1); }

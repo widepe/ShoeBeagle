@@ -40,7 +40,7 @@
   <!-- CSS -->
 <link
   rel="stylesheet"
-  href="/index.css?v=134"
+  href="/index.css?v=135"
 />
 
   <!-- IMPORTANT:
@@ -531,7 +531,6 @@ const priceMinLabel = document.getElementById("priceMinLabel");
 const priceMaxLabel = document.getElementById("priceMaxLabel");
 const priceRangeFill = document.getElementById("priceRangeFill");
 
-      const STORAGE_FILTER_PREFS = "sb-filter-preferences";
       const STORAGE_SHOW_SPECS = "sb-show-specs";
       let pageIndex = 0;
       let currentDesktopPage = 0;
@@ -664,50 +663,11 @@ const priceRangeFill = document.getElementById("priceRangeFill");
       let selectedStore = "";
       let selectedPriceMin = 1;
       let selectedPriceMax = 400;
-      let initialViewMode = "daily";
 
-      function getCurrentViewMode() {
-        if (isShowingFavorites) return "favorites";
-        return dailyDeals && dailyDeals.style.display !== "none" ? "daily" : "all";
-      }
 
-      function persistFilterPreferences() {
-        try {
-          localStorage.setItem(
-            STORAGE_FILTER_PREFS,
-            JSON.stringify({
-              gender: selectedGender || "",
-              store: selectedStore || "",
-              shoeType: selectedShoeType || "",
-              priceMin: Number(selectedPriceMin) || 1,
-              priceMax: Number(selectedPriceMax) || 400,
-              sort: currentSort || "",
-              viewMode: getCurrentViewMode(),
-            })
-          );
-        } catch {}
-      }
 
-      function loadFilterPreferences() {
-        try {
-          const raw = localStorage.getItem(STORAGE_FILTER_PREFS);
-          if (!raw) return;
-          const parsed = JSON.parse(raw);
-          if (!parsed || typeof parsed !== "object") return;
 
-          selectedGender = String(parsed.gender || "");
-          selectedStore = String(parsed.store || "");
-          selectedShoeType = String(parsed.shoeType || "");
-          selectedPriceMin = Math.max(1, Math.min(400, Number(parsed.priceMin) || 1));
-          selectedPriceMax = Math.max(selectedPriceMin, Math.min(400, Number(parsed.priceMax) || 400));
-          currentSort = String(parsed.sort || "");
-          initialViewMode = ["daily", "all", "favorites"].includes(parsed.viewMode)
-            ? parsed.viewMode
-            : "daily";
-          pageIndex = 0;
-          currentDesktopPage = 0;
-        } catch {}
-      }
+
 
       function loadShowSpecsPreference() {
         try {
@@ -773,7 +733,6 @@ function runThemeSwitch(nextDarkTheme) {
 }
 
 applyTheme();
-loadFilterPreferences();
 loadShowSpecsPreference();
 
 if (modeToggleBtn) {
@@ -941,25 +900,19 @@ function renderSelectedStoreInventory() {
 
 if (priceMinRange && priceMaxRange) {
   priceMinRange.addEventListener("input", () => {
-    if (isShowingFavorites || (dailyDeals && dailyDeals.style.display !== "none")) return;
-
     const nextMin = Math.min(Number(priceMinRange.value || 1), selectedPriceMax);
     selectedPriceMin = nextMin;
     pageIndex = 0;
     currentDesktopPage = 0;
-    persistFilterPreferences();
     syncPanelControls();
     rerenderCurrentView({ resetPage: true, append: false });
   });
 
   priceMaxRange.addEventListener("input", () => {
-    if (isShowingFavorites || (dailyDeals && dailyDeals.style.display !== "none")) return;
-
     const nextMax = Math.max(Number(priceMaxRange.value || 400), selectedPriceMin);
     selectedPriceMax = nextMax;
     pageIndex = 0;
     currentDesktopPage = 0;
-    persistFilterPreferences();
     syncPanelControls();
     rerenderCurrentView({ resetPage: true, append: false });
   });
@@ -967,8 +920,6 @@ if (priceMinRange && priceMaxRange) {
 
 clearFiltersBtns.forEach((btn) => {
   btn.addEventListener("click", () => {
-    if (isShowingFavorites) return;
-
     selectedGender = "";
     selectedStore = "";
     selectedShoeType = "";
@@ -977,7 +928,6 @@ clearFiltersBtns.forEach((btn) => {
     pageIndex = 0;
     currentDesktopPage = 0;
 
-    persistFilterPreferences();
     syncPanelControls();
     rerenderCurrentView({ resetPage: true, append: false });
   });
@@ -1123,13 +1073,7 @@ clearFiltersBtns.forEach((btn) => {
           dealsSuggest.ready = true;
           syncStoreOptions();
 
-          if (initialViewMode === "favorites") {
-            renderFavoritesView({ resetPage: true, append: false });
-          } else if (initialViewMode === "all") {
-            renderAllDealsView({ resetPage: true, append: false });
-          } else {
-            renderDailyDealsView({ resetPage: true, append: false });
-          }
+          renderDailyDealsView({ resetPage: true, append: false });
           
         } catch (e) {
           console.error("[suggestions] Failed to build deals.json suggestion index:", e?.message || String(e));
@@ -2162,7 +2106,7 @@ function showSaveToast(message, anchorEl) {
 }      
 
 function getFavoriteItemsForDisplay() {
-  return getFilteredAndSorted(favoriteItems || [], { skipFilters: true });
+  return getFilteredAndSorted(favoriteItems || []);
 }
 
 function reconcileFavoritesWithLiveDeals(savedFavorites, liveDeals) {
@@ -2242,7 +2186,6 @@ function activateSearchableDealsMode() {
   exitFavoritesView();
   if (dailyDeals) dailyDeals.style.display = "none";
   syncDisplayPageLinksUI();
-  syncFavoritesFilterLockUI();
 }
 
 function buildFavoriteSearchMoreAction(item) {
@@ -2276,22 +2219,32 @@ function buildFavoriteSearchMoreAction(item) {
   return row;
 }
 
+function resetFiltersAndSort() {
+  selectedGender = "";
+  selectedStore = "";
+  selectedShoeType = "";
+  selectedPriceMin = 1;
+  selectedPriceMax = 400;
+  currentSort = "";
+  syncPanelControls();
+}
+
 function renderFavoritesView({ resetPage = true, append = false } = {}) {
   if (resetPage) {
     pageIndex = 0;
     currentDesktopPage = 0;
+    resetFiltersAndSort();
   }
 
   favoriteItems = loadFavoriteItems();
   isShowingFavorites = true;
   syncDisplayPageLinksUI();
-  syncFavoritesFilterLockUI();
 
   if (dailyDeals) dailyDeals.style.display = "none";
 
   const reconciled = reconcileFavoritesWithLiveDeals(favoriteItems, lastAllDeals);
   const sortableFavorites = (reconciled || []).map((entry) => ({ ...(entry.item || {}), __favoriteEntry: entry }));
-  const filtered = getFilteredAndSorted(sortableFavorites, { skipFilters: true }).map((deal) => deal.__favoriteEntry);
+  const filtered = getFilteredAndSorted(sortableFavorites).map((deal) => deal.__favoriteEntry);
   const pageSize = getPageSize();
   const activePage = isMobilePortrait() ? pageIndex : currentDesktopPage;
   const start = activePage * pageSize;
@@ -2334,17 +2287,17 @@ function renderFavoritesView({ resetPage = true, append = false } = {}) {
     totalBeforeFilters: favoriteItems.length,
     filteredTotal: filtered.length,
   });
-  persistFilterPreferences();
+
 }
 
 function exitFavoritesView() {
   isShowingFavorites = false;
   syncDisplayPageLinksUI();
-  syncFavoritesFilterLockUI();
 }
 
 function renderDailyDealsView({ resetPage = true, append = false } = {}) {
   exitFavoritesView();
+  if (resetPage) resetFiltersAndSort();
   currentSearch = { brand: "", model: "" };
   lastSearchResults = [];
   if (qInput) qInput.value = "";
@@ -2514,12 +2467,11 @@ function updateStatusBar({
     if (filteredTotal > 0) {
       setStatusSummary("Showing favorites");
       setStatusMeta(
-  [`Showing ${displayedCount} of ${filteredTotal}`, "Filters disabled"],
-  { includeFilters: false }
+  [`Showing ${displayedCount} of ${filteredTotal}`]
 );
         } else {
       setStatusSummary("No favorites to show");
-      setStatusMeta(["Filters disabled"], { includeFilters: false });
+      setStatusMeta(["Save deals to see them here"]);
     }
 
     setStatusSortVisibility(true);
@@ -2613,7 +2565,6 @@ if (dailyDealsLink) {
   dailyDealsLink.addEventListener("click", (e) => {
     e.preventDefault();
     renderDailyDealsView({ resetPage: true, append: false });
-    persistFilterPreferences();
   });
 }
 
@@ -2621,7 +2572,6 @@ if (allDealsLink) {
   allDealsLink.addEventListener("click", (e) => {
     e.preventDefault();
     renderAllDealsView({ resetPage: true, append: false });
-    persistFilterPreferences();
   });
 }
 
@@ -2629,64 +2579,10 @@ if (favsLink) {
   favsLink.addEventListener("click", (e) => {
     e.preventDefault();
     renderFavoritesView({ resetPage: true, append: false });
-    persistFilterPreferences();
   });
 }
 
 
-const filtersHeadingEl = document.getElementById("filtersHeading");
-const filtersSectionEls = document.querySelectorAll(".sidebar-heading");
-
-function syncFavoritesFilterLockUI() {
-  const showingDailyDeals = !!(dailyDeals && dailyDeals.style.display !== "none");
-  const locked = isShowingFavorites || showingDailyDeals;
-
- if (filtersHeadingEl) {
-  filtersHeadingEl.textContent = "FILTERS";
-  filtersHeadingEl.classList.toggle("filters-disabled", locked);
-}
-
-  filtersSectionEls.forEach((el) => {
-    el.classList.toggle("filters-disabled", locked);
-  });
-
-  panelGenderOptions.forEach((option) => {
-    option.classList.toggle("filters-disabled", locked);
-    option.classList.add("controls");
-    option.setAttribute("aria-disabled", locked ? "true" : "false");
-  });
-
-  panelShoeTypeOptions.forEach((option) => {
-    option.classList.toggle("filters-disabled", locked);
-    option.classList.add("controls");
-    option.setAttribute("aria-disabled", locked ? "true" : "false");
-  });
-
-  panelStoreSelects.forEach((selectEl) => {
-    selectEl.classList.toggle("filters-disabled", locked);
-    selectEl.disabled = locked;
-    selectEl.setAttribute("aria-disabled", locked ? "true" : "false");
-  });
-
-  const priceRangeFilterEl = document.getElementById("priceRangeFilter");
-
-  if (priceRangeFilterEl) {
-    priceRangeFilterEl.classList.toggle("filters-disabled", locked);
-    priceRangeFilterEl.classList.toggle("controls", locked);
-    priceRangeFilterEl.setAttribute("aria-disabled", locked ? "true" : "false");
-  }
-
-  if (priceMinRange) {
-    priceMinRange.disabled = locked;
-    priceMinRange.setAttribute("aria-disabled", locked ? "true" : "false");
-  }
-
-  if (priceMaxRange) {
-    priceMaxRange.disabled = locked;
-    priceMaxRange.setAttribute("aria-disabled", locked ? "true" : "false");
-  }
-}
-      syncFavoritesFilterLockUI();
 syncPanelControls();
       
 function applyFilters(items) {
@@ -2749,8 +2645,8 @@ function getSavingsValue(item) {
   return -1;
 }
 
-function getFilteredAndSorted(items, { skipFilters = false } = {}) {
-  const baseItems = skipFilters ? (items || []).slice() : applyFilters(items);
+function getFilteredAndSorted(items) {
+  const baseItems = applyFilters(items);
 
   if (!currentSort) {
     return baseItems.slice();
@@ -2840,7 +2736,7 @@ function renderFilteredResults({ resetPage = true, append = false, correctedFrom
     filteredTotal: filtered.length,
     correctedFrom,
   });
-  persistFilterPreferences();
+
 }
 function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
   exitFavoritesView();
@@ -2849,7 +2745,7 @@ function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
   const sourceDeals = selectedStore ? lastAllDeals : lastDailyDeals;
   if (!sourceDeals || !sourceDeals.length) return;
 
-  const filtered = getFilteredAndSorted(sourceDeals, { skipFilters: true });
+  const filtered = getFilteredAndSorted(sourceDeals);
   if (resetPage) {
     pageIndex = 0;
     currentDesktopPage = 0;
@@ -2866,7 +2762,6 @@ function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
 
   if (dailyDeals) dailyDeals.style.display = filtered.length ? "block" : "none";
 
-  syncFavoritesFilterLockUI();
   updateNavUI(filtered.length);
 
   updateStatusBar({
@@ -2874,18 +2769,15 @@ function renderDailyDealsNow({ resetPage = true, append = false } = {}) {
     totalBeforeFilters: sourceDeals.length,
     filteredTotal: filtered.length,
   });
-  persistFilterPreferences();
+
 }
 
 panelGenderOptions.forEach((option) => {
   option.addEventListener("click", () => {
-    if (isShowingFavorites || (dailyDeals && dailyDeals.style.display !== "none")) return;
-
     const value = option.getAttribute("data-panel-gender") || "";
     selectedGender = selectedGender === value ? "" : value;
     pageIndex = 0;
     currentDesktopPage = 0;
-    persistFilterPreferences();
     syncPanelControls();
     rerenderCurrentView({ resetPage: true, append: false });
   });
@@ -2897,7 +2789,6 @@ panelSortOptions.forEach((option) => {
     currentSort = currentSort === value ? "" : value;
     pageIndex = 0;
     currentDesktopPage = 0;
-    persistFilterPreferences();
     syncPanelControls();
 
     const showingDailyDeals = dailyDeals && dailyDeals.style.display !== "none";
@@ -2911,7 +2802,6 @@ if (statusSortSelect) {
     currentSort = statusSortSelect.value || "";
     pageIndex = 0;
     currentDesktopPage = 0;
-    persistFilterPreferences();
     syncPanelControls();
     rerenderCurrentView({ resetPage: true, append: false });
   });
@@ -2931,17 +2821,9 @@ if (statusSortSelect) {
 
 panelStoreSelects.forEach((storeSelectEl) => {
   storeSelectEl.addEventListener("change", () => {
-    if (isShowingFavorites || (dailyDeals && dailyDeals.style.display !== "none")) {
-      panelStoreSelects.forEach((otherSelect) => {
-        otherSelect.value = selectedStore || "";
-      });
-      return;
-    }
-
     selectedStore = storeSelectEl.value || "";
     pageIndex = 0;
     currentDesktopPage = 0;
-    persistFilterPreferences();
 
     panelStoreSelects.forEach((otherSelect) => {
       if (otherSelect !== storeSelectEl) otherSelect.value = selectedStore;
@@ -2965,8 +2847,6 @@ if (selectedStore) {
 
 panelShoeTypeOptions.forEach((option) => {
   option.addEventListener("click", () => {
-    if (isShowingFavorites || (dailyDeals && dailyDeals.style.display !== "none")) return;
-
     const value = option.getAttribute("data-panel-shoetype") || "";
     selectedShoeType =
   selectedShoeType === value.toLowerCase()
@@ -2974,7 +2854,6 @@ panelShoeTypeOptions.forEach((option) => {
     : value.toLowerCase();
     pageIndex = 0;
     currentDesktopPage = 0;
-    persistFilterPreferences();
     syncPanelControls();
     rerenderCurrentView({ resetPage: true, append: false });
   });
@@ -3000,7 +2879,7 @@ const sourceItems = showingDailyDeals
   : lastSearchResults;
 
 const filtered = showingDailyDeals
-  ? getFilteredAndSorted(sourceItems || [], { skipFilters: true })
+  ? getFilteredAndSorted(sourceItems || [])
   : getFilteredAndSorted(sourceItems || []);
     const total = filtered.length;
     const hasMore = (pageIndex + 1) * getPageSize() < total;
@@ -3054,7 +2933,7 @@ const sourceItems =
     : lastSearchResults;
 
 const filtered = showingDailyDeals
-  ? getFilteredAndSorted(sourceItems || [], { skipFilters: true })
+  ? getFilteredAndSorted(sourceItems || [])
   : getFilteredAndSorted(sourceItems || []);
     const pages = totalPagesCount(filtered.length);
     const activePage = isMobilePortrait() ? pageIndex : currentDesktopPage;
