@@ -2158,7 +2158,6 @@ html[data-theme="dark"] .footer{
       "summary"
       "applied"
       "sort";
-    row-gap:4px;
   }
 
   .status-summary{
@@ -2185,7 +2184,7 @@ html[data-theme="dark"] .footer{
   .shoe-grid{
     width:100%;
     max-width:none;
-    margin:0.25rem auto 0;
+    margin:0 auto;
     padding:0 var(--pad);
     grid-template-columns:1fr;
     justify-content:stretch;
