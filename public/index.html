@@ -645,15 +645,7 @@ const priceRangeFill = document.getElementById("priceRangeFill");
       }
 
       function loadInitialVisibleCols() {
-        let next = getDefaultVisibleCols();
-        try {
-          const stored = Number(localStorage.getItem(STORAGE_VISIBLE_COLS));
-          if (Number.isFinite(stored) && stored > 0) {
-            next = stored;
-            userColumnOverride = true;
-          }
-        } catch {}
-        setVisibleCols(next);
+        setVisibleCols(getDefaultVisibleCols());
       }
 
       function syncColumnsButtons() {

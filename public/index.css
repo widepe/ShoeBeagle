@@ -52,7 +52,7 @@ html{ -webkit-text-size-adjust:100%; }
      The :root values below are ONLY fallbacks for non-container
      contexts (e.g. the daily-deals heading area).
   ========================================================= */
-  --cols:6;
+  --cols:5;
   --visible-cols:5;
   --card-brand-color:#214478ff;
   --grid-gap:14px;
