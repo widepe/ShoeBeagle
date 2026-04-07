@@ -246,14 +246,7 @@
             <span class="slide-check-box"><span class="slide-check-mark">✓</span></span>
             <span>Dark mode</span>
           </button>
-          <div class="slide-columns-control" aria-label="Column controls">
-            <div class="slide-subheading">Columns:</div>
-            <div class="slide-columns-row">
-              <button type="button" class="slide-columns-btn" id="columnsDownBtn" aria-label="Decrease columns">−</button>
-              <div class="slide-columns-value" id="columnsValue" aria-live="polite">1</div>
-              <button type="button" class="slide-columns-btn" id="columnsUpBtn" aria-label="Increase columns">+</button>
-            </div>
-          </div>
+
         </div>
 
         <hr class="slide-divider" />
@@ -530,9 +523,7 @@ const specsOverlayClose = document.getElementById("specsOverlayClose");
       const panelGenderOptions = Array.from(document.querySelectorAll("[data-panel-gender]"));
       const panelSortOptions = Array.from(document.querySelectorAll("[data-panel-sort]"));
 const panelThemeOptions = Array.from(document.querySelectorAll("[data-panel-theme]"));
-const columnsValueEl = document.getElementById("columnsValue");
-const columnsDownBtn = document.getElementById("columnsDownBtn");
-const columnsUpBtn = document.getElementById("columnsUpBtn");
+
 
 const priceMinRange = document.getElementById("priceMinRange");
 const priceMaxRange = document.getElementById("priceMaxRange");
@@ -540,13 +531,11 @@ const priceMinLabel = document.getElementById("priceMinLabel");
 const priceMaxLabel = document.getElementById("priceMaxLabel");
 const priceRangeFill = document.getElementById("priceRangeFill");
 
-      const STORAGE_VISIBLE_COLS = "sb-visible-cols";
       const STORAGE_FILTER_PREFS = "sb-filter-preferences";
       const STORAGE_SHOW_SPECS = "sb-show-specs";
       let pageIndex = 0;
       let currentDesktopPage = 0;
       let visibleCols = 1;
-      let userColumnOverride = false;
       let showSpecs = false;
 
       const prevPageBtn = document.getElementById("prevPage");
@@ -626,33 +615,17 @@ const priceRangeFill = document.getElementById("priceRangeFill");
         return Math.max(1, n);
       }
 
-      function persistVisibleColsIfOverridden() {
-        if (!userColumnOverride) return;
-        try {
-          localStorage.setItem(STORAGE_VISIBLE_COLS, String(visibleCols));
-        } catch {}
-      }
-
-      function setVisibleCols(cols, { persist = false } = {}) {
+      function setVisibleCols(cols) {
         visibleCols = clampCols(cols);
         document.documentElement.style.setProperty("--visible-cols", String(visibleCols));
         document.documentElement.style.setProperty("--cols", String(visibleCols));
-        if (columnsValueEl) columnsValueEl.textContent = String(visibleCols);
-        if (persist) {
-          userColumnOverride = true;
-          persistVisibleColsIfOverridden();
-        }
       }
 
       function loadInitialVisibleCols() {
         setVisibleCols(getDefaultVisibleCols());
       }
 
-      function syncColumnsButtons() {
-        const bounds = getColumnBounds();
-        if (columnsDownBtn) columnsDownBtn.disabled = visibleCols <= bounds.min;
-        if (columnsUpBtn) columnsUpBtn.disabled = visibleCols >= bounds.max;
-      }
+
 
       function getPageSize() {
         return 12;
@@ -2429,7 +2402,6 @@ function rerenderCurrentView({ resetPage = true, append = false, correctedFrom =
         if (pageLabelEl) pageLabelEl.textContent = `${current} of ${pages}`;
         if (prevPageBtn) prevPageBtn.disabled = activePage <= 0;
         if (nextPageBtn) nextPageBtn.disabled = activePage + 1 >= pages;
-        syncColumnsButtons();
       }
 function getRenderedCardCount(gridEl) {
   return gridEl ? gridEl.querySelectorAll(".card").length : 0;
@@ -3097,29 +3069,7 @@ const filtered = showingDailyDeals
   });
 }
 
-      if (columnsDownBtn) {
-        columnsDownBtn.addEventListener("click", () => {
-          if (isMobilePortrait()) return;
-          const bounds = getColumnBounds();
-          if (visibleCols <= bounds.min) return;
-          setVisibleCols(visibleCols - 1, { persist: true });
-          pageIndex = 0;
-          currentDesktopPage = 0;
-          renderCurrentGridForLayoutChange();
-        });
-      }
 
-      if (columnsUpBtn) {
-        columnsUpBtn.addEventListener("click", () => {
-          if (isMobilePortrait()) return;
-          const bounds = getColumnBounds();
-          if (visibleCols >= bounds.max) return;
-          setVisibleCols(visibleCols + 1, { persist: true });
-          pageIndex = 0;
-          currentDesktopPage = 0;
-          renderCurrentGridForLayoutChange();
-        });
-      }
 
       function createDealCard(item, { favoritesView = false, favoriteStatus = "active", onImageStatusChange = null, savedFavorite = null } = {}) {
         const discount = getDiscountInfo(item);

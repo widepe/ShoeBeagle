@@ -1212,48 +1212,7 @@ html[data-theme="dark"] .slide-check-box{
 }
 
 
-.slide-columns-control{
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-  margin-top:4px;
-}
 
-.slide-columns-row{
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
-
-.slide-columns-value{
-  min-width:40px;
-  text-align:center;
-  font-size:1rem;
-  font-weight:800;
-  color:var(--sb-blue);
-}
-
-.slide-columns-btn{
-  width:34px;
-  height:34px;
-  border-radius:8px;
-  border:1px solid var(--sb-blue);
-  background:var(--sb-blue);
-  color:#fff;
-  font-size:1.3rem;
-  font-weight:800;
-  line-height:1;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:0;
-}
-
-.slide-columns-btn:disabled{
-  opacity:0.45;
-  cursor:default;
-  pointer-events:none;
-}
 
 .sort-arrow{ width:14px; height:14px; }
 .sort-arrow-left{ transform:rotate(180deg); }
