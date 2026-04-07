@@ -2144,7 +2144,6 @@ html[data-theme="dark"] .footer{
     width:100%;
     max-width:none;
     margin:0 auto;
-    padding:0 var(--pad);
     grid-template-columns:1fr;
     justify-content:stretch;
     gap:var(--grid-gap);
@@ -2207,7 +2206,7 @@ html[data-theme="dark"] .footer{
   }
 
   #mainContent{
-    padding-bottom:0;
+    padding:0 var(--pad);
   }
 
   /* =========================
