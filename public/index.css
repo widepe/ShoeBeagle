@@ -1944,7 +1944,7 @@ html[data-theme="dark"] .footer{
    - Mobile/tablet overrides live here
 ========================================================= */
 
-@media (max-width:900px){
+@media (max-width:600px){
 
   /* =========================
      GLOBAL MOBILE/TABLET TOKENS
