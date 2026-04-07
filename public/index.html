@@ -2393,12 +2393,12 @@ function rerenderCurrentView({ resetPage = true, append = false, correctedFrom =
           if (pager) pager.style.display = "none";
           if (loadMoreWrap) loadMoreWrap.style.display = hasMore ? "flex" : "none";
         } else {
-          if (pager) pager.style.display = "flex";
           if (loadMoreWrap) loadMoreWrap.style.display = "none";
         }
 
         const pages = totalPagesCount(totalFiltered);
         const current = Math.min(activePage + 1, pages);
+        if (pager) pager.style.display = (!isMobilePortrait() && pages > 1) ? "flex" : "none";
         if (pageLabelEl) pageLabelEl.textContent = `${current} of ${pages}`;
         if (prevPageBtn) prevPageBtn.disabled = activePage <= 0;
         if (nextPageBtn) nextPageBtn.disabled = activePage + 1 >= pages;
