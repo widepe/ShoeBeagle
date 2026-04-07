@@ -1910,19 +1910,15 @@ html[data-theme="dark"] .footer{
     --btn-eq-w:calc(var(--btn-h) * 1.2);
   }
 
-  .topbar-link,
-  .mode-toggle-btn{
-    display:none;
-  }
-
   .app{
     gap:0.4rem;
   }
 
   .topbar{
-    flex-direction:column;
+    flex-direction:row;
+    flex-wrap:wrap;
     align-items:center;
-    justify-content:flex-start;
+    justify-content:center;
     gap:calc(var(--gap) * 0.6);
     padding:0 var(--pad);
     width:100%;
@@ -1930,40 +1926,48 @@ html[data-theme="dark"] .footer{
   }
 
   .top-right{
-    order:0;
-    width:100%;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin:0 0 6px 0;
-    max-width:none;
-    overflow:visible;
-    transition:none;
-    will-change:auto;
     flex:0 0 auto;
-    align-self:stretch;
-  }
-
-  .top-right .brand-logo{
-    margin-left:auto;
+    order:0;
+    display:flex;
+    align-items:center;
+    gap:var(--gap);
   }
 
   .top-left{
+    flex:1 1 0;
     order:1;
-    flex:1 1 auto;
-    width:100%;
     min-width:0;
-    margin-left:0;
     max-width:none;
     transition:none;
   }
 
   .brand-logo{
     display:block;
-    width:min(80vw, 320px);
+    width:auto;
     height:auto;
-    max-width:100%;
-    max-height:calc(var(--input-h) * 2.2);
+    max-height:calc(var(--input-h) * 1.8);
+  }
+
+  /* Dissolve button-wrapper so fetch + links join .row flex layout */
+  .button-wrapper{
+    display:contents;
+  }
+
+  #mobileSearchRow{
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+
+  /* Fetch stays on row 1 with search */
+  #fetchBtn{
+    order:0;
+  }
+
+  /* Links wrap to row 2, centered */
+  .topbar-link,
+  .mode-toggle-btn{
+    display:inline-flex;
+    order:10;
   }
 
   .row{
@@ -2088,6 +2092,30 @@ html[data-theme="dark"] .footer{
 
   .mobile-top-banner{
     display:none !important;
+  }
+
+  .topbar-link,
+  .mode-toggle-btn{
+    display:none;
+  }
+
+  .topbar{
+    flex-direction:column;
+  }
+
+  .top-right{
+    width:100%;
+    justify-content:space-between;
+    margin:0 0 6px 0;
+    align-self:stretch;
+  }
+
+  .top-right .brand-logo{
+    margin-left:auto;
+  }
+
+  .top-left{
+    width:100%;
   }
 
   .content-shell,
