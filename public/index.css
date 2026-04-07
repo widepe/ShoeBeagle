@@ -806,6 +806,15 @@ button{
   gap:calc(var(--gap) * 2);
 }
 
+.nav-links{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  height:var(--btn-h);
+  gap:calc(var(--gap) * 2);
+  order:2;
+}
+
 
 .topbar-link span{
   display:block;
@@ -1948,26 +1957,18 @@ html[data-theme="dark"] .footer{
     max-height:calc(var(--input-h) * 1.8);
   }
 
-  /* Dissolve button-wrapper so fetch + links join .row flex layout */
-  .button-wrapper{
-    display:contents;
-  }
-
-  #mobileSearchRow{
-    flex-wrap:wrap;
+  /* Nav links wrap to centered second row */
+  .nav-links{
+    width:100%;
     justify-content:center;
-  }
-
-  /* Fetch stays on row 1 with search */
-  #fetchBtn{
-    order:0;
-  }
-
-  /* Links wrap to row 2, centered */
-  .topbar-link,
-  .mode-toggle-btn{
-    display:inline-flex;
     order:10;
+    height:auto;
+  }
+
+  /* Show all links at tablet size (alert + toggle included) */
+  .nav-links .topbar-link,
+  .nav-links .mode-toggle-btn{
+    display:inline-flex;
   }
 
   .row{
@@ -2094,8 +2095,7 @@ html[data-theme="dark"] .footer{
     display:none !important;
   }
 
-  .topbar-link,
-  .mode-toggle-btn{
+  .nav-links{
     display:none;
   }
 
