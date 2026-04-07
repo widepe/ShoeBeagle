@@ -1931,7 +1931,7 @@ html[data-theme="dark"] .footer{
     align-items:center;
     justify-content:center;
     gap:12px;               /* match desktop spacing */
-    padding:0 var(--pad);
+    padding:0;              /* body already provides side padding */
     width:100%;
     margin-top:0;
   }
