@@ -9,7 +9,6 @@ export const APPROVED_SOURCES = [
   { name: "Road Runner Sports", domains: ["roadrunnersports.com"] },
   { name: "Believe in the Run", domains: ["believeintherun.com"] },
   { name: "Sole Review", domains: ["solereview.com"] },
-  { name: "Runner's World", domains: ["runnersworld.com"] },
   { name: "The Running Clinic", domains: ["therunningclinic.com"] },
 ];
 
