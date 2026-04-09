@@ -8,7 +8,7 @@ import {
   normalizeSurface,
   safeNumber,
 } from "./normalize.js";
-import { APPROVED_SOURCES, APPROVED_SOURCE_DOMAINS } from "./approvedSources.js";
+import { APPROVED_SOURCES } from "./approvedSources.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -394,12 +394,15 @@ function postProcess(candidate, parsed) {
 
   const evidenceList = dedupeEvidence(parsed.evidence);
 
-  const approvedLower = APPROVED_SOURCES.map((s) => s.toLowerCase());
-  const hasApprovedEvidence = evidenceList.some(
-    (ev) =>
-      approvedLower.includes(String(ev.source_name || "").toLowerCase()) ||
-      String(ev.source_type || "").toLowerCase() === "brand"
-  );
+const approvedLower = APPROVED_SOURCES.map((s) =>
+  String(s.name || "").toLowerCase()
+);
+
+const hasApprovedEvidence = evidenceList.some((ev) => {
+  const name = String(ev.source_name || "").toLowerCase();
+  const type = String(ev.source_type || "").toLowerCase();
+  return approvedLower.includes(name) || type === "brand";
+});
 
   const baseConfidence = typeof parsed.confidence_score === "number" ? parsed.confidence_score : 0.75;
   const confidence_score = hasApprovedEvidence ? Math.max(baseConfidence, 0.85) : baseConfidence;
@@ -490,7 +493,7 @@ function formatSearchResults(pages) {
 
 export async function extractStructuredShoeData(aiClient, { candidate, snippets }) {
   const manufacturerDomains = candidateManufacturerDomains(candidate.brand);
-  const allReviewDomains = Object.values(APPROVED_SOURCE_DOMAINS).flat(); // all 12 — Search API supports 20
+  const allReviewDomains = APPROVED_SOURCES.flatMap((s) => s.domains || []); // all 12 — Search API supports 20
 
   const shoeName = [
     candidate.brand,
