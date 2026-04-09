@@ -286,14 +286,14 @@ async function run({ dryRun = false, dealsUrl = PUBLIC_DEALS_URL } = {}) {
     await client.query("BEGIN");
 
     // --- Bulk shoe-ID resolution (2 queries instead of N×2) ---
-    const { slugToId, fieldToId } = await buildShoeIdLookup(client, deals);
+    const { normalizedKeyToId, fieldToId } = await buildShoeIdLookup(client, deals);
 
     // --- Normalize every deal row in memory ---
     const preparedRows = [];
     const skippedDeals = [];
 
     for (const raw of deals) {
-      const shoeId = resolveShoeId(raw, slugToId, fieldToId);
+      const shoeId = resolveShoeId(raw, normalizedKeyToId, fieldToId);
 
       const row = {
         listing_name: String(raw.listing_name || raw.listingName || "").trim(),
