@@ -172,18 +172,18 @@ async function buildShoeIdLookup(client, deals) {
   return { normalizedKeyToId, fieldToId };
 }
 
-function resolveShoeId(deal, slugToId, fieldToId) {
-  // Try slug match (most-specific first — buildCandidateSlugs returns them in that order)
-  const candidateSlugs = buildCandidateSlugs(deal);
-  for (const slug of candidateSlugs) {
-    const id = slugToId.get(slug);
+function resolveShoeId(deal, normalizedKeyToId, fieldToId) {
+  const candidateKeys = buildCandidateNormalizedKeys(deal);
+
+  for (const key of candidateKeys) {
+    const id = normalizedKeyToId.get(key);
     if (id != null) return id;
   }
 
-  // Fallback: field-based match
   const brand = String(deal.brand || "").trim().toLowerCase();
   const model = String(deal.model || "").trim().toLowerCase();
   const gender = normalizeGender(deal.gender);
+
   if (brand && model) {
     const id = fieldToId.get(`${brand}|${model}|${gender}`);
     if (id != null) return id;
