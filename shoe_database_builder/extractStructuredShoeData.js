@@ -266,7 +266,7 @@ function buildReviewPrompt({ candidate, snippets, missingFields }) {
   return `You are extracting running shoe specs from approved running shoe review sources.
 
 Search for the ${shoeName} (${candidate.gender}) across these approved sources:
-${APPROVED_SOURCES.map((s, i) => `${i + 1}. ${s}`).join("\n")}
+${APPROVED_SOURCES.map((s, i) => `${i + 1}. ${s.name}`).join("\\n")}
 
 Do NOT use retailer pages (Amazon, Running Warehouse, REI, Zappos, etc.) for technical specs.
 ${fieldList}
