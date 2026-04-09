@@ -35,33 +35,42 @@ function normalizeGender(value) {
   return "unknown";
 }
 
-function buildSlugParts(deal) {
-  const brand = normalizeText(deal.brand).replace(/\s+/g, "-");
-  const model = normalizeText(deal.model).replace(/\s+/g, "-");
-  const version = normalizeText(deal.version).replace(/\s+/g, "-");
-  const gender = normalizeGender(deal.gender);
-
-  return { brand, model, version, gender };
+function compactKey(value) {
+  return normalizeText(value).replace(/[^a-z0-9]+/g, "");
 }
 
-function buildCandidateSlugs(deal) {
-  const { brand, model, version, gender } = buildSlugParts(deal);
-  const slugs = new Set();
+function buildNormalizedModelVersion(deal) {
+  const model = String(deal.model || "").trim();
+  const version = String(deal.version || "").trim();
 
-  if (brand && model && version && gender !== "unknown") {
-    slugs.add(`${brand}-${model}-${version}-${gender}`);
+  if (!model) return "";
+  if (!version) return model;
+
+  return /^v/i.test(version) ? `${model}${version}` : `${model} ${version}`;
+}
+
+function buildCandidateNormalizedKeys(deal) {
+  const brand = compactKey(deal.brand);
+  const modelVersion = compactKey(buildNormalizedModelVersion(deal));
+  const modelOnly = compactKey(deal.model);
+  const gender = normalizeGender(deal.gender);
+
+  const keys = new Set();
+
+  if (brand && modelVersion && gender !== "unknown") {
+    keys.add(`${brand}|${modelVersion}|${gender}`);
   }
-  if (brand && model && version) {
-    slugs.add(`${brand}-${model}-${version}`);
+  if (brand && modelVersion) {
+    keys.add(`${brand}|${modelVersion}|unknown`);
   }
-  if (brand && model && gender !== "unknown") {
-    slugs.add(`${brand}-${model}-${gender}`);
+  if (brand && modelOnly && gender !== "unknown") {
+    keys.add(`${brand}|${modelOnly}|${gender}`);
   }
-  if (brand && model) {
-    slugs.add(`${brand}-${model}`);
+  if (brand && modelOnly) {
+    keys.add(`${brand}|${modelOnly}|unknown`);
   }
 
-  return Array.from(slugs);
+  return Array.from(keys);
 }
 
 async function fetchDealsJson(url) {
