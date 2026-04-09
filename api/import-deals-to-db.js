@@ -96,35 +96,38 @@ function extractDeals(payload) {
 // ---------------------------------------------------------------------------
 
 async function buildShoeIdLookup(client, deals) {
-  // Collect all candidate slugs across all deals
-  const allSlugs = new Set();
+  const allNormalizedKeys = new Set();
+
   for (const deal of deals) {
-    for (const slug of buildCandidateSlugs(deal)) {
-      allSlugs.add(slug);
+    for (const key of buildCandidateNormalizedKeys(deal)) {
+      allNormalizedKeys.add(key);
     }
   }
 
-  // slug → shoe id
-  const slugToId = new Map();
-  if (allSlugs.size > 0) {
-    const slugArr = Array.from(allSlugs);
+  const normalizedKeyToId = new Map();
+
+  if (allNormalizedKeys.size > 0) {
+    const keyArr = Array.from(allNormalizedKeys);
     const { rows } = await client.query(
-      `SELECT id, slug FROM sb_shoe_database WHERE slug = ANY($1::text[])`,
-      [slugArr]
+      `SELECT id, normalized_key FROM sb_shoe_database WHERE normalized_key = ANY($1::text[])`,
+      [keyArr]
     );
+
     for (const r of rows) {
-      slugToId.set(r.slug, r.id);
+      normalizedKeyToId.set(r.normalized_key, r.id);
     }
   }
 
-  // Collect unique (brand, model, gender) combos for fallback field-match
   const fieldKeys = new Set();
   const fieldTuples = [];
+
   for (const deal of deals) {
     const brand = String(deal.brand || "").trim().toLowerCase();
     const model = String(deal.model || "").trim().toLowerCase();
     const gender = normalizeGender(deal.gender);
+
     if (!brand || !model) continue;
+
     const key = `${brand}|${model}|${gender}`;
     if (!fieldKeys.has(key)) {
       fieldKeys.add(key);
@@ -132,12 +135,12 @@ async function buildShoeIdLookup(client, deals) {
     }
   }
 
-  // "brand|model|gender" → shoe id  (field-based fallback)
   const fieldToId = new Map();
+
   if (fieldTuples.length > 0) {
-    // Build a VALUES list for a single bulk query
     const params = [];
     const valuesClauses = [];
+
     for (let i = 0; i < fieldTuples.length; i++) {
       const off = i * 3;
       valuesClauses.push(`($${off + 1}, $${off + 2}, $${off + 3})`);
@@ -150,9 +153,13 @@ async function buildShoeIdLookup(client, deals) {
              s.id, v.brand, v.model, v.gender
       FROM (VALUES ${valuesClauses.join(",")}) AS v(brand, model, gender)
       JOIN sb_shoe_database s
-        ON lower(s.brand) = v.brand
-       AND lower(s.model) = v.model
-       AND (s.gender = v.gender OR s.gender = 'unisex' OR v.gender = 'unknown')
+        ON lower(trim(s.brand)) = v.brand
+       AND lower(trim(s.model)) = v.model
+       AND (
+         s.gender = v.gender
+         OR s.gender = 'unisex'
+         OR v.gender = 'unknown'
+       )
       `,
       params
     );
@@ -162,7 +169,7 @@ async function buildShoeIdLookup(client, deals) {
     }
   }
 
-  return { slugToId, fieldToId };
+  return { normalizedKeyToId, fieldToId };
 }
 
 function resolveShoeId(deal, slugToId, fieldToId) {
