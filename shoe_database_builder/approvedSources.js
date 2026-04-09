@@ -1,32 +1,17 @@
 export const APPROVED_SOURCES = [
-  "RunRepeat",
-  "Running Warehouse",
-  "RoadTrailRun",
-  "Doctors of Running",
-  "Running Shoes Guru",
-  "OutdoorGearLab",
-  "RTINGS",
-  "Road Runner Sports",
-  "Believe in the Run",
-  "Sole Review",
-  "Runner's World",
-  "The Running Clinic",
+  { name: "RunRepeat", domains: ["runrepeat.com"] },
+  { name: "Running Warehouse", domains: ["runningwarehouse.com"] },
+  { name: "RoadTrailRun", domains: ["roadtrailrun.com"] },
+  { name: "Doctors of Running", domains: ["doctorsofrunning.com"] },
+  { name: "Running Shoes Guru", domains: ["runningshoesguru.com"] },
+  { name: "OutdoorGearLab", domains: ["outdoorgearlab.com"] },
+  { name: "RTINGS", domains: ["rtings.com"] },
+  { name: "Road Runner Sports", domains: ["roadrunnersports.com"] },
+  { name: "Believe in the Run", domains: ["believeintherun.com"] },
+  { name: "Sole Review", domains: ["solereview.com"] },
+  { name: "Runner's World", domains: ["runnersworld.com"] },
+  { name: "The Running Clinic", domains: ["therunningclinic.com"] },
 ];
-
-export const APPROVED_SOURCE_DOMAINS = {
-  "RunRepeat": ["runrepeat.com"],
-  "Running Warehouse": ["runningwarehouse.com"],
-  "RoadTrailRun": ["roadtrailrun.com"],
-  "Doctors of Running": ["doctorsofrunning.com"],
-  "Running Shoes Guru": ["runningshoesguru.com"],
-  "OutdoorGearLab": ["outdoorgearlab.com"],
-  "RTINGS": ["rtings.com"],
-  "Road Runner Sports": ["roadrunnersports.com"],
-  "Believe in the Run": ["believeintherun.com"],
-  "Sole Review": ["solereview.com"],
-  "Runner's World": ["runnersworld.com"],
-  "The Running Clinic": ["therunningclinic.com"],
-};
 
 function compact(parts) {
   return parts.map((x) => String(x || "").trim()).filter(Boolean);
@@ -66,7 +51,7 @@ function buildIdentity(candidate) {
 
 export function getSourceRank(name) {
   const i = APPROVED_SOURCES.findIndex(
-    (x) => x.toLowerCase() === String(name || "").toLowerCase()
+    (source) => source.name.toLowerCase() === String(name || "").toLowerCase()
   );
   return i === -1 ? 999 : i;
 }
@@ -96,26 +81,26 @@ function buildManufacturerSource(identity) {
   };
 }
 
-function buildApprovedSource(sourceName, priority, identity) {
+function buildApprovedSource(source, priority, identity) {
   return {
-    source_name: sourceName,
+    source_name: source.name,
     source_type: "review",
     priority,
     source_url: null,
     discovery_queries: [
-      compact([sourceName, identity.brand, identity.model, identity.version]).join(" "),
-      compact([sourceName, identity.fullName]).join(" "),
-      compact([sourceName, identity.brand, identity.model]).join(" "),
+      compact([source.name, identity.brand, identity.model, identity.version]).join(" "),
+      compact([source.name, identity.fullName]).join(" "),
+      compact([source.name, identity.brand, identity.model]).join(" "),
     ].filter(Boolean),
     direct_url_candidates:
-      sourceName === "RunRepeat"
+      source.name === "RunRepeat"
         ? [
             identity.fullSlug ? `https://runrepeat.com/${identity.fullSlug}` : null,
             identity.modelSlug ? `https://runrepeat.com/${identity.modelSlug}` : null,
           ].filter(Boolean)
         : [],
     identity,
-    allowed_domains: APPROVED_SOURCE_DOMAINS[sourceName] || [],
+    allowed_domains: source.domains || [],
   };
 }
 
@@ -124,8 +109,8 @@ export function getApprovedSourceCandidates(candidate) {
 
   return [
     buildManufacturerSource(identity),
-    ...APPROVED_SOURCES.map((name, index) =>
-      buildApprovedSource(name, index + 2, identity)
+    ...APPROVED_SOURCES.map((source, index) =>
+      buildApprovedSource(source, index + 2, identity)
     ),
   ].sort((a, b) => a.priority - b.priority);
 }
