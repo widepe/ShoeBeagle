@@ -1608,14 +1608,14 @@ html[data-theme="dark"] .specs-overlay-modal{
   border:none;
   appearance:none;
   -webkit-appearance:none;
-  padding:5px;
+  padding:6px;
   margin:0;
   cursor:pointer;
   z-index:4;
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  width:10%;
+  width:18%;
   min-width:0;
   aspect-ratio:1 / 1;
 }
