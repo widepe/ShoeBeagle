@@ -2060,6 +2060,18 @@ function toggleFavoriteItem(item) {
   addFavoriteItem(item);
   return true;
 }
+
+function syncSaveIcon(buttonEl, isSaved) {
+  const img = buttonEl?.querySelector(".card-save-icon");
+  buttonEl.classList.toggle("active", !!isSaved);
+
+  if (img) {
+    img.src = isSaved
+      ? "/images/save_on.svg"
+      : "/images/save_off.svg";
+  }
+}
+
 function showSaveToast(message, anchorEl) {
   const el = document.getElementById("saveToast");
   if (!el) return;
@@ -3029,44 +3041,45 @@ const filtered = showingDailyDeals
           imgWrapper.appendChild(fallbackImg);
         }
 
-const bookmarkBtn = document.createElement("button");
-bookmarkBtn.type = "button";
-bookmarkBtn.className = "card-bookmark-btn";
-bookmarkBtn.setAttribute("aria-label", "Toggle saved deal");
+const saveBtn = document.createElement("button");
+saveBtn.type = "button";
+saveBtn.className = "card-save-btn";
+saveBtn.setAttribute("aria-label", "Toggle saved deal");
 
-bookmarkBtn.innerHTML = `
-  <svg class="card-bookmark" viewBox="0 0 14.33 15.98" width="20" height="20" aria-hidden="true">
-    <path d="M1.238 0c-.402 0-.72.104-.932.309C.093.514 0 .806 0 1.131v14.001c0 .482.463.836 1.088.846.314.004.637-.082.879-.261l5.194-3.875 5.198 3.875c.242.179.565.266.879.261.578-.01 1.088-.324 1.088-.845V1.131c0-.325-.094-.617-.307-.822C13.807.104 13.489 0 13.087 0H1.238zm.16 1.018h11.506c.23-.011.332.086.336.295l.082 13.194c.007.256-.068.326-.146.353-.117.042-.273-.046-.307-.08l-5.702-4.238-5.704 4.238c-.094.093-.197.069-.308.08-.078-.028-.151-.097-.145-.353l.082-13.194c.001-.199.079-.295.307-.295z"></path>
-  </svg>
+saveBtn.innerHTML = `
+  <img
+    src="/images/save_off.svg"
+    class="card-save-icon"
+    alt=""
+    aria-hidden="true"
+  />
 `;
 
-if (favoritesView || isFavoriteItem(item)) {
-  bookmarkBtn.classList.add("active");
-}
+syncSaveIcon(saveBtn, favoritesView || isFavoriteItem(item));
 
-bookmarkBtn.addEventListener("click", (e) => {
+saveBtn.addEventListener("click", (e) => {
   e.preventDefault();
   e.stopPropagation();
 
   const toggleTarget = (favoritesView && savedFavorite) ? savedFavorite : item;
   const isNowFavorite = toggleFavoriteItem(toggleTarget);
-  bookmarkBtn.classList.toggle("active", isNowFavorite);
+  syncSaveIcon(saveBtn, isNowFavorite);
 
-  const bookmarkIcon = bookmarkBtn.querySelector(".card-bookmark");
-  if (bookmarkIcon) {
-    bookmarkIcon.classList.remove("pop");
-    void bookmarkIcon.offsetWidth; // restart animation
-    bookmarkIcon.classList.add("pop");
+  const saveIcon = saveBtn.querySelector(".card-save-icon");
+  if (saveIcon) {
+    saveIcon.classList.remove("pop");
+    void saveIcon.offsetWidth; // restart animation
+    saveIcon.classList.add("pop");
   }
 
-  showSaveToast(isNowFavorite ? "Saved deal" : "Removed saved deal", bookmarkBtn);
+  showSaveToast(isNowFavorite ? "Saved deal" : "Removed saved deal", saveBtn);
 
   if (isShowingFavorites) {
     renderFavoritesView({ resetPage: false, append: false });
   }
 });
 
-imgWrapper.appendChild(bookmarkBtn);
+imgWrapper.appendChild(saveBtn);
         
 if (discount.hasDiscount && discount.percent >= 30) {
   const badge = document.createElement('div');
