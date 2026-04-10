@@ -1622,6 +1622,15 @@ html[data-theme="dark"] .specs-overlay-modal{
   display:flex;
   align-items:center;
   justify-content:center;
+  transition: color 0.15s ease;
+}
+
+.card-bookmark-btn.active {
+  color: #d14b5c;
+}
+
+html[data-theme="dark"] .card-bookmark-btn.active {
+  color: #ff7e90;
 }
 
 .card-bookmark-btn.active .card-bookmark {
