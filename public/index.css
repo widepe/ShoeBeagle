@@ -18,12 +18,13 @@ html{ -webkit-text-size-adjust:100%; }
    DESIGN TOKENS
 ========================================================= */
 :root{
-  --sb-blue:#214478ff;
-  --sb-orange:#ff6701ff;
+  --sb-blue:#12375bff;
+  --sb-blue-rgb:18, 55, 91;
+  --sb-orange:#ff6f10ff;
   --sb-black:#000000bf;
   --bg:#fff5f0;
   --card-bg:#d5deedbf;
-  --sb-blue-rgb:33 68 120;
+
   --input-bg:#f8f8f8;   /* search and input and check box and drop down backgrounds */
   --sidebar-w: minmax(165px, 180px);   /* sidebar width range */
 
