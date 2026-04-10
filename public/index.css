@@ -242,7 +242,7 @@ html.page-preload body{
   100% { transform: scale(1); }
 }
 
-.card-bookmark.pop{
+.card-save-icon.pop{
   animation: bookmarkPop 0.25s ease;
   transform-origin:center;
 }
@@ -1599,42 +1599,35 @@ html[data-theme="dark"] .specs-overlay-modal{
   border-color:#445470;
 } 
 
-.card-bookmark {
-  stroke: currentColor;
-  stroke-width: 2;
-  transition: all 0.15s ease;
-}
-
-.card-bookmark path {
-  fill: transparent;
-}
-
-.card-bookmark-btn {
+.card-save-btn {
   position:absolute;
   top:0px;
   right:0px;
-  color: #aaa;
-  background: none;
-  border: none;
-  padding:6px;
+  color:#aaa;
+  background:none;
+  border:none;
+  padding:0;
   margin:0;
-  cursor: pointer;
+  cursor:pointer;
   z-index:4;
-  display:flex;
+  display:inline-flex;
   align-items:center;
   justify-content:center;
 }
 
-.card-bookmark-btn.active .card-bookmark {
-  stroke: currentColor;
+.card-save-icon {
+  width:20px;
+  height:20px;
+  display:block;
+  transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
-.card-bookmark-btn.active .card-bookmark path {
-  fill: currentColor;
-}
-
-.card-bookmark-btn:hover .card-bookmark {
+.card-save-btn:hover .card-save-icon {
   transform: scale(1.08);
+}
+
+.card-save-btn:active .card-save-icon {
+  transform: scale(0.95);
 }
 
 
