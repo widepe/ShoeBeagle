@@ -1599,10 +1599,13 @@ html[data-theme="dark"] .specs-overlay-modal{
 } 
 
 .card-bookmark {
-  fill: none;
   stroke: currentColor;
   stroke-width: 2;
   transition: all 0.15s ease;
+}
+
+.card-bookmark path {
+  fill: transparent;
 }
 
 .card-bookmark-btn {
@@ -1622,8 +1625,11 @@ html[data-theme="dark"] .specs-overlay-modal{
 }
 
 .card-bookmark-btn.active .card-bookmark {
-  fill: currentColor;
   stroke: currentColor;
+}
+
+.card-bookmark-btn.active .card-bookmark path {
+  fill: currentColor;
 }
 
 .card-bookmark-btn:hover .card-bookmark {
