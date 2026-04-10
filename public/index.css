@@ -1604,7 +1604,7 @@ html[data-theme="dark"] .specs-overlay-modal{
   top:0px;
   right:0px;
   color:#aaa;
-  background:none;
+  opacity: 0.7;   /* off state dim */  background:none;
   border:none;
   appearance:none;
   -webkit-appearance:none;
