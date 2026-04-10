@@ -3029,44 +3029,44 @@ const filtered = showingDailyDeals
           imgWrapper.appendChild(fallbackImg);
         }
 
-const heartBtn = document.createElement("button");
-heartBtn.type = "button";
-heartBtn.className = "card-heart-btn";
-heartBtn.setAttribute("aria-label", "Toggle favorite");
+const bookmarkBtn = document.createElement("button");
+bookmarkBtn.type = "button";
+bookmarkBtn.className = "card-bookmark-btn";
+bookmarkBtn.setAttribute("aria-label", "Toggle saved deal");
 
-heartBtn.innerHTML = `
-  <svg class="card-heart" viewBox="-15 -15 220.92728 190.21409" style="fill-rule:evenodd" aria-hidden="true">
-    <path d="M 48.939829,6.4120451e-4 C -5.1459406,-0.2784688 -42.877761,90.905681 95.432589,160.18518 c 0.002,0.0111 0.003,0.0179 0.005,0.0289 0.009,-0.004 0.0174,-0.009 0.0264,-0.0134 0.009,0.004 0.017,0.009 0.0258,0.0134 0.002,-0.0111 0.003,-0.0179 0.005,-0.0289 C 233.80507,90.905681 196.07328,-0.2784688 141.98756,6.4120451e-4 116.97903,0.1296912 99.919069,19.524841 95.464299,25.193931 91.009779,19.525101 73.949369,0.1296912 48.940529,6.4120451e-4 Z"/>
+bookmarkBtn.innerHTML = `
+  <svg class="card-bookmark" viewBox="0 0 14.33 15.98" width="20" height="20" aria-hidden="true">
+    <path d="M1.238 0c-.402 0-.72.104-.932.309C.093.514 0 .806 0 1.131v14.001c0 .482.463.836 1.088.846.314.004.637-.082.879-.261l5.194-3.875 5.198 3.875c.242.179.565.266.879.261.578-.01 1.088-.324 1.088-.845V1.131c0-.325-.094-.617-.307-.822C13.807.104 13.489 0 13.087 0H1.238zm.16 1.018h11.506c.23-.011.332.086.336.295l.082 13.194c.007.256-.068.326-.146.353-.117.042-.273-.046-.307-.08l-5.702-4.238-5.704 4.238c-.094.093-.197.069-.308.08-.078-.028-.151-.097-.145-.353l.082-13.194c.001-.199.079-.295.307-.295z"></path>
   </svg>
 `;
 
 if (favoritesView || isFavoriteItem(item)) {
-  heartBtn.classList.add("active");
+  bookmarkBtn.classList.add("active");
 }
 
-heartBtn.addEventListener("click", (e) => {
+bookmarkBtn.addEventListener("click", (e) => {
   e.preventDefault();
   e.stopPropagation();
 
   const toggleTarget = (favoritesView && savedFavorite) ? savedFavorite : item;
   const isNowFavorite = toggleFavoriteItem(toggleTarget);
-  heartBtn.classList.toggle("active", isNowFavorite);
+  bookmarkBtn.classList.toggle("active", isNowFavorite);
 
-  const heartIcon = heartBtn.querySelector(".card-heart");
-  if (heartIcon) {
-    heartIcon.classList.remove("pop");
-    void heartIcon.offsetWidth; // restart animation
-    heartIcon.classList.add("pop");
+  const bookmarkIcon = bookmarkBtn.querySelector(".card-bookmark");
+  if (bookmarkIcon) {
+    bookmarkIcon.classList.remove("pop");
+    void bookmarkIcon.offsetWidth; // restart animation
+    bookmarkIcon.classList.add("pop");
   }
 
-  showSaveToast(isNowFavorite ? "Saved deal" : "Removed saved deal", heartBtn);
+  showSaveToast(isNowFavorite ? "Saved deal" : "Removed saved deal", bookmarkBtn);
 
   if (isShowingFavorites) {
     renderFavoritesView({ resetPage: false, append: false });
   }
 });
 
-imgWrapper.appendChild(heartBtn);
+imgWrapper.appendChild(bookmarkBtn);
         
 if (discount.hasDiscount && discount.percent >= 30) {
   const badge = document.createElement('div');
