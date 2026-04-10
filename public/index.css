@@ -55,7 +55,7 @@ html{ -webkit-text-size-adjust:100%; }
   ========================================================= */
   --cols:5;
   --visible-cols:5;
-  --card-brand-color:#214478ff;
+  --card-brand-color:#12375bff;
   --grid-gap:14px;
 
   /* SET ALERT MODAL TOKENS */
@@ -1679,7 +1679,7 @@ html[data-theme="dark"] .specs-overlay-modal{
   white-space:nowrap;
 }
 html[data-theme="dark"] .card-tag{
-  color:#214478ff;
+  color:#12375bff;
 }
 .card-content{
   display:flex;
