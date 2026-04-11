@@ -1609,7 +1609,7 @@ html[data-theme="dark"] .specs-overlay-modal{
   top:0px;
   right:0px;
   color:#aaa;
-  opacity: 0.7;   /* off state dim */
+  opacity: 1;
   background:none;
   border:none;
   appearance:none;
@@ -1630,7 +1630,7 @@ html[data-theme="dark"] .specs-overlay-modal{
   width:100%;
   height:auto;
   display:block;
-  opacity: 1;   /* on state  */
+  opacity: 0.5;  
   border:none;
   border-radius:0;
   background:transparent;
