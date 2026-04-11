@@ -1629,21 +1629,23 @@ html[data-theme="dark"] .specs-overlay-modal{
   width:100%;
   height:auto;
   display:block;
-  opacity: 0.5;  
+  opacity:0.7;
   border:none;
   border-radius:0;
   background:transparent;
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  transition:transform 0.15s ease, opacity 0.15s ease;
+}
+
+.card-save-btn.active .card-save-icon {
+  opacity:1;
 }
 
 .card-save-btn:hover .card-save-icon {
-   opacity: .9;
-   transform: scale(1.08);
+  transform:scale(1.08);
 }
 
 .card-save-btn:active .card-save-icon {
-   opacity: 0.9;  
-   transform: scale(0.95);
+  transform:scale(0.95);
 }
 
 .card-save-btn:focus,
