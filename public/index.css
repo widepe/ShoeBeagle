@@ -490,7 +490,7 @@ html[data-theme="dark"] .sidebar-placeholder{
 
 #modeToggleBtn img{
   display:block;
-  height:calc(var(--btn-h) * 0.9);
+  height:calc(var(--btn-h) * 0.8);
   width:auto;
 }
 
@@ -874,7 +874,7 @@ button{
 }
 
 .mode-toggle-btn img{  
-  height:calc(var(--btn-h) * 0.7);
+  height:calc(var(--btn-h) * 0.8);
   width:auto;
   display:block;
 }
