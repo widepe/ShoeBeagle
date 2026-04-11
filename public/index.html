@@ -1917,6 +1917,7 @@ function syncPriceRangeUI() {
 function syncPanelControls() {
   panelStoreSelects.forEach((selectEl) => {
     selectEl.value = selectedStore || "";
+    selectEl.classList.toggle("status-control-active", !!selectedStore);
   });
 panelShoeTypeOptions.forEach((option) => {
   const isOn = option.getAttribute("data-panel-shoetype") === selectedShoeType;
@@ -2840,6 +2841,8 @@ panelStoreSelects.forEach((storeSelectEl) => {
     panelStoreSelects.forEach((otherSelect) => {
       if (otherSelect !== storeSelectEl) otherSelect.value = selectedStore;
     });
+
+    syncPanelControls();
 
 if (selectedStore) {
       exitFavoritesView();
