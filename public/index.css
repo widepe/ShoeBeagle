@@ -873,8 +873,8 @@ button{
   justify-content:center;
 }
 
-.mode-toggle-btn img{
-  height:calc(var(--btn-h) * 0.9);
+.mode-toggle-btn img{  
+  height:calc(var(--btn-h) * 0.7);
   width:auto;
   display:block;
 }
