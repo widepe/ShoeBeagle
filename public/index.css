@@ -1609,7 +1609,6 @@ html[data-theme="dark"] .specs-overlay-modal{
   top:0px;
   right:0px;
   color:#aaa;
-  opacity: 1;
   background:none;
   border:none;
   appearance:none;
@@ -1638,11 +1637,13 @@ html[data-theme="dark"] .specs-overlay-modal{
 }
 
 .card-save-btn:hover .card-save-icon {
-  transform: scale(1.08);
+   opacity: .9;
+   transform: scale(1.08);
 }
 
 .card-save-btn:active .card-save-icon {
-  transform: scale(0.95);
+   opacity: 0.9;  
+   transform: scale(0.95);
 }
 
 .card-save-btn:focus,
