@@ -223,7 +223,7 @@ function mapRowToDeal(row) {
     listingURL: String(row.listing_url || "").trim(),
     imageURL: String(row.image_url || "").trim(),
     gender: normalizeGender(row.gender || ""),
-    shoeType: String(row.surface || "").trim(),
+    shoeType: "",
   };
 }
 
@@ -287,7 +287,6 @@ module.exports = async function handler(req, res) {
         brand,
         model,
         gender,
-        surface,
         store,
         sale_price,
         original_price,
