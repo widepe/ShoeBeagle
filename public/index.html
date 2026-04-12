@@ -974,6 +974,14 @@ clearFiltersBtns.forEach((btn) => {
         });
       }
 
+
+function applySuggestionAndSearch(value) {
+  if (!qInput) return;
+  qInput.value = value;
+  closeSuggestions();
+  updateFetchReady();
+  handleSearch();
+}      
       if (qInput) {
   qInput.addEventListener("input", () => {
     const typed = qInput.value.trim();
