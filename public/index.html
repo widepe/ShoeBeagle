@@ -1003,86 +1003,110 @@ clearFiltersBtns.forEach((btn) => {
       // Suggestions index = deals.json ONLY
       // ===============================
       const dealsSuggest = {
-        ready: false,
-        brandNormToDisplay: new Map(),
-        brandToModels: new Map(),
-        allModelsNormToDisplay: new Map(),
-        modelNormToBrandDisplay: new Map(),
-        brands: [],
-        allModels: [],
-      };
+  ready: false,
+  brandNormToDisplay: new Map(),
+  brandToModels: new Map(),
+  allModelsNormToDisplay: new Map(),
+  modelNormToBrandDisplay: new Map(),
+  allGendersNormToDisplay: new Map(),
+  brands: [],
+  allModels: [],
+  allGenders: [],
+};
 
-      async function loadDealsSuggestionIndex() {
-        try {
-          const url = blobUrl("deals.json");
-          const res = await fetch(
-            `${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`,
-            { cache: "no-store" }
-          );
-          if (!res.ok) throw new Error(`deals.json fetch failed: ${res.status}`);
+async function loadDealsSuggestionIndex() {
+  try {
+    const res = await fetch(
+      `/api/search-index?cb=${Date.now()}`,
+      { cache: "no-store" }
+    );
 
-          const data = await res.json();
-          const deals = Array.isArray(data?.deals) ? data.deals : [];
-          lastAllDeals = deals.slice();
+    if (!res.ok) {
+      throw new Error(`/api/search-index failed: ${res.status}`);
+    }
 
-          dealsSuggest.brandNormToDisplay.clear();
-          dealsSuggest.brandToModels.clear();
-          dealsSuggest.allModelsNormToDisplay.clear();
-          dealsSuggest.modelNormToBrandDisplay.clear();
+    const data = await res.json();
+    const deals = Array.isArray(data?.deals) ? data.deals : [];
 
-          for (const d of deals) {
-            const brandRaw = String(d?.brand || "").trim();
-            const modelRaw = String(d?.model || "").trim();
+    lastAllDeals = deals.slice();
 
-            if (brandRaw) {
-              const bNorm = normalizeStr(brandRaw);
-              if (!dealsSuggest.brandNormToDisplay.has(bNorm)) {
-                dealsSuggest.brandNormToDisplay.set(bNorm, brandRaw);
-              }
-              const bDisplay = dealsSuggest.brandNormToDisplay.get(bNorm);
+    dealsSuggest.brandNormToDisplay.clear();
+    dealsSuggest.brandToModels.clear();
+    dealsSuggest.allModelsNormToDisplay.clear();
+    dealsSuggest.modelNormToBrandDisplay.clear();
+    dealsSuggest.allGendersNormToDisplay.clear();
 
-              if (!dealsSuggest.brandToModels.has(bDisplay)) {
-                dealsSuggest.brandToModels.set(bDisplay, new Map());
-              }
+    for (const d of deals) {
+      const brandRaw = String(d?.brand || "").trim();
+      const modelRaw = String(d?.model || "").trim();
+      const genderRaw = normalizeGender(d?.gender || "");
 
-              if (modelRaw) {
-                const mNorm = normalizeStr(modelRaw);
-                const modelMap = dealsSuggest.brandToModels.get(bDisplay);
-                if (!modelMap.has(mNorm)) modelMap.set(mNorm, modelRaw);
+      if (brandRaw) {
+        const bNorm = normalizeStr(brandRaw);
+        if (!dealsSuggest.brandNormToDisplay.has(bNorm)) {
+          dealsSuggest.brandNormToDisplay.set(bNorm, brandRaw);
+        }
 
-                if (!dealsSuggest.modelNormToBrandDisplay.has(mNorm)) {
-                  dealsSuggest.modelNormToBrandDisplay.set(mNorm, bDisplay);
-                }
-              }
-            }
+        const bDisplay = dealsSuggest.brandNormToDisplay.get(bNorm);
 
-            if (modelRaw) {
-              const mNorm = normalizeStr(modelRaw);
-              if (!dealsSuggest.allModelsNormToDisplay.has(mNorm)) {
-                dealsSuggest.allModelsNormToDisplay.set(mNorm, modelRaw);
-              }
-            }
+        if (!dealsSuggest.brandToModels.has(bDisplay)) {
+          dealsSuggest.brandToModels.set(bDisplay, new Map());
+        }
+
+        if (modelRaw) {
+          const mNorm = normalizeStr(modelRaw);
+          const modelMap = dealsSuggest.brandToModels.get(bDisplay);
+
+          if (!modelMap.has(mNorm)) {
+            modelMap.set(mNorm, modelRaw);
           }
 
-          dealsSuggest.brands = Array.from(dealsSuggest.brandNormToDisplay.values()).sort((a, b) =>
-            a.localeCompare(b)
-          );
-          dealsSuggest.allModels = Array.from(dealsSuggest.allModelsNormToDisplay.values()).sort((a, b) =>
-            a.localeCompare(b)
-          );
-          dealsSuggest.ready = true;
-          syncStoreOptions();
-
-          renderDailyDealsView({ resetPage: true, append: false });
-          
-        } catch (e) {
-          console.error("[suggestions] Failed to build deals.json suggestion index:", e?.message || String(e));
-          dealsSuggest.ready = false;
-          dealsSuggest.brands = [];
-          dealsSuggest.allModels = [];
+          if (!dealsSuggest.modelNormToBrandDisplay.has(mNorm)) {
+            dealsSuggest.modelNormToBrandDisplay.set(mNorm, bDisplay);
+          }
         }
       }
 
+      if (modelRaw) {
+        const mNorm = normalizeStr(modelRaw);
+        if (!dealsSuggest.allModelsNormToDisplay.has(mNorm)) {
+          dealsSuggest.allModelsNormToDisplay.set(mNorm, modelRaw);
+        }
+      }
+
+      if (genderRaw) {
+        const gNorm = normalizeStr(genderRaw);
+        if (!dealsSuggest.allGendersNormToDisplay.has(gNorm)) {
+          dealsSuggest.allGendersNormToDisplay.set(gNorm, genderRaw);
+        }
+      }
+    }
+
+    dealsSuggest.brands = Array.from(dealsSuggest.brandNormToDisplay.values()).sort((a, b) =>
+      a.localeCompare(b)
+    );
+
+    dealsSuggest.allModels = Array.from(dealsSuggest.allModelsNormToDisplay.values()).sort((a, b) =>
+      a.localeCompare(b)
+    );
+
+    dealsSuggest.allGenders = Array.from(dealsSuggest.allGendersNormToDisplay.values()).sort((a, b) =>
+      a.localeCompare(b)
+    );
+
+    dealsSuggest.ready = true;
+
+    syncStoreOptions();
+    renderDailyDealsView({ resetPage: true, append: false });
+  } catch (e) {
+    console.error("suggestions: Failed to build /api/search-index suggestion index", e?.message || String(e));
+    dealsSuggest.ready = false;
+    dealsSuggest.brands = [];
+    dealsSuggest.allModels = [];
+    dealsSuggest.allGenders = [];
+    lastAllDeals = [];
+  }
+}
       function inferDefinitiveBrandFromPartialModel(modelTyped) {
         if (!dealsSuggest.ready) return "";
         const q = squashStr(modelTyped);
@@ -1401,108 +1425,102 @@ clearFiltersBtns.forEach((btn) => {
       }
 
       function buildUnifiedSuggestions(typed) {
-        if (!dealsSuggest.ready) return { items: [], mode: "model", brand: "" };
+  if (!dealsSuggest.ready) return { items: [], mode: "model", brand: "" };
 
-        const t = String(typed || "").trim();
-        if (!t) return { items: [], mode: "model", brand: "" };
+  const t = String(typed || "").trim();
+  if (!t) return { items: [], mode: "model", brand: "" };
 
-        const hasSpace = /\s/.test(t);
-        if (!hasSpace) {
-          const brandHits = filterSuggestions(dealsSuggest.brands, t, 6);
+  const hasSpace = /\s/.test(t);
 
-          if (brandHits.length) {
-            const modelHits = filterSuggestions(dealsSuggest.allModels, t, 6);
+  if (!hasSpace) {
+    const brandHits = filterSuggestions(dealsSuggest.brands, t, 6);
+    const modelHits = filterSuggestions(dealsSuggest.allModels, t, 6);
+    const genderHits = filterSuggestions(dealsSuggest.allGenders, t, 4);
 
-            const out = [];
-            const seen = new Set();
+    const out = [];
+    const seen = new Set();
 
-            const add = (v) => {
-              const key = squashStr(String(v || ""));
-              if (!key) return;
-              if (seen.has(key)) return;
-              seen.add(key);
-              out.push(v);
-            };
+    const add = (v) => {
+      const key = squashStr(String(v));
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      out.push(v);
+    };
 
-            brandHits.forEach(add);
+    brandHits.forEach(add);
+    modelHits.forEach(add);
+    genderHits.forEach(add);
 
-            for (const m of modelHits) {
-              if (out.length >= 6) break;
-              add(m);
-            }
+    return {
+      items: out.slice(0, 8),
+      mode: "brandFirst",
+      brand: "",
+    };
+  }
 
-            return { items: out.slice(0, 6), mode: "brandFirst", brand: "" };
-          }
-        }
+  const { brand, rest } = detectBrandPrefix(t);
 
-        const { brand, rest } = detectBrandPrefix(t);
+  if (brand) {
+    const pool = dealsSuggest.brandToModels.has(brand)
+      ? Array.from(dealsSuggest.brandToModels.get(brand).values())
+      : [];
 
-        if (brand) {
-          const pool = dealsSuggest.brandToModels.has(brand)
-            ? Array.from(dealsSuggest.brandToModels.get(brand).values())
-            : [];
+    if (!rest) {
+      const modelsShort = sortShortFirst(pool).slice(0, 11);
+      return {
+        items: [brand, ...modelsShort.map((m) => `${brand} ${m}`)],
+        mode: "brandmodel",
+        brand,
+      };
+    }
 
-          if (!rest) {
-            const modelsShort = sortShortFirst(pool).slice(0, 11);
-            return {
-              items: [brand, ...modelsShort.map((m) => `${brand} ${m}`)],
-              mode: "brandmodel",
-              brand,
-            };
-          }
+    const matches = filterSuggestions(pool, rest, 6);
+    const ordered = sortShortFirst(matches);
 
-          const matches = filterSuggestions(pool, rest, 6);
-          const ordered = sortShortFirst(matches);
-          return {
-            items: ordered.map((m) => `${brand} ${m}`),
-            mode: "brandmodel",
-            brand,
-          };
-        }
+    return {
+      items: ordered.map((m) => `${brand} ${m}`),
+      mode: "brandmodel",
+      brand,
+    };
+  }
 
-        const matches = filterSuggestions(dealsSuggest.allModels, t, 6);
-        return { items: matches, mode: "model", brand: "" };
-      }
+  const modelHits = filterSuggestions(dealsSuggest.allModels, t, 6);
+  const genderHits = filterSuggestions(dealsSuggest.allGenders, t, 4);
 
+  return {
+    items: dedupeSuggestionItems([...modelHits, ...genderHits]).slice(0, 8),
+    mode: "model",
+    brand: "",
+  };
+}
       function splitBrandModelFromPicked(picked) {
-        const s = String(picked || "").trim();
-        if (!s) return { brand: "", model: "" };
-        if (!dealsSuggest.ready) return { brand: "", model: s };
+  const s = String(picked || "").trim();
+  if (!s) return { brand: "", model: "" };
 
-        let bestBrand = "";
-        for (const b of dealsSuggest.brands) {
-          const bNorm = normalizeStr(b);
-          const sNorm = normalizeStr(s);
-          if (sNorm === bNorm || sNorm.startsWith(bNorm + " ")) {
-            if (b.length > bestBrand.length) bestBrand = b;
-          }
-        }
+  const normalizedPickedGender = normalizeGender(s);
+  if (normalizedPickedGender && ["mens", "womens", "unisex", "kids"].includes(normalizedPickedGender)) {
+    return { brand: "", model: normalizedPickedGender };
+  }
 
-        if (bestBrand) {
-          const model = s.slice(bestBrand.length).trim();
-          return { brand: bestBrand, model };
-        }
+  if (!dealsSuggest.ready) return { brand: "", model: s };
 
-        return { brand: "", model: s };
-      }
+  let bestBrand = "";
 
-      function applySuggestionAndSearch(value) {
-        const bm = splitBrandModelFromPicked(value);
-        if (bm.brand && bm.model) qInput.value = `${bm.brand} ${bm.model}`.trim();
-        else qInput.value = String(value || "").trim();
+  for (const b of dealsSuggest.brands) {
+    const bNorm = normalizeStr(b);
+    const sNorm = normalizeStr(s);
+    if (sNorm === bNorm || sNorm.startsWith(bNorm + " ")) {
+      if (b.length > bestBrand.length) bestBrand = b;
+    }
+  }
 
-        closeSuggestions();
-        updateFetchReady();
-        if (fetchBtn) fetchBtn.setAttribute("aria-disabled", "false");
+  if (bestBrand) {
+    const model = s.slice(bestBrand.length).trim();
+    return { brand: bestBrand, model };
+  }
 
-        setTimeout(() => {
-          if (form && typeof form.requestSubmit === "function") {
-            form.requestSubmit();
-          } else if (form) {
-            form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-          }
-        }, 0);
-      }
+  return { brand: "", model: s };
+}
 
 function normalizeQueryForCommand(value) {
   return String(value || "")
@@ -1734,7 +1752,7 @@ typedRaw = typedRaw
   .trim();
 
   if (!typedRaw) {
-    setStatusSummary("Please enter a brand and/or a model.");
+    setStatusSummary("Please enter a brand, model, or gender.");
     setStatusMeta([]);
     setStatusSortVisibility(false);
     return;
