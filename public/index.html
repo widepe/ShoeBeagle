@@ -1754,48 +1754,23 @@ async function handleSearch() {
     }
   }
 
-  let typedRaw = sanitizeInput(qInput.value);
+  const rawSearch = sanitizeInput(qInput.value).trim();
 
-// remove filter words from search string
-typedRaw = typedRaw
-  .replace(/\b(mens|men|mans|womens|women|womans|trail|road|track|xc)\b/g, "")
-  .trim();
+// apply inline filters (mens, trail, etc.)
+if (inlineFilters.gender) selectedGender = inlineFilters.gender;
+if (inlineFilters.surface) selectedShoeType = inlineFilters.surface;
 
-  if (!typedRaw) {
-    setStatusSummary("Please enter a brand, model, or gender.");
-    setStatusMeta([]);
-    setStatusSortVisibility(false);
-    return;
-  }
-
-  let { brand, model } = splitBrandModelFromPicked(typedRaw);
-// 🔥 apply inline filters (mens, trail, etc.)
-if (inlineFilters.gender) {
-  selectedGender = inlineFilters.gender;
+if (!rawSearch) {
+  setStatusSummary("Please enter a brand, model, or gender.");
+  setStatusMeta();
+  setStatusSortVisibility(false);
+  return;
 }
 
-if (inlineFilters.surface) {
-  selectedShoeType = inlineFilters.surface;
-}  if (!brand && model && dealsSuggest.ready) {
-    const exactBrand = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(model)) || "";
-    const inferred = exactBrand || inferDefinitiveBrandFromPartialModel(model);
-    if (inferred) brand = inferred;
-  }
-
-  if (brand) brand = resolveClosestBrand(brand);
-
-  const displayQuery = [brand, model].filter(Boolean).join(" ").trim();
-
-  if (!displayQuery) {
-    setStatusSummary("Please enter a brand and/or a model.");
-    setStatusMeta([]);
-    setStatusSortVisibility(false);
-    return;
-  }
-
-  currentSearch = { brand, model };
+const displayQuery = rawSearch;
+currentSearch = { brand: "", model: rawSearch };
   setStatusSummary("Searching deals…");
-  setStatusMeta([]);
+  setStatusMeta();
   setStatusSortVisibility(true);
   resultsEl.innerHTML = "";
 
@@ -1810,104 +1785,62 @@ if (inlineFilters.surface) {
   } catch (err) {
     console.error("Search error:", err);
     setStatusSummary("Search failed. Please try again.");
-    setStatusMeta([]);
+    setStatusMeta();
     setStatusSortVisibility(true);
     if (dailyDeals) dailyDeals.style.display = "block";
     return;
   }
 
-  const results = data && data.results ? data.results : [];
-  lastSearchResults = results;
-  syncPanelControls();
+const results = data && data.results ? data.results : [];
+lastSearchResults = results;
+syncPanelControls();
 
-  if (!results.length) {
-    if (brand && model && dealsSuggest.ready) {
-      const modelNorm = normalizeStr(model);
-      let actualBrand = dealsSuggest.modelNormToBrandDisplay.get(modelNorm) || "";
-
-      if (!actualBrand) {
-        for (const [key, val] of dealsSuggest.modelNormToBrandDisplay.entries()) {
-          if (key.includes(modelNorm) && modelNorm.length >= 4) {
-            actualBrand = val;
-            break;
-          }
-        }
-      }
-
-      if (actualBrand && normalizeStr(actualBrand) !== normalizeStr(brand)) {
-        const correctedQuery = `${actualBrand} ${model}`;
-
-        let correctedData;
-        try {
-          correctedData = await runApiSearch(correctedQuery);
-        } catch (err) {
-          console.error("Corrected search error:", err);
-          setStatusSummary(`No results found for ${displayQuery}`);
-          setStatusMeta([]);
-          setStatusSortVisibility(true);
-          if (dailyDeals) dailyDeals.style.display = "block";
-          return;
-        }
-
-        const correctedResults = correctedData && correctedData.results ? correctedData.results : [];
-
-        if (correctedResults.length) {
-          lastSearchResults = correctedResults;
-          currentSearch = { brand: actualBrand, model };
-          syncPanelControls();
-          renderFilteredResults({ resetPage: true, append: false, correctedFrom: displayQuery });
-          return;
-        }
-      }
-    }
-
-    setStatusSummary(`No results found for ${displayQuery}`);
-    setStatusMeta([]);
-    setStatusSortVisibility(true);
-    if (dailyDeals) dailyDeals.style.display = "block";
-    return;
-  }
-
-  renderFilteredResults({ resetPage: true, append: false });
+if (!results.length) {
+  setStatusSummary(`No results found for ${displayQuery}`);
+  setStatusMeta();
+  setStatusSortVisibility(true);
+  if (dailyDeals) dailyDeals.style.display = "block";
+  return;
 }
+
+renderFilteredResults({ resetPage: true, append: false });
       
 
-      if (qInput) {
-        qInput.addEventListener("input", () => {
-          const typed = qInput.value.trim();
+if (qInput) {
+  qInput.addEventListener("input", () => {
+    const typed = qInput.value.trim();
 
-          if (!typed || typed.length < 1) {
-            closeSuggestions();
-            updateFetchReady();
-            return;
-          }
+    updateFetchReady();
 
-          if (!dealsSuggest.ready) {
-            closeSuggestions();
-            updateFetchReady();
-            return;
-          }
+    if (!typed || typed.length < 1) {
+      closeSuggestions();
+      return;
+    }
 
-          const built = buildUnifiedSuggestions(typed);
-          suggestionState.mode = built.mode;
+    if (!dealsSuggest.ready) {
+      closeSuggestions();
+      return;
+    }
 
-          const deduped = dedupeSuggestionItems(built.items);
+    const built = buildUnifiedSuggestions(typed);
+    suggestionState.mode = built.mode;
 
-          renderSuggestions(deduped, (value) => applySuggestionAndSearch(value));
-          updateFetchReady();
-        });
+    const deduped = dedupeSuggestionItems(built.items);
+    renderSuggestions(deduped, (value) => applySuggestionAndSearch(value));
+  });
 
-        qInput.addEventListener("keydown", (e) => {
-          handleSuggestionKeys(e, (value) => applySuggestionAndSearch(value));
-        });
+  qInput.addEventListener("keydown", (e) =>
+    handleSuggestionKeys(e, (value) => applySuggestionAndSearch(value))
+  );
 
-        qInput.addEventListener("blur", () => {
-          setTimeout(() => {
-            if (!pickingSuggestion) closeSuggestions();
-          }, 140);
-        });
-        qInput.addEventListener("click", () => qInput.select());
-      }
+  qInput.addEventListener("blur", () =>
+    setTimeout(() => {
+      if (!pickingSuggestion) closeSuggestions();
+    }, 140)
+  );
+
+  qInput.addEventListener("click", () => qInput.select());
+}
 
       document.addEventListener("click", (e) => {
         const inside =
@@ -3346,141 +3279,8 @@ if (discount.hasDiscount && discount.percent >= 30) {
         });
       }
 
-      async function handleSearchSubmit(e) {
-  if (e) e.preventDefault();
-
-  const rawQuery = (qInput?.value || "").trim().toLowerCase();
-
-  if (rawQuery === "all" || rawQuery === "all deals") {
-    renderAllDealsView({ resetPage: true, append: false });
-    return;
-  }
-
-  if (rawQuery === "daily" || rawQuery === "daily deals") {
-    renderDailyDealsView({ resetPage: true, append: false });
-    return;
-  }
-
-  if (rawQuery === "favs" || rawQuery === "favorites") {
-    renderFavoritesView({ resetPage: true, append: false });
-    return;
-  }
-
-  const typedRaw = sanitizeInput(qInput.value);
-  updateFetchReady();
-
-  if (!typedRaw) {
-    setStatusSummary("Please enter a brand and/or a model.");
-    setStatusMeta([]);
-    setStatusSortVisibility(false);
-    return;
-  }
-
-  let { brand, model } = splitBrandModelFromPicked(typedRaw);
-        if (!brand && model && dealsSuggest.ready) {
-          const exactBrand = dealsSuggest.modelNormToBrandDisplay.get(normalizeStr(model)) || "";
-          const inferred = exactBrand || inferDefinitiveBrandFromPartialModel(model);
-          if (inferred) brand = inferred;
-        }
-
-        if (brand) brand = resolveClosestBrand(brand);
-
-        const displayQuery = [brand, model].filter(Boolean).join(" ").trim();
- if (!displayQuery) {
-  setStatusSummary("Please enter a brand and/or a model.");
-  setStatusMeta([]);
-  setStatusSortVisibility(false);
-  return;
-}
-
-        currentSearch = { brand, model };
-   setStatusSummary("Searching deals…");
-setStatusMeta([]);
-setStatusSortVisibility(true);
-        resultsEl.innerHTML = "";
-
-        const pager = document.querySelector(".pager");
-        if (pager) pager.style.display = "none";
-        if (loadMoreWrap) loadMoreWrap.style.display = "none";
-        if (dailyDeals) dailyDeals.style.display = "none";
-
-        let data;
-        try {
-          const res = await fetch("api/search?" + new URLSearchParams({ query: displayQuery }));
-          data = await res.json();
-        } catch (err) {
-          console.error("Search error:", err);
-          setStatusSummary("Search failed. Please try again.");
-setStatusMeta([]);
-setStatusSortVisibility(true);
-          if (dailyDeals) dailyDeals.style.display = "block";
-          return;
-        }
-
-        const results = data && data.results ? data.results : [];
-        lastSearchResults = results;
-        syncPanelControls();
-        
-        if (!results.length) {
-          if (brand && model && dealsSuggest.ready) {
-            const modelNorm = normalizeStr(model);
-            let actualBrand = dealsSuggest.modelNormToBrandDisplay.get(modelNorm) || "";
-
-            if (!actualBrand) {
-              for (const [key, val] of dealsSuggest.modelNormToBrandDisplay.entries()) {
-                if (key.includes(modelNorm) && modelNorm.length >= 4) {
-                  actualBrand = val;
-                  break;
-                }
-              }
-            }
-
-            if (actualBrand && normalizeStr(actualBrand) !== normalizeStr(brand)) {
-              const correctedQuery = `${actualBrand} ${model}`;
-
-              let correctedData;
-              try {
-                const correctedRes = await fetch("api/search?" + new URLSearchParams({ query: correctedQuery }));
-                correctedData = await correctedRes.json();
-              } catch (err) {
-                console.error("Corrected search error:", err);
-                setStatusSummary(`No results found for ${displayQuery}`);
-setStatusMeta([]);
-setStatusSortVisibility(true);
-                if (dailyDeals) dailyDeals.style.display = "block";
-                return;
-              }
-
-              const correctedResults = correctedData && correctedData.results ? correctedData.results : [];
-
-              if (correctedResults.length) {
-                currentSearch = { brand: actualBrand, model };
-                lastSearchResults = correctedResults;
-                syncPanelControls();
-                
-               renderFilteredResults({
-  resetPage: true,
-  append: false,
-  correctedFrom: displayQuery,
-});
-return;
-              }
-            }
-          }
-
-    setStatusSummary(`No results found for ${displayQuery}`);
-setStatusMeta([]);
-setStatusSortVisibility(true);
-if (pager) pager.style.display = "none";
-if (loadMoreWrap) loadMoreWrap.style.display = "none";
-if (dailyDeals) dailyDeals.style.display = "block";
-return;
-        }
-
-        renderFilteredResults({ resetPage: true, append: false });
-      }
-
-      form.addEventListener("submit", handleSearchSubmit);
+    
+      form.addEventListener("submit", handleSearch)
 
       syncPanelControls();
       syncColumnsButtons();
