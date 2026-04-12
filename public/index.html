@@ -2382,25 +2382,24 @@ function getSortLabel(value) {
   return "Default";
 }
 
-function setStatusMeta(extraParts = [], { includeFilters = true } = {}) {
+function setStatusMeta(extraParts = [], includeFilters = true) {
   if (!statusAppliedFiltersEl) return;
 
   const filterParts = includeFilters ? getAppliedFilterLabels() : [];
   const leadingParts = [...extraParts];
-
   let text = "";
 
   if (filterParts.length) {
-    const filterText = `Filters: ${filterParts.join(" • ")}`;
+    const filterText = `Filters: ${filterParts.join(" · ")}`;
     text = leadingParts.length
-      ? `${leadingParts.join(" • ")} • ${filterText}`
+      ? `${leadingParts.join(" · ")} · ${filterText}`
       : filterText;
   } else if (includeFilters) {
     text = leadingParts.length
-      ? `${leadingParts.join(" • ")} • Filters off`
+      ? `${leadingParts.join(" · ")} · Filters off`
       : "Filters off";
   } else {
-    text = leadingParts.join(" • ");
+    text = leadingParts.join(" · ");
   }
 
   statusAppliedFiltersEl.textContent = text;
