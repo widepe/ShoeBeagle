@@ -684,11 +684,9 @@ html[data-theme="dark"] input[type="search"]{
 .input-clear{
   position:absolute;
   right:calc(var(--input-h) * 0.55 + 1rem * var(--top-scale));
- /* top:50%;
-  transform:translateY(-50%); */
   border:none;
   background:transparent;
-  padding:0;
+  padding:2px;
   cursor:pointer;
   display:none;
   font-size:calc(3rem * var(--top-scale));
