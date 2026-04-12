@@ -1016,10 +1016,9 @@ clearFiltersBtns.forEach((btn) => {
 
 async function loadDealsSuggestionIndex() {
   try {
-    const res = await fetch(
-      `/api/search-index?cb=${Date.now()}`,
-      { cache: "no-store" }
-    );
+    const res = await fetch(`/api/search-index?cb=${Date.now()}`, {
+      cache: "no-store",
+    });
 
     if (!res.ok) {
       throw new Error(`/api/search-index failed: ${res.status}`);
@@ -1034,7 +1033,11 @@ async function loadDealsSuggestionIndex() {
     dealsSuggest.brandToModels.clear();
     dealsSuggest.allModelsNormToDisplay.clear();
     dealsSuggest.modelNormToBrandDisplay.clear();
-    dealsSuggest.allGendersNormToDisplay.clear();
+    dealsSuggest.allGendersNormToDisplay?.clear?.();
+
+    if (!dealsSuggest.allGendersNormToDisplay) {
+      dealsSuggest.allGendersNormToDisplay = new Map();
+    }
 
     for (const d of deals) {
       const brandRaw = String(d?.brand || "").trim();
@@ -1090,21 +1093,28 @@ async function loadDealsSuggestionIndex() {
       a.localeCompare(b)
     );
 
-    dealsSuggest.allGenders = Array.from(dealsSuggest.allGendersNormToDisplay.values()).sort((a, b) =>
-      a.localeCompare(b)
-    );
+    dealsSuggest.allGenders = Array.from(
+      dealsSuggest.allGendersNormToDisplay.values()
+    ).sort((a, b) => a.localeCompare(b));
 
     dealsSuggest.ready = true;
 
     syncStoreOptions();
+    updateFetchReady();
     renderDailyDealsView({ resetPage: true, append: false });
   } catch (e) {
-    console.error("suggestions: Failed to build /api/search-index suggestion index", e?.message || String(e));
+    console.error(
+      "suggestions: Failed to build /api/search-index suggestion index",
+      e?.message || String(e)
+    );
+
     dealsSuggest.ready = false;
     dealsSuggest.brands = [];
     dealsSuggest.allModels = [];
     dealsSuggest.allGenders = [];
     lastAllDeals = [];
+
+    updateFetchReady();
   }
 }
       function inferDefinitiveBrandFromPartialModel(modelTyped) {
