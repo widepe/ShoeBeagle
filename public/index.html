@@ -1084,7 +1084,7 @@ async function loadDealsSuggestionIndex() {
     for (const d of deals) {
       const brandRaw = String(d?.brand || "").trim();
       const modelRaw = String(d?.model || "").trim();
-      const genderRaw = normalizeGender(d?.gender || "");
+      const genderRaw = String(d?.gender || "").trim().toLowerCase();
 
       if (brandRaw) {
         const bNorm = normalizeStr(brandRaw);
