@@ -974,6 +974,48 @@ clearFiltersBtns.forEach((btn) => {
         });
       }
 
+      if (qInput) {
+  qInput.addEventListener("input", () => {
+    const typed = qInput.value.trim();
+
+    updateFetchReady();
+
+    if (!typed || typed.length < 1) {
+      closeSuggestions();
+      return;
+    }
+
+    if (!dealsSuggest.ready) {
+      closeSuggestions();
+      return;
+    }
+
+    const built = buildUnifiedSuggestions(typed);
+    suggestionState.mode = built.mode;
+
+    const deduped = dedupeSuggestionItems(built.items);
+    renderSuggestions(deduped, (value) => applySuggestionAndSearch(value));
+  });
+
+  qInput.addEventListener("keydown", (e) =>
+    handleSuggestionKeys(e, (value) => applySuggestionAndSearch(value))
+  );
+
+  qInput.addEventListener("blur", () =>
+    setTimeout(() => {
+      if (!pickingSuggestion) closeSuggestions();
+    }, 140)
+  );
+
+  qInput.addEventListener("click", () => qInput.select());
+}
+
+      document.addEventListener("click", (e) => {
+        const inside =
+          (qSuggestions && qSuggestions.contains(e.target)) ||
+          (qInput && qInput.contains(e.target));
+        if (!inside) closeSuggestions();
+      });
       function isValidRetailerUrl(url) {
         if (!url || url === "#") return false;
         try {
@@ -1806,48 +1848,7 @@ if (!results.length) {
 renderFilteredResults({ resetPage: true, append: false });
       
 
-if (qInput) {
-  qInput.addEventListener("input", () => {
-    const typed = qInput.value.trim();
 
-    updateFetchReady();
-
-    if (!typed || typed.length < 1) {
-      closeSuggestions();
-      return;
-    }
-
-    if (!dealsSuggest.ready) {
-      closeSuggestions();
-      return;
-    }
-
-    const built = buildUnifiedSuggestions(typed);
-    suggestionState.mode = built.mode;
-
-    const deduped = dedupeSuggestionItems(built.items);
-    renderSuggestions(deduped, (value) => applySuggestionAndSearch(value));
-  });
-
-  qInput.addEventListener("keydown", (e) =>
-    handleSuggestionKeys(e, (value) => applySuggestionAndSearch(value))
-  );
-
-  qInput.addEventListener("blur", () =>
-    setTimeout(() => {
-      if (!pickingSuggestion) closeSuggestions();
-    }, 140)
-  );
-
-  qInput.addEventListener("click", () => qInput.select());
-}
-
-      document.addEventListener("click", (e) => {
-        const inside =
-          (qSuggestions && qSuggestions.contains(e.target)) ||
-          (qInput && qInput.contains(e.target));
-        if (!inside) closeSuggestions();
-      });
 
 function formatPriceRangeLabel(value, isMax = false) {
   const n = Number(value) || 1;
