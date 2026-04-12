@@ -1086,6 +1086,8 @@ async function loadDealsSuggestionIndex() {
       const modelRaw = String(d?.model || "").trim();
       const genderRaw = String(d?.gender || "").trim().toLowerCase();
 
+if (brandRaw) console.log("indexing brand:", brandRaw);      
+
       if (brandRaw) {
         const bNorm = normalizeStr(brandRaw);
         if (!dealsSuggest.brandNormToDisplay.has(bNorm)) {
