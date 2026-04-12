@@ -681,6 +681,10 @@ html[data-theme="dark"] input[type="search"]{
 }
 .input-fetch:hover{ fill:#4f8dff; }
 
+.input-fetch:focus {
+  outline: none;
+}
+
 .input-clear{
   position:absolute;
   right:calc(var(--input-h) * 0.55 + 1rem * var(--top-scale));
@@ -1016,6 +1020,10 @@ html[data-theme="dark"] .slide-panel{
   margin-top:0px;
 }
 
+.slide-store-select:focus {
+  outline: none;
+}
+
 html[data-theme="dark"] .slide-store-select{
   background: var(--card-bg);
    color:#f1f1f1;
@@ -1293,6 +1301,10 @@ html[data-theme="dark"] .slide-check-box{
   color:var(--sb-blue);
   padding:0 6px;
   font-size:0.90rem;
+}
+
+.status-sort-select:focus {
+  outline: none;
 }
 
 .status-specs-btn{
