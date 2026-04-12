@@ -80,7 +80,7 @@
 
       <!-- INPUTS -->
       <div class="top-left">
-        <form id="search-form" method="POST" autocomplete="off">
+        <form id="search-form" method="GET" autocomplete="off">
           <!-- unified row -->
           <div class="row" id="mobileSearchRow">
             <div class="input-wrapper">
@@ -1748,7 +1748,8 @@ async function runApiSearch(displayQuery) {
   return res.json();
 }
 
-async function handleSearch() {
+async function handleSearch(e) {
+  if (e) e.preventDefault();
   const rawQuery = (qInput?.value || "").trim();
   const normalizedQuery = normalizeQueryForCommand(rawQuery).replace(/-/g, " ");
   const inlineFilters = extractInlineFilters(normalizedQuery);
