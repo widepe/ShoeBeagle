@@ -114,24 +114,24 @@ module.exports = async function handler(req, res) {
   if (!rateLimit(req, res)) return;
 
   try {
-    const sql = `
-      SELECT
-        brand,
-        model,
-        gender,
-        store,
-        sale_price,
-        original_price,
-        discount_percent,
-        listing_url,
-        image_url,
-        listing_name
-      FROM sb_shoe_deals
-      WHERE COALESCE(brand, '') <> ''
-         OR COALESCE(model, '') <> ''
-      ORDER BY brand ASC, model ASC, sale_price ASC NULLS LAST
-      LIMIT 5000
-    `;
+const sql = `
+  SELECT DISTINCT
+    brand,
+    model,
+    gender,
+    store,
+    sale_price,
+    original_price,
+    discount_percent,
+    listing_url,
+    image_url,
+    listing_name
+  FROM sb_shoe_deals
+  WHERE COALESCE(brand, '') <> ''
+     OR COALESCE(model, '') <> ''
+  ORDER BY brand ASC, model ASC, sale_price ASC NULLS LAST
+  LIMIT 5000
+`;
 
     const { rows } = await pool.query(sql);
     const deals = rows.map(mapRowToDeal);
