@@ -2272,7 +2272,7 @@ function exitFavoritesView() {
 
 function renderDailyDealsView({ resetPage = true, append = false } = {}) {
   exitFavoritesView();
-  if (resetPage) resetFiltersAndSort();
+  resetFiltersAndSort();
   currentSearch = { brand: "", model: "" };
   lastSearchResults = [];
   if (qInput) qInput.value = "";
@@ -2457,9 +2457,9 @@ function updateStatusBar({
 
   setStatusSummary("Marty’s Daily Deals");
   setStatusMeta(
-    [`Showing ${displayedCount} of ${totalBeforeFilters}`, "Filters disabled"],
-    { includeFilters: false }
-  );
+  [`Showing ${displayedCount} of ${totalBeforeFilters}`, "Filters disabled"],
+  false
+);
   setStatusSortVisibility(true);
   return;
 }
