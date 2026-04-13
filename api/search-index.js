@@ -130,7 +130,6 @@ const sql = `
   WHERE COALESCE(brand, '') <> ''
      OR COALESCE(model, '') <> ''
   ORDER BY brand ASC, model ASC, sale_price ASC NULLS LAST
-  LIMIT 50000
 `;
 
     const { rows } = await pool.query(sql);
