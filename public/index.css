@@ -1609,7 +1609,7 @@ html[data-theme="dark"] .specs-overlay-modal{
   justify-content: center; /* Centers horizontally (optional) */
    
   object-fit:cover;
-  background:#fff;
+/*  background:#fff;   */
   border:var(--img-border) solid #cad2e0;
   border-radius:var(--img-radius);
 /*  display:block;     took this out after adding above */
@@ -1619,7 +1619,11 @@ html[data-theme="dark"] .specs-overlay-modal{
   border-color:#445470;
 } 
 
-.card-image img {
+.card-image-wrapper {
+  background: #d5deed;
+}
+
+.card-image-wrapper img:not(.card-save-icon) {
   mix-blend-mode: multiply;
 }
 
