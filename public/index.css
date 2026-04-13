@@ -1612,12 +1612,16 @@ html[data-theme="dark"] .specs-overlay-modal{
   background:#fff;
   border:var(--img-border) solid #cad2e0;
   border-radius:var(--img-radius);
-  display:block;
+/*  display:block;     took this out after adding above */
 }
 
  html[data-theme="dark"] .card img:not(.card-save-icon){
   border-color:#445470;
 } 
+
+.card-image img {
+  mix-blend-mode: multiply;
+}
 
 .card-save-btn {
   position:absolute;
