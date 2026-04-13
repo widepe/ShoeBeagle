@@ -110,8 +110,8 @@ html[data-theme="dark"] .card img:not(.card-save-icon){
   border-color:#3a3a3a;
 }
 
-html[data-theme="dark"] .card-image-wrapper img:not(.card-save-icon){
-  filter:brightness(.8) contrast(1.1);
+html[data-theme="dark"] {
+  --card-image-bg: #2a2f3a;   /* darker neutral */
 }
 
 html[data-theme="dark"] .status-message,
