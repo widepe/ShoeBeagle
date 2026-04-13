@@ -1603,6 +1603,11 @@ html[data-theme="dark"] .specs-overlay-modal{
 .card img:not(.card-save-icon){
   width:100%;
   height:100%;
+
+  display: flex;       /* added this */
+  align-items: center; /* Centers vertically */
+  justify-content: center; /* Centers horizontally (optional) */
+   
   object-fit:cover;
   background:#fff;
   border:var(--img-border) solid #cad2e0;
