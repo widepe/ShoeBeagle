@@ -1737,8 +1737,8 @@ html[data-theme="dark"] .card-tag{
 
 .card-store{
   margin-top:auto;
-  color:rgba(0, 0, 0, 0.7);
-  font-size:var(--card-store-size);
+  color:#aab7cf
+   font-size:var(--card-store-size);
 }
 
 html[data-theme="dark"] .card-store{
