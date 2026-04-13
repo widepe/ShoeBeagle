@@ -25,6 +25,8 @@ html{ -webkit-text-size-adjust:100%; }
   --bg:#fff5f0;
   --card-bg:#d5deedbf;
 
+  --card-image-bg: #ff6f10ff;
+
   --input-bg:#f8f8f8;   /* search and input and check box and drop down backgrounds */
   --sidebar-w: minmax(165px, 180px);   /* sidebar width range */
 
@@ -1609,7 +1611,6 @@ html[data-theme="dark"] .specs-overlay-modal{
   justify-content: center; /* Centers horizontally (optional) */
    
   object-fit:cover;
-/*  background:#fff;   */
   border:var(--img-border) solid #cad2e0;
   border-radius:var(--img-radius);
 /*  display:block;     took this out after adding above */
@@ -1620,7 +1621,7 @@ html[data-theme="dark"] .specs-overlay-modal{
 } 
 
 .card-image-wrapper {
-  background: #d5deed;
+  background: var(--card-image-bg);
 }
 
 .card-image-wrapper img:not(.card-save-icon) {
