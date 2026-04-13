@@ -1622,6 +1622,7 @@ html[data-theme="dark"] .specs-overlay-modal{
 
 .card-image-wrapper {
   background: var(--card-image-bg);
+  border-radius: var(--img-radius);
 }
 
 .card-image-wrapper img:not(.card-save-icon) {
