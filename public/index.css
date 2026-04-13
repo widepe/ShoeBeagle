@@ -111,7 +111,7 @@ html[data-theme="dark"] .card img:not(.card-save-icon){
 }
 
 html[data-theme="dark"] {
-  --card-image-bg: #2a2f3a;   /* darker neutral */
+  --card-image-bg: #e8e5e3;   /* darker neutral */
 }
 
 html[data-theme="dark"] .status-message,
