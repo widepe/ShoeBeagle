@@ -1027,8 +1027,8 @@ html[data-theme="dark"] .slide-panel{
 }
 
 html[data-theme="dark"] .slide-store-select{
-  background:var(--sb-blue);
-  color:var(--card-bg);      
+    background: var(--card-bg);
+    color: var(--sb-blue);
 }
 
 .price-range-filter{
@@ -1334,14 +1334,15 @@ html[data-theme="dark"] .status-sort-label{
   color:#e8e8e8;
 }
 
-html[data-theme="dark"] .status-sort-select{
-background:var(--sb-blue);
-  color:var(--card-bg);   
+html[data-theme="dark"] .status-sort-select{ 
+    background: var(--card-bg);
+    color: var(--sb-blue);
 }
 
 html[data-theme="dark"] .status-specs-btn{
   background:var(--card-bg);
   color:var(--sb-blue);
+   
 }
 
 .filters{
