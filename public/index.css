@@ -1339,6 +1339,11 @@ html[data-theme="dark"] .slide-check-box{
   color:var(--bg);
 }
 
+html[data-theme="dark"].status-control-active{
+  background:var(--sb-blue);
+  color:var(--bg);
+}
+
 html[data-theme="dark"] .status-summary,
 html[data-theme="dark"] .status-applied,
 html[data-theme="dark"] .status-sort-label{
