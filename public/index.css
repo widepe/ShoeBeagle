@@ -893,10 +893,10 @@ button{
   display:block;
   margin:0;
   padding:0;
-  height:calc(var(--btn-h) * 0.7225 * 0.95);
-  width:calc(var(--btn-h) * 0.7225 * 0.95);
-  min-width:calc(var(--btn-h) * 0.7225 * 0.95);
-  max-width:calc(var(--btn-h) * 0.7225 * 0.95);
+  height:calc(var(--btn-h) * 0.7225 * 0.8);
+  width:calc(var(--btn-h) * 0.7225 * 0.8);
+  min-width:calc(var(--btn-h) * 0.7225 * 0.8);
+  max-width:calc(var(--btn-h) * 0.7225 * 0.8);
   transform:none;
   transform-origin:unset;
   cursor:pointer;
