@@ -1761,7 +1761,7 @@ html[data-theme="dark"] .card-store{
 }
 
 html[data-theme="dark"] .card-specs-grid{
-  color:rgba(0, 0, 0, 0.7);
+  color:var(--sb-blue);
 }
 
 .card-price-row{
