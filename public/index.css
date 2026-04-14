@@ -1737,12 +1737,12 @@ html[data-theme="dark"] .card-tag{
 
 .card-store{
   margin-top:auto;
-  color:#aab7cf
-   font-size:var(--card-store-size);
+  color:var(--sb-blue);
+  font-size:var(--card-store-size);
 }
 
 html[data-theme="dark"] .card-store{
-  color:rgba(0, 0, 0, 0.7);
+  color:#aab7cf;
 }
 
 html[data-theme="dark"] .card-specs-grid{
