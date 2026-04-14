@@ -1125,6 +1125,13 @@ html[data-theme="dark"] .slide-store-select{
   box-shadow:none;
 }
 
+.range-title{
+  font-size:0.85rem;
+  font-weight:600;
+  color:var(--sb-blue);
+  text-align:center;
+}
+
 html[data-theme="dark"] .price-range-values{
   color:var(--sb-blue);
 }
