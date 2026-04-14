@@ -1635,16 +1635,15 @@ html[data-theme="dark"] .specs-overlay-modal{
 
 .card img:not(.card-save-icon){
   width:100%;
-  height:100%;
+  /* height:100%; */
 
   display: flex;       /* added this */
   align-items: center; /* Centers vertically */
   justify-content: center; /* Centers horizontally (optional) */
    
   object-fit:cover;
-  border:var(--img-border) solid #cad2e0;
-  border-radius:var(--img-radius);
-/*  display:block;     took this out after adding above */
+  /*border:var(--img-border) solid #cad2e0;
+  border-radius:var(--img-radius); */
 }
 
  html[data-theme="dark"] .card img:not(.card-save-icon){
