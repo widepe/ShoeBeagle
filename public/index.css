@@ -1153,11 +1153,11 @@ html[data-theme="dark"] .price-range-input::-moz-range-track {
 }
 
 html[data-theme="dark"] .price-range-input::-webkit-slider-thumb {
-  background-color: var(--card-bg);
+  background-color: var(--sb-blue);
 }
 
 html[data-theme="dark"] .price-range-input::-moz-range-thumb {
-  background-color: var(--card-bg);
+  background-color: var(--sb-blue);
 }
 
 .slide-check-option{
@@ -1360,9 +1360,13 @@ html[data-theme="dark"] .status-specs-btn{
   background:var(--card-bg);
   color:var(--sb-blue);
 }
-html[data-theme="dark"].status-control-active{
-  background:#e8e8e8;
+html[data-theme="dark"] .status-control-active{
+  background:var(--sb-blue);
   color:var(--bg);
+}
+
+html[data-theme="dark"] .status-control-active option{
+  color:#000; /* ensures dropdown list is readable */
 }
 
 .filters{
