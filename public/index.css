@@ -1339,10 +1339,7 @@ html[data-theme="dark"] .slide-check-box{
   color:var(--bg);
 }
 
-html[data-theme="dark"].status-control-active{
-  background:#e8e8e8;
-  color:var(--bg);
-}
+
 
 html[data-theme="dark"] .status-summary,
 html[data-theme="dark"] .status-applied,
@@ -1358,7 +1355,10 @@ html[data-theme="dark"] .status-sort-select{
 html[data-theme="dark"] .status-specs-btn{
   background:var(--card-bg);
   color:var(--sb-blue);
-   
+}
+html[data-theme="dark"].status-control-active{
+  background:#e8e8e8;
+  color:var(--bg);
 }
 
 .filters{
