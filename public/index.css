@@ -1016,7 +1016,7 @@ html[data-theme="dark"] .slide-panel{
   border:1px solid rgba(0, 0, 0, 0.1);
   border-radius:8px;
   background-color:#eee7e3;
-  color:#2d2d2d;
+  color:var(--sb-blue);
   padding:0 18px;
   font-size:0.90rem;
   margin-top:0px;
