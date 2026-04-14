@@ -184,7 +184,7 @@ html[data-theme="dark"] .slide-divider{
 html[data-theme="dark"] .slide-check-box,
 html[data-theme="dark"] .sb-gender-box{
 background-color:var(--input-bg);
-  border-color:#353e4d;
+  border-color:var(--sb-blue);
 }
 
 html[data-theme="dark"] .pager-btn,
