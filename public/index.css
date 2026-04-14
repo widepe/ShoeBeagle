@@ -1340,7 +1340,7 @@ html[data-theme="dark"] .slide-check-box{
 }
 
 html[data-theme="dark"].status-control-active{
-  background:var(--sb-blue);
+  background:#e8e8e8;
   color:var(--bg);
 }
 
