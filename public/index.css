@@ -1152,14 +1152,6 @@ html[data-theme="dark"] .price-range-fill {
   background: var(--card-bg);
 }
 
-html[data-theme="dark"] .price-range-input::-webkit-slider-runnable-track {
-  background: var(--card-bg);
-}
-
-html[data-theme="dark"] .price-range-input::-moz-range-track {
-  background: var(--card-bg);
-}
-
 html[data-theme="dark"] .price-range-input::-webkit-slider-thumb {
   background-color: var(--sb-blue);
 }
