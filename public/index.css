@@ -20,7 +20,7 @@ html{ -webkit-text-size-adjust:100%; }
 :root{
   --sb-blue:#12375bff;
   --sb-blue-rgb:18, 55, 91;
-  --sb-orange:#ff6f10ff;
+  --sb-orange:#ff6f10d6;
   --sb-black:#000000bf;
   --bg:#fff5f0;
   --card-bg:#d5deedbf;
@@ -1062,7 +1062,7 @@ html[data-theme="dark"] .slide-store-select{
   transform:translateY(-50%);
   height:6px;
   border-radius:999px;
-  background:var(--card-bg);
+  background:#eee7e3;
   left:0;
   width:100%;}
 
