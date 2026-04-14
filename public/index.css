@@ -651,7 +651,7 @@ input[type="text"], input[type="search"]{
   height:var(--input-h);
   padding-right:calc(var(--input-h) * 0.65 + 0.6rem * var(--top-scale));
   padding-left:var(--search-text-inset);
-  border-radius:calc(2rem * var(--top-scale));
+  border-radius:calc(var(--input-h) / 2);
   border:2px solid var(--sb-blue);
   background:#f8f8f8;
   box-shadow:0px 0px 7px rgb(0 0 0 / 15%);
