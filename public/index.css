@@ -1062,18 +1062,14 @@ html[data-theme="dark"] .slide-store-select{
   transform:translateY(-50%);
   height:6px;
   border-radius:999px;
-}
+  background:var(--card-bg);
+  left:0;
+  width:100%;}
 
 .price-range-track{
   left:0;
   right:0;
   background:rgba(var(--sb-blue-rgb) / 0.18);
-}
-
-.price-range-fill{
-  background:var(--sb-blue);
-  left:0;
-  width:100%;
 }
 
 .price-range-input{
@@ -1130,7 +1126,7 @@ html[data-theme="dark"] .slide-store-select{
 }
 
 html[data-theme="dark"] .price-range-values{
-  color:#d6e4ff;
+  color:var(--sb-blue);
 }
 
 html[data-theme="dark"] .price-range-track{
@@ -1140,7 +1136,7 @@ html[data-theme="dark"] .price-range-track{
 html[data-theme="dark"] .price-range-fill,
 html[data-theme="dark"] .price-range-input::-webkit-slider-thumb,
 html[data-theme="dark"] .price-range-input::-moz-range-thumb{
-  background:#9fc1f3;
+  background:var(--card-bg);
 }
 
 .slide-check-option{
