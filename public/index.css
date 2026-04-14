@@ -1135,7 +1135,7 @@ html[data-theme="dark"] .price-range-values{
   color:var(--sb-blue);
 }
 
-html[data-theme="dark"] .price-range-track{
+html[data-theme="dark"] .price-range-track,
 html[data-theme="dark"] .price-range-fill,
 html[data-theme="dark"] .price-range-input::-webkit-slider-thumb,
 html[data-theme="dark"] .price-range-input::-moz-range-thumb{
