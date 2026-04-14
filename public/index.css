@@ -1028,7 +1028,7 @@ html[data-theme="dark"] .slide-panel{
 
 html[data-theme="dark"] .slide-store-select{
   background: var(--card-bg);
-   color:#f1f1f1;
+  color:var(--sb-blue);    
   border-color: none;
 }
 
