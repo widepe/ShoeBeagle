@@ -25,7 +25,7 @@ html{ -webkit-text-size-adjust:100%; }
   --bg:#fff5f0;
   --card-bg:#d5deedbf;
 
-  --card-image-bg: #f8f6f5ff;
+  --card-image-bg: #f2e9e6ff;
 
   --input-bg:#f8f8f8;   /* search and input and check box and drop down backgrounds */
   --sidebar-w: minmax(165px, 180px);   /* sidebar width range */
@@ -111,7 +111,7 @@ html[data-theme="dark"] .card img:not(.card-save-icon){
 }
 
 html[data-theme="dark"] {
-  --card-image-bg: #e8e5e3;   /* darker neutral */
+  --card-image-bg: #e5dddaff;   /* darker neutral */
 }
 
 html[data-theme="dark"] .status-message,
@@ -1652,7 +1652,7 @@ html[data-theme="dark"] .specs-overlay-modal{
 }
 
 .card-image-wrapper img:not(.card-save-icon) {
-  mix-blend-mode: multiply;
+  mix-blend-mode: darken;
 }
 
 .card-save-btn {
