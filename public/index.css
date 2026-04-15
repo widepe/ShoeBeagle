@@ -2061,7 +2061,7 @@ html[data-theme="dark"] .footer{
     width:calc(33.6px * var(--top-scale));
     height:calc(33.6px * var(--top-scale));
   }
-
+/*
 .input-clear{
   position:absolute;
   right:calc(var(--input-h) * 0.55 + 1.5rem * var(--top-scale));
@@ -2080,7 +2080,7 @@ html[data-theme="dark"] .footer{
   color:#888;
   z-index:20;
 }
-
+*/
   #menuBtn{
     flex:0 0 calc(var(--btn-h) * 0.75 * 0.95);
     width:calc(var(--btn-h) * 0.75 * 0.95);
