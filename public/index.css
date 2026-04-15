@@ -678,6 +678,7 @@ html[data-theme="dark"] input[type="search"]{
   width:calc(var(--input-h) * 0.6);
   height:calc(var(--input-h) * 0.6);
   cursor:pointer;
+  padding:2px;
   fill:var(--sb-blue);
   z-index:20;
 }
@@ -689,12 +690,12 @@ html[data-theme="dark"] input[type="search"]{
 
 .input-clear{
   position:absolute;
-  right:calc(var(--input-h) * 0.55 + 1.5rem * var(--top-scale));
+  right:calc(var(--input-h) * 0.55 + 2rem * var(--top-scale));
   top:50%;
   transform:translateY(-50%);
   border:none;
   background:transparent;
-  padding:0;
+  padding:2px;
   cursor:pointer;
   display:none;
   align-items:center;
