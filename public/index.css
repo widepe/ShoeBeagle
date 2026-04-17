@@ -1653,7 +1653,7 @@ html[data-theme="dark"] .specs-overlay-modal{
 }
 
 .card-image-wrapper img:not(.card-save-icon) {
-  mix-blend-mode: multiply;
+  mix-blend-mode: darken;
 }
 
 .card-save-btn {
