@@ -75,7 +75,7 @@ html{ -webkit-text-size-adjust:100%; }
 }
 
 html[data-theme="dark"]{
-  --sb-blue:#9fc1f3;
+  --sb-blue:#b9d0f1;
   --bg:#0c0e11;
   --card-bg:#334455;
 
@@ -650,7 +650,7 @@ form#search-form{
 input[type="text"], input[type="search"]{
   width:100%;
   height:var(--input-h);
-  padding-right:calc(var(--input-h) * 0.65 + 0.6rem * var(--top-scale));
+  padding-right:calc(var(--input-h) * 0.65 + 4rem * var(--top-scale));
   padding-left:var(--search-text-inset);
   border-radius:calc(var(--input-h) / 2);
   border:2px solid var(--sb-blue);
@@ -1690,7 +1690,7 @@ html[data-theme="dark"] .specs-overlay-modal{
 }
 
 .card-save-btn.active .card-save-icon {
-  opacity:0.7;
+  opacity:0.75;
 }
 
 .card-save-btn:hover .card-save-icon {
